@@ -1,0 +1,28 @@
+#!/bin/bash
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd ${script_dir}/../../../ && pwd)"
+export PROJECT_ROOT=${project_root}
+export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
+
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
+cd $PROJECT_ROOT
+pids=()
+./build/bin/use_handlewait 2 0 tcp://127.0.0.1:8899 2 0 0 & # rank 0
+pid=$!
+pids+=("$pid")
+
+./build/bin/use_handlewait 2 1 tcp://127.0.0.1:8899 2 0 0 & # rank 1
+pid=$!
+pids+=("$pid")
+
+ret=0
+for pid in ${pids[@]}; do
+    wait $pid
+    r=$?
+    if [[ $r -ne 0 ]]; then
+        ret=$r
+    fi
+    echo "wait $pid finished"
+done
+exit $ret
