@@ -234,6 +234,7 @@ int32_t aclshmem_finalize()
     ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     delete init_manager;
 #ifdef BACKEND_HYBM
+    memory_manager_destroy();
 #else
     aclshmemi_bootstrap_finalize();
 #endif
