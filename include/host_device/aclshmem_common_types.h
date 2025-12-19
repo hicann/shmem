@@ -79,13 +79,6 @@ enum {
     ACLSHMEM_CMP_LE
 };
 
-/**
- * @brief Reserved for future use.
- */
-typedef struct {
-    int num_contexts;
-} aclshmem_team_config_t;
-
 /**@} */ // end of group_enums
 
 /**
@@ -97,6 +90,8 @@ typedef struct {
  * @brief A typedef of int
 */
 typedef int aclshmem_team_t;
+
+typedef uint64_t aclshmemx_team_uniqueid_t;
 
 /**@} */ // end of group_typedef
 
@@ -119,6 +114,8 @@ struct aclshmem_handle_t {
 #define ACLSHMEM_MAX_PES 16384
 #define ACLSHMEM_MAX_TEAMS 2048
 #define ACLSHMEM_MAX_LOCAL_SIZE (40UL * 1024 * 1024 * 1024)
+
+#define TEAM_CONFIG_PADDING 48
 
 /* arch related */
 #define SCALAR_DATA_CACHELINE_SIZE 64
@@ -157,6 +154,17 @@ constexpr uint64_t GLOBAL_STATE_SIZE = 4UL * 1024UL * 1024UL; // global_state fi
 // synchronization
 typedef int32_t aclshmemi_sync_bit[ACLSHMEMI_SYNCBIT_SIZE / sizeof(int32_t)];
 
+/**
+ * @brief 分组管理配置
+ */
+typedef struct {
+    int32_t version;                      /// 版本号
+    int32_t num_contexts;                 /// 预留字段
+    aclshmemx_team_uniqueid_t uniqueid;   /// 在分组中的唯一id
+    char padding[TEAM_CONFIG_PADDING];    /// 用于补齐结构体到64字节
+} aclshmem_team_config_t;
+static_assert(sizeof(aclshmem_team_config_t) == 64, "aclshmem_team_config_t must be 64 bytes.");
+
 // Team
 typedef struct {
     int mype;           // team view, [0, size]
@@ -164,6 +172,8 @@ typedef struct {
     int stride;         // global view, [1, npes - 1]
     int size;           // team view
     int team_idx;
+    aclshmem_team_config_t config;
+    int32_t pe_mapping[2 * ACLSHMEM_MAX_PES];
 } aclshmemx_team_t;
 
 // mte_config
