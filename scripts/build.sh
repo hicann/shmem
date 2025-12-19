@@ -32,6 +32,7 @@ UNDER_DIR=$PROJECT_ROOT/src/
 BUILD_TYPE=RELEASE
 PYEXPAND_TYPE=OFF
 PACKAGE=OFF
+USE_CXX11_ABI=ON
 
 COMPILE_OPTIONS=""
 
@@ -48,7 +49,7 @@ function fn_build()
     mkdir -p build
 
     cd build
-    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI ..
     make install -j17
     cd -
 }
@@ -147,6 +148,13 @@ function fn_build_googletest()
     cd googletest
 
     rm -rf build && mkdir build && cd build
+    if [ "$USE_CXX11_ABI" == "ON" ]
+    then
+        sed -i '21 a add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)' ../CMakeLists.txt
+    else
+        sed -i '21 a add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)' ../CMakeLists.txt
+    fi
+
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
     cmake --build . --parallel $(nproc)
     cmake --install . > /dev/null
@@ -313,6 +321,14 @@ while [[ $# -gt 0 ]]; do
         -package)
             PACKAGE=ON
             PYEXPAND_TYPE=ON
+            shift
+            ;;
+        -use_cxx11_abi1)
+            USE_CXX11_ABI=ON
+            shift
+            ;;
+        -use_cxx11_abi0)
+            USE_CXX11_ABI=OFF
             shift
             ;;
         *)

@@ -6,7 +6,6 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 
-add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)
 add_subdirectory(device)
 add_subdirectory(host)
 add_subdirectory(include)
@@ -18,11 +17,8 @@ add_executable(aclshmem_unittest $<TARGET_OBJECTS:aclshmem_unittest_host>)
 target_link_directories(aclshmem_unittest PRIVATE
     ${PROJECT_SOURCE_DIR}/3rdparty/googletest/lib
 )
-target_link_libraries(
-    aclshmem_unittest PRIVATE
-    -Wl,--no-as-needed
-    aclshmem
-    -Wl,--as-needed
+set_target_properties(aclshmem_unittest PROPERTIES
+    LINK_FLAGS "-rdynamic"
 )
 
 target_link_libraries(aclshmem_unittest PRIVATE aclshmem_unittest_device gtest gcov aclshmem_unittest_include)

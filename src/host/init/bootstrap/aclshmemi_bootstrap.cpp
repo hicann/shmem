@@ -45,7 +45,11 @@ void aclshmemi_bootstrap_loader()
 
         plugin_hdl = dlopen(plugin_name, RTLD_NOW);
     }
-    dlerror();
+    const char* dl_err = dlerror();
+    if (dl_err != nullptr) {
+        SHM_LOG_ERROR("aclshmemi_bootstrap_loader: load bootstrap so (" << plugin_name << ") failed: " << dl_err);
+        plugin_hdl = nullptr;
+    }
 }
 
 void aclshmemi_bootstrap_free()
