@@ -1,6 +1,6 @@
 ACLSHMEM
 ===
-🔥 [2025/10] ACLSHMEM项目首次上线。
+🔥 [2025/12] ACLSHMEM项目首次上线。
 
 ## 一、什么是ACLSHMEM
 ### 介绍
@@ -227,7 +227,7 @@ AscendC算子调测API是AscendC提供的调试能力，可进行kernel内部的
 1.  fork仓库 & 修改并提交代码
 1.  新建 Pull-Request
 
-详细步骤可参考[贡献指南](docs/CONTRIBUTING.md)
+详细步骤可参考[贡献指南](CONTRIBUTING.md)
 
 ## 六、学习资源
 - [api_demo](docs/api_demo.md)：api调用示例
@@ -237,7 +237,7 @@ AscendC算子调测API是AscendC提供的调试能力，可进行kernel内部的
 - [related_scripts](docs/related_scripts.md)：相关脚本介绍
 - [pythonAPI](docs/pythonAPI.md)：ACLSHMEM对外接口说明
 - [Troubleshooting_FAQs](docs/Troubleshooting_FAQs.md)：使用限制&常见问题
-- [CONTRIBUTING](docs/CONTRIBUTING.md)：如何向ACLSHMEM贡献代码
+- [CONTRIBUTING](CONTRIBUTING.md)：如何向ACLSHMEM贡献代码
 ## 七、参考文档
 - **[CANN社区版文档](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/83RC1alpha002/index/index.html)**
 - **[ACLSHMEM文档](https://shmem-doc.pages.dev/)**

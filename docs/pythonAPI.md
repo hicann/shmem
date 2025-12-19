@@ -39,8 +39,6 @@
     |-|-|
     |返回值|返回初始化状态。返回 ACLSHMEM_STATUS_IS_INITIALIZED 表示初始化已完成|
 
-<<<<<<< HEAD
-=======
 1. 修改将用于初始化的属性中的数据操作引擎类型
     ```python
     def aclshmemx_set_data_op_engine_type(attributes, vaue) -> int
@@ -62,7 +60,6 @@
     |attributes|InitAttr类型，属性集|
     |vaue|int类型，数据操作引擎类型的值|
     |返回值|成功时返回0,失败时返回错误代码|
->>>>>>> 0fd3f0e... bugfix
 
 1. 注册一个Python解密处理程序
     ```python
