@@ -60,6 +60,14 @@ enum data_op_engine_type_t {
 };
 
 /**
+ * @brief Memory type of NPU or host
+ */
+enum aclshmem_mem_type_t {
+    HOST_SIDE = 0, // shmem申请地址为host侧
+    DEVICE_SIDE    // shmem申请地址为device侧
+};
+
+/**
  * @brief signal ops, used by signaler in p2p synchronization
  */
 enum {

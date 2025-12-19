@@ -12,7 +12,7 @@
 #include "utils/aclshmemi_host_types.h"
 #include "utils/aclshmemi_logger.h"
 
-aclshmem_symmetric_heap::aclshmem_symmetric_heap(int pe_id, int pe_size, int dev_id): mype(pe_id), npes(pe_size), device_id(dev_id)
+aclshmem_symmetric_heap::aclshmem_symmetric_heap(int pe_id, int pe_size, int dev_id, aclshmem_mem_type_t mem_type): mype(pe_id), npes(pe_size), device_id(dev_id)
 {
     pid_list.resize(pe_size);
     sdid_list.resize(pe_size);
