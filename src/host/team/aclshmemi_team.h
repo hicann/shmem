@@ -11,9 +11,16 @@
 #define ACLSHMEMI_TEAM_H
 
 #include "stdint.h"
+#include "host_device/aclshmem_common_types.h"
 
 int32_t aclshmemi_team_init(int32_t rank, int32_t size);
 
 int32_t aclshmemi_team_finalize();
+
+void aclshmemi_team_populate_from_world_pe_mapping(aclshmemx_team_t *team);
+
+void aclshmemi_team_populate_pe_mappings_from_constant_stride(aclshmemx_team_t *team);
+
+int32_t aclshmemi_team_pe_mapping(aclshmem_team_t team, int pe);
 
 #endif  // ACLSHMEMI_TEAM_H

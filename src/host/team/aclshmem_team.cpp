@@ -147,7 +147,7 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size)
         return ACLSHMEM_INNER_ERROR;
     }
     for (int i = 0; i < ACLSHMEM_MAX_TEAMS; i++) {
-        g_aclshmem_team_pool[i] = aclshmemx_team_t{-1, -1, -1, -1, -1};
+        g_aclshmem_team_pool[i] = aclshmemx_team_t{-1, -1, -1, -1, -1, {0, 0, 0,{'0'}}, {-1}};
     }
 
     aclshmemx_team_t &aclshmem_team_world = g_aclshmem_team_pool[ACLSHMEM_TEAM_WORLD];
@@ -157,6 +157,8 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size)
     aclshmem_team_world.size = size;
     aclshmem_team_world.mype = rank;
     g_team_mask |= 1ULL << ACLSHMEM_TEAM_WORLD;
+
+    aclshmemi_team_populate_pe_mappings_from_constant_stride(&aclshmem_team_world);
     ACLSHMEM_CHECK_RET(device_team_update(ACLSHMEM_TEAM_WORLD, &aclshmem_team_world));
 
     /* Initialize TEAM SYNC */
@@ -223,9 +225,34 @@ int32_t aclshmemi_team_finalize()
     }
     return 0;
 }
+void aclshmemi_team_populate_from_world_pe_mapping(aclshmemx_team_t *team)
+{
+    for (int i = 0; i < team->size; i++) {
+        int global_pe_index = team->pe_mapping[i];
+        team->pe_mapping[global_pe_index + ACLSHMEM_MAX_PES] = i;
+    }
+}
+
+void aclshmemi_team_populate_pe_mappings_from_constant_stride(aclshmemx_team_t *team)
+{
+    for (int i = 0; i < team->size; i++) {
+        int global_pe_index = team->start + i * team->stride;
+        team->pe_mapping[i] = global_pe_index;
+    }
+    aclshmemi_team_populate_from_world_pe_mapping(team);
+}
+
+int32_t aclshmemi_team_pe_mapping(aclshmem_team_t team, int pe)
+{
+    if (!is_valid_team(team)) {
+        SHM_LOG_ERROR("input team is invalid!, team: " << team);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    return g_aclshmem_team_pool[team].pe_mapping[pe];
+}
 
 int32_t aclshmem_team_split_strided_precheck(aclshmem_team_t parent_team, int32_t pe_start, int32_t pe_stride,
-                                          int32_t pe_size, aclshmem_team_t *&new_team)
+                                          int32_t pe_size, aclshmem_team_t *new_team)
 {
     if (new_team == nullptr) {
         SHM_LOG_ERROR("output team is null.");
@@ -238,7 +265,6 @@ int32_t aclshmem_team_split_strided_precheck(aclshmem_team_t parent_team, int32_
         return ACLSHMEM_INVALID_PARAM;
     }
 
-    aclshmem_team_t my_team;
     aclshmemx_team_t *src_team = &g_aclshmem_team_pool[parent_team];
 
     if (pe_start >= ACLSHMEM_MAX_PES || pe_stride >= ACLSHMEM_MAX_PES || pe_size > ACLSHMEM_MAX_PES) {
@@ -254,22 +280,22 @@ int32_t aclshmem_team_split_strided(aclshmem_team_t parent_team, int32_t pe_star
                                  aclshmem_team_t *new_team)
 {
     auto ret = aclshmem_team_split_strided_precheck(parent_team, pe_start, pe_stride, pe_size, new_team);
-    if (ret != 0) {
+    if (ret != ACLSHMEM_SUCCESS) {
         return ret;
     }
 
     aclshmemx_team_t *src_team = &g_aclshmem_team_pool[parent_team];
-    int32_t global_pe = src_team->mype;
-    int32_t global_pe_start = src_team->start + pe_start * src_team->stride;
-    int32_t global_pe_stride = src_team->stride * pe_stride;
-    int32_t global_pe_end = global_pe_start + global_pe_stride * (pe_size - 1);
-
     if (pe_start < 0 || pe_start >= src_team->size || pe_size <= 0 || pe_size > src_team->size || pe_stride < 1) {
         SHM_LOG_ERROR("create team failed, input invalid, pe_start:" << pe_start << " pe_size:" << pe_size
                                                                      << " pe_stride:" << pe_stride << " parent:"
                                                                      << team_config2string(src_team));
         return ACLSHMEM_INVALID_PARAM;
     }
+
+    int32_t global_pe = src_team->mype;
+    int32_t global_pe_start = src_team->pe_mapping[pe_start];
+    int32_t global_pe_stride = src_team->stride * pe_stride;
+    int32_t global_pe_end = global_pe_start + global_pe_stride * (pe_size - 1);
 
     if (global_pe_start >= aclshmem_n_pes() || global_pe_end >= aclshmem_n_pes()) {
         SHM_LOG_ERROR("create team failed, large than world size, pe_start:"
@@ -283,12 +309,18 @@ int32_t aclshmem_team_split_strided(aclshmem_team_t parent_team, int32_t pe_star
 
     if (global_pe < global_pe_start || (global_pe - global_pe_start) % global_pe_stride || my_team.mype >= pe_size) {
         SHM_LOG_INFO("This PE is not a member of the new team.");
-        return 0;
+        return ACLSHMEM_SUCCESS;
     }
 
     my_team.start = global_pe_start;
     my_team.stride = global_pe_stride;
     my_team.size = pe_size;
+
+    for (int i = 0; i < pe_size; i++) {
+        int temp_global_pe = global_pe_start + i * global_pe_stride;
+        my_team.pe_mapping[i] = temp_global_pe;
+        my_team.pe_mapping[temp_global_pe + ACLSHMEM_MAX_PES] = i;
+    }
 
     my_team.team_idx = first_free_idx_fetch();
     if (my_team.team_idx == -1) {
@@ -312,7 +344,7 @@ int32_t aclshmem_team_split_strided(aclshmem_team_t parent_team, int32_t pe_star
     return 0;
 }
 
-int aclshmemi_team_split_2d_precheck(aclshmem_team_t p_team, int x_range, aclshmem_team_t *&x_team, aclshmem_team_t *&y_team)
+int aclshmemi_team_split_2d_precheck(aclshmem_team_t p_team, int x_range, aclshmem_team_t *x_team, aclshmem_team_t *y_team)
 {
     if (x_team == nullptr || y_team == nullptr) {
         SHM_LOG_ERROR("output team is null.");
@@ -338,17 +370,15 @@ int aclshmemi_team_split_2d_x(aclshmem_team_t &parent_team, int32_t &x_team_coun
                            int &x_range, aclshmem_team_t *&x_team)
 {
     int start = 0;
-    int errorCode = 0;
     aclshmemx_team_t *src_team = &g_aclshmem_team_pool[parent_team];
 
     for (int i = 0; i < x_team_counts; ++i) {
         aclshmem_team_t my_xteam;
-        int x_size = (i == x_team_counts - 1 && src_size % x_range) ? src_size % x_range : x_range;
-        errorCode = aclshmem_team_split_strided(parent_team, start, 1, x_size, &my_xteam);
-        if (errorCode != 0) {
+        int x_stride = 1;
+        int x_size = ((i == x_team_counts - 1) && (src_size % x_range != 0)) ? src_size % x_range : x_range;
+        if (aclshmem_team_split_strided(parent_team, start, x_stride, x_size, &my_xteam) != ACLSHMEM_SUCCESS) {
             SHM_LOG_WARN("create x-axis team " << (i + 1) << " of " << x_team_counts << " failed");
         }
-
         start += x_range;
 
         if (my_xteam != ACLSHMEM_TEAM_INVALID) {
@@ -372,12 +402,12 @@ int aclshmemi_team_split_2d_y(aclshmem_team_t &parent_team, int32_t &y_team_coun
 
     for (int i = 0; i < y_team_counts; ++i) {
         aclshmem_team_t my_yteam;
+        int y_stride = x_range;
         int remainder = src_size % x_range;
         int y_range = src_size / x_range;
         int y_size = (remainder && i < remainder) ? y_range + 1 : y_range;
 
-        errorCode = aclshmem_team_split_strided(parent_team, start, x_range, y_size, &my_yteam);
-        if (errorCode != 0) {
+        if (aclshmem_team_split_strided(parent_team, start, y_stride, y_size, &my_yteam) != ACLSHMEM_SUCCESS) {
             SHM_LOG_WARN("create y-axis team " << (i + 1) << " of " << y_team_counts << " failed");
         }
 
@@ -397,7 +427,7 @@ int aclshmemi_team_split_2d_y(aclshmem_team_t &parent_team, int32_t &y_team_coun
 int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_team_t *x_team, aclshmem_team_t *y_team)
 {
     auto ret = aclshmemi_team_split_2d_precheck(parent_team, x_range, x_team, y_team);
-    if (ret != 0) {
+    if (ret != ACLSHMEM_SUCCESS) {
         return ret;
     }
 
@@ -405,16 +435,14 @@ int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_te
     int32_t src_start = src_team->start;
     int32_t src_stride = src_team->stride;
     int32_t src_size = src_team->size;
-    double x_team_counts_double = std::ceil(src_size / static_cast<double>(x_range));
-    int32_t x_team_counts = static_cast<int32_t>(x_team_counts_double);
-    int32_t y_team_counts = x_range;
-
     if (x_range > src_size) {
         x_range = src_size;
     }
+    int32_t x_team_counts = static_cast<int32_t>(std::ceil(src_size / static_cast<double>(x_range)));
+    int32_t y_team_counts = x_range;
 
     ret = aclshmemi_team_split_2d_x(parent_team, x_team_counts, src_size, x_range, x_team);
-    if (ret != 0) {
+    if (ret != ACLSHMEM_SUCCESS) {
         return ret;
     }
 
@@ -427,24 +455,11 @@ int32_t aclshmem_team_translate_pe(aclshmem_team_t src_team, int32_t src_pe, acl
         return -1;
     }
 
-    aclshmemx_team_t *src_team_ptr = &g_aclshmem_team_pool[src_team];
-    aclshmemx_team_t *dest_team_ptr = &g_aclshmem_team_pool[dest_team];
-
-    if (src_pe > src_team_ptr->size) {
+    if (src_pe < 0 || src_pe >= g_aclshmem_team_pool[src_team].size) {
         return -1;
     }
-
-    int32_t global_pe = src_team_ptr->start + src_pe * src_team_ptr->stride;
-    int32_t pe_start = dest_team_ptr->start;
-    int32_t pe_stride = dest_team_ptr->stride;
-    int32_t pe_size = dest_team_ptr->size;
-
-    int32_t n = (global_pe - pe_start) / pe_stride;
-    if (global_pe < pe_start || (global_pe - pe_start) % pe_stride || n >= pe_size) {
-        return -1;
-    }
-
-    return n;
+    int global_pe = g_aclshmem_team_pool[src_team].pe_mapping[src_pe];
+    return g_aclshmem_team_pool[dest_team].pe_mapping[global_pe + ACLSHMEM_MAX_PES];
 }
 
 void aclshmem_team_destroy(aclshmem_team_t team)
@@ -493,7 +508,7 @@ int aclshmem_team_get_config(aclshmem_team_t team, aclshmem_team_config_t *confi
 {
     ACLSHMEM_CHECK_RET(config == nullptr);
     if (is_valid_team(team)) {
-        config->num_contexts = 0;
+        *config = g_aclshmem_team_pool[team].config;
         return 0;
     } else {
         return ACLSHMEM_INVALID_PARAM;
