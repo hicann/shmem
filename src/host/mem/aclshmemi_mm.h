@@ -57,7 +57,7 @@ private:
     std::set<memory_range, range_size_first_comparator> size_idle_tree_;
 };
 
-int32_t memory_manager_initialize(void *base, uint64_t size);
+int32_t memory_manager_initialize(void *base, uint64_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 void memory_manager_destroy();
 
 #endif  // ACLSHMEMI_MM_H

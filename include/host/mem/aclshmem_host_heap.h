@@ -51,7 +51,6 @@ ACLSHMEM_HOST_API void *aclshmem_calloc(size_t nmemb, size_t size);
 ACLSHMEM_HOST_API void *aclshmem_align(size_t alignment, size_t size);
 #define shmem_align aclshmem_align
 
-
 /**
  * @brief Free the memory space pointed to by <i>ptr</i>, which must have been returned by a previous call to
  *       <b>aclshmem_malloc()</b>, <b>aclshmem_calloc()</b> or <b>aclshmem_align()</b>. If <i>ptr</i> is NULL,
@@ -61,9 +60,44 @@ ACLSHMEM_HOST_API void *aclshmem_align(size_t alignment, size_t size);
 ACLSHMEM_HOST_API void aclshmem_free(void *ptr);
 #define shmem_free aclshmem_free
 
+/**
+ * @brief 申请一块aclshmem对称内存，该内存中数据未被初始化
+ *
+ * @param size          [in] 内存申请大小（bytes）
+ * @param mem_type      [in] 对称内存申请位置(Host/Device)
+ * @return 对称内存指针
+ *
+ */
+ACLSHMEM_HOST_API void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
+/**
+ * @brief 申请一块shmem对称内存，并初始化内容为全
+ *
+ * @param count         [in] 元素个数
+ * @param size          [in] 每个元素所占字节数
+ * @param mem_type      [in] 对称内存申请位置(Host/Device)
+ * @return 对称内存指针
+ */
+ACLSHMEM_HOST_API void *aclshmemx_calloc(size_t count, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+
+/**
+ * @brief 申请一块shmem对称内存，并按指定长度对齐
+ *
+ * @param alignment     [in] 对齐长度（bytes）
+ * @param size          [in] 内存申请大小（bytes）
+ * @param mem_type      [in] 对称内存申请位置(Host/Device)
+ * @return 对称内存指针
+ */
+ACLSHMEM_HOST_API void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+
+/**
+ * @brief 释放申请的对称内存
+ *
+ * @param ptr           [in] 需要释放的内存指针
+ * @param mem_type      [in] 对称内存申请位置(Host/Device)
+ */
+ACLSHMEM_HOST_API void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 #ifdef __cplusplus
 }
 #endif
-
 #endif

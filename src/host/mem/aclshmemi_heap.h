@@ -16,7 +16,7 @@
 #include <mutex>
 
 #include <acl/acl.h>
-
+#include "aclshmemi_heap_base.h"
 #include "host_device/aclshmem_common_types.h"
 #include "utils/aclshmemi_host_types.h"
 #include "init/bootstrap/aclshmemi_bootstrap.h"
@@ -28,10 +28,10 @@
 
 const int IPC_NAME_SIZE = 65;
 
-class aclshmem_symmetric_heap {
+class aclshmem_symmetric_heap : public aclshmem_symmetric_heap_base {
 public:
     aclshmem_symmetric_heap() {}
-    aclshmem_symmetric_heap(int pe_id, int pe_size, int dev_id);
+    aclshmem_symmetric_heap(int pe_id, int pe_size, int dev_id, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     ~aclshmem_symmetric_heap() {};
 
     int reserve_heap(size_t size);              // aclrtReserveMemAddress && aclrtMallocPhysical
