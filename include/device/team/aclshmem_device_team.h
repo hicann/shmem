@@ -63,6 +63,18 @@ ACLSHMEM_DEVICE int aclshmem_team_n_pes(aclshmem_team_t team);
  */
 ACLSHMEM_DEVICE int aclshmem_team_translate_pe(aclshmem_team_t src_team, int src_pe, aclshmem_team_t dest_team);
 
+
+/**
+ * @brief Translate a given PE number in one team into the corresponding PE number in global team.
+ *
+ * @param src_team           [in] A ACLSHMEM team handle.
+ * @param src_pe             [in] The PE number in src_team.
+ *
+ * @return The number of PEs in the global team.
+ *         If the team handle is ACLSHMEM_TEAM_INVALID, returns -1.
+ */
+ACLSHMEM_DEVICE int aclshmem_team_pe_mapping(aclshmem_team_t team, int pe);
+
 #ifdef __cplusplus
 }
 #endif

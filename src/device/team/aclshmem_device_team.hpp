@@ -56,21 +56,27 @@ ACLSHMEM_DEVICE int aclshmem_team_translate_pe(aclshmem_team_t src_team, int src
     aclshmemx_team_t *src_team_ptr = device_state->team_pools[src_team];
     aclshmemx_team_t *dest_team_ptr = device_state->team_pools[dest_team];
 
-    if (src_pe > src_team_ptr->size) {
+    if (src_pe >= src_team_ptr->size) {
         return -1;
     }
 
-    int global_pe = src_team_ptr->start + src_pe * src_team_ptr->stride;
-    int pe_start = dest_team_ptr->start;
-    int pe_stride = dest_team_ptr->stride;
-    int pe_size = dest_team_ptr->size;
+    int global_pe = src_team_ptr->pe_mapping[src_pe];
+    return dest_team_ptr->pe_mapping[global_pe + ACLSHMEM_MAX_PES];
+}
 
-    int n = (global_pe - pe_start) / pe_stride;
-    if (global_pe < pe_start || (global_pe - pe_start) % pe_stride || n >= pe_size) {
+ACLSHMEM_DEVICE int aclshmem_team_pe_mapping(aclshmem_team_t team, int pe)
+{
+    if (team == ACLSHMEM_TEAM_INVALID) {
+        return -1;
+    }
+    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    aclshmemx_team_t *team_ptr = device_state->team_pools[team];
+
+    if (pe >= team_ptr->size) {
         return -1;
     }
 
-    return n;
+    return team_ptr->pe_mapping[pe];
 }
 
 #ifdef __cplusplus
