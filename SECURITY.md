@@ -51,8 +51,8 @@ int32_t ret = aclshmemx_set_conf_store_tls(true, tls_info, strlen(tls_info));
 | SHMEM_MASTER_PORT | 通信面端口          |
 | MASTER_ADDR       | 备用通信面IP        |
 | MASTER_PORT       | 备用通信面端口      |
-| SHMEM_LOG_LEVEL   | aclshmem日志级别       |
-| SHMEM_HOME_PATH   | aclshmem安装路径       |
+| SHMEM_LOG_LEVEL   | shmem日志级别       |
+| SHMEM_HOME_PATH   | shmem安装路径       |
 | VERSION           | 编译whl包默认版本号 |
 
 ## 运行用户建议
@@ -84,7 +84,7 @@ ASLR（address space layout randomization）开启后能增强漏洞攻击防护
 
 | 类型  |        开源代码地址        | 文件名                  | 公网IP地址/公网URL地址/域名/邮箱地址/压缩文件地址                                           | 用途说明                                      |
 | :---: | :------------------------: | :---------------------- | :------------------------------------------------------------------------------------------ | :-------------------------------------------- |
-| 依赖  |           不涉及           | build.sh                | https://gitee.com/ascend/catlass                                                            | 从gitcode下载catlass源码，作用编译依赖          |
+| 依赖  |           不涉及           | build.sh                | https://gitcode.com/cann/catlass.git                                                            | 从gitcode下载catlass源码，作用编译依赖          |
 | 依赖  | https://github.com/doxygen | build.sh                | https://github.com/doxygen/doxygen/releases/download/Release_1_9_6/doxygen-1.9.6.src.tar.gz | 从github下载doxygen-1.9.6源码，作用编译依赖   |
 | 依赖  |           不涉及           | build.sh                | https://gitcode.com/GitHub_Trending/go/googletest                                                    | 从gitcode下载googletest源码，单元测试框架依赖   |
 | 文档  |           不涉及           | aclshmemi_device_barrier.h | https://www.inf.ed.ac.uk/teaching/courses/ppls/BarrierPaper.pdf                             | 并行编程语言和系统                            |

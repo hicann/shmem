@@ -1,5 +1,5 @@
 # 代码组织结构
-## ACLSHMEM组织结构
+## SHMEM组织结构
 ``` 
 ├── 3rdparty // 依赖的第三方库
 ├── docs     // 文档
@@ -87,22 +87,37 @@ include/
 |── src
 |    |── device             // device侧接口实现
 |    |── host           
-│    │    ├─common          // host侧通用接口实现、如日志模块
+│    │    ├─bootstrap       // bootstrap接口实现
+│    │    ├─hybm            // hybrid memory
 │    │    ├─init            // host侧初始化接口实现
 │    │    ├─mem             // host侧内存管理接口实现
 │    │    ├─python_wrapper  // Py接口封装
+│    │    ├─sync            // 同步接口实现
 │    │    ├─team            // host侧通信域管理接口实现
-|    └── transport          // 建链相关内容
+|    │    └─transport       // 建链相关内容
 ```
 ## examples
 ```
 ├─examples
-│  ├─helloworld         // aclshmem简易调用示例
-│  └─matmul_allreduce   // 通算融合算子实现样例
+│  ├─allgather                              // allgather通信算子样例
+│  ├─allgather_matmul                       // allgather+matmul融合算子样例
+│  ├─allgather_matmul_padding               // 含padding的allgather+matmul融合算子样例
+│  ├─allgather_matmul_with_gather_result    // 融合allgather并保留gather的matmul样例
+│  ├─dispatch_gmm_combine                   // GMM分派与结果合并样例
+│  ├─dynamic_tiling                         // 动态分块实现样例
+│  ├─kv_shuffle                             // kv cache shuffle样例
+│  ├─matmul_allreduce                       // matmul+allreduce融合算子样例
+│  ├─matmul_reduce_scatter                  // matmul+reduce_scatter融合算子样例
+│  ├─matmul_reduce_scatter_padding          // 含padding的matmul+reduce_scatter融合算子样例
+│  ├─rdma_demo                              // rdma实现样例
+│  ├─rdma_handlewait_test                   // rdma handle wait测试样例
+│  └─rdma_perftest                          // rdma性能测试样例
 ```
 ## tests
 ```
 └─tests
+    ├─examples  
+    ├─fuzz
     └─unittest
         ├─init  // 初始化接口单元测试
         ├─mem   // 内存管理接口单元测试
@@ -112,12 +127,12 @@ include/
 ## docs
 ```
 ├─docs
-│    ├─api_demo.md              // aclshmem api调用demo
+│    ├─api_demo.md              // shmem api调用demo
 │    ├─code_organization.md     // 工程组织架构（本文件）
 │    ├─example.md               // 使用样例
 │    ├─quickstart.md            // 快速开始
 │    ├─related_scripts.md       // 相关脚本介绍
-|    ├─pythonAPI.md             // aclshmem python api列表
+|    ├─pythonAPI.md             // shmem python api列表
 │    └─Troubleshooting_FAQs.md  // QA
 ```
 
