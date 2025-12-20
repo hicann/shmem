@@ -29,6 +29,7 @@
 #include "host/init/aclshmem_host_init.h"
 #include "host/data_plane/aclshmem_host_rma.h"
 #include "host/data_plane/aclshmem_host_p2p_sync.h"
+#include "host/data_plane/aclshmem_host_cc.h"
 #include "host/team/aclshmem_host_team.h"
 #include "host/utils/aclshmem_log.h"
 

@@ -26,17 +26,13 @@
             team on excuting stream before the barrier are visiable to ALL VEC CORES of all pes of the team after
             the barrier.
 
-        This subtle difference is beneficial to compute-communiction overlapping (usually UNI_DIRECTIONAL dependency),
-        and could achieve better performance. Refer to examples/matmul_allreduce for details.
-
     4. The scalar unit of cube core is not affected by aclshmem_barrier_xxx. Make sure don't use that.
 */
 
-#ifndef ACLSHMEM_DEVICE_CC_H
-#define ACLSHMEM_DEVICE_CC_H
+#ifndef _DEVICE_GM2GM_ACLSHMEM_DEVICE_CC_H_
+#define _DEVICE_GM2GM_ACLSHMEM_DEVICE_CC_H_
 
 #include "host_device/aclshmem_common_types.h"
-#include "gm2gm/aclshmem_device_cc.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,7 +47,7 @@ extern "C" {
 ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
 
 /**
- * @fn ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t tid)
+ * @fn ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team)
  * @brief aclshmem_barrier is a collective synchronization routine over a team. Control returns from aclshmem_barrier
  *        after all PEs in the team have called aclshmem_barrier.
  *        aclshmem_barrier ensures that all previously issued stores and remote memory updates, including AMOs and
@@ -63,9 +59,9 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
  *        from the CPU and the NPU, respectively. To ensure completion of GPU-side operations from the CPU, using
  *        aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
- * @param tid              [in] team to do barrier
+ * @param team              [in] team to do barrier
  */
-ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t tid);
+ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team);
 
 /**
  * @fn ACLSHMEM_DEVICE void aclshmem_barrier_all()
@@ -77,19 +73,39 @@ ACLSHMEM_DEVICE void aclshmem_barrier_all();
  * @brief Similar to aclshmem_barrier except that only vector cores participate. Useful in communication-over-compute
  *        operators. Cube core may call the api but takes no effect.
  *
- * @param tid              [in] team to do barrier
+ * @param team              [in] team to do barrier
  */
-ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t tid);
+[[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier instead.")]]
+ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
 
 /**
  * @brief aclshmemx_barrier_vec of all PEs.
  *
- * @param tid              [in] team to do barrier
+ * @param team              [in] team to do barrier
  */
+[[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier_all instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec();
+
+/**
+ * @brief Similar to aclshmem_barrier. In constract with the aclshmem_barrier routine, aclshmem_sync only ensures
+ *        completion and visibility of previously issued memory stores and does not ensure completion of remote memory
+ *        updates issued via ACLSHMEM rountines.
+ *
+ * @param team           [in] team to do barrier
+ */
+ACLSHMEM_DEVICE void aclshmem_sync(aclshmem_team_t team);
+
+/**
+ * @brief aclshmem_sync_all of all PEs.
+ *
+ * @param team              [in] team to do barrier
+ */
+ACLSHMEM_DEVICE void aclshmem_sync_all();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#include "gm2gm/aclshmemi_device_cc.h"
+
+#endif // _DEVICE_GM2GM_ACLSHMEM_DEVICE_CC_H_

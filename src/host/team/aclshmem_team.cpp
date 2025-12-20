@@ -17,7 +17,7 @@
 
 #include "acl/acl.h"
 #include "aclshmemi_host_common.h"
-#include "gm2gm/aclshmemi_device_intf.h"
+#include "gm2gm/aclshmemi_device_cc_kernel.h"
 using namespace std;
 
 uint64_t g_team_mask = 0;

@@ -7,17 +7,18 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef ACLSHMEMI_DEVICE_INTF_H
-#define ACLSHMEMI_DEVICE_INTF_H
+#ifndef _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_KERNEL_H_
+#define _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_KERNEL_H_
 
 #include "stdint.h"
+#include "acl/acl.h"
 #include "host_device/aclshmem_common_types.h"
 
 // internal kernels
 int32_t aclshmemi_memset(int32_t *array, int32_t len, int32_t val, int32_t count);
 
-int32_t aclshmemi_barrier_on_stream(aclshmem_team_t tid, void *stream);
+int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream);
 
 void aclshmemi_handle_wait_on_stream(aclshmem_handle_t handle, aclrtStream stream);
 
-#endif
+#endif // _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_KERNEL_H_

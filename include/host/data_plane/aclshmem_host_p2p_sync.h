@@ -39,22 +39,6 @@ ACLSHMEM_HOST_API uint64_t util_get_ffts_config();
 #define shmemx_get_ffts_config util_get_ffts_config
 
 /**
- * @brief The aclshmemx_barrier_on_stream is a collective synchronization routine over a team.
- * @param tid              [in] team to do barrier
- * @param stream           [in] copy used stream (use default stream if stream == NULL)
- */
-ACLSHMEM_HOST_API void aclshmemx_barrier_on_stream(aclshmem_team_t tid, aclrtStream stream);
-#define shmemx_barrier_on_stream aclshmemx_barrier_on_stream
-
-
-/**
- * @brief The aclshmemx_barrier_all_on_stream routine is a mechanism for synchronizing all PEs at once.
- * @param stream           [in] copy used stream (use default stream if stream == NULL)
- */
-ACLSHMEM_HOST_API void aclshmemx_barrier_all_on_stream(aclrtStream stream);
-#define shmemx_barrier_all_on_stream aclshmemx_barrier_all_on_stream
-
-/**
  * @fn ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle)
  * @brief Wait asynchronous RMA operations to finish.
  */

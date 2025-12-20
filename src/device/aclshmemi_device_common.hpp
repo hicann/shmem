@@ -10,7 +10,6 @@
 #ifndef ACLSHMEM_DEVICE_COMMON_HPP
 #define ACLSHMEM_DEVICE_COMMON_HPP
 
-#include "gm2gm/aclshmemi_device_cc.h"
 #include "aclshmemi_def.h"
 
 #ifdef BACKEND_HYBM
