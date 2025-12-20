@@ -14,17 +14,14 @@ import os
 import sys
 import ctypes
 import logging
+import torch
 import torch_npu
+from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
 from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_using_unique_id, \
                        aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
                        aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, mte_set_ub_params, team_split_strided,
                        team_split_2d, team_translate_pe, \
-<<<<<<< HEAD
                        team_destroy, InitAttr, OpEngineType, aclshmem_set_attributes, \
-=======
-                       team_destroy, InitAttr, OpEngineType, aclshmem_set_attributes, aclshmemx_set_data_op_engine_type,
-                       aclshmemx_set_timeout, \
->>>>>>> 0fd3f0e... bugfix
                        InitStatus, aclshmem_calloc, aclshmem_align, aclshmemx_init_status, get_ffts_config, team_my_pe,
                        team_n_pes, \
                        aclshmem_putmem_nbi, aclshmem_getmem_nbi, aclshmem_putmem, aclshmem_getmem, aclshmemx_putmem_signal,
@@ -67,11 +64,6 @@ __all__ = [
     'InitStatus',
     'OpEngineType',
     'aclshmem_set_attributes',
-<<<<<<< HEAD
-=======
-    'aclshmemx_set_data_op_engine_type',
-    'aclshmemx_set_timeout',
->>>>>>> 0fd3f0e... bugfix
     'aclshmem_calloc',
     'aclshmem_align',
     'aclshmemx_init_status',
@@ -87,5 +79,22 @@ __all__ = [
     'aclshmem_info_get_name',
     'aclshmem_team_get_config',
     'set_log_level',
-    'set_extern_logger'
+    'set_extern_logger',
+    'aclshmem_create_tensor',
+    'aclshmem_free_tensor'
 ]
+
+def aclshmem_create_tensor(shape, dtype: torch.dtype=torch.float32, device_id=0) -> torch.Tensor:
+    nbytes = calc_nbytes(shape, dtype)
+    data_ptr = aclshmem_malloc(nbytes)
+
+    if data_ptr == 0:
+        raise RuntimeError("aclshmem_malloc failed")
+    
+    device = torch.device(f"npu:{device_id}")
+    tensor = construct_tensor_from_ptr(data_ptr, shape, dtype, device)
+    return tensor
+
+def aclshmem_free_tensor(tensor: torch.Tensor):
+    data_ptr = tensor.data_ptr()
+    aclshmem_free(data_ptr)
