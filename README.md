@@ -48,10 +48,17 @@ int32_t ret = shmem_set_conf_store_tls(false, NULL, 0);
 - 架构兼容：aarch64、x86
 ### 软件依赖
 - 驱动固件：Ascend HDK 25.0.RC1.1
-- CANN版本：8.2.RC1.alpha003及以上（社区版）
-- 工具链： 
-	- cmake ≥ 3.19
-	- GLIBC ≥ 2.28
+- CANN版本（根据功能选择其一）：
+    - 8.2.RC1.alpha003 及以上（社区版）支持 D2D 功能。下载链接：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann)
+    - 8.5.0 及以上（尝鲜版）支持 D2D、D2H、H2D 功能。下载链接：[尝鲜版链接](https://ascend.devcloud.huaweicloud.com/cann/run/software/)
+- 工具链：
+    - cmake ≥ 3.19
+    - GLIBC ≥ 2.28
+
+> Note：
+> - D2D：device to device
+> - D2H：device to host
+> - H2D：host to device
 ### 可选依赖
 - MPI：OpenMPI 4.0+（分布式通信场景）
 - Python：3.7+（Python 接口使用）
@@ -237,7 +244,7 @@ shmem_init_with_attr(&attr);
 - 大批次数据传输时，开启 RDMA 协议（编译时加 -DSHMEM_RDMA=ON）。
 ## 八、常见问题（FAQ）
 ### Q1：编译时报「CANN 环境未找到」？
-A：确认已执行 ```source /usr/local/Ascend/ascend-toolkit/set_env.sh```，且 CANN 版本 ≥ 8.2.RC1.alpha003。
+A：确认已执行 ```source /usr/local/Ascend/ascend-toolkit/set_env.sh```，且 CANN 版本满足[软件依赖](#软件依赖)。
 ### Q2：运行示例时报「卡间通信超时」？
 A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8666）、各节点时钟是否同步。
 ### Q3：Python 导入 shmem 时报「找不到模块」？
@@ -286,7 +293,7 @@ torchrun --nproc-per-node=2 src/python/test.py
 - 加固指南：参考[安全加固建议](SECURITY.md#安全加固)配置系统权限与防火墙
 ## 十二、版权与许可
 Copyright (c) 2025 Huawei Technologies Co., Ltd.
- 本项目基于CANN Open Software License Agreement Version 2.0授权，仅允许用于昇腾处理器相关开发。
+本项目基于CANN Open Software License Agreement Version 2.0授权，仅允许用于昇腾处理器相关开发。
 ## 十三、注意事项
 1. 本项目仅适配昇腾平台，不支持其他硬件架构（如 x86 通用服务器、NVIDIA GPU）；
 2. 示例代码仅供学习参考，生产环境使用前需完成充分的功能和性能测试；
