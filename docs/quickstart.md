@@ -38,7 +38,7 @@ GLIBC >= 2.28
  - 共享内存库编译<br>
     编译共享内存库，设置共享内存库环境变量：
     ```sh
-    cd aclshmem
+    cd shmem
     bash scripts/build.sh
     source install/set_env.sh
     ```
@@ -113,18 +113,18 @@ python3 setup.py bdist_wheel
 4. 在src/python/dist目录下，安装wheel包
 
 ```sh
-pip3 install aclshmem-xxx.whl --force-reinstall
+pip3 install shmem-xxx.whl --force-reinstall
 ```
 
 5. 设置是否开启TLS认证，默认开启，若关闭TLS认证，请使用如下接口
 
 ```python
-import aclshmem as shm
+import shmem as shm
 shm.set_conf_store_tls(False, "")   # 关闭tls认证
 ```
 
 ```python
-import aclshmem as shm
+import shmem as shm
 tls_info = "xxx"
 shm.set_conf_store_tls(True, tls_info)      # 开启TLS认证
 ```
@@ -149,7 +149,7 @@ ACLSHMEM_UID_SOCK_IFNAM=enpxxxx:inet6  取ipv6
 
 - python初始化例子
 ```python
-import aclshmem as ash
+import shmem as ash
 
 # xxx
 

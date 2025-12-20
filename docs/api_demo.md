@@ -1,10 +1,10 @@
-# ACLSHMEM API 样例
-ACLSHMEM包含host和device两类接口。host接口用ACLSHMEM_HOST_API宏标识，device接口用ACLSHMEM_DEVICE宏标识。
+# SHMEM API 样例
+SHMEM包含host和device两类接口。host接口用ACLSHMEM_HOST_API宏标识，device接口用ACLSHMEM_DEVICE宏标识。
 
 此章介绍各类API的常见接口的使用样例。
 
 ## Init API
-ACLSHMEM的初始化接口样例
+SHMEM的初始化接口样例
 
 ### 初始化状态
 ```c++
@@ -117,7 +117,7 @@ int ret = aclshmemx_set_conf_store_tls(false, nullptr, 0);
 ```
 
 ### Team API
-ACLSHMEM的通信域管理接口样例
+SHMEM的通信域管理接口样例
 
 ### host侧接口样例
 
