@@ -17,16 +17,16 @@
 #include "device/gm2gm/engine/aclshmem_device_rdma.h"
 
 // kernels
-ACLSHMEM_GLOBAL void k_aclshmem_barrier(int32_t tid)
+ACLSHMEM_GLOBAL void barrier_on_stream_kernel(aclshmem_team_t team, uint64_t ffts_config)
 {
-    aclshmemi_barrier<false>(tid);
+    AscendC::SetSyncBaseAddr(ffts_config);
+    aclshmemi_barrier<false>(team);
 }
 
 // interfaces
-int32_t aclshmemi_barrier_on_stream(aclshmem_team_t tid, aclrtStream stream)
+int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream)
 {
-    // call barrier kernel
-    k_aclshmem_barrier<<<1, nullptr, stream>>>((int32_t)tid);
+    barrier_on_stream_kernel<<<1, nullptr, stream>>>(team, util_get_ffts_config());
     return aclrtSynchronizeStream(stream);
 }
 

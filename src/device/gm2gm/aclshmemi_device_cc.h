@@ -16,35 +16,86 @@ This file provides device-side collective synchronization implementations, ensur
 
 */
 
-#ifndef ACLSHMEMI_DEVICE_CC_H
-#define ACLSHMEMI_DEVICE_CC_H
+#ifndef _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_H_
+#define _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_H_
 
 #include "stdint.h"
-#include "aclshmemi_device_mo.h"
-#include "aclshmemi_device_p2p_sync.h"
 
 #include "kernel_operator.h"
 
-const int SHIFT_MULTIPLIER = 2;
+#include "aclshmemi_device_common.h"
+#include "host_device/aclshmem_common_types.h"
+#include "aclshmemi_device_p2p_sync.h"
+#include "gm2gm/engine/aclshmemi_device_rdma.h"
+#include "device/team/aclshmem_device_team.h"
+
+constexpr int32_t BARRIER_DISSEM_KVAL = 2;
+constexpr int32_t BARRIER_DISSEM_KVAL_MIN = 2;
+constexpr int32_t SHIFT_MULTIPLIER = 2;
 constexpr uint64_t ACLSHMEM_DATA_CACHE_LINE_SIZE = 64;
 
-ACLSHMEM_DEVICE
-__gm__ aclshmemi_sync_bit *aclshmemi_get_core_sync_array();
+ACLSHMEM_DEVICE __gm__ aclshmemi_sync_bit *aclshmemi_get_core_sync_pool()
+{
+    return (__gm__ aclshmemi_sync_bit *)aclshmemi_get_state()->core_sync_pool;
+}
 
-ACLSHMEM_DEVICE
-__gm__ aclshmemi_sync_bit *aclshmemi_get_core_sync_counter();
+ACLSHMEM_DEVICE __gm__ aclshmemi_sync_bit *aclshmemi_get_core_sync_counter()
+{
+    return (__gm__ aclshmemi_sync_bit *)aclshmemi_get_state()->core_sync_counter;
+}
 
-ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft();
+ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft()
+{
+    if ASCEND_IS_AIC {
+        return;
+    }
+
+    int32_t block_idx = AscendC::GetBlockIdx();
+    int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+    auto sync_pool = aclshmemi_get_core_sync_pool();
+    auto sync_counter = aclshmemi_get_core_sync_counter();
+    int32_t count = aclshmemi_load((__gm__ int32_t *)(sync_counter)) + 1;
+
+    int32_t shift = 1;
+    int32_t offset = 0;
+    while (shift < block_dim) {
+        int32_t next = (block_idx + shift) % block_dim;
+
+        aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + next * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool +
+            block_idx * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+
+        shift *= SHIFT_MULTIPLIER;
+        offset++;
+    }
+
+    aclshmemi_store((__gm__ int32_t *)(sync_counter), count);
+}
 
 /* Level 1: barrier between vec cores (within a device) */
-template<bool is_aiv_only = true>
-ACLSHMEM_DEVICE void aclshmemi_barrier_core();
+template<bool IS_AIV_ONLY>
+ACLSHMEM_DEVICE void aclshmemi_barrier_core()
+{
+#ifdef __CCE_AICORE_ENABLE_MIX__
+    AscendC::SyncAll<IS_AIV_ONLY>();
+#else
+    aclshmemi_barrier_core_soft();
+#endif
+}
 
-ACLSHMEM_DEVICE
-__gm__ aclshmemi_sync_bit *aclshmemi_get_team_sync_array(aclshmem_team_t team_idx);
+ACLSHMEM_DEVICE __gm__ aclshmemi_sync_bit *aclshmemi_get_team_sync_pool(aclshmem_team_t team_idx)
+{
+    uint64_t addr = (uint64_t) aclshmemi_get_state()->sync_pool;
+    addr += team_idx * SYNC_ARRAY_SIZE;
+    return (__gm__ aclshmemi_sync_bit *) addr;
+}
 
-ACLSHMEM_DEVICE
-__gm__ aclshmemi_sync_bit *aclshmemi_get_team_sync_counter(aclshmem_team_t team_idx);
+ACLSHMEM_DEVICE __gm__ aclshmemi_sync_bit *aclshmemi_get_team_sync_counter(aclshmem_team_t team_idx)
+{
+    uint64_t addr = (uint64_t) aclshmemi_get_state()->sync_counter;
+    addr += team_idx * SYNC_COUNTER_SIZE;
+    return (__gm__ aclshmemi_sync_bit *) addr;
+}
 
 /* Level 2: barrier between devices (within a host)
 
@@ -126,39 +177,311 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
   c. Optimize spatial complexity to O(logN).
 */
 
-ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v1(aclshmemx_team_t *team);
+ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v1(aclshmem_team_t team_idx)
+{
+    if (AscendC::GetBlockIdx() != 0)
+        return;
+
+    aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[team_idx];
+    int my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+    auto sync_pool = aclshmemi_get_team_sync_pool(team->team_idx);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team->team_idx);
+
+    int shift = 1;
+    int my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+
+    int32_t offset = 0;
+    const int multiplier = 2;
+    while (shift < size) {
+        int next_pe_in_team = (my_pe_in_team + shift) % size;
+        int next_pe = start + next_pe_in_team * stride;
+
+        // signal next pe
+        aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + offset), next_pe, count);
+
+        // wait pre pe
+        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + offset), count);
+
+        shift *= multiplier;
+        offset++;
+    }
+
+    aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+}
 
 /** Group Dissemination Barrier.
  *
  *  An optimized version of aclshmemi_barrier_npu_v1, with temporal complexity reduced to O(log_{k}^{N}).
  */
-ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmemx_team_t *team);
+ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
+{
+    int32_t block_idx = AscendC::GetBlockIdx();
+    int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+    auto my_pe = aclshmem_team_my_pe(team);
+    auto team_size = aclshmem_team_n_pes(team);
+
+    auto sync_pool = aclshmemi_get_team_sync_pool(team);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team);
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+
+    int32_t k = BARRIER_DISSEM_KVAL < team_size ? BARRIER_DISSEM_KVAL : team_size;
+    k = BARRIER_DISSEM_KVAL_MIN < k ? k : BARRIER_DISSEM_KVAL_MIN;
+    int32_t temp = team_size - 1;
+    int32_t phase_num = 0;
+    int32_t pow_k = 1;
+
+    while (temp) {
+        // notify neighbors
+        for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+            int32_t shift = i * pow_k;
+            if (shift >= team_size) {
+                break;
+            }
+            int32_t to_nbr_idx = (my_pe + shift) % team_size;
+            int32_t to_nbr = aclshmemi_get_state()->team_pools[team]->pe_mapping[to_nbr_idx];
+            aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + my_pe), to_nbr, count);
+        }
+
+        // wait for neighbors notification
+        for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+            int32_t shift = i * pow_k;
+            if (shift >= team_size) {
+                break;
+            }
+            int32_t from_nbr_idx = my_pe - shift;
+            if (from_nbr_idx < 0) {
+                from_nbr_idx += team_size;
+            }
+            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + from_nbr_idx), count);
+        }
+
+        // update params
+        temp /= k;
+        phase_num++;
+        pow_k *= k;
+    }
+
+    if (!block_idx) {
+        aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    }
+}
 
 /** Centralized Barrier (pull mode).
  *
  *  The temporal and spatial complexity of this implementation are O(N/K) and O(1), respectively.
  *  Performs better than Group Dissemination Barrier at small scale (eg. 8 ranks).
  */
-ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v3(aclshmemx_team_t *team);
+ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v3(aclshmem_team_t team_idx)
+{
+    aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[team_idx];
+    int32_t vec_id = AscendC::GetBlockIdx();
+    int32_t vec_size = AscendC::GetBlockNum() * AscendC::GetTaskRation();
 
-/* Level 3: barrier between hosts, TO BE IMPLEMENTED. */
-ACLSHMEM_DEVICE void aclshmemi_barrier_sys();
+    int32_t my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
+    int32_t start = team->start;
+    int32_t stride = team->stride;
+    int32_t size = team->size;
+    auto sync_pool = aclshmemi_get_team_sync_pool(team->team_idx);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team->team_idx);
 
-template<bool is_aiv_only = true>
-ACLSHMEM_DEVICE void aclshmemi_barrier(aclshmem_team_t tid);
+    int32_t k = ACLSHMEM_BARRIER_TG_DISSEM_KVAL;
+    k = k < size ? k : size;
+    k = k < vec_size ? k : vec_size;
+    int32_t my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
 
-ACLSHMEM_DEVICE void aclshmemi_barrier_cross_host(aclshmemx_team_t *team);
+    for (int32_t i = vec_id; i < size; i += k) {
+        if (i == my_pe_in_team) {
+            // write local
+            aclshmemi_signal_set((__gm__ int32_t *)sync_pool, count);
+        } else {
+            // read remote
+            int32_t remote_pe = start + i * stride;
+            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)aclshmem_ptr(sync_pool, remote_pe), count);
+        }
+    }
 
-ACLSHMEM_DEVICE void aclshmemi_handle(aclshmem_team_t tid);
+    aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+}
 
-ACLSHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t * addr);
+template<bool IS_AIV_ONLY = true>
+ACLSHMEM_DEVICE void aclshmemi_barrier(aclshmem_team_t team)
+{
+    if (team == -1) {
+        return; // not in team
+    }
 
-ACLSHMEM_DEVICE void dcci_cachelines(__gm__ uint8_t* addr, uint64_t length);
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
 
-ACLSHMEM_DEVICE void dcci_entire_cache();
+    if ASCEND_IS_AIV {
+        aclshmemi_barrier_npu_v3(team);
+    }
 
-ACLSHMEM_DEVICE void dcci_atomic();
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
+}
 
-ACLSHMEM_DEVICE void dsb_all();
+ACLSHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t * addr)
+{
+    using namespace AscendC;
+    GlobalTensor<uint8_t> global;
+    global.SetGlobalBuffer(addr);
 
+    // Important: add hint to avoid dcci being optimized by compiler
+    __asm__ __volatile__("");
+    DataCacheCleanAndInvalid<uint8_t, CacheLine::SINGLE_CACHE_LINE, DcciDst::CACHELINE_OUT>(global);
+    __asm__ __volatile__("");
+}
+
+ACLSHMEM_DEVICE void dcci_cachelines(__gm__ uint8_t* addr, uint64_t length)
+{
+    __gm__ uint8_t* start = (__gm__ uint8_t*)((uint64_t)addr / ACLSHMEM_DATA_CACHE_LINE_SIZE
+        * ACLSHMEM_DATA_CACHE_LINE_SIZE);
+    __gm__ uint8_t* end = (__gm__ uint8_t*)(((uint64_t)addr + length) / ACLSHMEM_DATA_CACHE_LINE_SIZE
+        * ACLSHMEM_DATA_CACHE_LINE_SIZE);
+    AscendC::GlobalTensor<uint8_t> global;
+    global.SetGlobalBuffer(start);
+    for (uint64_t i = 0; i <= end - start; i+= ACLSHMEM_DATA_CACHE_LINE_SIZE) {
+        __asm__ __volatile__("");
+        AscendC::DataCacheCleanAndInvalid<uint8_t,
+            AscendC::CacheLine::SINGLE_CACHE_LINE, AscendC::DcciDst::CACHELINE_OUT>(global[i]);
+        __asm__ __volatile__("");
+    }
+}
+
+ACLSHMEM_DEVICE void dcci_entire_cache()
+{
+    using namespace AscendC;
+    GlobalTensor<uint8_t> global;
+    
+    // Important: add hint to avoid dcci being optimized by compiler
+    __asm__ __volatile__("");
+    DataCacheCleanAndInvalid<uint8_t, CacheLine::ENTIRE_DATA_CACHE, DcciDst::CACHELINE_OUT>(global);
+    __asm__ __volatile__("");
+}
+
+ACLSHMEM_DEVICE void dcci_atomic()
+{
+    using namespace AscendC;
+    GlobalTensor<uint8_t> global;
+
+    __asm__ __volatile__("");
+    DataCacheCleanAndInvalid<uint8_t, CacheLine::ENTIRE_DATA_CACHE, DcciDst::CACHELINE_ATOMIC>(global);
+    __asm__ __volatile__("");
+}
+
+ACLSHMEM_DEVICE void dsb_all()
+{
+    using namespace AscendC;
+    
+    DataSyncBarrier<MemDsbT::ALL>();
+}
+
+ACLSHMEM_DEVICE void aclshmemi_barrier_cross_host(aclshmemx_team_t *team)
+{
+    if (AscendC::GetBlockIdx() != 0)
+        return;
+
+    int my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+    auto sync_pool = aclshmemi_get_team_sync_pool(team->team_idx);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team->team_idx);
+
+    int shift = 1;
+    int my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+    aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    dcci_cacheline((__gm__ uint8_t *)sync_counter);
+    while (shift < size) {
+        int pre_pe_in_team = (my_pe_in_team - shift + size) % size;
+        int next_pe_in_team = (my_pe_in_team + shift) % size;
+
+        int pre_pe = start + pre_pe_in_team * stride;
+        int next_pe = start + next_pe_in_team * stride;
+
+        // signal next pe
+        aclshmemi_highlevel_signal_set((__gm__ int32_t *)(sync_pool + my_pe), (__gm__ int32_t *)sync_counter, next_pe);
+
+        // wait pre pe
+        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + pre_pe), count);
+
+        shift *= SHIFT_MULTIPLIER;
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_handle(aclshmem_team_t tid)
+{
+    aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[tid];
+
+    int mype = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+
+    if ((mype - start) % stride != 0) {
+        // not in this team
+        return;
+    }
+
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR
+                                                                        + UB_ALIGN_SIZE);
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+
+    for (int i = 0; i < size; i++) {
+        int peer = start + i * stride;
+        if (peer == mype) {
+            continue;
+        }
+        aclshmemi_roce_quiet(peer, 0, ub_tensor_64, ub_tensor_32);
+    }
+
+    if ASCEND_IS_AIV {
+        aclshmemi_barrier_cross_host(team);
+    }
+}
+
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config)
+{
+    AscendC::SetSyncBaseAddr(config);
+}
+
+ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t tid)
+{
+    aclshmemi_barrier<false>(tid);
+}
+
+ACLSHMEM_DEVICE void aclshmem_barrier_all()
+{
+    aclshmem_barrier(ACLSHMEM_TEAM_WORLD);
+}
+
+ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t tid)
+{
+    aclshmemi_barrier<true>(tid);
+}
+
+ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec()
+{
+    aclshmemx_barrier_vec(ACLSHMEM_TEAM_WORLD);
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_H_

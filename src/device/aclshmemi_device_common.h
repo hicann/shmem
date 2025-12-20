@@ -10,7 +10,6 @@
 #ifndef ACLSHMEMI_DEVICE_COMMON_H
 #define ACLSHMEMI_DEVICE_COMMON_H
 
-#include "gm2gm/aclshmemi_device_cc.h"
 #include "aclshmemi_def.h"
 #include "aclshmemi_device_common.hpp"
 
