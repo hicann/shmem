@@ -27,7 +27,15 @@ ACLSHMEM_HOST_API int aclshmemx_init_status(void);
 #define shmem_init_status aclshmemx_init_status
 
 /**
- * @brief aclshmemx_get_uniqueid.
+ * @brief get the unique id and return it by intput argument uid. This function need run with PTA.
+ *
+ * @param uid               [out] a ptr to uid generate by shmem
+ * @return Returns 0 on success or an error code on failure
+ */
+ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(shmem_uniqueid_t *uid);
+
+/**
+ * @brief init process with unique id. This function need run with PTA.
  *
  * @param my_pe                 [in] my_pe
  * @param n_pes                 [in] n_pes
