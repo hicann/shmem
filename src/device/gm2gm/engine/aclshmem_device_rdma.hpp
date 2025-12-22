@@ -382,13 +382,12 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_roce_ptr(__gm__ void *ptr, int pe)
 
     // Back to root address
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->heap_base);
-
-    // Address translate
 #ifdef BACKEND_HYBM
-    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->device_p2p_heap_base[pe]) + offset;
+    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->p2p_device_heap_base[pe]) + offset;
 #else
-    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->device_rdma_heap_base[pe]) + offset;
+    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->rdma_device_heap_base[pe]) + offset;
 #endif
+
     return reinterpret_cast<__gm__ void *>(remote_ptr);
 }
 

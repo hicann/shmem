@@ -61,7 +61,8 @@ private:
     uint16_t port_ = 9980L;
     hybm_options options_{};
     shm::store::StorePtr store_ = nullptr;
-    aclshmem_device_host_state_t *g_state;
+    aclshmem_device_host_state_t *host_state_;
+    aclshmem_device_host_state_t *device_state_;
     hybm_entity_t entity_ = nullptr;
     void *gva_ = nullptr;
     hybm_mem_slice_t slice_ = nullptr;

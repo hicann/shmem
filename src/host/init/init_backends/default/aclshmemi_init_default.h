@@ -46,7 +46,8 @@ private:
     int mype;
     int npes;
     int device_id;
-    aclshmem_device_host_state_t *g_state;
+    aclshmem_device_host_state_t *host_state_;
+    aclshmem_device_host_state_t *device_state_;
 
     // global_state
     global_state_reigister *global_state_d = nullptr;

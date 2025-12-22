@@ -29,13 +29,13 @@ void *aclshmem_ptr(void *ptr, int32_t pe)
     }
 
     uint64_t offset = (uint64_t)ptr - (uint64_t)g_state.heap_base;
-    void *symm_ptr = g_state.host_p2p_heap_base[pe];
+    void *symm_ptr = g_state.p2p_device_heap_base[pe];
     if (symm_ptr != nullptr) {
         symm_ptr = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(symm_ptr) + offset);
         return symm_ptr;
     }
     SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe()
-                                           << " g_state.host_p2p_heap_base contains nullptr, Please Check Init Status!!");
+                                           << " g_state.p2p_device_heap_base contains nullptr, Please Check Init Status!!");
     return nullptr;
 }
 

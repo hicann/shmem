@@ -47,7 +47,7 @@ int aclshmemi_rdma_connect_peers(aclshmemi_transport *t, int *selected_dev_ids, 
     std::vector<RegMemResult> mrs(state->npes);
     g_boot_handle.allgather(&local_mr, mrs.data(), sizeof(RegMemResult), &g_boot_handle);
     for (int i = 0; i < state->npes; i++) {
-        state->host_rdma_heap_base[i] = reinterpret_cast<void*>(mrs[i].address);
+        state->rdma_device_heap_base[i] = reinterpret_cast<void*>(mrs[i].address);
         SHM_LOG_INFO("get rank " << i << ", mr info = " << mrs[i]);
     }
 
