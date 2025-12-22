@@ -9,8 +9,8 @@
  */
 #include "hybm_entity_factory.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 EngineImplPtr MemEntityFactory::GetOrCreateEngine(uint16_t id, uint32_t flags)
 {
     std::lock_guard<std::mutex> guard(enginesMutex_);

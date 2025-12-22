@@ -18,8 +18,8 @@
 #include "hybm_cmd.h"
 #include "devmm_ioctl.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace drv {
 
 namespace {

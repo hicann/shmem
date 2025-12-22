@@ -13,8 +13,8 @@
 
 #include "hybm_common_include.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 using aclrtSetDeviceFunc = int32_t (*)(int32_t);
 using aclrtGetDeviceFunc = int32_t (*)(int32_t *);

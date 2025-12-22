@@ -19,8 +19,8 @@
 
 #include "hybm_transport_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 struct EntityExportInfo {
     uint64_t magic{EXPORT_INFO_MAGIC};
     uint64_t version{0};

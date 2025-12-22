@@ -19,7 +19,7 @@
 #include "acc_tcp_ssl_helper.h"
 #include "openssl_api_wrapper.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 
 constexpr long TIME_UNIT_INTERVAL = 1000L;
@@ -383,6 +383,6 @@ protected:
 };
 using AccTcpLinkDefaultPtr = AccRef<AccTcpLinkDefault>;
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_LINK_DEFAULT_H

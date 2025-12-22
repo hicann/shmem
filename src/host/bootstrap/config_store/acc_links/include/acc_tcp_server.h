@@ -15,7 +15,7 @@
 #include "acc_tcp_request_context.h"
 #include "acc_tcp_shared_buf.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 /**
  * @brief Callback function of new connection accepted, see @AccTcpServer::RegisterNewLinkHandler
@@ -166,7 +166,7 @@ public:
     ~AccTcpServer() override = default;
 };
 
-inline int32_t AccTcpServer::Start(const ock::acc::AccTcpServerOptions &opt)
+inline int32_t AccTcpServer::Start(const shm::acc::AccTcpServerOptions &opt)
 {
     return Start(opt, AccTlsOption());
 }
@@ -177,6 +177,6 @@ inline int32_t AccTcpServer::ConnectToPeerServer(const std::string &peerIp, uint
     return ConnectToPeerServer(peerIp, port, req, 30U, newLink);
 }
 } // namespace acc
-} // namespace ock
+} // namespace shm
 
 #endif // ACC_LINKS_ACC_TCP_SERVER_H

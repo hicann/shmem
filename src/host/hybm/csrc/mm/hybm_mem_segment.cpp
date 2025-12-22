@@ -13,8 +13,8 @@
 #include "hybm_types.h"
 #include "hybm_mem_segment.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 bool MemSegment::deviceInfoReady{false};
 int MemSegment::deviceId_{-1};
 uint32_t MemSegment::pid_{0};

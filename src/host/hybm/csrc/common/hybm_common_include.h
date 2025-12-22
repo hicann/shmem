@@ -23,6 +23,6 @@ int32_t HybmGetInitDeviceId();
 
 bool HybmHasInited();
 
-ock::mf::HybmGvaVersion HybmGetGvaVersion();
+shm::hybm::HybmGvaVersion HybmGetGvaVersion();
 
 #endif // MEM_FABRIC_HYBRID_HYBM_COMMON_INCLUDE_H

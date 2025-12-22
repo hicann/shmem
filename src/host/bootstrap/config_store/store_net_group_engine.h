@@ -16,8 +16,8 @@
 #include "store_op.h"
 #include "store_timedwait.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 class SmemNetGroupEngine;
 using SmemGroupEnginePtr = SmRef<SmemNetGroupEngine>;

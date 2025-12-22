@@ -13,17 +13,17 @@
 #include "acc_includes.h"
 #include "acc_common_util.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 bool AccCommonUtil::IsValidIPv4(const std::string& ip) {
-    std::vector<std::string> parts = ock::mf::StringUtil::Split(ip, '.');
+    std::vector<std::string> parts = shm::store::StringUtil::Split(ip, '.');
     if (parts.size() != 4) {
 
         return false;
     }
     for (const auto& part : parts) {
         uint8_t num;
-        if (!ock::mf::StringUtil::String2Uint(part, num)) {
+        if (!shm::store::StringUtil::String2Uint(part, num)) {
             return false;
         }
     }
@@ -31,7 +31,7 @@ bool AccCommonUtil::IsValidIPv4(const std::string& ip) {
 }
 
 bool AccCommonUtil::IsValidIPv6(const std::string& ip) {
-    std::vector<std::string> parts = ock::mf::StringUtil::Split(ip, ':');
+    std::vector<std::string> parts = shm::store::StringUtil::Split(ip, ':');
     int empty_parts = 0;
     for (const auto& part : parts) {
         if (part.empty()) {
@@ -100,7 +100,7 @@ uint32_t AccCommonUtil::GetEnvValue2Uint32(const char *envName)
     if (tmpEnvValue != nullptr && strlen(tmpEnvValue) <= maxUint32Len && IsAllDigits(tmpEnvValue)) {
         uint32_t envValue = 0;
         std::string str(tmpEnvValue);
-        if (!ock::mf::StringUtil::String2Uint(str, envValue)) {
+        if (!shm::store::StringUtil::String2Uint(str, envValue)) {
             LOG_ERROR("failed to convert str : " << str << " to uint32_t");
             return 0;
         }
@@ -121,8 +121,8 @@ bool AccCommonUtil::IsAllDigits(const std::string &str)
 
 #define CHECK_FILE_PATH_TLS(key, path)                                                         \
     do {                                                                                       \
-        if (ock::mf::FileUtil::IsSymlink(path) || !ock::mf::FileUtil::Realpath(path)           \
-            || !ock::mf::FileUtil::IsFile(path) || !ock::mf::FileUtil::CheckFileSize(path)) {  \
+        if (shm::utils::FileUtil::IsSymlink(path) || !shm::utils::FileUtil::Realpath(path)           \
+            || !shm::utils::FileUtil::IsFile(path) || !shm::utils::FileUtil::CheckFileSize(path)) {  \
             LOG_ERROR("TLS " #key " check failed");                                            \
             return ACC_ERROR;                                                                  \
         }                                                                                      \
@@ -141,8 +141,8 @@ bool AccCommonUtil::IsAllDigits(const std::string &str)
 
 #define CHECK_DIR_PATH_TLS(key, path)                                                    \
     do {                                                                                 \
-        if (ock::mf::FileUtil::IsSymlink(path) || !ock::mf::FileUtil::Realpath(path)     \
-            || !ock::mf::FileUtil::IsDir(path)) {                                        \
+        if (shm::utils::FileUtil::IsSymlink(path) || !shm::utils::FileUtil::Realpath(path)     \
+            || !shm::utils::FileUtil::IsDir(path)) {                                        \
             LOG_ERROR("TLS " #key " check failed");                                      \
             return ACC_ERROR;                                                            \
         }                                                                                \
@@ -191,4 +191,4 @@ Result AccCommonUtil::CheckTlsOptions(const AccTlsOption &tlsOption)
     return ACC_OK;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

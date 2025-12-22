@@ -11,8 +11,8 @@
 #include <mutex>
 #include "dl_hal_api.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 bool DlHalApi::gLoaded = false;
 std::mutex DlHalApi::gMutex;
 void *DlHalApi::halHandle;

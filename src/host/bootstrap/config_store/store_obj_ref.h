@@ -15,8 +15,8 @@
 #include <utility>
 #include <string.h>
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 class SmReferable {
 public:

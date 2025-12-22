@@ -18,8 +18,8 @@
 #include "hybm_ex_info_transfer.h"
 #include "hybm_mem_slice.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 class MemEntity {
 public:
     virtual int32_t Initialize(const hybm_options *options) noexcept = 0;
@@ -54,7 +54,7 @@ public:
 };
 
 using MemEntityPtr = std::shared_ptr<MemEntity>;
-}  // namespace mf
-}  // namespace ock
+}  // namespace hybm
+}  // namespace shm
 
 #endif  // __MF_HYBRID_BM_H__

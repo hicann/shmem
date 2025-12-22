@@ -12,8 +12,8 @@
 #include "hybm_logger.h"
 #include "device_rdma_transport_manager.h"
 
-using namespace ock::mf;
-using namespace ock::mf::transport;
+using namespace shm::hybm;
+using namespace shm::hybm::transport;
 
 std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
 {

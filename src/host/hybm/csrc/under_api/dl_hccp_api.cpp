@@ -11,8 +11,8 @@
 #include <dlfcn.h>
 #include "dl_hccp_api.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 bool DlHccpApi::gLoaded = false;
 std::mutex DlHccpApi::gMutex;
 void *DlHccpApi::raHandle;

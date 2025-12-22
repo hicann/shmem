@@ -14,8 +14,8 @@
 
 #include "store_op.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 class PrefixConfigStore : public ConfigStore {
 public:
@@ -95,7 +95,7 @@ private:
     const StorePtr baseStore_;
     const std::string keyPrefix_;
 };
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm
 
 #endif  // STORE_PREFIX_H

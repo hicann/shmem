@@ -13,8 +13,8 @@
 #include <cstdint>
 #include <memory>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 using Result = int32_t;
 
 enum BErrorCode : int32_t {
@@ -32,7 +32,7 @@ enum BErrorCode : int32_t {
 };
 
 constexpr uint32_t UN40 = 40;
-} // namespace mf
-} // namespace ock
+} // namespace hybm
+} // namespace shm
 
 #endif // MEM_FABRIC_HYBRID_HYBM_TYPES_H

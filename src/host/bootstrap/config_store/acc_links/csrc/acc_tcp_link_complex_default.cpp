@@ -10,7 +10,7 @@
 #include "acc_tcp_link_complex_default.h"
 #include "acc_tcp_worker.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 Result AccTcpLinkComplexDefault::Initialize(uint16_t sendQueueCap, int32_t workIndex, AccTcpWorker *worker)
 {
@@ -58,4 +58,4 @@ Result AccTcpLinkComplexDefault::EnqueueAndModifyEpoll(const AccMsgHeader &h, co
     return worker_->ModifyLink(this, POLLIN | POLLOUT | EPOLLET);
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

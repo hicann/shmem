@@ -19,7 +19,7 @@
 #include "aclshmemi_file_util.h"
 #include "openssl_api_wrapper.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class AccCommonUtil {
 public:
@@ -31,6 +31,6 @@ public:
     static Result CheckTlsOptions(const AccTlsOption &tlsOption);
 };
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_COMMON_UTIL_H

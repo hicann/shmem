@@ -14,8 +14,8 @@
 #include "hybm_common_include.h"
 #include "dl_hccp_def.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 using raRdevGetHandleFunc = int (*)(uint32_t, void **);
 

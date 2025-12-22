@@ -14,7 +14,7 @@
 
 #include "aclshmemi_file_util.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class FileValidator {
 public:
@@ -44,6 +44,6 @@ public:
                                 std::string &errMsg);
 };
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif

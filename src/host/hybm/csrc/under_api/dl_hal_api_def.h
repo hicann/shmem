@@ -11,8 +11,8 @@
 #ifndef MF_HYBRID_DL_HAL_API_DEF_H
 #define MF_HYBRID_DL_HAL_API_DEF_H
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 constexpr uint32_t SQCQ_RTS_INFO_LENGTH        = 5;
 constexpr uint32_t SQCQ_RESV_LENGTH            = 8;

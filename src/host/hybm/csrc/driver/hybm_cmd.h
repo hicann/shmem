@@ -12,8 +12,8 @@
 
 #include <string>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace drv {
 
 void HybmInitialize(int deviceId, int fd) noexcept;

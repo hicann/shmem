@@ -21,8 +21,8 @@
 #include "sotre_net.h"
 #include "hybm_def.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 constexpr uint32_t REG_MR_FLAG_HBM = 0x2U;
 
@@ -129,7 +129,7 @@ struct HybmTransPrepareOptions {
 };
 
 }  // namespace transport
-}  // namespace mf
-}  // namespace ock
+}  // namespace hybm
+}  // namespace shm
 
 #endif  // MF_HYBRID_HYBM_TRANSPORT_COMMON_H

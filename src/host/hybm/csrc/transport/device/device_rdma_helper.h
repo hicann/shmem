@@ -18,8 +18,8 @@
 #include "sotre_net.h"
 #include "hybm_types.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 Result ParseDeviceNic(const std::string &nic, uint16_t &port);

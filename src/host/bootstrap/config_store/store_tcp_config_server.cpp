@@ -16,8 +16,8 @@
 #include "store_tcp_config_server.h"
 #include "store_net_common.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 std::atomic<uint64_t> StoreWaitContext::idGen_{1UL};
 AccStoreServer::AccStoreServer(std::string ip, uint16_t port, int32_t sockFd) noexcept
     : listenIp_{std::move(ip)},
@@ -30,17 +30,17 @@ AccStoreServer::AccStoreServer(std::string ip, uint16_t port, int32_t sockFd) no
 {
 }
 
-Result AccStoreServer::AccServerStart(ock::acc::AccTcpServerPtr &accTcpServer,
+Result AccStoreServer::AccServerStart(shm::acc::AccTcpServerPtr &accTcpServer,
                                            const AcclinkTlsOption &tlsOption) noexcept
 {
-    ock::acc::AccTcpServerOptions options;
+    shm::acc::AccTcpServerOptions options;
     options.listenIp = listenIp_;
     options.listenPort = listenPort_;
     options.enableListener = true;
-    options.linkSendQueueSize = ock::acc::UNO_48;
+    options.linkSendQueueSize = shm::acc::UNO_48;
     options.sockFd = sockFd_;
 
-    ock::acc::AccTlsOption tlsOpt = ConvertTlsOption(tlsOption);
+    shm::acc::AccTlsOption tlsOpt = ConvertTlsOption(tlsOption);
     Result result;
     if (tlsOpt.enableTls) {
         if (accTcpServer->LoadDynamicLib(tlsOption.packagePath) != 0) {
@@ -55,11 +55,11 @@ Result AccStoreServer::AccServerStart(ock::acc::AccTcpServerPtr &accTcpServer,
     } else {
         result = accTcpServer->Start(options);
     }
-    if (result == ock::acc::ACC_LINK_ADDRESS_IN_USE) {
+    if (result == shm::acc::ACC_LINK_ADDRESS_IN_USE) {
         SHM_LOG_INFO("startup acc tcp server on port: " << listenPort_ << " already in use.");
         return SM_RESOURCE_IN_USE;
     }
-    if (result != ock::acc::ACC_OK) {
+    if (result != shm::acc::ACC_OK) {
         SHM_LOG_ERROR("startup acc tcp server on port: " << listenPort_ << " failed: " << result);
         return ACLSHMEM_SMEM_ERROR;
     }
@@ -74,20 +74,20 @@ Result AccStoreServer::Startup(const AcclinkTlsOption &tlsOption) noexcept
         return ACLSHMEM_SUCCESS;
     }
 
-    auto tmpAccTcpServer = ock::acc::AccTcpServer::Create();
+    auto tmpAccTcpServer = shm::acc::AccTcpServer::Create();
     if (tmpAccTcpServer == nullptr) {
         SHM_LOG_ERROR("create acc tcp server failed");
         return SM_NEW_OBJECT_FAILED;
     }
 
     tmpAccTcpServer->RegisterNewRequestHandler(
-        0, [this](const ock::acc::AccTcpRequestContext &context) { return ReceiveMessageHandler(context); });
+        0, [this](const shm::acc::AccTcpRequestContext &context) { return ReceiveMessageHandler(context); });
     tmpAccTcpServer->RegisterNewLinkHandler(
-        [this](const ock::acc::AccConnReq &req, const ock::acc::AccTcpLinkComplexPtr &link) {
+        [this](const shm::acc::AccConnReq &req, const shm::acc::AccTcpLinkComplexPtr &link) {
             return LinkConnectedHandler(req, link);
         });
     tmpAccTcpServer->RegisterLinkBrokenHandler(
-        [this](const ock::acc::AccTcpLinkComplexPtr &link) { return LinkBrokenHandler(link); });
+        [this](const shm::acc::AccTcpLinkComplexPtr &link) { return LinkBrokenHandler(link); });
 
     Result result = AccServerStart(tmpAccTcpServer, tlsOption);
     if (result != ACLSHMEM_SUCCESS) {
@@ -140,7 +140,7 @@ void AccStoreServer::Shutdown(bool afterFork) noexcept
     SHM_LOG_INFO("finished shutdown Acc Store Server");
 }
 
-Result AccStoreServer::ReceiveMessageHandler(const ock::acc::AccTcpRequestContext &context) noexcept
+Result AccStoreServer::ReceiveMessageHandler(const shm::acc::AccTcpRequestContext &context) noexcept
 {
     auto data = reinterpret_cast<const uint8_t *>(context.DataPtr());
     if (data == nullptr) {
@@ -167,20 +167,20 @@ Result AccStoreServer::ReceiveMessageHandler(const ock::acc::AccTcpRequestContex
     return (this->*(pos->second))(context, requestMessage);
 }
 
-Result AccStoreServer::LinkConnectedHandler(const ock::acc::AccConnReq &req,
-                                            const ock::acc::AccTcpLinkComplexPtr &link) noexcept
+Result AccStoreServer::LinkConnectedHandler(const shm::acc::AccConnReq &req,
+                                            const shm::acc::AccTcpLinkComplexPtr &link) noexcept
 {
     SHM_LOG_INFO("new link connected, linkId: " << link->Id() << ", rank: " << req.rankId);
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::LinkBrokenHandler(const ock::acc::AccTcpLinkComplexPtr &link) noexcept
+Result AccStoreServer::LinkBrokenHandler(const shm::acc::AccTcpLinkComplexPtr &link) noexcept
 {
     SHM_LOG_INFO("link broken, linkId: " << link->Id());
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::SetHandler(const ock::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
+Result AccStoreServer::SetHandler(const shm::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
 {
     if (request.keys.size() != 1 || request.values.size() != 1) {
         SHM_LOG_ERROR("request(" << context.SeqNo() << ") handle invalid body");
@@ -196,7 +196,7 @@ Result AccStoreServer::SetHandler(const ock::acc::AccTcpRequestContext &context,
     }
 
     SHM_LOG_DEBUG("SET REQUEST(" << context.SeqNo() << ") for key(" << key << ") start.");
-    std::list<ock::acc::AccTcpRequestContext> wakeupWaiters;
+    std::list<shm::acc::AccTcpRequestContext> wakeupWaiters;
     std::vector<uint8_t> reqVal;
     std::unique_lock<std::mutex> lockGuard{storeMutex_};
     auto pos = kvStore_.find(key);
@@ -221,7 +221,7 @@ Result AccStoreServer::SetHandler(const ock::acc::AccTcpRequestContext &context,
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::GetHandler(const ock::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
+Result AccStoreServer::GetHandler(const shm::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
 {
     if (request.keys.size() != 1 || !request.values.empty()) {
         SHM_LOG_ERROR("request(" << context.SeqNo() << ") handle invalid body");
@@ -287,7 +287,7 @@ Result AccStoreServer::GetHandler(const ock::acc::AccTcpRequestContext &context,
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::AddHandler(const ock::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
+Result AccStoreServer::AddHandler(const shm::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
 {
     if (request.keys.size() != 1 || request.values.size() != 1) {
         SHM_LOG_ERROR("request(" << context.SeqNo() << ") handle invalid body");
@@ -313,7 +313,7 @@ Result AccStoreServer::AddHandler(const ock::acc::AccTcpRequestContext &context,
     }
 
     auto responseValue = valueNum;
-    std::list<ock::acc::AccTcpRequestContext> wakeupWaiters;
+    std::list<shm::acc::AccTcpRequestContext> wakeupWaiters;
     std::vector<uint8_t> reqVal;
     std::unique_lock<std::mutex> lockGuard{storeMutex_};
     auto pos = kvStore_.find(key);
@@ -344,7 +344,7 @@ Result AccStoreServer::AddHandler(const ock::acc::AccTcpRequestContext &context,
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::RemoveHandler(const ock::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
+Result AccStoreServer::RemoveHandler(const shm::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
 {
     if (request.keys.size() != 1 || !request.values.empty()) {
         SHM_LOG_ERROR("request(" << context.SeqNo() << ") handle invalid body");
@@ -373,7 +373,7 @@ Result AccStoreServer::RemoveHandler(const ock::acc::AccTcpRequestContext &conte
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::AppendHandler(const ock::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
+Result AccStoreServer::AppendHandler(const shm::acc::AccTcpRequestContext &context, SmemMessage &request) noexcept
 {
     if (request.keys.size() != 1 || request.values.size() != 1) {
         SHM_LOG_ERROR("request(" << context.SeqNo() << ") handle invalid body");
@@ -390,7 +390,7 @@ Result AccStoreServer::AppendHandler(const ock::acc::AccTcpRequestContext &conte
 
     SHM_LOG_DEBUG("APPEND REQUEST(" << context.SeqNo() << ") for key(" << key << ") start.");
     uint64_t newSize;
-    std::list<ock::acc::AccTcpRequestContext> wakeupWaiters;
+    std::list<shm::acc::AccTcpRequestContext> wakeupWaiters;
     std::vector<uint8_t> reqVal;
     std::unique_lock<std::mutex> lockGuard{storeMutex_};
     auto pos = kvStore_.find(key);
@@ -416,8 +416,8 @@ Result AccStoreServer::AppendHandler(const ock::acc::AccTcpRequestContext &conte
     return ACLSHMEM_SUCCESS;
 }
 
-Result AccStoreServer::CasHandler(const ock::acc::AccTcpRequestContext &context,
-                                  ock::smem::SmemMessage &request) noexcept
+Result AccStoreServer::CasHandler(const shm::acc::AccTcpRequestContext &context,
+                                  shm::store::SmemMessage &request) noexcept
 {
     const size_t EXPECTED_KEYS_SIZE = 1;
     const size_t EXPECTED_VALUES_SIZE = 2;
@@ -438,7 +438,7 @@ Result AccStoreServer::CasHandler(const ock::acc::AccTcpRequestContext &context,
 
     std::vector<uint8_t> exists;
     SmemMessage responseMessage{request.mt};
-    std::list<ock::acc::AccTcpRequestContext> wakeupWaiters;
+    std::list<shm::acc::AccTcpRequestContext> wakeupWaiters;
     SHM_LOG_DEBUG("CAS REQUEST(" << context.SeqNo() << ") for key(" << key << ") start.");
 
     std::unique_lock<std::mutex> lockGuard{storeMutex_};
@@ -472,10 +472,10 @@ Result AccStoreServer::CasHandler(const ock::acc::AccTcpRequestContext &context,
     return ACLSHMEM_SUCCESS;
 }
 
-std::list<ock::acc::AccTcpRequestContext> AccStoreServer::GetOutWaitersInLock(
+std::list<shm::acc::AccTcpRequestContext> AccStoreServer::GetOutWaitersInLock(
     const std::unordered_set<uint64_t> &ids) noexcept
 {
-    std::list<ock::acc::AccTcpRequestContext> reqCtx;
+    std::list<shm::acc::AccTcpRequestContext> reqCtx;
     for (auto id : ids) {
         auto it = waitCtx_.find(id);
         if (it != waitCtx_.end()) {
@@ -493,7 +493,7 @@ std::list<ock::acc::AccTcpRequestContext> AccStoreServer::GetOutWaitersInLock(
     return std::move(reqCtx);
 }
 
-void AccStoreServer::WakeupWaiters(const std::list<ock::acc::AccTcpRequestContext> &waiters,
+void AccStoreServer::WakeupWaiters(const std::list<shm::acc::AccTcpRequestContext> &waiters,
                                    const std::vector<uint8_t> &value) noexcept
 {
     SmemMessage responseMessage{MessageType::GET};
@@ -505,10 +505,10 @@ void AccStoreServer::WakeupWaiters(const std::list<ock::acc::AccTcpRequestContex
     }
 }
 
-void AccStoreServer::ReplyWithMessage(const ock::acc::AccTcpRequestContext &ctx, int16_t code,
+void AccStoreServer::ReplyWithMessage(const shm::acc::AccTcpRequestContext &ctx, int16_t code,
                                       const std::string &message) noexcept
 {
-    auto response = ock::acc::AccDataBuffer::Create(message.c_str(), message.size());
+    auto response = shm::acc::AccDataBuffer::Create(message.c_str(), message.size());
     if (response == nullptr) {
         SHM_LOG_ERROR("create response message failed");
         return;
@@ -517,10 +517,10 @@ void AccStoreServer::ReplyWithMessage(const ock::acc::AccTcpRequestContext &ctx,
     ctx.Reply(code, response);
 }
 
-void AccStoreServer::ReplyWithMessage(const ock::acc::AccTcpRequestContext &ctx, int16_t code,
+void AccStoreServer::ReplyWithMessage(const shm::acc::AccTcpRequestContext &ctx, int16_t code,
                                       const std::vector<uint8_t> &message) noexcept
 {
-    auto response = ock::acc::AccDataBuffer::Create(message.data(), message.size());
+    auto response = shm::acc::AccDataBuffer::Create(message.data(), message.size());
     if (response == nullptr) {
         SHM_LOG_ERROR("create response message failed");
         return;
@@ -558,5 +558,5 @@ void AccStoreServer::TimerThreadTask() noexcept
         storeCond_.wait_for(lockerGuard, std::chrono::milliseconds(1), [this]() { return !running_; });
     }
 }
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm

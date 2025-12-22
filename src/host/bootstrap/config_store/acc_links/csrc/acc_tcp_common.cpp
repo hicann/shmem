@@ -9,7 +9,7 @@
  */
 #include "acc_tcp_common.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 
 void SafeCloseFd(int &fd, bool needShutdown)
@@ -27,4 +27,4 @@ void SafeCloseFd(int &fd, bool needShutdown)
     }
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

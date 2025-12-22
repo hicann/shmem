@@ -26,7 +26,7 @@ std::string GetDriverVersionPath(const std::string &driverEnvStr, const std::str
         }
         // 对存放driver版本文件的路径进行搜索
         if (driverEnvStr[i] == ':' || i == driverEnvStr.length() - 1) {
-            if (!ock::mf::FileUtil::Realpath(tempPath)) {
+            if (!shm::utils::FileUtil::Realpath(tempPath)) {
                 tempPath.clear();
                 continue;
             }
@@ -50,8 +50,8 @@ std::string LoadDriverVersionInfoFile(const std::string &realName, const std::st
 {
     std::string driverVersion;
     // 打开该文件前，判断该文件路径是否有效、规范
-    char realFile[ock::mf::FileUtil::GetSafePathMax()] = {0};
-    if (ock::mf::FileUtil::IsSymlink(realName) || realpath(realName.c_str(), realFile) == nullptr) {
+    char realFile[shm::utils::FileUtil::GetSafePathMax()] = {0};
+    if (shm::utils::FileUtil::IsSymlink(realName) || realpath(realName.c_str(), realFile) == nullptr) {
         BM_LOG_WARN("driver version path is not a valid real path");
         return "";
     }
@@ -92,9 +92,12 @@ std::string CastDriverVersion(const std::string &driverEnv)
         driverVersionPath += "/driver/version.info";
         std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
         return driverVersion;
+    } else {
+        BM_LOG_WARN("cannot found version file in :" << driverEnv << ", try local default path.");
+        driverVersionPath = "/usr/local/Ascend/driver/version.info";  // try default path
+        std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
+        return driverVersion;
     }
-    BM_LOG_WARN("cannot found version file in :" << driverEnv);
-    return "";
 }
 
 int32_t GetValueFromVersion(const std::string &ver, std::string key)

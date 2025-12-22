@@ -12,7 +12,7 @@
 
 #include "acc_def.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 /**
  * @brief A link is a socket connection, link is created by server or client
@@ -256,6 +256,6 @@ inline bool AccTcpLink::Break()
     return __sync_bool_compare_and_swap(&established_, 1, 0);
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_LINK_H

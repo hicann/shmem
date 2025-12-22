@@ -14,8 +14,8 @@
 #include "aclshmemi_logger.h"
 #include "store_net_common.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 constexpr auto CONNECT_RETRY_MAX_TIMES = 60;
 
 class ClientWaitContext : public ClientCommonContext {
@@ -27,7 +27,7 @@ public:
     {
     }
 
-    std::shared_ptr<ock::acc::AccTcpRequestContext> WaitFinished() noexcept override
+    std::shared_ptr<shm::acc::AccTcpRequestContext> WaitFinished() noexcept override
     {
         std::unique_lock<std::mutex> locker{waitMutex_};
         waitCond_.wait(locker, [this]() { return finished_; });
@@ -37,10 +37,10 @@ public:
         return copy;
     }
 
-    void SetFinished(const ock::acc::AccTcpRequestContext &response) noexcept override
+    void SetFinished(const shm::acc::AccTcpRequestContext &response) noexcept override
     {
         std::unique_lock<std::mutex> locker{waitMutex_};
-        responseInfo_ = std::make_shared<ock::acc::AccTcpRequestContext>(response);
+        responseInfo_ = std::make_shared<shm::acc::AccTcpRequestContext>(response);
         finished_ = true;
         locker.unlock();
 
@@ -65,7 +65,7 @@ private:
     std::mutex &waitMutex_;
     std::condition_variable &waitCond_;
     bool finished_;
-    std::shared_ptr<ock::acc::AccTcpRequestContext> responseInfo_;
+    std::shared_ptr<shm::acc::AccTcpRequestContext> responseInfo_;
 };
 
 class ClientWatchContext : public ClientCommonContext {
@@ -75,12 +75,12 @@ public:
     {
     }
 
-    std::shared_ptr<ock::acc::AccTcpRequestContext> WaitFinished() noexcept override
+    std::shared_ptr<shm::acc::AccTcpRequestContext> WaitFinished() noexcept override
     {
         return nullptr;
     }
 
-    void SetFinished(const ock::acc::AccTcpRequestContext &response) noexcept override
+    void SetFinished(const shm::acc::AccTcpRequestContext &response) noexcept override
     {
         auto data = reinterpret_cast<const uint8_t *>(response.DataPtr());
 
@@ -133,10 +133,10 @@ TcpConfigStore::~TcpConfigStore() noexcept
 
 Result TcpConfigStore::AccClientStart(const AcclinkTlsOption &tlsOption) noexcept
 {
-    ock::acc::AccTcpServerOptions options;
-    options.linkSendQueueSize = ock::acc::UNO_48;
+    shm::acc::AccTcpServerOptions options;
+    options.linkSendQueueSize = shm::acc::UNO_48;
 
-    ock::acc::AccTlsOption tlsOpt = ConvertTlsOption(tlsOption);
+    shm::acc::AccTlsOption tlsOpt = ConvertTlsOption(tlsOption);
     Result result;
     if (tlsOpt.enableTls) {
         if (tlsOption.decryptHandler_ != nullptr) {
@@ -160,7 +160,7 @@ Result TcpConfigStore::Startup(const AcclinkTlsOption &tlsOption, int reconnectR
         return SM_OK;
     }
 
-    accClient_ = ock::acc::AccTcpServer::Create();
+    accClient_ = shm::acc::AccTcpServer::Create();
     if (accClient_ == nullptr) {
         SHM_LOG_ERROR("create acc tcp client failed");
         return SM_ERROR;
@@ -186,9 +186,9 @@ Result TcpConfigStore::Startup(const AcclinkTlsOption &tlsOption, int reconnectR
     }
 
     accClient_->RegisterNewRequestHandler(
-        0, [this](const ock::acc::AccTcpRequestContext &context) { return ReceiveResponseHandler(context); });
+        0, [this](const shm::acc::AccTcpRequestContext &context) { return ReceiveResponseHandler(context); });
     accClient_->RegisterLinkBrokenHandler(
-        [this](const ock::acc::AccTcpLinkComplexPtr &link) { return LinkBrokenHandler(link); });
+        [this](const shm::acc::AccTcpLinkComplexPtr &link) { return LinkBrokenHandler(link); });
 
     if ((result = AccClientStart(tlsOption)) != SM_OK) {
         SHM_LOG_ERROR("start acc client failed, result: " << result);
@@ -196,7 +196,7 @@ Result TcpConfigStore::Startup(const AcclinkTlsOption &tlsOption, int reconnectR
         return result;
     }
 
-    ock::acc::AccConnReq connReq;
+    shm::acc::AccConnReq connReq;
     connReq.rankId = rankId_;
     result = accClient_->ConnectToPeerServer(serverIp_, serverPort_, connReq, retryMaxTimes, accClientLink_);
     if (result != 0) {
@@ -478,7 +478,7 @@ Result TcpConfigStore::Unwatch(uint32_t wid) noexcept
     return SM_OK;
 }
 
-std::shared_ptr<ock::acc::AccTcpRequestContext> TcpConfigStore::SendMessageBlocked(
+std::shared_ptr<shm::acc::AccTcpRequestContext> TcpConfigStore::SendMessageBlocked(
     const std::vector<uint8_t> &reqBody) noexcept
 {
     auto seqNo = reqSeqGen_.fetch_add(1U);
@@ -491,7 +491,7 @@ std::shared_ptr<ock::acc::AccTcpRequestContext> TcpConfigStore::SendMessageBlock
     msgClientContext_.emplace(seqNo, waitContext);
     msgCtxLocker.unlock();
 
-    auto dataBuf = ock::acc::AccDataBuffer::Create(reqBody.data(), reqBody.size());
+    auto dataBuf = shm::acc::AccDataBuffer::Create(reqBody.data(), reqBody.size());
     auto ret = accClientLink_->NonBlockSend(0, seqNo, dataBuf, nullptr);
     if (ret != SM_OK) {
         SHM_LOG_ERROR("send message failed, result: " << ret);
@@ -502,7 +502,7 @@ std::shared_ptr<ock::acc::AccTcpRequestContext> TcpConfigStore::SendMessageBlock
     return response;
 }
 
-Result TcpConfigStore::LinkBrokenHandler(const ock::acc::AccTcpLinkComplexPtr &link) noexcept
+Result TcpConfigStore::LinkBrokenHandler(const shm::acc::AccTcpLinkComplexPtr &link) noexcept
 {
     SHM_LOG_INFO("link broken, linkId: " << link->Id());
     std::unordered_map<uint32_t, std::shared_ptr<ClientCommonContext>> tempContext;
@@ -517,7 +517,7 @@ Result TcpConfigStore::LinkBrokenHandler(const ock::acc::AccTcpLinkComplexPtr &l
     return SM_OK;
 }
 
-Result TcpConfigStore::ReceiveResponseHandler(const ock::acc::AccTcpRequestContext &context) noexcept
+Result TcpConfigStore::ReceiveResponseHandler(const shm::acc::AccTcpRequestContext &context) noexcept
 {
     SHM_LOG_DEBUG("client received message: " << context.SeqNo());
     std::shared_ptr<ClientCommonContext> clientContext;
@@ -550,7 +550,7 @@ Result TcpConfigStore::SendWatchRequest(const std::vector<uint8_t> &reqBody,
     msgClientContext_.emplace(seqNo, std::move(watchContext));
     msgCtxLocker.unlock();
 
-    auto dataBuf = ock::acc::AccDataBuffer::Create(reqBody.data(), reqBody.size());
+    auto dataBuf = shm::acc::AccDataBuffer::Create(reqBody.data(), reqBody.size());
     auto ret = accClientLink_->NonBlockSend(0, seqNo, dataBuf, nullptr);
     if (ret != SM_OK) {
         SHM_LOG_ERROR("send message failed, result: " << ret);
@@ -560,5 +560,5 @@ Result TcpConfigStore::SendWatchRequest(const std::vector<uint8_t> &reqBody,
     id = seqNo;
     return SM_OK;
 }
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm

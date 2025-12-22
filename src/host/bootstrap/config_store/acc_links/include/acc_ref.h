@@ -14,7 +14,7 @@
 #include <utility>
 #include <string.h>
 
-namespace ock {
+namespace shm {
 namespace acc {
 /**
  * @brief Base class of referable object for smart ptr, all classes need to inherit from this class
@@ -175,5 +175,5 @@ static AccRef<Des> AccConvert(const AccRef<Src> &child)
     return nullptr;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 #endif  // ACC_LINKS_ACC_REF_H

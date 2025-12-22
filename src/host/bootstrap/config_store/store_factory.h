@@ -26,8 +26,8 @@
 #include "store_op.h"
 #include "store_utils.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 class StoreFactory {
 public:
@@ -104,7 +104,7 @@ private:
     static std::condition_variable cv_;
     static std::atomic<bool> stop_;
 };
-} // namespace smem
-} // namespace ock
+} // namespace store
+} // namespace shm
 
 #endif // SMEM_SMEM_STORE_FACTORY_H

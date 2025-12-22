@@ -22,8 +22,8 @@
 #include "hybm_logger.h"
 #include "hybm_networks_common.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace {
 std::string GetDefaultRouteNetwork()
 {

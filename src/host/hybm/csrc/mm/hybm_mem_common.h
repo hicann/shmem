@@ -12,8 +12,8 @@
 
 #include "hybm_common_include.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 constexpr auto DEVICE_SHM_NAME_SIZE = 64U;
 class MemSlice;
@@ -68,7 +68,7 @@ struct MemSegmentOptions {
     uint32_t rankId = 0;   // must start from 0 and increase continuously
     uint32_t rankCnt = 0;  // total rank count
 };
-}  // namespace mf
-}  // namespace ock
+}  // namespace hybm
+}  // namespace shm
 
 #endif  // MEM_FABRIC_HYBRID_HYBM_MM_COMMON_H

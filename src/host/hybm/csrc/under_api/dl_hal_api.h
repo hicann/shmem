@@ -14,8 +14,8 @@
 #include "hybm_common_include.h"
 #include "dl_hal_api_def.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 using halSvmModuleAllocedSizeIncFunc = void (*)(void *, uint32_t, uint32_t, uint64_t);
 using halVirtAllocMemFromBaseFunc = uint64_t (*)(void *, size_t, uint32_t, uint64_t);
 using halIoctlEnableHeapFunc = int32_t (*)(uint32_t, uint32_t, uint32_t, uint64_t, uint32_t);

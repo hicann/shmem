@@ -10,7 +10,7 @@
 #include "acc_common_util.h"
 #include "acc_tcp_shared_buf.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 AccDataBuffer::AccDataBuffer(uint32_t memSize) : memSize_{ memSize }, data_{ new (std::nothrow) uint8_t[memSize] } {}
 
@@ -75,4 +75,4 @@ AccDataBufferPtr AccDataBuffer::Create(uint32_t memSize)
     return buffer;
 }
 } // namespace acc
-} // namespace ock
+} // namespace shm

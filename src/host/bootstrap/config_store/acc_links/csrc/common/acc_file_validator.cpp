@@ -23,7 +23,7 @@ constexpr long DEFAULT_MAX_DATA_SIZE = 1024 * 1024 * 1024;
 constexpr mode_t PER_PERMISSION_MASK_RWX = 0b111;
 }  // namespace
 
-namespace ock {
+namespace shm {
 namespace acc {
 static long g_defaultMaxDataSize = DEFAULT_MAX_DATA_SIZE;
 static const mode_t FILE_MODE = 0740;
@@ -49,21 +49,21 @@ bool FileValidator::RegularFilePath(const std::string &filePath, const std::stri
         errMsg = "The file path basedir is empty.";
         return false;
     }
-    if (filePath.size() >= ock::mf::FileUtil::GetSafePathMax()) {
+    if (filePath.size() >= shm::utils::FileUtil::GetSafePathMax()) {
         errMsg = "The file path exceeds the maximum value set by PATH_MAX.";
         return false;
     }
-    if (baseDir.size() >= ock::mf::FileUtil::GetSafePathMax()) {
+    if (baseDir.size() >= shm::utils::FileUtil::GetSafePathMax()) {
         errMsg = "The file path basedir exceeds the maximum value set by PATH_MAX.";
         return false;
     }
-    if (ock::mf::FileUtil::IsSymlink(filePath)) {
+    if (shm::utils::FileUtil::IsSymlink(filePath)) {
         errMsg = "The file is a link.";
         return false;
     }
 
-    char* path = new char[ock::mf::FileUtil::GetSafePathMax() + UNO_1];
-    bzero(path, ock::mf::FileUtil::GetSafePathMax() + UNO_1);
+    char* path = new char[shm::utils::FileUtil::GetSafePathMax() + UNO_1];
+    bzero(path, shm::utils::FileUtil::GetSafePathMax() + UNO_1);
 
     char* ret = realpath(filePath.c_str(), path);
     if (ret == nullptr) {
@@ -87,12 +87,12 @@ bool FileValidator::RegularFilePath(const std::string &filePath, const std::stri
 
 bool FileValidator::IsFileValid(const std::string &configFile, std::string &errMsg)
 {
-    if (!ock::mf::FileUtil::Exist(configFile)) {
+    if (!shm::utils::FileUtil::Exist(configFile)) {
         errMsg = "The input file is not a regular file or not exists";
         return false;
     }
 
-    size_t fileSize = ock::mf::FileUtil::GetFileSize(configFile);
+    size_t fileSize = shm::utils::FileUtil::GetFileSize(configFile);
     if (fileSize == 0) {
         errMsg = "The input file is empty";
     } else if (!CheckDataSize(fileSize)) {
@@ -134,4 +134,4 @@ bool FileValidator::CheckPermission(const std::string &filePath, const mode_t &m
     return true;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

@@ -17,8 +17,8 @@
 #include "hybm_def.h"
 #include "device_rdma_common.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 

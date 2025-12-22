@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <vector>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 std::vector<uint32_t> NetworkGetIpAddresses() noexcept;
 }
 }

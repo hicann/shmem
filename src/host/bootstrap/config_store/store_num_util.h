@@ -25,8 +25,8 @@ enum MfIndex : uint8_t {
     INDEX_6 = 6U,
 };
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace store {
 template <typename T>
 struct IsUnsignedNumber {
     static constexpr bool value =

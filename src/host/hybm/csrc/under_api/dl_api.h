@@ -13,8 +13,8 @@
 #include <string>
 #include "hybm_types.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 enum DlApiExtendLibraryType {
     DL_EXT_LIB_DEVICE_RDMA,

@@ -15,8 +15,8 @@
 #include <thread>
 #include "device_qp_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 
@@ -39,6 +39,11 @@ private:
         CONN_QP_STARS,    // Host侧使用STARS驱动的QP
         CONN_QP_COUNT
     };
+    enum ConnSide : uint32_t {
+        CONN_SERVER_SIDE,
+        CONN_CLIENT_SIDE,
+        CONN_MAX_SIDE
+    };
 
     struct ConnectionChannel {
         net_addr_t remoteIp;
@@ -57,7 +62,7 @@ private:
     int StartClientSide() noexcept;
     int GenerateWhiteList() noexcept;
     int WaitConnectionsReady(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept;
-    int CreateQpWaitingReady(std::unordered_map<uint32_t, ConnectionChannel> &connections, ConnQpType qpType) noexcept;
+    int CreateQpWaitingReady(std::unordered_map<uint32_t, ConnectionChannel> &connections, ConnQpType qpType, ConnSide side) noexcept;
     int CreateOneQp(ConnQpType qpType, ConnectionChannel &channel) noexcept;
     int FillQpInfo(ConnQpType qpType) noexcept;
     void CopyAiWQInfo(struct AiQpRMAWQ &dest, const struct ai_data_plane_wq &src, DBMode dbMode, uint32_t sl) noexcept;

@@ -15,8 +15,8 @@
 #include "sotre_net.h"
 #include "store_utils.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 using Result = int32_t;
 

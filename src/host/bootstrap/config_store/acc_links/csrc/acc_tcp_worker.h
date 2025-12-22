@@ -18,7 +18,7 @@
 #include "acc_tcp_request_context.h"
 #include "acc_tcp_shared_buf.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 using LinkBrokenHandlerInner = std::function<int32_t(const AccTcpLinkComplexDefaultPtr &link)>;
 
@@ -161,6 +161,6 @@ inline void AccTcpWorker::RegisterLinkBrokenHandler(const LinkBrokenHandlerInner
     linkBrokenHandle_ = h;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_WORKER_H

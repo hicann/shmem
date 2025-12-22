@@ -19,8 +19,8 @@ constexpr uint64_t SECOND_TO_MILLSEC = 1000U;
 constexpr uint64_t MILLSEC_TO_NANOSSEC = 1000000U;
 constexpr uint64_t SECOND_TO_NANOSSEC = 1000000000U;
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 class SmemTimedwait {    // wait signal or overtime, instead of sem_timedwait
 public:
     SmemTimedwait() = default;

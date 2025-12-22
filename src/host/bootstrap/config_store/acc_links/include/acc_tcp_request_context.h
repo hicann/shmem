@@ -13,7 +13,7 @@
 #include "acc_tcp_link.h"
 #include "acc_tcp_shared_buf.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 /**
  * @brief Context information passed by Handler functions, i.e. AccNewReqHandler which is triggered
@@ -120,6 +120,6 @@ inline const AccMsgHeader &AccTcpRequestContext::Header() const
     return header_;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_REQUEST_CONTEXT_H

@@ -17,8 +17,8 @@
 #include "dynamic_ranks_qp_manager.h"
 #include "device_rdma_transport_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 bool RdmaTransportManager::tsdOpened_ = false;
@@ -54,10 +54,10 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
 {
     int32_t deviceId = -1;
 
-    BM_LOG_DEBUG("begin to open device with " << options);
+    BM_LOG_DEBUG(rankId_ << " begin to open device with " << options);
     auto ret = DlAclApi::AclrtGetDevice(&deviceId);
     if (ret != 0 || deviceId < 0) {
-        BM_LOG_ERROR("AclrtGetDevice() return=" << ret << ", output deviceId=" << deviceId);
+        BM_LOG_ERROR(rankId_ << " AclrtGetDevice() return=" << ret << ", output deviceId=" << deviceId);
         return BM_DL_FUNCTION_FAILED;
     }
     deviceId_ = static_cast<uint32_t>(deviceId);
@@ -66,7 +66,7 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
     role_ = options.role;
     ret = ParseDeviceNic(options.nic, devicePort_);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("parse input nic(" << options.nic << ") failed!");
+        BM_LOG_ERROR(rankId_ << " parse input nic(" << options.nic << ") failed!");
         return BM_INVALID_PARAM;
     }
 
@@ -76,7 +76,7 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
         deviceIp_.type = IpV6;
     }
     if (!PrepareOpenDevice(deviceId_, rankCount_, deviceIp_, rdmaHandle_)) {
-        BM_LOG_ERROR("PrepareOpenDevice failed.");
+        BM_LOG_ERROR(rankId_ << " PrepareOpenDevice failed.");
         return BM_ERROR;
     }
 
@@ -94,10 +94,10 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
     deviceChipInfo_ = std::make_shared<DeviceChipInfo>(deviceId_);
     ret = deviceChipInfo_->Init();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("device info init failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " device info init failed: " << ret);
         return ret;
     }
-    BM_LOG_INFO("open device with " << options << " success.");
+    BM_LOG_INFO(rankId_ << " open device with " << options << " success.");
     return BM_OK;
 }
 
@@ -119,17 +119,17 @@ Result RdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion &m
     info.access = mr.access;
     auto ret = DlHccpApi::RaRegisterMR(rdmaHandle_, &info, mrHandle);
     if (ret != 0) {
-        BM_LOG_ERROR("register MR=" << mr << " failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " register MR=" << mr << " failed: " << ret);
         return BM_DL_FUNCTION_FAILED;
     }
 
     RegMemResult result{mr.addr, mr.size, mrHandle, info.lkey, info.rkey};
-    BM_LOG_DEBUG("register MR result=" << result);
+    BM_LOG_DEBUG(rankId_ << " register MR result=" << result);
 
     registerMRS_.emplace(mr.addr, result);
     ret = qpManager_->SetLocalMemories(registerMRS_);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("qp manager set mr failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " qp manager set mr failed: " << ret);
         return ret;
     }
 
@@ -140,20 +140,20 @@ Result RdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
 {
     auto pos = registerMRS_.find(addr);
     if (pos == registerMRS_.end()) {
-        BM_LOG_ERROR("input address not register!");
+        BM_LOG_ERROR(rankId_ << " input address not register!");
         return BM_INVALID_PARAM;
     }
 
     auto ret = DlHccpApi::RaDeregisterMR(rdmaHandle_, pos->second.mrHandle);
     if (ret != 0) {
-        BM_LOG_ERROR("Unregister MR addr failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " Unregister MR addr failed: " << ret);
         return BM_DL_FUNCTION_FAILED;
     }
 
     registerMRS_.erase(pos);
     ret = qpManager_->SetLocalMemories(registerMRS_);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("qp manager set mr failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " qp manager set mr failed: " << ret);
         return ret;
     }
     return BM_OK;
@@ -164,7 +164,7 @@ Result RdmaTransportManager::QueryMemoryKey(uint64_t addr, TransportMemoryKey &k
     RegMemKeyUnion keyUnion{};
     auto pos = registerMRS_.lower_bound(addr);
     if (pos == registerMRS_.end() || pos->first + pos->second.size <= addr) {
-        BM_LOG_ERROR("input address not register");
+        BM_LOG_ERROR(rankId_ << " input address not register");
         return BM_INVALID_PARAM;
     }
 
@@ -179,7 +179,7 @@ Result RdmaTransportManager::ParseMemoryKey(const TransportMemoryKey &key, uint6
     RegMemKeyUnion keyUnion{};
     keyUnion.commonKey = key;
     if (keyUnion.deviceKey.type != TT_HCCP) {
-        BM_LOG_ERROR("parse memory key type invalid: " << keyUnion.deviceKey.type);
+        BM_LOG_ERROR(rankId_ << " parse memory key type invalid: " << keyUnion.deviceKey.type);
         return BM_ERROR;
     }
 
@@ -190,7 +190,7 @@ Result RdmaTransportManager::ParseMemoryKey(const TransportMemoryKey &key, uint6
 
 Result RdmaTransportManager::Prepare(const HybmTransPrepareOptions &options)
 {
-    BM_LOG_DEBUG("RdmaTransportManager Prepare with : " << options);
+    BM_LOG_DEBUG(rankId_ << " RdmaTransportManager Prepare with : " << options);
     int ret;
     if ((ret = CheckPrepareOptions(options)) != 0) {
         return ret;
@@ -201,23 +201,23 @@ Result RdmaTransportManager::Prepare(const HybmTransPrepareOptions &options)
     for (auto it = options.options.begin(); it != options.options.end(); ++it) {
         ret = ParseDeviceNic(it->second.nic, deviceNetwork);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("parse networks[" << it->first << "]=" << it->second.nic << " failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " parse networks[" << it->first << "]=" << it->second.nic << " failed: " << ret);
             return BM_INVALID_PARAM;
         }
 
         rankInfo.emplace(it->first, ConnectRankInfo{it->second.role, deviceNetwork, it->second.memKeys});
     }
-    BM_LOG_DEBUG("SetRemoteRankInfo rankInfo.size=" << rankInfo.size());
+    BM_LOG_DEBUG(rankId_ << " SetRemoteRankInfo rankInfo.size=" << rankInfo.size());
 
     ret = qpManager_->SetRemoteRankInfo(rankInfo);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("qp manager set remote rank info failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " qp manager set remote rank info failed: " << ret);
         return ret;
     }
 
     ret = qpManager_->Startup(rdmaHandle_);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("qp manager startup failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " qp manager startup failed: " << ret);
         return ret;
     }
 
@@ -228,13 +228,13 @@ Result RdmaTransportManager::Connect()
 {
     auto ret = AsyncConnect();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("AsyncConnect() failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " AsyncConnect() failed: " << ret);
         return ret;
     }
 
     ret = WaitForConnected(-1L);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("WaitForConnected(-1) failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " WaitForConnected(-1) failed: " << ret);
         return ret;
     }
 
@@ -249,13 +249,13 @@ Result RdmaTransportManager::AsyncConnect()
 Result RdmaTransportManager::WaitForConnected(int64_t timeoutNs)
 {
     if (qpManager_ == nullptr) {
-        BM_LOG_ERROR("server side not listen!");
+        BM_LOG_ERROR(rankId_ << " server side not listen!");
         return BM_ERROR;
     }
 
     auto ret = qpManager_->WaitingConnectionReady();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("wait for server side connected on device failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " wait for server side connected on device failed: " << ret);
         return ret;
     }
 
@@ -264,9 +264,9 @@ Result RdmaTransportManager::WaitForConnected(int64_t timeoutNs)
 
 Result RdmaTransportManager::UpdateRankOptions(const HybmTransPrepareOptions &options)
 {
-    BM_LOG_DEBUG("RdmaTransportManager Prepare with : " << options);
+    BM_LOG_DEBUG(rankId_ << " RdmaTransportManager Prepare with : " << options);
     if (qpManager_ == nullptr) {
-        BM_LOG_ERROR("qp manager not created");
+        BM_LOG_ERROR(rankId_ << " qp manager not created");
         return BM_ERROR;
     }
 
@@ -275,17 +275,17 @@ Result RdmaTransportManager::UpdateRankOptions(const HybmTransPrepareOptions &op
     for (auto it = options.options.begin(); it != options.options.end(); ++it) {
         auto ret = ParseDeviceNic(it->second.nic, deviceNetwork);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("update rank network(" << it->second.nic << ") invalid.");
+            BM_LOG_ERROR(rankId_ << " update rank network(" << it->second.nic << ") invalid.");
             return BM_INVALID_PARAM;
         }
-        BM_LOG_INFO("UpdateRankOptions update rank: " << it->first);
+        BM_LOG_INFO(rankId_ << " UpdateRankOptions update rank: " << it->first);
         ranksInfo.emplace(it->first, ConnectRankInfo{it->second.role, deviceNetwork, it->second.memKeys});
     }
-    BM_LOG_DEBUG("UpdateRankOptions ranksInfo.size=" << ranksInfo.size());
+    BM_LOG_DEBUG(rankId_ << " UpdateRankOptions ranksInfo.size=" << ranksInfo.size());
 
     auto ret = qpManager_->SetRemoteRankInfo(ranksInfo);
     if (ret != BM_OK) {
-        BM_LOG_ERROR("update rank options failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " update rank options failed: " << ret);
         return ret;
     }
 
@@ -300,7 +300,7 @@ const std::string &RdmaTransportManager::GetNic() const
 const void *RdmaTransportManager::GetQpInfo() const
 {
     if (qpManager_ == nullptr) {
-        BM_LOG_ERROR("GetQpInfo(): connection manager not created.");
+        BM_LOG_ERROR(rankId_ << " GetQpInfo(): connection manager not created.");
         return nullptr;
     }
     return qpManager_->GetQpInfoAddress();
@@ -313,31 +313,31 @@ bool RdmaTransportManager::PrepareOpenDevice(uint32_t device, uint32_t rankCount
     if (DlHccpApi::RaRdevGetHandle(device, rdmaHandle) == 0) {
         if (rdmaHandle != nullptr) {
             if (!RetireDeviceIp(device, deviceIp)) {
-                BM_LOG_ERROR("RetireDeviceIp failed.");
+                BM_LOG_ERROR(device << " RetireDeviceIp failed.");
                 return false;
             }
-            BM_LOG_DEBUG("Had prepared device and get rdmaHandle success.");
+            BM_LOG_DEBUG(device << " Had prepared device and get rdmaHandle success.");
             return true;
         }
-        BM_LOG_INFO("Had prepared device, but rdmaHandle is null, need init again.");
+        BM_LOG_INFO(device << " Had prepared device, but rdmaHandle is null, need init again.");
     }
     if (!OpenTsd(device, rankCount)) {
-        BM_LOG_ERROR("open tsd failed.");
+        BM_LOG_ERROR(device << " open tsd failed.");
         return false;
     }
 
     if (!RaInit(device)) {
-        BM_LOG_ERROR("RaInit failed.");
+        BM_LOG_ERROR(device << " RaInit failed.");
         return false;
     }
 
     if (!RetireDeviceIp(device, deviceIp)) {
-        BM_LOG_ERROR("RetireDeviceIp failed.");
+        BM_LOG_ERROR(device << " RetireDeviceIp failed.");
         return false;
     }
 
     if (!RaRdevInit(device, deviceIp, rdmaHandle)) {
-        BM_LOG_ERROR("RaRdevInit failed.");
+        BM_LOG_ERROR(device << " RaRdevInit failed.");
         return false;
     }
     return true;
@@ -346,7 +346,7 @@ bool RdmaTransportManager::PrepareOpenDevice(uint32_t device, uint32_t rankCount
 bool RdmaTransportManager::OpenTsd(uint32_t deviceId, uint32_t rankCount)
 {
     if (tsdOpened_) {
-        BM_LOG_INFO("tsd already opened.");
+        BM_LOG_INFO(deviceId << " tsd already opened.");
         return true;
     }
 
@@ -364,7 +364,7 @@ bool RdmaTransportManager::OpenTsd(uint32_t deviceId, uint32_t rankCount)
 bool RdmaTransportManager::RaInit(uint32_t deviceId)
 {
     if (raInitialized_) {
-        BM_LOG_INFO("ra already initialized.");
+        BM_LOG_INFO(deviceId << " ra already initialized.");
         return true;
     }
     const std::chrono::seconds WAIT_TIME(3);
@@ -372,32 +372,32 @@ bool RdmaTransportManager::RaInit(uint32_t deviceId)
     initConfig.phyId = deviceId;
     initConfig.nicPosition = NETWORK_OFFLINE;
     initConfig.hdcType = 6;  // HDC_SERVICE_TYPE_RDMA = 6
-    BM_LOG_DEBUG("RaInit=" << initConfig);
+    BM_LOG_DEBUG(deviceId << " RaInit=" << initConfig);
     std::this_thread::sleep_for(WAIT_TIME); // avoid hccl init conflict
     auto ret = DlHccpApi::RaInit(initConfig);
     if (ret != 0) {
-        BM_LOG_WARN("Hccp Init RA failed: " << ret);
+        BM_LOG_WARN(deviceId << " Hccp Init RA failed: " << ret);
         // maybe hccl have already initialized ra, wait 3s then return true.
         std::this_thread::sleep_for(WAIT_TIME);
         raInitialized_ = true;
         return true;
     }
 
-    BM_LOG_DEBUG("ra init for device id: " << deviceId << " success.");
+    BM_LOG_DEBUG(deviceId << " ra init for device id: " << deviceId << " success.");
     raInitialized_ = true;
     return true;
 }
 
-bool RdmaTransportManager::HandleRetiredDeviceIp(net_addr_t &deviceIp, net_addr_t &retiredIp)
+bool RdmaTransportManager::HandleRetiredDeviceIp(uint32_t deviceId, net_addr_t &deviceIp, net_addr_t &retiredIp)
 {
     if (deviceIpRetired_ && deviceIp.type == IpV4) {
-        BM_LOG_INFO("device ip already retired : " << inet_ntoa(retiredIp.ip.ipv4));
+        BM_LOG_INFO(deviceId << " device ip already retired : " << inet_ntoa(retiredIp.ip.ipv4));
         deviceIp = retiredIp;
         return true;
     } else if (deviceIpRetired_ && deviceIp.type == IpV6) {
         char ipv6Str[INET6_ADDRSTRLEN];
         inet_ntop(AF_INET6, &retiredIp.ip.ipv6, ipv6Str, INET6_ADDRSTRLEN);
-        BM_LOG_INFO("device ip already retired : " << ipv6Str);
+        BM_LOG_INFO(deviceId << " device ip already retired : " << ipv6Str);
         deviceIp = retiredIp;
         return true;
     }
@@ -408,7 +408,7 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t deviceId, net_addr_t &deviceI
 {
     net_addr_t retiredIp{};
 
-    auto isRetire = HandleRetiredDeviceIp(deviceIp, retiredIp);
+    auto isRetire = HandleRetiredDeviceIp(deviceId, deviceIp, retiredIp);
     if (isRetire) {
         return true;
     }
@@ -423,14 +423,14 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t deviceId, net_addr_t &deviceI
 
     auto ret = DlHccpApi::RaGetIfNum(config, count);
     if (ret != 0 || count == 0) {
-        BM_LOG_ERROR("get interface count failed: " << ret << ", count: " << count);
+        BM_LOG_ERROR(deviceId << " get interface count failed: " << ret << ", count: " << count);
         return false;
     }
 
     infos.resize(count);
     ret = DlHccpApi::RaGetIfAddrs(config, infos.data(), count);
     if (ret != 0) {
-        BM_LOG_ERROR("get interface information failed: " << ret);
+        BM_LOG_ERROR(deviceId << " get interface information failed: " << ret);
         return false;
     }
 
@@ -439,7 +439,7 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t deviceId, net_addr_t &deviceI
             deviceIp.ip.ipv4 = retiredIp.ip.ipv4 = info.ifaddr.ip.addr;
             deviceIp.type = IpV4;
             deviceIpRetired_ = true;
-            BM_LOG_DEBUG("retire device ip success : " << inet_ntoa(deviceIp.ip.ipv4));
+            BM_LOG_DEBUG(deviceId << " retire device ip success : " << inet_ntoa(deviceIp.ip.ipv4));
             return true;
         }
         if (info.family == AF_INET6) {
@@ -448,19 +448,19 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t deviceId, net_addr_t &deviceI
             deviceIpRetired_ = true;
             char ipv6Str[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, &deviceIp.ip.ipv6, ipv6Str, INET6_ADDRSTRLEN);
-            BM_LOG_DEBUG("retire device ip success : " << ipv6Str);
+            BM_LOG_DEBUG(deviceId << " retire device ip success : " << ipv6Str);
             return true;
         }
     }
 
-    BM_LOG_ERROR("not found network device of AF_INET or AF_INET6 on NPU.");
+    BM_LOG_ERROR(deviceId << " not found network device of AF_INET or AF_INET6 on NPU.");
     return false;
 }
 
 bool RdmaTransportManager::RaRdevInit(uint32_t deviceId, net_addr_t deviceIp, void *&rdmaHandle)
 {
     if (storedRdmaHandle_ != nullptr) {
-        BM_LOG_INFO("ra rdev already initialized.");
+        BM_LOG_INFO(deviceId << " ra rdev already initialized.");
         rdmaHandle = storedRdmaHandle_;
         return true;
     }
@@ -478,15 +478,15 @@ bool RdmaTransportManager::RaRdevInit(uint32_t deviceId, net_addr_t deviceIp, vo
     } else if (deviceIp.type == IpV6) {
         rdev.localIp.addr6 = deviceIp.ip.ipv6;
     }
-    BM_LOG_DEBUG("RaRdevInitV2, info=" << info << "rdev=" << rdev);
+    BM_LOG_DEBUG(deviceId << " RaRdevInitV2, info=" << info << "rdev=" << rdev);
     auto ret = DlHccpApi::RaRdevInitV2(info, rdev, rdmaHandle);
     if (ret != 0) {
-        BM_LOG_ERROR("Hccp Init RDev failed: " << ret);
+        BM_LOG_ERROR(deviceId << " Hccp Init RDev failed: " << ret);
         return false;
     }
 
     storedRdmaHandle_ = rdmaHandle;
-    BM_LOG_INFO("initialize RDev success.");
+    BM_LOG_INFO(deviceId << " initialize RDev success.");
     return true;
 }
 
@@ -495,32 +495,32 @@ void RdmaTransportManager::ClearAllRegisterMRs()
     for (auto it = registerMRS_.begin(); it != registerMRS_.end(); ++it) {
         auto ret = DlHccpApi::RaDeregisterMR(rdmaHandle_, it->second.mrHandle);
         if (ret != 0) {
-            BM_LOG_WARN("Unregister:" << (void *)(ptrdiff_t)it->first << " : " << it->second << " failed: " << ret);
+            BM_LOG_WARN(rankId_ << " Unregister:" << (void *)(ptrdiff_t)it->first << " : " << it->second << " failed: " << ret);
         }
     }
     registerMRS_.clear();
 }
 
-int RdmaTransportManager::CheckPrepareOptions(const ock::mf::transport::HybmTransPrepareOptions &options)
+int RdmaTransportManager::CheckPrepareOptions(const shm::hybm::transport::HybmTransPrepareOptions &options)
 {
     if (role_ != HYBM_ROLE_PEER) {
-        BM_LOG_INFO("transport role: " << role_ << " check options passed.");
+        BM_LOG_INFO(rankId_ << " transport role: " << role_ << " check options passed.");
         return BM_OK;
     }
 
     if (options.options.size() > rankCount_) {
-        BM_LOG_ERROR("options size():" << options.options.size() << " larger than rank count: " << rankCount_);
+        BM_LOG_ERROR(rankId_ << " options size():" << options.options.size() << " larger than rank count: " << rankCount_);
         return BM_INVALID_PARAM;
     }
 
     if (options.options.find(rankId_) == options.options.end()) {
-        BM_LOG_ERROR("options not contains self rankId: " << rankId_);
+        BM_LOG_ERROR(rankId_ << " options not contains self rankId: " << rankId_);
         return BM_INVALID_PARAM;
     }
 
     for (auto it = options.options.begin(); it != options.options.end(); ++it) {
         if (it->first >= rankCount_) {
-            BM_LOG_ERROR("input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
+            BM_LOG_ERROR(rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
             return BM_INVALID_PARAM;
         }
     }
