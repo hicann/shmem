@@ -10,7 +10,7 @@
 #include "acc_includes.h"
 #include "acc_tcp_request_context.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 Result AccTcpRequestContext::Reply(int16_t result, const AccDataBufferPtr &d) const
 {
@@ -25,4 +25,4 @@ Result AccTcpRequestContext::Reply(int16_t result, const AccDataBufferPtr &d) co
     return link_->EnqueueAndModifyEpoll(replyHeader, d, nullptr);
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

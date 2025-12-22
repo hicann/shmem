@@ -12,7 +12,7 @@
 #include "acc_common_util.h"
 #include "acc_tcp_listener.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 
 void AccTcpListener::PrepareSockAddr(mf_sockaddr& addr) noexcept

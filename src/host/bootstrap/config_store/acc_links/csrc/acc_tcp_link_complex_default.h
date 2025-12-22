@@ -15,7 +15,7 @@
 
 #include "acc_tcp_link_default.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class AccTcpWorker;
 
@@ -521,6 +521,6 @@ inline Result AccTcpLinkComplexDefault::NonBlockSend(int16_t msgType, int16_t op
     return EnqueueAndModifyEpoll({msgType, opCode, d->DataLen(), seqNo}, d, cbCtx);
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_LINK_COMPLEX_DEFAULT_H

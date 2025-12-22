@@ -12,7 +12,7 @@
 
 #include "acc_tcp_worker.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 Result AccTcpWorker::Start()
 {
@@ -181,4 +181,4 @@ void AccTcpWorker::RunInThread(std::atomic<bool> *started)
     LOG_INFO("Worker " << options_.Name() << " progress thread exiting");
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

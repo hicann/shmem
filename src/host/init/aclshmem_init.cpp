@@ -332,7 +332,7 @@ int32_t aclshmemx_set_log_level(int level)
 int32_t aclshmemx_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len)
 {
 #ifdef BACKEND_HYBM
-    return ock::smem::StoreFactory::SetTlsInfo(enable, tls_info, tls_info_len);
+    return shm::store::StoreFactory::SetTlsInfo(enable, tls_info, tls_info_len);
 #else
     return ACLSHMEM_SUCCESS;
 #endif
@@ -348,7 +348,7 @@ int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk, const uint32_t tl
     const char *tls_pk_pw, const uint32_t tls_pk_pw_len, const aclshmem_decrypt_handler decrypt_handler)
 {
 #ifdef BACKEND_HYBM
-    return ock::smem::StoreFactory::SetTlsPkInfo(tls_pk, tls_pk_len, tls_pk_pw, tls_pk_pw_len, decrypt_handler);
+    return shm::store::StoreFactory::SetTlsPkInfo(tls_pk, tls_pk_len, tls_pk_pw, tls_pk_pw_len, decrypt_handler);
 #else
     return ACLSHMEM_SUCCESS;
 #endif

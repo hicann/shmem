@@ -25,7 +25,7 @@
 #include "hybm.h"
 #include "aclshmemi_file_util.h"
 
-using namespace ock::mf;
+using namespace shm::hybm;
 
 namespace {
 const std::string DRIVER_VER_V3 = "V100R001C21B035";
@@ -61,10 +61,6 @@ static bool DriverVersionCheck(const std::string &ver)
         BM_LOG_ERROR("check driver version failed, Environment LD_LIBRARY_PATH not set.");
         return false;
     }
-
-#ifdef UT_ENABLED
-    return true;
-#endif
 
     std::string readVer = CastDriverVersion(libPath);
     if (readVer.empty()) {
@@ -128,7 +124,7 @@ static inline int hybm_load_library()
     BM_VALIDATE_RETURN(path != nullptr, "Environment ASCEND_HOME_PATH not set.", BM_ERROR);
 
     std::string libPath = std::string(path).append("/lib64");
-    if (!ock::mf::FileUtil::Realpath(libPath) || !ock::mf::FileUtil::IsDir(libPath)) {
+    if (!shm::utils::FileUtil::Realpath(libPath) || !shm::utils::FileUtil::IsDir(libPath)) {
         BM_LOG_ERROR("Environment ASCEND_HOME_PATH check failed.");
         return BM_ERROR;
     }

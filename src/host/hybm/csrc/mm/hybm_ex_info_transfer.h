@@ -18,8 +18,8 @@
 #include "hybm_def.h"
 #include "hybm_logger.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 template <class DataType> class ExInfoTranslator {
 public:
     virtual int Serialize(const DataType &d, std::string &info) noexcept = 0;

@@ -12,7 +12,7 @@
 
 #include "openssl_api_dl.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class OpenSslApiWrapper {
 public:
@@ -424,5 +424,5 @@ public:
     }
 };
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 #endif  // ACC_LINKS_OPENSSL_API_WRAPPER_H

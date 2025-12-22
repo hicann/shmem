@@ -19,8 +19,8 @@
 #include "aclshmemi_logger.h"
 
 #define PATH_MAX_LIMIT 4096L
-namespace ock {
-namespace mf {
+namespace shm {
+namespace utils {
 class FileUtil {
     static constexpr uint32_t MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 public:
@@ -250,7 +250,7 @@ inline bool FileUtil::Realpath(std::string &path)
     }
 
     /* It will allocate memory to store path */
-    char* tmp = new char[ock::mf::FileUtil::GetSafePathMax() + 1];
+    char* tmp = new char[shm::utils::FileUtil::GetSafePathMax() + 1];
     char* realPath = realpath(path.c_str(), tmp);
     if (realPath == nullptr) {
         delete[] tmp;
@@ -387,7 +387,7 @@ inline constexpr size_t FileUtil::GetSafePathMax()
     return PATH_MAX_LIMIT;
 #endif
 }
-}  // namespace mf
-}  // namespace ock
+}  // namespace utils
+}  // namespace shm
 
 #endif

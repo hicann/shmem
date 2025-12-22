@@ -13,8 +13,8 @@
 #include "dl_hccp_api.h"
 #include "fixed_ranks_qp_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 static constexpr uint32_t SEND_CQ_DEPTH = 8192;
@@ -33,14 +33,14 @@ FixedRanksQpManager::~FixedRanksQpManager() noexcept
     try {
         CloseServices();
     } catch (const std::exception& e) {
-        BM_LOG_ERROR("destruct fixed ranks qp manager catch exception: " << e.what());
+        BM_LOG_ERROR(rankId_ << " destruct fixed ranks qp manager catch exception: " << e.what());
     }
 }
 
 int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo> &ranks) noexcept
 {
     if (started_.load()) {
-        BM_LOG_ERROR("fixed ranks not support update ranks info after startup");
+        BM_LOG_ERROR(rankId_ << " fixed ranks not support update ranks info after startup");
         return BM_ERROR;
     }
 
@@ -51,7 +51,7 @@ int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, Co
 int FixedRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
 {
     if (started_.load()) {
-        BM_LOG_INFO("fixed ranks not support update register MRs after startup");
+        BM_LOG_INFO(rankId_ << " fixed ranks not support update register MRs after startup");
         return BM_OK;
     }
 
@@ -62,42 +62,42 @@ int FixedRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
 int FixedRanksQpManager::Startup(void *rdma) noexcept
 {
     if (rdma == nullptr) {
-        BM_LOG_ERROR("input rdma is null");
+        BM_LOG_ERROR(rankId_ << " input rdma is null");
         return BM_INVALID_PARAM;
     }
 
     if (started_.load()) {
-        BM_LOG_ERROR("already started.");
+        BM_LOG_ERROR(rankId_ << " already started.");
         return BM_ERROR;
     }
 
     rdmaHandle_ = rdma;
     if (!ReserveQpInfoSpace()) {
-        BM_LOG_ERROR("reserve qp info space failed.");
+        BM_LOG_ERROR(rankId_ << " reserve qp info space failed.");
         return BM_ERROR;
     }
 
     if (currentRanksInfo_.size() != rankCount_) {
-        BM_LOG_ERROR("set rank count = " << currentRanksInfo_.size() << ", but rank_size = " << rankCount_);
+        BM_LOG_ERROR(rankId_ << " set rank count = " << currentRanksInfo_.size() << ", but rank_size = " << rankCount_);
         return BM_INVALID_PARAM;
     }
 
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
         if (it->first >= rankCount_) {
-            BM_LOG_ERROR("input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
+            BM_LOG_ERROR(rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
             return BM_INVALID_PARAM;
         }
     }
 
     auto ret = StartServerSide();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("start server side failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " start server side failed: " << ret);
         return ret;
     }
 
     ret = StartClientSide();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("start client side failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " start client side failed: " << ret);
         return ret;
     }
 
@@ -123,11 +123,11 @@ int FixedRanksQpManager::WaitingConnectionReady() noexcept
     }
 
     if (serverConnectResult == BM_OK && clientConnectResult == BM_OK) {
-        BM_LOG_INFO("client & server connections ready.");
+        BM_LOG_INFO(rankId_ << " client & server connections ready.");
         return BM_OK;
     }
 
-    BM_LOG_ERROR("background connection thread not started.");
+    BM_LOG_ERROR(rankId_ << " background connection thread not started.");
     return BM_ERROR;
 }
 
@@ -158,7 +158,7 @@ bool FixedRanksQpManager::ReserveQpInfoSpace() noexcept
     qpInfoSize_ = sizeof(AiQpRMAQueueInfo) + oneQpSize * rankCount_;
     auto ret = DlAclApi::AclrtMalloc(&ptr, qpInfoSize_, 0);
     if (ret != 0) {
-        BM_LOG_ERROR("allocate device size: " << qpInfoSize_ << ", failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " allocate device size: " << qpInfoSize_ << ", failed: " << ret);
         return false;
     }
 
@@ -175,13 +175,13 @@ int FixedRanksQpManager::StartServerSide() noexcept
 
     auto ret = CreateServerSocket();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("create server socket failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " create server socket failed: " << ret);
         return ret;
     }
 
     ret = GenerateWhiteList();
     if (ret != 0) {
-        BM_LOG_ERROR("generate white list failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " generate white list failed: " << ret);
         return BM_DL_FUNCTION_FAILED;
     }
 
@@ -189,19 +189,13 @@ int FixedRanksQpManager::StartServerSide() noexcept
         DlAclApi::AclrtSetDevice(deviceId_);
         auto ret = WaitConnectionsReady(serverConnections_);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("wait connection ready failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " wait connection ready failed: " << ret);
             serverConnectResult = ret;
             return;
         }
-        ret = CreateQpWaitingReady(serverConnections_, CONN_QP_AI_CORE);
+        ret = CreateQpWaitingReady(serverConnections_, CONN_QP_AI_CORE, CONN_SERVER_SIDE);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("wait connection AI qp ready failed: " << ret);
-            serverConnectResult = ret;
-        }
-
-        ret = CreateQpWaitingReady(serverConnections_, CONN_QP_STARS);
-        if (ret != BM_OK) {
-            BM_LOG_ERROR("wait connection STARS qp ready failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " wait connection AI qp ready failed: " << ret);
             serverConnectResult = ret;
         }
 
@@ -217,24 +211,18 @@ void FixedRanksQpManager::InitClientConnectThread()
         DlAclApi::AclrtSetDevice(deviceId_);
         auto ret = WaitConnectionsReady(clientConnections_);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("client wait connections failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " client wait connections failed: " << ret);
             CloseClientConnections();
             return ret;
         }
 
-        ret = CreateQpWaitingReady(clientConnections_, CONN_QP_AI_CORE);
+        ret = CreateQpWaitingReady(clientConnections_, CONN_QP_AI_CORE, CONN_CLIENT_SIDE);
         if (ret != BM_OK) {
-            BM_LOG_ERROR("client create qp for AI CORE failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " client create qp for AI CORE failed: " << ret);
             CloseClientConnections();
             return ret;
         }
 
-        ret = CreateQpWaitingReady(clientConnections_, CONN_QP_STARS);
-        if (ret != BM_OK) {
-            BM_LOG_ERROR("client create qp for STARS failed: " << ret);
-            CloseClientConnections();
-            return ret;
-        }
         clientConnectResult = BM_OK;
         return 0;
     });
@@ -243,7 +231,7 @@ void FixedRanksQpManager::InitClientConnectThread()
 int FixedRanksQpManager::StartClientSide() noexcept
 {
     if (rankId_ == 0U) {
-        BM_LOG_INFO("rankId: " << rankId_ << " need not connect to others.");
+        BM_LOG_INFO(rankId_ << " need not connect to others.");
         clientConnectResult = BM_OK;
         return BM_OK;
     }
@@ -256,7 +244,7 @@ int FixedRanksQpManager::StartClientSide() noexcept
 
         auto socketHandle = CreateLocalSocket();
         if (socketHandle == nullptr) {
-            BM_LOG_ERROR("create local socket handle failed");
+            BM_LOG_ERROR(rankId_ << " create local socket handle failed");
             CloseClientConnections();
             return BM_DL_FUNCTION_FAILED;
         }
@@ -281,13 +269,13 @@ int FixedRanksQpManager::StartClientSide() noexcept
         connectInfo.port = (it->second.network.type == IpV4) ? it->second.network.ip.ipv4.sin_port
             : it->second.network.ip.ipv6.sin6_port;
         bzero(connectInfo.tag, sizeof(connectInfo.tag));
-        BM_LOG_DEBUG("add connecting server " << connectInfo);
+        BM_LOG_DEBUG(rankId_ << " add connecting server " << connectInfo);
         connectInfos.emplace_back(connectInfo);
     }
 
     auto ret = DlHccpApi::RaSocketBatchConnect(connectInfos.data(), connectInfos.size());
     if (ret != 0) {
-        BM_LOG_ERROR("connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
+        BM_LOG_ERROR(rankId_ << " connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
         CloseClientConnections();
         return BM_DL_FUNCTION_FAILED;
     }
@@ -326,7 +314,7 @@ int FixedRanksQpManager::GenerateWhiteList() noexcept
 
     auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, whitelist.data(), whitelist.size());
     if (ret != 0) {
-        BM_LOG_ERROR("socket handle add white list failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " socket handle add white list failed: " << ret);
         return BM_ERROR;
     }
 
@@ -352,30 +340,29 @@ int FixedRanksQpManager::CheckConnectionSuccessCount(std::unordered_map<uint32_t
         }
         auto socketInfoPos = addr2index.find(addr);
         if (socketInfoPos == addr2index.end()) {
-            BM_LOG_ERROR("socket ip(" << result << ") should not exist.");
+            BM_LOG_ERROR(rankId_ << " socket ip(" << result << ") should not exist.");
             return BM_DL_FUNCTION_FAILED;
         }
 
         auto rankId = socketInfoPos->second;
         auto pos = connections.find(rankId);
         if (pos == connections.end()) {
-            BM_LOG_ERROR("socket ip(" << result << ") should not exist.");
+            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":socket ip(" << result << ") should not exist.");
             return BM_DL_FUNCTION_FAILED;
         }
 
         if (pos->second.socketFd != nullptr) {
-            BM_LOG_ERROR("get socket ip(" << result << ") already get socket fd.");
+            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") already get socket fd.");
             return BM_DL_FUNCTION_FAILED;
         }
 
         if (pos->second.socketHandle != socketInfos[i].handle) {
-            BM_LOG_ERROR("get socket ip(" << result
-                << ") socket handle not match.");
+            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
             return BM_DL_FUNCTION_FAILED;
         }
 
         pos->second.socketFd = socketInfos[i].fd;
-        BM_LOG_INFO("connect to (" << rankId << ") ready.");
+        BM_LOG_INFO(rankId_ << " connect to (" << rankId << ") ready.");
     }
     return BM_OK;
 }
@@ -386,9 +373,10 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
     uint32_t totalSuccessCount = 0;
     auto start = std::chrono::steady_clock::now();
     auto timeout = start + std::chrono::minutes(2);
+    BM_LOG_DEBUG(rankId_ << " begin wait connections, size=" << connections.size());
     while (totalSuccessCount < connections.size()) {
         if (std::chrono::steady_clock::now() >= timeout) {
-            BM_LOG_ERROR("waiting connection ready timeout.");
+            BM_LOG_ERROR(rankId_ << " waiting connection ready timeout.");
             return BM_ERROR;
         }
 
@@ -420,7 +408,7 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
         auto role = (&connections == &clientConnections_) ? 1 : 0;
         auto ret = DlHccpApi::RaGetSockets(role, socketInfos.data(), socketInfos.size(), successCount);
         if (ret != 0) {
-            BM_LOG_ERROR("role(" << role << ") side get sockets failed: " << ret);
+            BM_LOG_ERROR(rankId_ << " role(" << role << ") side get sockets failed: " << ret);
             return BM_DL_FUNCTION_FAILED;
         }
 
@@ -436,15 +424,20 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
 }
 
 int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, ConnectionChannel> &connections,
-                                              ConnQpType qpType) noexcept
+                                              ConnQpType qpType, ConnSide side) noexcept
 {
     const int accessLevel = 7;
+    std::string sideName = (side == CONN_CLIENT_SIDE) ? "client" : "server";
+    BM_LOG_DEBUG(rankId_ << ":" << sideName << " begin create qp and register mr");
     for (auto it = connections.begin(); it != connections.end(); ++it) {
         auto ret = CreateOneQp(qpType, it->second);
         if (ret != 0) {
-            BM_LOG_ERROR("create QP type:" << qpType << " to " << it->first << " failed: " << ret);
+            BM_LOG_ERROR(rankId_ << ":" << sideName << " create QP type:" << qpType <<
+                " to " << it->first << " failed: " << ret);
             return BM_DL_FUNCTION_FAILED;
         }
+
+        BM_LOG_DEBUG(rankId_ << ":" << sideName << " create qp success, qptype=" << qpType);
 
         for (auto pos = currentLocalMrs_.begin(); pos != currentLocalMrs_.end(); ++pos) {
             HccpMrInfo info{};
@@ -453,18 +446,20 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
             info.access = accessLevel;
             ret = DlHccpApi::RaMrReg(it->second.qpHandles[qpType], info);
             if (ret != 0) {
-                BM_LOG_ERROR("register MR failed: " << ret);
+                BM_LOG_ERROR(rankId_ << ":" << sideName << " register MR failed: " << ret);
                 return BM_DL_FUNCTION_FAILED;
             }
+            BM_LOG_DEBUG(rankId_ << ":" << sideName << " register mr size:" << pos->second.size << " success");
         }
 
         ret = DlHccpApi::RaQpConnectAsync(it->second.qpHandles[qpType], it->second.socketFd);
         if (ret != 0) {
-            BM_LOG_ERROR("connect AI QP to " << it->first << " failed: " << ret);
+            BM_LOG_ERROR(rankId_ << ":" << sideName << " connect AI QP to " << it->first << " failed: " << ret);
             return BM_DL_FUNCTION_FAILED;
         }
     }
 
+    BM_LOG_DEBUG(rankId_ << ":" << sideName << " begin wait create qp ready.");
     auto start = std::chrono::steady_clock::now();
     auto timeout = start + std::chrono::minutes(1);
     while (std::chrono::steady_clock::now() < timeout) {
@@ -473,9 +468,12 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
             int status = 0;
             auto ret = DlHccpApi::RaGetQpStatus(it->second.qpHandles[qpType], status);
             if (ret != 0) {
-                BM_LOG_ERROR("get AI QP status to " << it->first << " failed: " << ret);
+                BM_LOG_ERROR(rankId_ << ":" << sideName << " get AI QP status to " << it->first << " failed: " << ret);
                 return BM_DL_FUNCTION_FAILED;
             }
+
+            // rs_qp_status: 0-disconnect, 1-connected, 2-timeout, 3-connecting, 4-fd_close, 5-pause
+            BM_LOG_DEBUG(rankId_ << ":" << sideName << " get create qp status to " << it->first << "=" << status);
             if (status != 1) {
                 connectingCount++;
             }
@@ -483,8 +481,9 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
         if (connectingCount == 0) {
             return FillQpInfo(qpType);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    BM_LOG_ERROR(rankId_ << ":" << sideName << " wait create qp ready timeout");
     return BM_TIMEOUT;
 }
 
@@ -571,7 +570,7 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
 
         auto pos = connections->find(it->first);
         if (pos == connections->end()) {
-            BM_LOG_ERROR("missing for remote: " << it->first);
+            BM_LOG_ERROR(rankId_ << " missing for remote: " << it->first);
             return BM_ERROR;
         }
 
@@ -585,10 +584,10 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
 
     auto ret = DlAclApi::AclrtMemcpy(qpInfo_, qpInfoSize_, copyInfo, qpInfoSize_, ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != 0) {
-        BM_LOG_ERROR("copy qp info to device failed: " << ret);
+        BM_LOG_ERROR(rankId_ << " copy qp info to device failed: " << ret);
         return BM_DL_FUNCTION_FAILED;
     }
-    BM_LOG_INFO("copy qp info success");
+    BM_LOG_INFO(rankId_ << " copy qp info success");
 
     return BM_OK;
 }
@@ -640,10 +639,10 @@ void FixedRanksQpManager::CloseServices() noexcept
     }
 
     CloseServerConnections();
-    BM_LOG_INFO("server connections closed.");
+    BM_LOG_INFO(rankId_ << " server connections closed.");
 
     CloseClientConnections();
-    BM_LOG_INFO("clinet connections closed.");
+    BM_LOG_INFO(rankId_ << " clinet connections closed.");
 }
 
 void FixedRanksQpManager::CloseClientConnections() noexcept
@@ -664,17 +663,9 @@ void FixedRanksQpManager::CloseConnections(std::unordered_map<uint32_t, Connecti
         if (it->second.qpHandles[CONN_QP_AI_CORE] != nullptr) {
             auto ret = DlHccpApi::RaQpDestroy(it->second.qpHandles[CONN_QP_AI_CORE]);
             if (ret != 0) {
-                BM_LOG_WARN("destroy AI QP to server: " << it->first << " failed: " << ret);
+                BM_LOG_WARN(rankId_ << " destroy AI QP to server: " << it->first << " failed: " << ret);
             }
             it->second.qpHandles[CONN_QP_AI_CORE] = nullptr;
-        }
-
-        if (it->second.qpHandles[CONN_QP_STARS] != nullptr) {
-            auto ret = DlHccpApi::RaQpDestroy(it->second.qpHandles[CONN_QP_STARS]);
-            if (ret != 0) {
-                BM_LOG_WARN("destroy stars QP to server: " << it->first << " failed: " << ret);
-            }
-            it->second.qpHandles[CONN_QP_STARS] = nullptr;
         }
 
         if (it->second.socketFd != nullptr) {
@@ -690,18 +681,18 @@ void FixedRanksQpManager::CloseConnections(std::unordered_map<uint32_t, Connecti
     if (!socketCloseInfos.empty()) {
         auto ret = DlHccpApi::RaSocketBatchClose(socketCloseInfos.data(), socketCloseInfos.size());
         if (ret != 0) {
-            BM_LOG_INFO("close sockets return: " << ret);
+            BM_LOG_INFO(rankId_ << " close sockets return: " << ret);
         }
     }
 
     for (auto it = connections.begin(); it != connections.end(); ++it) {
         auto ret = DlHccpApi::RaSocketDeinit(it->second.socketHandle);
         if (ret != 0) {
-            BM_LOG_INFO("deinit socket to server: " << it->first << " return: " << ret);
+            BM_LOG_INFO(rankId_ << " deinit socket to server: " << it->first << " return: " << ret);
         }
     }
 
-    BM_LOG_INFO("close connection done, size is " << connections.size());
+    BM_LOG_INFO(rankId_ << " close connection done, size is " << connections.size());
     connections.clear();
 }
 }

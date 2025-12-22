@@ -15,8 +15,8 @@
 #include "hybm_types.h"
 #include "hybm_transport_common.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 
 class TransportManager {

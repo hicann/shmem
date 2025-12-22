@@ -14,8 +14,8 @@
 #include "dl_hccp_api.h"
 #include "dynamic_ranks_qp_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 const int delay = 5;

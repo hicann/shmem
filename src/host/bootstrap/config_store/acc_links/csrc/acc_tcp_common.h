@@ -23,7 +23,7 @@
 
 #include "acc_includes.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 /**
  * @brief Options of worker

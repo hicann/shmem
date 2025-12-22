@@ -26,7 +26,7 @@
 
 #include "acc_out_logger.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 using Result = int32_t;
 
@@ -50,6 +50,6 @@ inline AccRef<C> AccMakeRef(ARGS... args)
 #define UNLIKELY(x) (__builtin_expect(!!(x), 0) != 0)
 #endif
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_INCLUDES_H

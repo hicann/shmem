@@ -11,8 +11,8 @@
 #include "dl_hccp_api.h"
 #include "device_qp_manager.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 DeviceQpManager::DeviceQpManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet,
@@ -63,7 +63,7 @@ int DeviceQpManager::CreateServerSocket() noexcept
 
     auto socketHandle = CreateLocalSocket();
     if (socketHandle == nullptr) {
-        BM_LOG_ERROR("create local socket handle failed.");
+        BM_LOG_ERROR(rankId_ << " create local socket handle failed.");
         return BM_DL_FUNCTION_FAILED;
     }
 
@@ -86,12 +86,12 @@ int DeviceQpManager::CreateServerSocket() noexcept
         listenInfo.port++;
     }
     if (!successListen) {
-        BM_LOG_ERROR("start to listen server socket failed.");
+        BM_LOG_ERROR(rankId_ << " start to listen server socket failed.");
         DlHccpApi::RaSocketDeinit(socketHandle);
         return BM_DL_FUNCTION_FAILED;
     }
 
-    BM_LOG_INFO("start to listen on port: " << listenInfo.port << " success.");
+    BM_LOG_INFO(rankId_ << " start to listen on port: " << listenInfo.port << " success.");
     serverSocketHandle_ = socketHandle;
     return BM_OK;
 }
@@ -110,12 +110,6 @@ void DeviceQpManager::DestroyServerSocket() noexcept
     if (ret != 0) {
         BM_LOG_INFO("stop to listen on port: " << listenInfo.port << " return: " << ret);
     }
-
-    ret = DlHccpApi::RaSocketDeinit(serverSocketHandle_);
-    if (ret != 0) {
-        BM_LOG_INFO("deinit server socket return: " << ret);
-    }
-    serverSocketHandle_ = nullptr;
 }
 }
 }

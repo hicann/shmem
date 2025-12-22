@@ -13,8 +13,8 @@
 
 #include <cstdint>
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 using Result = int32_t;
 
 enum SMErrorCode : int32_t {
@@ -53,7 +53,7 @@ constexpr uint32_t MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 typedef int (*smem_decrypt_handler)(const char *cipherText, size_t cipherTextLen, char *plainText,
                                     size_t &plainTextLen);
-} // namespace smem
-} // namespace ock
+} // namespace store
+} // namespace shm
 
 #endif // SHMEM_STORE_UTILS_H

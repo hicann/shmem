@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 constexpr uint64_t DEVICE_LARGE_PAGE_SIZE = 2UL * 1024UL * 1024UL;  // 大页的size, 2M
 constexpr uint64_t HYBM_DEVICE_VA_START = 0x100000000000UL;         // NPU上的地址空间起始: 16T
@@ -409,7 +409,7 @@ enum HybmGvaVersion : uint32_t {
     HYBM_GVA_UNKNOWN
 };
 
-}  // namespace mf
-}  // namespace ock
+}  // namespace hybm
+}  // namespace shm
 
 #endif  // MEM_FABRIC_HYBRID_HYBM_DEFINE_H

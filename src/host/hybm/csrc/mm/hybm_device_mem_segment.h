@@ -17,8 +17,8 @@
 #include "hybm_mem_common.h"
 #include "hybm_mem_segment.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 constexpr uint32_t invalidSuperPodId = 0xFFFFFFFFU;
 constexpr uint32_t invalidServerId = 0x3FFU;
 constexpr uint32_t ASC910B_CONN_RANKS = 8U;
@@ -77,7 +77,6 @@ public:
     static int FillDeviceSuperPodInfo() noexcept;
     static void FillSysBootIdInfo() noexcept;
     static bool CanMapRemote(const HbmExportInfo &rmi) noexcept;
-    static bool CanSdmaReaches(uint32_t superPodId, uint32_t serverId) noexcept;
     static void GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept;
 
 protected:

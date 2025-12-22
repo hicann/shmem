@@ -12,7 +12,7 @@
 
 #include <string>
 
-namespace ock {
+namespace shm {
 namespace acc {
 using OPENSSL_INIT_SETTINGS = struct ossl_init_settings_st;
 using SSL_METHOD = struct ssl_method_st;
@@ -211,6 +211,6 @@ private:
     static int LoadCryptoSymbols(void *cryptoHandle);
 };
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_OPENSSL_API_DL_H

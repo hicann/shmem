@@ -16,8 +16,8 @@
 #include <string>
 #include <vector>
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 const uint64_t MAX_KEY_COUNT = 10ULL;
 const uint64_t MAX_KEY_SIZE = 2048ULL;
 const uint64_t MAX_VALUE_COUNT = 10ULL;
@@ -102,7 +102,7 @@ private:
     static void PackBytes(std::vector<uint8_t> &dest, const std::vector<uint8_t> &bytes) noexcept;
 };
 
-}  // ock
-}  // smem
+}  // shm
+}  // store
 
 #endif  // STORE_MESSAGE_PACKER_H

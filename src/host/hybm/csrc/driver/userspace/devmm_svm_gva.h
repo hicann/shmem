@@ -13,8 +13,8 @@
 
 #include <cstdint>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace drv {
 
 const uint64_t GVA_GIANT_FLAG = (1ULL << 0);

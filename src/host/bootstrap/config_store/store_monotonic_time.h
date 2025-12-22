@@ -15,8 +15,8 @@
 #include <cstdint>
 #include <ctime>
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 class MonotonicTime {
 public:
     /**
@@ -161,7 +161,7 @@ inline uint64_t MonoPerfTrace::PeriodMs() const noexcept
     return (end - start) / 100000L;
 }
 
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm
 
 #endif  // MEMFABRIC_HYBRID_MONOTONIC_H

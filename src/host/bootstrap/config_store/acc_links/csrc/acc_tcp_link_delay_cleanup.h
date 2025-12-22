@@ -16,7 +16,7 @@
 #include "acc_def.h"
 #include "acc_tcp_link.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 struct AccTcpLinkCleanupItem {
     bool stop = false;
@@ -153,6 +153,6 @@ inline bool AccTcpLinkDelayCleanup::CheckAndPop(uint32_t periodSecond, AccTcpLin
     return false;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_LINK_DELAY_CLEANUP_H

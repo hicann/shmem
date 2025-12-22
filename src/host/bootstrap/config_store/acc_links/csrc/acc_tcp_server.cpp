@@ -11,7 +11,7 @@
 #include "acc_includes.h"
 #include "acc_tcp_server_default.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 AccTcpServerPtr AccTcpServer::Create()
 {
@@ -23,4 +23,4 @@ AccTcpServerPtr AccTcpServer::Create()
     return server.Get();
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

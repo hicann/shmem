@@ -16,7 +16,7 @@
 #include "acc_tcp_ssl_helper.h"
 #include "acc_tcp_worker.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class AccTcpServerDefault : public AccTcpServer {
 public:
@@ -210,6 +210,6 @@ inline Result AccTcpServerDefault::HandleLinkBroken(const AccTcpLinkComplexDefau
     return ACC_OK;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_SERVER_DEFAULT_H

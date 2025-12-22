@@ -26,7 +26,7 @@
         (ptr) = (type)ptr1;                        \
     } while (0)
 
-namespace ock {
+namespace shm {
 namespace acc {
 FuncInit OPENSSLAPIDL::initSsl = nullptr;
 FuncInit OPENSSLAPIDL::initCypto = nullptr;
@@ -123,12 +123,12 @@ const char *OPENSSLAPIDL::gSep = "/";
 
 int OPENSSLAPIDL::GetLibPath(std::string &libDir, std::string &libSslPath, std::string &libCryptoPath)
 {
-    if (ock::mf::FileUtil::IsSymlink(libDir)) {
+    if (shm::utils::FileUtil::IsSymlink(libDir)) {
         LOG_ERROR("Path for openssl library un-support symlink.");
         return -1;
     }
 
-    if (!ock::mf::FileUtil::Realpath(libDir)) {
+    if (!shm::utils::FileUtil::Realpath(libDir)) {
         LOG_ERROR("Path for openssl library is invalid.");
         return -1;
     }
@@ -302,4 +302,4 @@ int OPENSSLAPIDL::LoadOpensslAPI(const std::string &libPath)
     return 0;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

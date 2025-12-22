@@ -51,7 +51,7 @@ aclshmemi_init_hybm::aclshmemi_init_hybm(aclshmemx_init_attr_t *attr, char *ippo
     g_state = global_state;
 
     // TODO set tls
-    ock::smem::StoreFactory::SetTlsInfo(false, nullptr, 0);
+    shm::store::StoreFactory::SetTlsInfo(false, nullptr, 0);
 }
 
 aclshmemi_init_hybm::~aclshmemi_init_hybm()
@@ -62,17 +62,17 @@ int aclshmemi_init_hybm::init_device_state()
     int32_t status = ACLSHMEM_SUCCESS;
     int32_t sock_fd = attributes->option_attr.sockFd;
 
-    ock::smem::UrlExtraction option;
+    shm::store::UrlExtraction option;
     std::string url(attributes->ip_port);
     SHM_ASSERT_RETURN(option.ExtractIpPortFromUrl(url) == ACLSHMEM_SUCCESS, ACLSHMEM_INVALID_PARAM);
 
     if (attributes->my_pe == 0) {
-        store_ = ock::smem::StoreFactory::CreateStore(option.ip, option.port, true, 0, -1, sock_fd);
+        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, true, 0, -1, sock_fd);
         ip_ = option.ip;
         port_ = option.port;
     }
     else {
-        store_ = ock::smem::StoreFactory::CreateStore(option.ip, option.port, false, attributes->my_pe, 120);
+        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, false, attributes->my_pe, 120);
         ip_ = option.ip;
         port_ = option.port;
     }
@@ -84,10 +84,10 @@ int aclshmemi_init_hybm::init_device_state()
     }
     // 创建groupengine
     std::string prefix = "SHM_(" + std::to_string(DEFAULT_ID) + ")_";
-    ock::smem::StorePtr store_ptr = ock::smem::StoreFactory::PrefixStore(store_, prefix);
-    ock::smem::SmemGroupOption opt = {(uint32_t)attributes->n_pes, (uint32_t)attributes->my_pe,  120 * 1000U,
+    shm::store::StorePtr store_ptr = shm::store::StoreFactory::PrefixStore(store_, prefix);
+    shm::store::SmemGroupOption opt = {(uint32_t)attributes->n_pes, (uint32_t)attributes->my_pe,  120 * 1000U,
                            false, nullptr, nullptr};
-    ock::smem::SmemGroupEnginePtr group = ock::smem::SmemNetGroupEngine::Create(store_ptr, opt);
+    shm::store::SmemGroupEnginePtr group = shm::store::SmemNetGroupEngine::Create(store_ptr, opt);
     SHM_ASSERT_RETURN(group != nullptr, ACLSHMEM_SMEM_ERROR);
 
     globalGroup_ = group;

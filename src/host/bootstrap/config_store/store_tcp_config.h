@@ -21,14 +21,14 @@
 #include "store_op.h"
 #include "store_tcp_config_server.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 class ClientCommonContext {
 public:
     virtual ~ClientCommonContext() = default;
-    virtual std::shared_ptr<ock::acc::AccTcpRequestContext> WaitFinished() noexcept = 0;
-    virtual void SetFinished(const ock::acc::AccTcpRequestContext &response) noexcept = 0;
+    virtual std::shared_ptr<shm::acc::AccTcpRequestContext> WaitFinished() noexcept = 0;
+    virtual void SetFinished(const shm::acc::AccTcpRequestContext &response) noexcept = 0;
     virtual void SetFailedFinish() noexcept = 0;
     virtual bool Blocking() const noexcept = 0;
 };
@@ -70,9 +70,9 @@ protected:
     Result GetReal(const std::string &key, std::vector<uint8_t> &value, int64_t timeoutMs) noexcept override;
 
 private:
-    std::shared_ptr<ock::acc::AccTcpRequestContext> SendMessageBlocked(const std::vector<uint8_t> &reqBody) noexcept;
-    Result LinkBrokenHandler(const ock::acc::AccTcpLinkComplexPtr &link) noexcept;
-    Result ReceiveResponseHandler(const ock::acc::AccTcpRequestContext &context) noexcept;
+    std::shared_ptr<shm::acc::AccTcpRequestContext> SendMessageBlocked(const std::vector<uint8_t> &reqBody) noexcept;
+    Result LinkBrokenHandler(const shm::acc::AccTcpLinkComplexPtr &link) noexcept;
+    Result ReceiveResponseHandler(const shm::acc::AccTcpRequestContext &context) noexcept;
     Result SendWatchRequest(const std::vector<uint8_t> &reqBody,
                             const std::function<void(int result, const std::vector<uint8_t> &)> &notify,
                             uint32_t &id) noexcept;
@@ -81,8 +81,8 @@ private:
 
 private:
     AccStoreServerPtr accServer_;
-    ock::acc::AccTcpServerPtr accClient_;
-    ock::acc::AccTcpLinkComplexPtr accClientLink_;
+    shm::acc::AccTcpServerPtr accClient_;
+    shm::acc::AccTcpLinkComplexPtr accClientLink_;
 
     std::mutex msgCtxMutex_;
     std::unordered_map<uint32_t, std::shared_ptr<ClientCommonContext>> msgClientContext_;
@@ -96,7 +96,7 @@ private:
     const int32_t sockFd_;
 };
 using TcpConfigStorePtr = SmRef<TcpConfigStore>;
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm
 
 #endif  // SMEM_SMEM_TCP_CONFIG_STORE_H

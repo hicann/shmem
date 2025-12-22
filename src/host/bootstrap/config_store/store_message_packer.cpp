@@ -13,8 +13,8 @@
 #include "aclshmemi_logger.h"
 #include "store_message_packer.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 std::vector<uint8_t> SmemMessagePacker::Pack(const SmemMessage &message) noexcept
 {
     // size + userDef + mt + keyN + vN
@@ -132,5 +132,5 @@ void SmemMessagePacker::PackBytes(std::vector<uint8_t> &dest, const std::vector<
     PackValue(dest, static_cast<uint64_t>(bytes.size()));
     dest.insert(dest.end(), bytes.begin(), bytes.end());
 }
-}  // ock
-}  // smem
+}  // shm
+}  // store

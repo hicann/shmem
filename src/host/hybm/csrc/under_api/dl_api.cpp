@@ -12,8 +12,8 @@
 #include "dl_hal_api.h"
 #include "dl_hccp_api.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 Result DlApi::LoadLibrary(const std::string &libDirPath)
 {

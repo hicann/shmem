@@ -17,8 +17,8 @@
 #include "hybm_mem_slice.h"
 #include "hybm_transport_common.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 struct TransportExtraInfo {
     uint32_t rankId;
     transport::TransportMemoryKey memKey;
@@ -126,7 +126,15 @@ public:
 
 protected:
     static Result InitDeviceInfo();
+
+    /**
+     * check whether in the same node
+     */
     static bool CanLocalHostReaches(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept;
+
+    /**
+     * check whether the SDMA accessable to the other device
+     */
     static bool IsSdmaAccessible(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept;
 
 protected:

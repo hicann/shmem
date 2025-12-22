@@ -21,8 +21,8 @@
 #include "host/aclshmem_host_def.h"
 #include "aclshmemi_logger.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 const std::string SMEM_GROUP_SET_STR = "ok";
 const std::string SMEM_GROUP_EXIT_KEY = "EXIT";
@@ -282,7 +282,7 @@ Result SmemNetGroupEngine::GroupAllGather(const char *sendBuf, uint32_t sendSize
 bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& prevEvent)
 {
     char opt = getVal[0];
-    if (!mf::NumUtil::IsDigit(getVal.substr(1))) {
+    if (!NumUtil::IsDigit(getVal.substr(1))) {
         SHM_LOG_WARN("value is not digit");
         return false;
     }
@@ -303,7 +303,7 @@ bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& p
         SHM_LOG_ERROR("get group dynamic size failed, ret: " << ret);
         return false;
     }
-    if (!mf::NumUtil::IsDigit(getVal)) {
+    if (!NumUtil::IsDigit(getVal)) {
         SHM_LOG_WARN("value is not digit");
         return false;
     }
@@ -546,5 +546,5 @@ void SmemNetGroupEngine::GroupSnClean()
     }
 }
 
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm

@@ -20,8 +20,8 @@
 #include "device_qp_manager.h"
 #include "dynamic_ranks_qp_def.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 

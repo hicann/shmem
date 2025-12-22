@@ -20,8 +20,8 @@
 #include <iomanip>
 #include <sstream>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 const int HOST_LITE_RESERVED = 4;
 const int RA_MR_MAX_NUM = 8;

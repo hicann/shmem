@@ -16,7 +16,7 @@
 #include "acc_tcp_link.h"
 #include "acc_tcp_link_complex_default.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 using NewConnHandlerInner = std::function<int(const AccConnReq &reg, const AccTcpLinkComplexDefaultPtr &)>;
 
@@ -83,6 +83,6 @@ inline std::string AccTcpListener::NameAndPort() const noexcept
     return "";
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_LISTENER_H

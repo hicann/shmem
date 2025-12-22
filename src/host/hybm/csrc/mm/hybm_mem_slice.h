@@ -13,8 +13,8 @@
 #include "hybm_common_include.h"
 #include "hybm_mem_common.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 struct MemSlice {
     MemSlice(uint16_t index, MemType mType, MemPageTblType tbType, uint64_t va, uint64_t size)
         : magic_(Func::MakeObjectMagic(uint64_t(this))),

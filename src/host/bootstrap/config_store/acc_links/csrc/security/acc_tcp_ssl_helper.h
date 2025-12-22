@@ -23,7 +23,7 @@
 #include "acc_includes.h"
 #include "openssl_api_dl.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 
 constexpr int MIN_PRIVATE_KEY_CONTENT_BIT_LEN = 3072; // RSA密钥长度要求大于3072
@@ -87,6 +87,6 @@ private:
 };
 using AccTcpSslHelperPtr = AccRef<AccTcpSslHelper>;
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_SSL_HELPER_H

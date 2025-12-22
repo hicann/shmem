@@ -20,7 +20,7 @@
 #include "acc_ref.h"
 #include <functional>
 
-namespace ock {
+namespace shm {
 namespace acc {
 constexpr uint32_t MAX_RECV_BODY_LEN = 10 * 1024 * 1024; /* max receive body len limit */
 constexpr uint32_t UNO_1024 = 1024;
@@ -176,6 +176,6 @@ using AccTcpLinkComplexPtr = AccRef<AccTcpLinkComplex>;
 
 #define ACC_API __attribute__((visibility("default")))
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_DEF_H

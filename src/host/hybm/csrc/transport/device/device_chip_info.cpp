@@ -11,8 +11,8 @@
 #include "hybm_logger.h"
 #include "device_chip_info.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 int DeviceChipInfo::Init() noexcept

@@ -60,12 +60,12 @@ private:
     std::string ip_;
     uint16_t port_ = 9980L;
     hybm_options options_{};
-    ock::smem::StorePtr store_ = nullptr;
+    shm::store::StorePtr store_ = nullptr;
     aclshmem_device_host_state_t *g_state;
     hybm_entity_t entity_ = nullptr;
     void *gva_ = nullptr;
     hybm_mem_slice_t slice_ = nullptr;
-    ock::smem::SmemGroupEnginePtr globalGroup_ = nullptr;
+    shm::store::SmemGroupEnginePtr globalGroup_ = nullptr;
 };
 
 int32_t aclshmemi_control_barrier_all_default(aclshmemi_bootstrap_handle_t boot_handle);

@@ -32,12 +32,12 @@ struct AcclinkTlsOption {
     std::set<std::string> tlsCrlFile;             /* path of crl file */
     std::string tlsPk;                            /* content of private key */
     std::string tlsPkPwd;                         /* content of private key加密文件->可选传入 */
-    ock::acc::AccDecryptHandler decryptHandler_;  /* private key decryptor */
+    shm::acc::AccDecryptHandler decryptHandler_;  /* private key decryptor */
     std::string packagePath;                      /* lib库路径 */
 };
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 enum StoreErrorCode : int16_t {
     SUCCESS = 0,
     ERROR = -1,
@@ -297,9 +297,9 @@ inline const char *ConfigStore::ErrStr(int16_t errCode)
     }
 }
 
-inline ock::acc::AccTlsOption ConvertTlsOption(const AcclinkTlsOption &opt)
+inline shm::acc::AccTlsOption ConvertTlsOption(const AcclinkTlsOption &opt)
 {
-    ock::acc::AccTlsOption tlsOption;
+    shm::acc::AccTlsOption tlsOption;
     tlsOption.enableTls = opt.enableTls;
     tlsOption.tlsTopPath = opt.tlsTopPath;
     tlsOption.tlsCert = opt.tlsCert;
@@ -312,7 +312,7 @@ inline ock::acc::AccTlsOption ConvertTlsOption(const AcclinkTlsOption &opt)
     return tlsOption;
 }
 
-}  // namespace smem
-}  // namespace ock
+}  // namespace store
+}  // namespace shm
 
 #endif  // SMEM_SMEM_CONFIG_STORE_H

@@ -20,8 +20,8 @@
 #include "host/aclshmem_host_def.h"
 #include "aclshmemi_logger.h"
 
-namespace ock {
-namespace smem {
+namespace shm {
+namespace store {
 
 const std::string PROTOCOL_TCP4 = "tcp://";
 const std::string PROTOCOL_TCP6 = "tcp6://";

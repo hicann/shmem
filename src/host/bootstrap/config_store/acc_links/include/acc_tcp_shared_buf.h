@@ -12,7 +12,7 @@
 
 #include "acc_def.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 class ACC_API AccDataBuffer : public AccReferable {
 public:
@@ -119,6 +119,6 @@ inline void AccDataBuffer::SetDataSize(uint32_t size)
     dataSize_ = size;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm
 
 #endif  // ACC_LINKS_ACC_TCP_SHARED_BUF_H

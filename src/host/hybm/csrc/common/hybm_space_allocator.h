@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace ock::mf {
+namespace shm::mf {
 class AllocatedElement {
 public:
     AllocatedElement() noexcept : startAddress{nullptr}, size{0} {}

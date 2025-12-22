@@ -11,8 +11,8 @@
 #include "dl_acl_api.h"
 #include "aclshmemi_file_util.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 bool DlAclApi::gLoaded = false;
 std::mutex DlAclApi::gMutex;
 void *DlAclApi::rtHandle;
@@ -48,7 +48,7 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     }
 
     std::string realPath;
-    if (!ock::mf::FileUtil::LibraryRealPath(libDirPath, std::string(gAscendAclLibName), realPath)) {
+    if (!shm::utils::FileUtil::LibraryRealPath(libDirPath, std::string(gAscendAclLibName), realPath)) {
         BM_LOG_ERROR(libDirPath << " get lib path failed.");
         return BM_DL_FUNCTION_FAILED;
     }

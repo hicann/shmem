@@ -13,7 +13,7 @@
 #include "acc_common_util.h"
 #include "acc_tcp_server_default.h"
 
-namespace ock {
+namespace shm {
 namespace acc {
 template <class T>
 class AtmoicRollback {
@@ -90,8 +90,8 @@ Result AccTcpServerDefault::Start(const AccTcpServerOptions &opt, const AccTlsOp
 Result AccTcpServerDefault::LoadDynamicLib(const std::string &dynLibPath)
 {
     std::string libPath = dynLibPath;
-    if (ock::mf::FileUtil::IsSymlink(libPath) || !ock::mf::FileUtil::Realpath(libPath)
-        || !ock::mf::FileUtil::IsDir(libPath)) {
+    if (shm::utils::FileUtil::IsSymlink(libPath) || !shm::utils::FileUtil::Realpath(libPath)
+        || !shm::utils::FileUtil::IsDir(libPath)) {
         LOG_ERROR("dynLibPath check failed");
         return ACC_ERROR;
     }
@@ -701,4 +701,4 @@ Result AccTcpServerDefault::Handshake(int &tmpFD, const AccConnReq &connReq, con
     return ACC_OK;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

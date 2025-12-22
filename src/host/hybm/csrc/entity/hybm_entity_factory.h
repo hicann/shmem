@@ -13,8 +13,8 @@
 #include "hybm_entity.h"
 #include "hybm_entity_default.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 class MemEntityFactory {
 public:
     static MemEntityFactory &Instance()

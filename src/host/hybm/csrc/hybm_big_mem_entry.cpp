@@ -13,7 +13,7 @@
 #include "dl_hal_api.h"
 #include "hybm_ex_info_transfer.h"
 
-using namespace ock::mf;
+using namespace shm::hybm;
 
 HYBM_API hybm_entity_t hybm_create_entity(uint16_t id, const hybm_options *options, uint32_t flags)
 {

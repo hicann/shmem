@@ -15,10 +15,10 @@
 #include "hybm_ex_info_transfer.h"
 #include "hybm_entity_default.h"
 
-using namespace ock::mf::transport;
+using namespace shm::hybm::transport;
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 
 thread_local bool MemEntityDefault::isSetDevice_ = false;
 
@@ -677,5 +677,5 @@ void MemEntityDefault::ReleaseResources()
     initialized = false;
 }
 
-}  // namespace mf
-}  // namespace ock
+}  // namespace hybm
+}  // namespace shm

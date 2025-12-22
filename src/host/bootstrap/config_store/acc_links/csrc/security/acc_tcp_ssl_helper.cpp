@@ -30,7 +30,7 @@ constexpr std::pair<uint32_t, uint32_t> CHECK_PERIOD_HOURS_RANGE(24, 30 * 24);
         }                                     \
     } while (0)
 
-namespace ock {
+namespace shm {
 namespace acc {
 
 AccResult AccTcpSslHelper::Start(SSL_CTX* sslCtx, AccTlsOption &param)
@@ -110,7 +110,7 @@ AccResult AccTcpSslHelper::LoadCaFileList(std::vector<std::string> &caFileList)
     caFileList.clear();
     for (auto &file : tlsCaFile) {
         auto tmpPath = path + "/" + file;
-        if (!ock::mf::FileUtil::Realpath(tmpPath)) {
+        if (!shm::utils::FileUtil::Realpath(tmpPath)) {
             LOG_ERROR("Failed to check ca path with ca file");
             return ACC_ERROR;
         }
@@ -131,7 +131,7 @@ AccResult AccTcpSslHelper::LoadCaCert(SSL_CTX* sslCtx)
         bool isFirstFile = true;
         for (auto &file : tlsCrlFile) {
             std::string tmpPath = crlDirPath + "/" + file;
-            if (!ock::mf::FileUtil::Realpath(tmpPath)) {
+            if (!shm::utils::FileUtil::Realpath(tmpPath)) {
                 LOG_ERROR("Failed to check crl path with crl file");
                 return ACC_ERROR;
             }
@@ -171,7 +171,7 @@ AccResult AccTcpSslHelper::LoadCaCert(SSL_CTX* sslCtx)
 AccResult AccTcpSslHelper::LoadServerCert(SSL_CTX *sslCtx)
 {
     auto tmpPath = tlsTopPath + "/" + tlsCert;
-    SSL_LAYER_CHECK_RET(!ock::mf::FileUtil::Realpath(tmpPath), "get invalid cert path");
+    SSL_LAYER_CHECK_RET(!shm::utils::FileUtil::Realpath(tmpPath), "get invalid cert path");
 
     /* load cert */
     auto ret = OpenSslApiWrapper::SslCtxUseCertificateFile(sslCtx, tmpPath.c_str(),
@@ -184,7 +184,7 @@ AccResult AccTcpSslHelper::LoadServerCert(SSL_CTX *sslCtx)
 
 AccResult AccTcpSslHelper::GetPkPass()
 {
-    std::string encryptedText = ock::mf::StringUtil::TrimString(tlsPkPwd);
+    std::string encryptedText = shm::store::StringUtil::TrimString(tlsPkPwd);
     if (mDecryptHandler_ == nullptr) {
         LOG_INFO("user employs a plaintext password, which does not require a decryption function.");
         size_t len = encryptedText.length();
@@ -526,7 +526,7 @@ void AccTcpSslHelper::StopCheckCertExpired(bool afterFork)
 AccResult AccTcpSslHelper::HandleCertExpiredCheck()
 {
     auto certPath = tlsTopPath + "/" + tlsCert;
-    if (!ock::mf::FileUtil::Realpath(certPath)) {
+    if (!shm::utils::FileUtil::Realpath(certPath)) {
         LOG_ERROR("Failed to get cert path");
         return ACC_ERROR;
     }
@@ -538,7 +538,7 @@ AccResult AccTcpSslHelper::HandleCertExpiredCheck()
     auto caDirPath = tlsTopPath + "/" + tlsCaPath;
     for (auto &file : tlsCaFile) {
         auto caPath = caDirPath + "/" + file;
-        if (!ock::mf::FileUtil::Realpath(caPath)) {
+        if (!shm::utils::FileUtil::Realpath(caPath)) {
             LOG_ERROR("Failed to get ca path");
             return ACC_ERROR;
         }
@@ -624,4 +624,4 @@ AccResult AccTcpSslHelper::CertExpiredCheck(std::string path, std::string type)
     return ACC_OK;
 }
 }  // namespace acc
-}  // namespace ock
+}  // namespace shm

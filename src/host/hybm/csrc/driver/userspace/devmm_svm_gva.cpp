@@ -17,8 +17,8 @@
 #include "dl_hal_api.h"
 #include "devmm_svm_gva.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace drv {
 
 struct GvaHeap {

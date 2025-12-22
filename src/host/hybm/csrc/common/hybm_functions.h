@@ -14,8 +14,8 @@
 #include "hybm_types.h"
 #include "hybm_logger.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 class Func {
 public:
     static uint64_t MakeObjectMagic(uint64_t srcAddress);

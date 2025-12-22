@@ -13,8 +13,8 @@
 
 #include <cstdint>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 namespace transport {
 namespace device {
 class DeviceChipInfo {

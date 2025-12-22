@@ -15,8 +15,8 @@
 #include <sstream>
 #include <limits>
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace store {
 static const std::string ipv6_common_core =
     R"((?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){7})|)"
     R"((?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6})?::)"
@@ -100,6 +100,6 @@ inline bool StringUtil::String2Uint(const std::string& str, UIntType& val)
     val = static_cast<UIntType>(result);
     return true;
 }
-}  // namespace mf
-}  // namespace ock
+}  // namespace store
+}  // namespace shm
 #endif

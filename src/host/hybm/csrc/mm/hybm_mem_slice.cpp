@@ -11,8 +11,8 @@
 
 #include "hybm_mem_slice.h"
 
-namespace ock {
-namespace mf {
+namespace shm {
+namespace hybm {
 union SliceIdUnion {
     struct SliceDetail {
         uint64_t magic_ : 40;         /* to verify hybm_mem_slice_t ptr */
