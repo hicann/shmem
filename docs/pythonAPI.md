@@ -16,20 +16,6 @@
     def aclshmem_finialize() -> None
     ```
 
-1. 设置属性
-    ```python
-    def aclshmem_set_attributes(my_rank, n_ranks, local_mem_size, ip_port, attributes) -> int
-    ```
-
-    |参数/返回值|含义|
-    |-|-|
-    |my_rank|int类型，当前秩|
-    |n_ranks|int类型，秩的总数|
-    |local_mem_size|int类型，当前占用的共享内存大小，最大40G|
-    |ip_port|str类型，服务器的IP和端口号，例如tcp://ip:port|
-    |attributes|InitAttr类型，设置的属性|
-    |返回值|成功返回0，其他为错误码|
-
 1. 查询共享内存模块的当前初始化状态
     ```python
     def aclshmemx_init_status() -> InitStatus
@@ -162,18 +148,6 @@
     |-|-|
     |team_id|team的句柄|
     |返回值|PE数量|
-
-1. 设置由NPU发起的MTE操作所使用的UB参数
-    ```python
-    def mte_set_ub_params(offset, size, event) -> int
-    ```
-
-    |参数/返回值|含义|
-    |-|-|
-    |offset|UB的起始偏移量|
-    |size|UB的大小|
-    |event|用于同步的事件ID|
-    |返回值|成功返回0|
 
 1. 从现有的父团队中拆分出一个子团队
     ```python

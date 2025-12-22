@@ -95,20 +95,6 @@ int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, co
     return aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attr);
 }
 
-
-int32_t aclshmem_set_attributes(int32_t my_rank, int32_t n_ranks, uint64_t local_mem_size, const char *ip_port,
-                             aclshmemx_init_attr_t &attributes)
-{
-    aclshmemx_init_attr_t attr_ptr;
-    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attr_ptr);
-
-    if (ret != 0) {
-        throw std::runtime_error("set aclshmem attributes failed");
-    }
-    attributes = attr_ptr;
-    return ret;
-}
-
 static int py_decrypt_handler_wrapper(const char *cipherText, size_t cipherTextLen, char *plainText,
                                       size_t &plainTextLen)
 {
@@ -194,8 +180,8 @@ void DefineShmemAttr(py::module_ &m)
             auto init_attr = new (std::nothrow) aclshmemx_init_attr_t;
             return init_attr;
         }))
-        .def_readwrite("my_rank", &aclshmemx_init_attr_t::my_rank)
-        .def_readwrite("n_ranks", &aclshmemx_init_attr_t::n_ranks)
+        .def_readwrite("my_rank", &aclshmemx_init_attr_t::my_pe)
+        .def_readwrite("n_ranks", &aclshmemx_init_attr_t::n_pes)
         .def_property("ip_port",
                       [](const aclshmemx_init_attr_t &self) {
                             return std::string(self.ip_port[0] != '\0' ? self.ip_port : "");
@@ -262,20 +248,6 @@ Get the unique id. This function need run with PTA.
 Returns:
     returns unique id on success. On error, None is returned.
     )");
-
-    m.def("aclshmem_set_attributes", &shm::aclshmem_set_attributes, py::call_guard<py::gil_scoped_release>(),
-          py::arg("my_rank"), py::arg("n_ranks"), py::arg("local_mem_size"), py::arg("ip_port"), py::arg("attributes"),
-          R"(
-Set the default attributes
-Arguments:
-    my_rank(int): Current rank.
-    n_ranks(int): Total number of ranks.
-    local_mem_size(int): The size of shared memory currently occupied by current rank.
-    ip_port(str): The ip and port number of the sever, e.g. tcp://ip:port.
-    attributes(InitAttr): Attributes set.
-Returns:
-    On success, returns 0. On error, error code on failure.
-)");
 
     m.def(
         "aclshmemx_init_status",

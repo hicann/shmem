@@ -19,9 +19,9 @@ import torch_npu
 from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
 from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_using_unique_id, \
                        aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
-                       aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, mte_set_ub_params, team_split_strided,
+                       aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, team_split_strided,
                        team_split_2d, team_translate_pe, \
-                       team_destroy, InitAttr, OpEngineType, aclshmem_set_attributes, \
+                       team_destroy, InitAttr, OpEngineType, \
                        InitStatus, aclshmem_calloc, aclshmem_align, aclshmemx_init_status, get_ffts_config, team_my_pe,
                        team_n_pes, \
                        aclshmem_putmem_nbi, aclshmem_getmem_nbi, aclshmem_putmem, aclshmem_getmem, aclshmemx_putmem_signal,
@@ -34,7 +34,7 @@ current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
 sys.path.append(current_dir)
 libs_path = os.path.join(os.getenv('ACLSHMEM_HOME_PATH', current_dir), 'shmem/lib')
-for lib in ["libshmem.so"]:
+for lib in ["libaclshmem.so"]:
     lib_path = os.path.join(libs_path, lib)
     try:
         ctypes.CDLL(lib_path)
@@ -55,7 +55,6 @@ __all__ = [
     'set_conf_store_tls',
     'team_my_pe',
     'team_n_pes',
-    'mte_set_ub_params',
     'team_split_strided',
     'team_split_2d',
     'team_translate_pe',
@@ -63,7 +62,6 @@ __all__ = [
     'InitAttr',
     'InitStatus',
     'OpEngineType',
-    'aclshmem_set_attributes',
     'aclshmem_calloc',
     'aclshmem_align',
     'aclshmemx_init_status',
