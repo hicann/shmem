@@ -40,15 +40,13 @@ aclshmemi_init_hybm::aclshmemi_init_hybm(aclshmemx_init_attr_t *attr, char *ippo
 {
     attributes = attr;
     npes = attr->n_pes;
-    g_state = global_state;
-
     auto status = aclrtGetDevice(&device_id);
     if (status != 0) {
         SHM_LOG_ERROR("Get Device_id error");
     }
     strncpy(g_ipport, ipport, ACLSHMEM_MAX_IP_PORT_LEN - 1);
     g_ipport[ACLSHMEM_MAX_IP_PORT_LEN - 1] = '\0';
-    g_state = global_state;
+    host_state_ = global_state;
 
     // TODO set tls
     shm::store::StoreFactory::SetTlsInfo(false, nullptr, 0);
@@ -108,13 +106,13 @@ int aclshmemi_init_hybm::init_device_state()
     options.bmScope = HYBM_SCOPE_CROSS_NODE;
     options.rankCount = attributes->n_pes;
     options.rankId = attributes->my_pe;
-    options.singleRankVASpace = g_state->heap_size;
+    options.singleRankVASpace = host_state_->heap_size;
     options.preferredGVA = 0;
     options.role = HYBM_ROLE_PEER;
     options.globalUniqueAddress = true;
     std::string defaultNic = "10002";
     std::copy_n(defaultNic.c_str(), defaultNic.size() + 1, options.nic);
-
+    device_state_ = (aclshmem_device_host_state_t *)std::calloc(1, sizeof(aclshmem_device_host_state_t));
     auto entity = hybm_create_entity(DEFAULT_ID << 1, &options, 0);
     if (entity == nullptr) {
         SHM_LOG_ERROR("create entity failed");
@@ -128,12 +126,19 @@ int aclshmemi_init_hybm::init_device_state()
 
 int aclshmemi_init_hybm::update_device_state(void* host_ptr, size_t size)
 {
-    int32_t ptr_size = g_state->npes * sizeof(void *);
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(g_state->device_p2p_heap_base, ptr_size, g_state->host_p2p_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(g_state->device_rdma_heap_base, ptr_size, g_state->host_rdma_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(g_state->device_sdma_heap_base, ptr_size, g_state->host_sdma_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    int32_t ptr_size = host_state_->npes * sizeof(void *);
+    auto backup_p2p = device_state_->p2p_device_heap_base;
+    auto backup_rdma = device_state_->rdma_device_heap_base;
+    auto backup_sdma = device_state_->sdma_device_heap_base;
+    std::memcpy(device_state_, host_ptr, size);
+    device_state_->p2p_device_heap_base = backup_p2p;
+    device_state_->rdma_device_heap_base = backup_rdma;
+    device_state_->sdma_device_heap_base = backup_sdma;
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->p2p_device_heap_base, ptr_size, host_state_->p2p_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->rdma_device_heap_base, ptr_size, host_state_->rdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->sdma_device_heap_base, ptr_size, host_state_->sdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    auto ret = hybm_set_extra_context(entity_, host_ptr, size);
+    auto ret = hybm_set_extra_context(entity_, device_state_, size);
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("hybm_set_extra_context failed, ret: " << ret);
         return ret;
@@ -147,6 +152,7 @@ int aclshmemi_init_hybm::finalize_device_state()
         SHM_LOG_WARN("smem shm not initialized yet");
         return ACLSHMEM_INNER_ERROR;
     }
+    std::free(device_state_);
     hybm_destroy_entity(entity_, 0);
     hybm_uninit();
     inited_ = false;
@@ -172,7 +178,7 @@ int aclshmemi_init_hybm::reserve_heap()
 
 int aclshmemi_init_hybm::reach_info_init(void *&gva)
 {
-    for (int32_t i = 0; i < g_state->npes; i++) {
+    for (int32_t i = 0; i < host_state_->npes; i++) {
         hybm_data_op_type reaches_types;
         auto ret = hybm_entity_reach_types(entity_, i, reaches_types, 0);
         if (ret != 0) {
@@ -180,14 +186,14 @@ int aclshmemi_init_hybm::reach_info_init(void *&gva)
             return ACLSHMEM_SMEM_ERROR;
         }
 
-        g_state->host_p2p_heap_base[i] = (void *)((uintptr_t)gva + g_state->heap_size * static_cast<uint32_t>(i));
+        host_state_->p2p_device_heap_base[i] = (void *)((uintptr_t)gva + host_state_->heap_size * static_cast<uint32_t>(i));
         if (reaches_types & HYBM_DOP_TYPE_MTE) {
-            g_state->topo_list[i] |= ACLSHMEM_TRANSPORT_MTE;
+            host_state_->topo_list[i] |= ACLSHMEM_TRANSPORT_MTE;
         }
         if (reaches_types & HYBM_DOP_TYPE_DEVICE_RDMA) {
-            g_state->topo_list[i] |= ACLSHMEM_TRANSPORT_ROCE;
+            host_state_->topo_list[i] |= ACLSHMEM_TRANSPORT_ROCE;
         }
-        g_state->host_sdma_heap_base[i] = nullptr;
+        host_state_->sdma_device_heap_base[i] = nullptr;
     }
     return ACLSHMEM_SUCCESS;
 }
@@ -203,15 +209,15 @@ int aclshmemi_init_hybm::exchange_slice()
         return ret;
     }
 
-    hybm_exchange_info all_ex_info[g_state->npes];
+    hybm_exchange_info all_ex_info[host_state_->npes];
     ret = globalGroup_->GroupAllGather((char *)&ex_info, sizeof(hybm_exchange_info), (char *)all_ex_info,
-                                       sizeof(hybm_exchange_info) * g_state->npes);
+                                       sizeof(hybm_exchange_info) * host_state_->npes);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm gather export slice failed, result: " << ret);
         return ret;
     }
     // import memory
-    ret = hybm_import(entity_, all_ex_info, g_state->npes, nullptr, 0);
+    ret = hybm_import(entity_, all_ex_info, host_state_->npes, nullptr, 0);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm import failed, result: " << ret);
         return ret;
@@ -240,15 +246,15 @@ int aclshmemi_init_hybm::exchange_entity()
         return ACLSHMEM_SUCCESS;
     }
 
-    hybm_exchange_info all_ex_info[g_state->npes];
+    hybm_exchange_info all_ex_info[host_state_->npes];
     ret = globalGroup_->GroupAllGather((char *)&ex_info, sizeof(hybm_exchange_info), (char *)all_ex_info,
-                                       sizeof(hybm_exchange_info) * g_state->npes);
+                                       sizeof(hybm_exchange_info) * host_state_->npes);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm gather export entity failed, result: " << ret);
         return ret;
     }
     // import entity
-    ret = hybm_import(entity_, all_ex_info, g_state->npes, nullptr, 0);
+    ret = hybm_import(entity_, all_ex_info, host_state_->npes, nullptr, 0);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm import entity failed, result: " << ret);
         return ret;
@@ -265,9 +271,9 @@ int aclshmemi_init_hybm::exchange_entity()
 int aclshmemi_init_hybm::setup_heap()
 {
     // alloc memory
-    auto slice = hybm_alloc_local_memory(entity_, HYBM_MEM_TYPE_DEVICE, g_state->heap_size, 0);
+    auto slice = hybm_alloc_local_memory(entity_, HYBM_MEM_TYPE_DEVICE, host_state_->heap_size, 0);
     if (slice == nullptr) {
-        SHM_LOG_ERROR("alloc local mem failed, size: " << g_state->heap_size);
+        SHM_LOG_ERROR("alloc local mem failed, size: " << host_state_->heap_size);
         return ACLSHMEM_SMEM_ERROR;
     }
     slice_ = slice;
@@ -289,14 +295,14 @@ int aclshmemi_init_hybm::setup_heap()
         SHM_LOG_ERROR("hybm mmap failed, result: " << ret);
         return ret;
     }
-    g_state->heap_base = (void *)((uintptr_t)gva_ + g_state->heap_size * static_cast<uint32_t>(attributes->my_pe));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&g_state->host_p2p_heap_base, g_state->npes * sizeof(void *)));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&g_state->host_rdma_heap_base, g_state->npes * sizeof(void *)));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&g_state->host_sdma_heap_base, g_state->npes * sizeof(void *)));
+    host_state_->heap_base = (void *)((uintptr_t)gva_ + host_state_->heap_size * static_cast<uint32_t>(attributes->my_pe));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->p2p_device_heap_base, host_state_->npes * sizeof(void *)));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->rdma_device_heap_base, host_state_->npes * sizeof(void *)));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->sdma_device_heap_base, host_state_->npes * sizeof(void *)));
 
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&g_state->device_p2p_heap_base, g_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&g_state->device_rdma_heap_base, g_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&g_state->device_sdma_heap_base, g_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->p2p_device_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->rdma_device_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->sdma_device_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
     ret = reach_info_init(gva_);
     if (ret != 0) {
         SHM_LOG_ERROR("reach_info_init failed, result: " << ret);
@@ -309,7 +315,7 @@ int aclshmemi_init_hybm::setup_heap()
         SHM_LOG_WARN("my_rank:" << attributes->my_pe << " g_ipport is released in advance!");
         bzero(attributes->ip_port, sizeof(attributes->ip_port));
     }
-    g_state->is_aclshmem_created = true;
+    host_state_->is_aclshmem_created = true;
     return ACLSHMEM_SUCCESS;
 }
 
@@ -321,23 +327,23 @@ int aclshmemi_init_hybm::remove_heap()
 
 int aclshmemi_init_hybm::release_heap()
 {
-    if (g_state->host_p2p_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFreeHost(g_state->host_p2p_heap_base));
+    if (host_state_->p2p_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->p2p_device_heap_base));
     }
-    if (g_state->host_p2p_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFreeHost(g_state->host_rdma_heap_base));
+    if (host_state_->p2p_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->rdma_device_heap_base));
     }
-    if (g_state->host_p2p_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFreeHost(g_state->host_sdma_heap_base));
+    if (host_state_->p2p_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->sdma_device_heap_base));
     }
-    if (g_state->device_p2p_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFree(g_state->device_p2p_heap_base));
+    if (device_state_->p2p_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->p2p_device_heap_base));
     }
-    if (g_state->device_rdma_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFree(g_state->device_rdma_heap_base));
+    if (device_state_->rdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->rdma_device_heap_base));
     }
-    if (g_state->device_sdma_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFree(g_state->device_sdma_heap_base));
+    if (device_state_->sdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->sdma_device_heap_base));
     }
 
     if (globalGroup_ != nullptr) {

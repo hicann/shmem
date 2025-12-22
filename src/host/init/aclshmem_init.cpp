@@ -42,12 +42,12 @@ constexpr int DEFAULT_BLOCK_NUM = 1;
             (DEFAULT_MY_PE),                            /* mype */                      \
             (DEFAULT_N_PES),                            /* npes */                      \
             NULL,                                       /* heap_base */                 \
-            NULL,                                       /* host_p2p_heap_base */        \
-            NULL,                                       /* host_rdma_heap_base */       \
-            NULL,                                       /* host_sdma_heap_base */       \
-            NULL,                                       /* p2p_heap_device_base */      \
-            NULL,                                       /* sdma_heap_device_base */     \
-            NULL,                                       /* roce_heap_device_base */     \
+            NULL,                                       /* p2p_device_heap_base */      \
+            NULL,                                       /* rdma_device_heap_base */     \
+            NULL,                                       /* sdma_device_heap_base */     \
+            NULL,                                       /* p2p_heap_host_base */        \
+            NULL,                                       /* rdma_heap_host_base */       \
+            NULL,                                       /* sdma_heap_host_base */       \
             {},                                         /* topo_list */                 \
             SIZE_MAX,                                   /* heap_size */                 \
             {NULL},                                     /* team_pools */                \

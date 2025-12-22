@@ -198,15 +198,15 @@ typedef struct {
     int npes;
     void *heap_base;
 
-    // Store All Devices' heap_base in Host.
-    void **host_p2p_heap_base;
-    void **host_rdma_heap_base;
-    void **host_sdma_heap_base;
+    // Store All Devices' heap_base.
+    void **p2p_device_heap_base;
+    void **rdma_device_heap_base;
+    void **sdma_device_heap_base;
 
-    // Store All Devices' heap_base in Device.
-    void **device_p2p_heap_base;
-    void **device_rdma_heap_base;
-    void **device_sdma_heap_base;
+    // Store All Host' heap_base.
+    void **p2p_host_heap_base;
+    void **rdma_host_heap_base;
+    void **sdma_host_heap_base;
 
     uint8_t topo_list[ACLSHMEM_MAX_PES];
     size_t heap_size;

@@ -35,7 +35,7 @@ protected:
         EXPECT_EQ(g_state.mype, rank_id);
         EXPECT_EQ(g_state.npes, n_ranks);
         EXPECT_NE(g_state.heap_base, nullptr);
-        EXPECT_NE(g_state.host_p2p_heap_base[rank_id], nullptr);
+        EXPECT_NE(g_state.p2p_device_heap_base[rank_id], nullptr);
         EXPECT_EQ(g_state.heap_size, local_mem_size + ACLSHMEM_EXTRA_SIZE);
         EXPECT_NE(g_state.team_pools[0], nullptr);
         status = aclshmemx_init_status();
