@@ -8,13 +8,13 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACLSHMEM_UID_UTILS_H
-#define ACLSHMEM_UID_UTILS_H
+#ifndef SHMEM_UID_UTILS_H
+#define SHMEM_UID_UTILS_H
 
 
-#include "utils/aclshmemi_logger.h"
 #include <stdlib.h>   // malloc, free
 #include <string.h>   // memset
+#include "utils/shmemi_logger.h"
 
 template <typename T>
 inline int bootstrap_calloc(T** ptr, size_t nelem, const char* file, int line) {
@@ -55,7 +55,7 @@ inline int bootstrap_calloc(T** ptr, size_t nelem, const char* file, int line) {
     do {                                                                                                            \
         int32_t check_ret = (x);                                                                                    \
         if (check_ret != 0) {                                                                                       \
-            SHM_LOG_ERROR(" " << LOG_STR << " close sock " << #SOCK << " and return aclshmem error: " << check_ret);   \
+            SHM_LOG_ERROR(" " << LOG_STR << " close sock " << #SOCK << " and return shmem error: " << check_ret);   \
             if ((&(SOCK)) != nullptr) {                                                                             \
                 socket_close(&(SOCK));                                                                              \
             }                                                                                                       \

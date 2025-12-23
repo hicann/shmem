@@ -9,7 +9,7 @@
  */
 #include "kernel_operator.h"
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 #include "kv_shuffle_kernel.h"
 
 #undef inline

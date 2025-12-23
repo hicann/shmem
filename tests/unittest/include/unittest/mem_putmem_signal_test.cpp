@@ -12,8 +12,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
-#include "aclshmem.h"
+#include "shmemi_host_common.h"
+#include "shmem.h"
 #include "utils/func_type.h"
 
 using namespace std;

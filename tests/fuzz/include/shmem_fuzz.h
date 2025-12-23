@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #include "acl/acl_base.h"
-#include "host/aclshmem_host_def.h"
+#include "host/shmem_host_def.h"
 #include "secodefuzz/secodeFuzz.h"
 
 #undef inline

@@ -26,8 +26,8 @@
 #include "bfloat16.h"
 
 #include <acl/acl.h>
-#include "aclshmem.h"
-#include "aclshmem_kernel.h"
+#include "shmem.h"
+#include "shmem_kernel.h"
 #include "kv_shuffle_kernel.h"
 
 using fp16_t = op::fp16_t;

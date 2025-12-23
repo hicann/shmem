@@ -9,7 +9,7 @@
  */
 #include <dlfcn.h>
 #include "dl_acl_api.h"
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 
 namespace shm {
 namespace hybm {

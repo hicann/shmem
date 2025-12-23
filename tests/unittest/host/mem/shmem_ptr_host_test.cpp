@@ -11,8 +11,8 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
-#include "aclshmem.h"
+#include "shmemi_host_common.h"
+#include "shmem.h"
 #include "unittest_main_test.h"
 #include "shmem_ptr_kernel.h"
 

@@ -46,16 +46,16 @@
 #include "catlass/layout/layout.hpp"
 #include "dispatch_policy_custom.h"
 
-// from aclshmem-templates
+// from shmem-templates
 #include "dispatch_gmm_combine.h"
 
 // aclshmem_host
-#include "host/aclshmem_host_def.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/init/aclshmem_host_init.h"
-#include "host/data_plane/aclshmem_host_rma.h"
-#include "host/team/aclshmem_host_team.h"
-#include "aclshmem.h"
+#include "host/shmem_host_def.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/init/shmem_host_init.h"
+#include "host/data_plane/shmem_host_rma.h"
+#include "host/team/shmem_host_team.h"
+#include "shmem.h"
 // utils
 #include "utils.h"
 #include "select_helper.h"

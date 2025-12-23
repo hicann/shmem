@@ -1,6 +1,6 @@
-# ACLSHMEM原理概述
+# SHMEM原理概述
 
-## ACLSHMEM初始化流程介绍
+## SHMEM初始化流程介绍
 <p style="text-indent: 2em;">shmem的初始化接口<code>int aclshmemx_init_attr(aclshmemx_init_attr_t *attributes)</code>会根据传入的参数完成shmem功能所需资源的初始化。其中包含多进程间信息的同步以及建链、虚拟内存及device上物理内存的分配和映射、host和device间state信息同步以及初始化共享内存管理、team管理、同步管理功能所需要的资源。这些资源信息都会记录在一个 <code>aclshmem_device_host_state_t</code> 的state里。</p>
 
 初始化流程如下图所示，参数设置及参数校验相关内容不做具体介绍。
@@ -58,7 +58,7 @@ href=https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/API/appdev
 
 <img src="./picture/7.png" width="1000" height="400">
 
-## ACLSHMEM通信域（Team）介绍
+## SHMEM通信域（Team）介绍
 <p style="text-indent: 2em;">Team是shmem的通信域概念，在相关接口中可以通过`team_id`访问，初始化后会有一个默认的全局通信域，其<code>team_id</code>是<code> ACLSHMEM_TEAM_WORLD = 0</code>。team的信息存储在在state的team_pools里，team_pools是一个aclshmemx_team_t的数组。aclshmemx_team_t内会存储当前team的id（team相关接口使用的索引）、当前进程在该team内的rank id、该team内的起始rank、rank间步长、rank数量等相关信息。</p>
 
 **aclshmemx_team_t内存储的mype和size是team内部的信息，aclshmem_device_host_state_t里存储的mype和npes是全局的信息。**

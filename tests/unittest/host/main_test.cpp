@@ -11,8 +11,8 @@
 #include <iostream>
 #include <algorithm>
 #include "acl/acl.h"
-#include "aclshmem.h"
-#include "aclshmemi_host_common.h"
+#include "shmem.h"
+#include "shmemi_host_common.h"
 #include "unittest_main_test.h"
 
 int test_global_ranks;

@@ -23,7 +23,7 @@
 #include "hybm_cmd.h"
 #include "hybm_driver.h"
 #include "hybm.h"
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 
 using namespace shm::hybm;
 

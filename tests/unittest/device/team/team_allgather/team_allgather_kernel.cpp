@@ -8,9 +8,9 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "aclshmem.h"
+#include "shmem.h"
 #include "team_allgather_kernel.h"
-#include "gm2gm/aclshmemi_device_cc.h"
+#include "gm2gm/shmemi_device_cc.h"
 
 extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t config, GM_ADDR gva, int team_id)
 {

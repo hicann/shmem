@@ -36,7 +36,7 @@ target_include_directories(_pyshmem PRIVATE
         ${PROJECT_SOURCE_DIR}/include/
 )
 target_link_libraries(_pyshmem PRIVATE
-        aclshmem
+        shmem
 )
 
 set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/shmem)

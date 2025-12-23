@@ -10,7 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""python api for aclshmem."""
+"""python api for shmem."""
 
 import os
 
@@ -32,15 +32,15 @@ class BinaryDistribution(Distribution):
 
 
 setuptools.setup(
-    name="aclshmem",
+    name="shmem",
     version=current_version,
     author="",
     author_email="",
-    description="python api for aclshmem",
+    description="python api for shmem",
     packages=find_namespace_packages(exclude=("tests*",)),
     license="Apache License Version 2.0",
     install_requires=["torch-npu"],
     python_requires=">=3.7",
-    package_data={"aclshmem": ["_pyshmem.cpython*.so", "lib/**", "VERSION"]},
+    package_data={"shmem": ["_pyshmem.cpython*.so", "lib/**", "VERSION"]},
     distclass=BinaryDistribution
 )

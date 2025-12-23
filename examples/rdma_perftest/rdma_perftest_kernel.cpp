@@ -9,7 +9,7 @@
  */
 #include "kernel_operator.h"
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 
 constexpr uint32_t MAGIC_VAL = 10;
 constexpr uint32_t WARMUP_MESSAGE_LENGTH = 32;

@@ -7,9 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#include "device/aclshmem_device_def.h"
+#include "device/shmem_device_def.h"
 #include "kernel_operator.h"
-#include "aclshmem.h"
+#include "shmem.h"
 
 extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t config, GM_ADDR gva, int team_id,
                                                                   uint32_t trans_count)

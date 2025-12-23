@@ -7,14 +7,14 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef ACLSHMEM_SOCKET_H
-#define ACLSHMEM_SOCKET_H
+#ifndef SHMEM_SOCKET_H
+#define SHMEM_SOCKET_H
 
-#include "aclshmemi_host_common.h"
-#include "host/aclshmem_host_def.h"
-#include "utils/aclshmemi_logger.h"
-#include "utils/aclshmemi_host_types.h"
-#include "init/bootstrap/aclshmemi_bootstrap.h"
+#include "shmemi_host_common.h"
+#include "host/shmem_host_def.h"
+#include "utils/shmemi_logger.h"
+#include "utils/shmemi_host_types.h"
+#include "init/bootstrap/shmemi_bootstrap.h"
 
 #ifdef __cplusplus
 extern "C" {

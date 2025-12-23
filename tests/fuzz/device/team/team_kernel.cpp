@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "aclshmem.h"
+#include "shmem.h"
 
 class kernel_state_test {
 public:

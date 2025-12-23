@@ -18,11 +18,11 @@
 #include <sstream>
 
 #include "acl/acl_rt.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/data_plane/aclshmem_host_p2p_sync.h"
-#include "host/team/aclshmem_host_team.h"
-#include "host_device/aclshmem_common_types.h"
-#include "aclshmem_fuzz.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/data_plane/shmem_host_p2p_sync.h"
+#include "host/team/shmem_host_team.h"
+#include "host_device/shmem_common_types.h"
+#include "shmem_fuzz.h"
 
 extern void team_allgather(uint32_t block_dim, void *stream, uint64_t config, uint8_t *gva, aclshmem_team_t team_id,
                            uint32_t trans_count);

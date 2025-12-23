@@ -7,8 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef ACLSHMEM_PTR_KERNEL_H
-#define ACLSHMEM_PTR_KERNEL_H
+#ifndef SHMEM_PTR_KERNEL_H
+#define SHMEM_PTR_KERNEL_H
 
 void get_device_ptr(uint32_t block_dim, void* stream, uint8_t* gva);
 

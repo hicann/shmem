@@ -12,7 +12,7 @@
 #define _RDMA_DEMO_KERNEL_
 
 #include "kernel_operator.h"
-#include "aclshmem.h"
+#include "shmem.h"
 
 // all_gather简易实现
 extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva, int message_length)

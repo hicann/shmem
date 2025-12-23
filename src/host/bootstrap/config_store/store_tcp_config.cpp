@@ -10,8 +10,8 @@
 
 #include "store_message_packer.h"
 #include "store_tcp_config.h"
-#include "host/aclshmem_host_def.h"
-#include "aclshmemi_logger.h"
+#include "host/shmem_host_def.h"
+#include "shmemi_logger.h"
 #include "store_net_common.h"
 
 namespace shm {

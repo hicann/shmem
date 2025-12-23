@@ -19,7 +19,7 @@
 #include "catlass/gemm_coord.hpp"
 #include "catlass/matrix_coord.hpp"
 #include "catlass/epilogue/tile/tile_copy.hpp"
-#include "aclshmem.h"
+#include "shmem.h"
 
 #include "block_mmad_preload_async_fixpipe_quant.h"
 #include "block_mmad_preload_fixpipe.h"

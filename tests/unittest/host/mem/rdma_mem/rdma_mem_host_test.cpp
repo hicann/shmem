@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
+#include "shmemi_host_common.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;

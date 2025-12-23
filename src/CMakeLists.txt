@@ -55,12 +55,12 @@ target_include_directories(aclshmem_host
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
 )
 
-add_library(aclshmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
-target_link_options(aclshmem PRIVATE --cce-fatobj-link)
+add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
+target_link_options(shmem PRIVATE --cce-fatobj-link)
 
 if(ENABLE_HYBM_BACKEND)
         if(NOT USE_UNIT_TEST)
-                target_link_libraries(aclshmem PRIVATE hybmm_shared config_store_shared)
+                target_link_libraries(shmem PRIVATE hybmm_shared config_store_shared)
         endif()
 endif()
 
@@ -69,7 +69,7 @@ if(ACLSHMEM_MTE_SUPPORT)
         add_library(aclshmem_transport_mte SHARED)
 
         target_sources(aclshmem_transport_mte PRIVATE 
-                host/transport/aclshmemi_mte.cpp)
+                host/transport/shmemi_mte.cpp)
         
         target_include_directories(aclshmem_transport_mte PRIVATE
                 ${PROJECT_SOURCE_DIR}/include
@@ -88,9 +88,9 @@ endif()
 # MPI
 if(ACLSHMEM_MPI_SUPPORT)
     separate_arguments(ACLSHMEM_CXX_LINK_FLAGS NATIVE_COMMAND "${MPI_CXX_LINK_FLAGS}")
-    target_link_options(aclshmem INTERFACE ${ACLSHMEM_CXX_LINK_FLAGS})
-    target_compile_definitions(aclshmem INTERFACE ${MPI_CXX_COMPILE_DEFINITIONS})
-    target_compile_options(aclshmem INTERFACE ${MPI_CXX_COMPILE_OPTIONS})
+    target_link_options(shmem INTERFACE ${ACLSHMEM_CXX_LINK_FLAGS})
+    target_compile_definitions(shmem INTERFACE ${MPI_CXX_COMPILE_DEFINITIONS})
+    target_compile_options(shmem INTERFACE ${MPI_CXX_COMPILE_OPTIONS})
     
     add_library(
     aclshmem_bootstrap_mpi SHARED
@@ -115,7 +115,7 @@ endif()
 add_library(aclshmem_bootstrap_uid SHARED)
 
 target_sources(aclshmem_bootstrap_uid PRIVATE host/bootstrap/socket/uid_socket.cpp
-                                             host/bootstrap/aclshmemi_bootstrap_uid.cpp)
+                                             host/bootstrap/shmemi_bootstrap_uid.cpp)
 target_include_directories(aclshmem_bootstrap_uid
                         PRIVATE
                         ${PROJECT_SOURCE_DIR}/include
@@ -155,7 +155,7 @@ if(ACLSHMEM_RDMA_SUPPORT)
 endif()
 
 # 安装配置
-install(TARGETS aclshmem
+install(TARGETS shmem
         LIBRARY DESTINATION lib
         PUBLIC_HEADER DESTINATION include
 )

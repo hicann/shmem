@@ -13,9 +13,9 @@
 #include <secodefuzz/secodeFuzz.h>
 
 #include "acl/acl.h"
-#include "host/aclshmem_host_def.h"
-#include "host/init/aclshmem_host_init.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/init/shmem_host_init.h"
+#include "shmem_fuzz.h"
 
 namespace {
 int fuzz_global_ranks;

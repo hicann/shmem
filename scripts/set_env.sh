@@ -18,6 +18,6 @@ if [[ -f "$set_env_path" ]] && [[ "$(basename "$set_env_path")" == "set_env.sh" 
 fi
 # 是否有python扩展
 if [[ -d "$ACLSHMEM_HOME_PATH/../examples/shared_lib/output" ]] && [[ -d "$ACLSHMEM_HOME_PATH/../examples/python_extension/output" ]]; then
-    echo "Export the environment variable for the aclshmem python extension. "
+    echo "Export the environment variable for the shmem python extension. "
     export LD_LIBRARY_PATH=$ACLSHMEM_HOME_PATH/../examples/shared_lib/output/lib:$ACLSHMEM_HOME_PATH/../examples/python_extension/output/lib:$LD_LIBRARY_PATH
 fi

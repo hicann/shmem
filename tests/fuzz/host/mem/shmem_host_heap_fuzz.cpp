@@ -12,8 +12,8 @@
 #include <gtest/gtest.h>
 #include <secodefuzz/secodeFuzz.h>
 
-#include "host/mem/aclshmem_host_heap.h"
-#include "aclshmem_fuzz.h"
+#include "host/mem/shmem_host_heap.h"
+#include "shmem_fuzz.h"
 
 class ShmemHostHeapFuzz : public testing::Test {
 public:

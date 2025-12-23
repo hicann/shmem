@@ -12,6 +12,7 @@ SHMEM 是面向昇腾平台的多机多卡内存通信库，通过封装Host侧�
 
 ## 二、核心功能
 ![核心功能](docs/images/readme-features.png)
+
 **1. 双侧接口体系**
 - Host侧：负责初始化、内存堆管理、通信域（Team）创建及全局同步
 - Device侧：提供远程内存访问（RMA）、设备级同步及通信域操作
@@ -96,42 +97,42 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
 ### 验证安装
 以```matmul_allreduce```为例，验证核心功能：
 1. 编译依赖库
-```bash
-cd 3rdparty && git clone https://gitee.com/ascend/catlass.git && cd ..
-```
-2. 编译并运行样例
-```bash
-# 编译样例
-cd examples/matmul_allreduce && bash build.sh
+   ```bash
+   cd 3rdparty && git clone https://gitee.com/ascend/catlass.git && cd ..
+   ```
+1. 编译并运行样例
+   ```bash
+   # 编译样例
+   cd examples/matmul_allreduce && bash build.sh
 
-# 生成测试数据（M=1024, K=2048, N=8192）
-python3 utils/gen_data.py 1 2 1024 2048 8192 16 0 0
+   # 生成测试数据（M=1024, K=2048, N=8192）
+   python3 utils/gen_data.py 1 2 1024 2048 8192 16 0 0
 
-# 启动2卡运行
-bash run.sh -ranks 2 -M 1024 -K 2048 -N 8192
-```
-3. 精度验证
-```bash
-python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 8192 16
-```
+   # 启动2卡运行
+   bash run.sh -ranks 2 -M 1024 -K 2048 -N 8192
+   ```
+1. 精度验证
+   ```bash
+   python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 8192 16
+   ```
 ### Python接口使用
 1. 编译时启用Python扩展
-```bash
-bash scripts/build.sh -python_extension
-```
-2. 安装wheel包
-```bash
-cd src/python && python3 setup.py bdist_wheel
-pip3 install dist/shmem-1.0.0-cp39-cp39-linux_aarch64.whl
-```
-3. 测试运行
-```bash
-# 关闭TLS加密（可选）
-export SHMEM_TLS_DISABLE=1
+   ```bash
+   bash scripts/build.sh -python_extension
+   ```
+1. 安装wheel包
+   ```bash
+   cd src/python && python3 setup.py bdist_wheel
+   pip3 install dist/shmem-1.0.0-cp39-cp39-linux_aarch64.whl
+   ```
+1. 测试运行
+   ```bash
+   # 关闭TLS加密（可选）
+   export SHMEM_TLS_DISABLE=1
 
-# 多进程测试（2个rank）
-torchrun --nprocs-per-node=2 test_shmem.py
-```
+   # 多进程测试（2个rank）
+   torchrun --nprocs-per-node=2 test_shmem.py
+   ```
 ## 五、典型使用场景
 **1. 通算融合类算子开发**
 
@@ -169,7 +170,7 @@ shmem/                                        # 项目根目录
 │   │   ├── team/                             # host侧通信域管理接口
 │   │   └── utils/                            # 工具与通用辅助代码
 │   ├── host_device/                          # 共用目录
-│   └── aclshmem.h                            # shmem所有对外API汇总
+│   └── shmem.h                               # shmem所有对外API汇总
 ├── src/                                      # 源码实现
 │   ├── device/                               # device侧实现
 │   │   ├── gm2gm/                            # device侧aicore驱动gm2gm数据面高阶和低阶接口
@@ -253,9 +254,9 @@ A：确认已安装 wheel 包，且 ```source``` 了 install 目录下的 ```set
 A：需在 ```shmem_init()``` 前调用 ```shmem_set_conf_store_tls()```，初始化后无法修改 TLS 配置。
 > 更多故障排查见：[Troubleshooting](docs/Troubleshooting_FAQs.md)
 ## 九、测试框架
-- **单元测试：**覆盖核心接口（初始化、内存操作、同步等），位于tests/unittest/
-- **模糊测试：**通过随机输入验证接口稳定性，需编译时启用-fuzz选项
-- **算子泛化性测试：**针对matmul_allreduce等样例，支持动态生成测试数据与精度校验
+- **单元测试：** 覆盖核心接口（初始化、内存操作、同步等），位于tests/unittest/
+- **模糊测试：** 通过随机输入验证接口稳定性，需编译时启用-fuzz选项
+- **算子泛化性测试：** 针对matmul_allreduce等样例，支持动态生成测试数据与精度校验
 ### 1. 运行单元测试
 ```bash
 # 编译并运行单元测试

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "aclshmem.h"
+#include "shmem.h"
 #include "unittest/utils/func_type.h"
 
 #define KERNEL_UB_PUT_NUM(NAME, TYPE)                                                                                \

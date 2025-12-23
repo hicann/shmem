@@ -33,7 +33,7 @@ using fp16_t = op::fp16_t;
 using bfloat16 = op::bfloat16;
 
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 #include "allgather_kernel.h"
 
 int g_npus = 8;

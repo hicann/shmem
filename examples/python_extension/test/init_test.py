@@ -11,7 +11,7 @@ import os
 import torch
 import torch.distributed as dist
 import torch_npu
-import aclshmem as ash
+import shmem as ash
 
 g_ash_size = 1024 * 1024 * 1024
 g_malloc_size = 8 * 1024 * 1024
@@ -55,7 +55,7 @@ def run_tests():
 
 if __name__ == "__main__":
     local_rank = int(os.environ["LOCAL_RANK"])
-    # aclshmem init must comes after torch.npu.set_device(or any other aclInit device action)
+    # shmem init must comes after torch.npu.set_device(or any other aclInit device action)
     torch.npu.set_device(local_rank)
     dist.init_process_group(backend="hccl", rank=local_rank)
     run_tests()

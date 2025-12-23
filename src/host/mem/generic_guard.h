@@ -9,7 +9,7 @@
  */
 #ifndef _HOST_MEM_GENERIC_GUARD_H_
 #define _HOST_MEM_GENERIC_GUARD_H_
-namespace aclshmem {
+namespace shmem {
 // Generic resource guard class with RAII
 // T: Resource type
 // D: Deleter type (function, functor, lambda, etc.)

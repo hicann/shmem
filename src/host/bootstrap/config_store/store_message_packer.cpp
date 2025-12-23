@@ -9,8 +9,8 @@
  */
 #include <algorithm>
 
-#include "host/aclshmem_host_def.h"
-#include "aclshmemi_logger.h"
+#include "host/shmem_host_def.h"
+#include "shmemi_logger.h"
 #include "store_message_packer.h"
 
 namespace shm {

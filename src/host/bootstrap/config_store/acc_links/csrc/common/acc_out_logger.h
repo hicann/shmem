@@ -20,8 +20,8 @@
 #include <sys/time.h>
 #include <sys/syscall.h>
 
-#include "host/aclshmem_host_def.h"
-#include "utils/aclshmemi_logger.h"
+#include "host/shmem_host_def.h"
+#include "utils/shmemi_logger.h"
 
 #define LOG_DEBUG(ARGS) SHM_OUT_LOG(aclshmem_log::DEBUG_LEVEL, ARGS)
 #define LOG_INFO(ARGS) SHM_OUT_LOG(aclshmem_log::INFO_LEVEL, ARGS)
