@@ -1,6 +1,6 @@
 # 代码组织结构
 ## SHMEM组织结构
-``` 
+```
 ├── 3rdparty // 依赖的第三方库
 ├── docs     // 文档
 ├── examples // 使用样例
@@ -16,8 +16,8 @@ include目录下的头文件是按照如下文件层级进行组织的
 include/
 ├── shmem.h                              // shmem所有对外API汇总
 ├── device/                                 // device侧头文件
-│   ├── shmem_def.h               // device侧定义的公共标展接口  
-│   ├── shmemx_def.h               // device侧定义的公共扩展接口  
+│   ├── shmem_def.h               // device侧定义的公共标展接口
+│   ├── shmemx_def.h               // device侧定义的公共扩展接口
 │   ├── ub2gm/                             // device侧aicore驱动ub2gm数据面低阶接口，扩展接口+x
 │   │   ├── shmem_device_rma.h           // aicore ub2gm 远端内存访问 RMA 接口
 │   │   ├── shmem_device_amo.h           // aicore ub2gm 内存原子操作接口
@@ -39,7 +39,7 @@ include/
 │   │       ├── shmem_device_proxy.h           // aicore -> aicpu 代理
 │   │       ├── shmem_device_rdma.h           // aicore 直驱 rdma 接口
 │   │       ├── shmem_device_sdma.h           // aicore 直驱 sdma 接口
-│   │       ├── shmem_device_ccu.h           // aicore 直驱 ccu 接口           
+│   │       ├── shmem_device_ccu.h           // aicore 直驱 ccu 接口
 │   │       └── shmem_device_udma.h           // aicore 直驱 udma接口
 │   │       └── shmem_device_mte.h           // aicore 直驱 udma接口
 │   ├── xpu(aicpu、dpu、cx...)/       // device侧aicpu、dpu、CX等驱动gm2gm数据面高阶和低阶接口.以so交付，接入鲲鹏；以so交付的都参考此目录实现交付
@@ -59,9 +59,9 @@ include/
 │       ├── shmem_log.h                     // device dfx-log接口
 │       ├── shmem_counter.h                 // device dfx-counter接口
 │       ├── shmem_profiling.h               // device dfx-profiling接口
-│       └── shmem_check.h                   // device dfx-check接口  
+│       └── shmem_check.h                   // device dfx-check接口
 ├── device_host/                            // device_host共用目录
-│       └── shmem_common_types.h                   // 公共数据结构等 
+│       └── shmem_common_types.h                   // 公共数据结构等
 └── host/                                   // host侧头文件
     ├── shmem_host_def.h                    // host侧定义的接口
     ├── init/                               // host侧初始化接口
@@ -79,14 +79,14 @@ include/
         ├── shmem_log.h                     // host dfx-log接口
         ├── shmem_counter.h                 // host dfx-counter接口
         ├── shmem_profiling.h               // host dfx-profiling接口
-        └── shmem_check.h                   // host dfx-check接口  
+        └── shmem_check.h                   // host dfx-check接口
 
-```   
+```
 ## src
 ```
 |── src
 |    |── device             // device侧接口实现
-|    |── host           
+|    |── host
 │    │    ├─bootstrap       // bootstrap接口实现
 │    │    ├─hybm            // hybrid memory
 │    │    ├─init            // host侧初始化接口实现
@@ -116,8 +116,7 @@ include/
 ## tests
 ```
 └─tests
-    ├─examples  
-    ├─fuzz
+    ├─examples
     └─unittest
         ├─init  // 初始化接口单元测试
         ├─mem   // 内存管理接口单元测试
@@ -137,5 +136,5 @@ include/
 ```
 
 ## scripts
-存放相关脚本。  
+存放相关脚本。
 [脚本具体功能和使用](related_scripts.md)

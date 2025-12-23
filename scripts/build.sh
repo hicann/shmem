@@ -163,39 +163,6 @@ function fn_build_googletest()
     cd ${PROJECT_ROOT}
 }
 
-function fn_build_secodefuzz()
-{
-    if [ -f "$THIRD_PARTY_DIR/secodefuzz/lib/libSecodefuzz.a" ] && [ -f "$THIRD_PARTY_DIR/secodefuzz/include/secodefuzz/secodeFuzz.h" ]; then
-        return 0
-    fi
-    cd $THIRD_PARTY_DIR
-
-    # Need to replace git link before build fuzz test
-    [[ ! -d "secodefuzz" ]] && git clone --branch v2.4.8 --depth 1 secodefuzz.git
-    cd secodefuzz
-
-    # build secodefuzz
-    # -- HACK: enable PIC
-    sed -i 's/cmake ../cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON ../g' ./build.sh
-    # -- HACK: remove signal handlers, to support running multi-task tests.
-    sed -i 's/#define HAS_SIGNAL/#undef HAS_SIGNAL/g' ./Secodefuzz/secodeFuzz.h
-    bash build.sh
-    if [ $? -ne 0 ]; then
-        echo "secodefuzz build failed."
-        return 1
-    fi
-
-    # install lib and headers into target directory
-    mkdir -p "$THIRD_PARTY_DIR/secodefuzz/lib"
-    cp ./examples/out-bin-x64/out/* "$THIRD_PARTY_DIR/secodefuzz/lib"
-    cp ./examples/out-bin-x64/libSecodefuzz.a "$THIRD_PARTY_DIR/secodefuzz/lib"
-    mkdir -p "$THIRD_PARTY_DIR/secodefuzz/include/secodefuzz"
-    cp ./Secodefuzz/secodeFuzz.h "$THIRD_PARTY_DIR/secodefuzz/include/secodefuzz"
-    echo "secodefuzz is successfully installed to $THIRD_PARTY_DIR/secodefuzz"
-    cd ${PROJECT_ROOT}
-}
-
-
 function fn_build_doxygen()
 {
     if [ -d "$THIRD_PARTY_DIR/doxygen" ]; then
@@ -273,13 +240,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -mf)
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DENABLE_HYBM_BACKEND=ON"
-            shift
-            ;;
-        -fuzz)
-            fn_build_secodefuzz
-            fn_build_googletest
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass.git; cd $PROJECT_ROOT
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_FUZZ_TEST=ON"
             shift
             ;;
         -debug)

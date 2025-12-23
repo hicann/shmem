@@ -192,17 +192,6 @@ shmem/                                        # 项目根目录
 │   └── python/                               # python相关目录
 ├── tests/                                    # 测试用例集合（UT/功能测试）
 │   ├── examples/                             # 示例工程集合
-│   ├── fuzz/                                 # 模糊测试
-│   │   ├── device/                           # Device 侧实现（Ascend kernel）
-│   │   │   ├── mem/                          # 内存管理相关
-│   │   │   ├── sync/                         # 同步原语（barrier/p2p/order）
-│   │   │   └── team/                         # team（通信域）相关
-│   │   ├── host/                             # Host 侧实现（运行时/初始化/调度）
-│   │   │   ├── mem/                          # 内存管理相关
-│   │   │   ├── sync/                         # 同步原语（barrier/p2p/order）
-│   │   │   └── team/                         # team（通信域）相关
-│   │   └── include/                          # 对外头文件（Public API）
-│   │       └── utils/                        # 工具与通用辅助代码
 │   └── unittest/                             # 单元测试模块（UT）
 │       ├── device/                           # Device 侧 UT
 │       │   ├── mem/                          # 内存管理相关
@@ -255,7 +244,6 @@ A：需在 ```shmem_init()``` 前调用 ```shmem_set_conf_store_tls()```，初�
 > 更多故障排查见：[Troubleshooting](docs/Troubleshooting_FAQs.md)
 ## 九、测试框架
 - **单元测试：** 覆盖核心接口（初始化、内存操作、同步等），位于tests/unittest/
-- **模糊测试：** 通过随机输入验证接口稳定性，需编译时启用-fuzz选项
 - **算子泛化性测试：** 针对matmul_allreduce等样例，支持动态生成测试数据与精度校验
 ### 1. 运行单元测试
 ```bash

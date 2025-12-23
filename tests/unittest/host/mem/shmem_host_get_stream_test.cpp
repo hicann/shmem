@@ -15,7 +15,7 @@
 #include "acl/acl.h"
 #include "shmem.h"
 #include "shmemi_host_common.h"
-#include "utils/func_type.h"
+#include "func_type.h"
 
 using namespace std;
 
