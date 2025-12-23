@@ -44,8 +44,6 @@ option(ENABLE_ASCENDC_DUMP "ENABLE_ASCENDC_DUMP" OFF)
 message(STATUS "USE_UNIT_TEST:${USE_UNIT_TEST}")
 message(STATUS "USE_EXAMPLES:${USE_EXAMPLES}")
 message(STATUS "ENABLE_ASCENDC_DUMP:${ENABLE_ASCENDC_DUMP}")
-option(USE_FUZZ_TEST "USE_FUZZ_TEST" OFF)
-message(STATUS "USE_FUZZ_TEST:${USE_FUZZ_TEST}")
 option(ACLSHMEM_RDMA_SUPPORT "ACLSHMEM_RDMA_SUPPORT" OFF)
 message(STATUS "ACLSHMEM_RDMA_SUPPORT:${ACLSHMEM_RDMA_SUPPORT}")
 
@@ -157,10 +155,6 @@ add_subdirectory(src)
 
 if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
-endif()
-
-if(USE_FUZZ_TEST)
-    add_subdirectory(tests/fuzz)
 endif()
 
 if(USE_EXAMPLES)

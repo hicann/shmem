@@ -33,8 +33,6 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/tests/unittest/
     ${PROJECT_SOURCE_DIR}/tests/unittest/team/team/
     ${PROJECT_SOURCE_DIR}/tests/unittest/team/team_allgather/
-    ${PROJECT_SOURCE_DIR}/tests/fuzz/include
-    ${PROJECT_SOURCE_DIR}/tests/fuzz/device/sync
     ${PROJECT_SOURCE_DIR}/src/host/hybm/include
     ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/common
     ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/driver
