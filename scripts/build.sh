@@ -62,7 +62,7 @@ function fn_whl_build()
   source set_env.sh
 
   cd "${PROJECT_ROOT}/src/python"
-  rm -rf build aclshmem.egg-info build dist
+  rm -rf build shmem.egg-info build dist
 GIT_COMMIT=`git rev-parse HEAD` || true
   {
   echo "commit_id: ${GIT_COMMIT}"

@@ -9,7 +9,7 @@
  */
 #include "acc_tcp_ssl_helper.h"
 #include "acc_common_util.h"
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 #include "openssl_api_wrapper.h"
 #include "store_string_util.h"
 

@@ -13,8 +13,8 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmem.h"
-#include "aclshmemi_host_common.h"
+#include "shmem.h"
+#include "shmemi_host_common.h"
 #include "utils/func_type.h"
 
 using namespace std;

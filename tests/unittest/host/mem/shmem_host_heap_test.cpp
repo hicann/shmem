@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
+#include "shmemi_host_common.h"
 #include "unittest_main_test.h"
 
 static uint8_t *const heap_memory_start = (uint8_t *)(ptrdiff_t)0x100000000UL;

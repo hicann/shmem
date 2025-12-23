@@ -10,7 +10,7 @@
 #include "allgather_kernel.h"
 #include "kernel_operator.h"
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 
 #undef inline
 #include "fp16_t.h"

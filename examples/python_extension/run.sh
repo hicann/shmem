@@ -15,13 +15,13 @@ readonly PROJECT_ROOT=${SCRIPT_DIR}/../../
 function pre_check()
 {
     cd $PROJECT_ROOT
-    pip show aclshmem >/dev/null 2>&1
+    pip show shmem >/dev/null 2>&1
     if [[ $? -eq 0 ]]; then
-        echo "begin uninstall old aclshmem whl package"
-        pip uninstall --yes aclshmem
+        echo "begin uninstall old shmem whl package"
+        pip uninstall --yes shmem
     fi
 
-    echo "begin install aclshmem whl package"
+    echo "begin install shmem whl package"
     whl_file=`ls package/*/*.whl`
     if [[ $? -ne 0 ]]; then
         echo "execute 'bash script/build.sh -package' to build the whl package"

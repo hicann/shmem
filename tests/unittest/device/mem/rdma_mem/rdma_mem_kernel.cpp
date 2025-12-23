@@ -9,7 +9,7 @@
  */
 #include "kernel_operator.h"
 
-#include "aclshmem.h"
+#include "shmem.h"
 constexpr uint64_t MESSAGE_SIZE = 64;
 
 extern "C" __global__ __aicore__ void RDMAGetTestLowLevel(GM_ADDR gva, uint64_t config)

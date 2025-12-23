@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "aclshmem.h"
-#include "gm2gm/aclshmemi_device_cc.h"
+#include "shmem.h"
+#include "gm2gm/shmemi_device_cc.h"
 
 extern "C" ACLSHMEM_GLOBAL void quiet_order(uint64_t config, GM_ADDR addr, int rank_id, int rank_size) {
     util_set_ffts_config(config);

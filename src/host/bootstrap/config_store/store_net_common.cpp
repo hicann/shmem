@@ -17,8 +17,8 @@
 #include <regex>
 #include "store_string_util.h"
 #include "store_net_common.h"
-#include "host/aclshmem_host_def.h"
-#include "aclshmemi_logger.h"
+#include "host/shmem_host_def.h"
+#include "shmemi_logger.h"
 
 namespace shm {
 namespace store {

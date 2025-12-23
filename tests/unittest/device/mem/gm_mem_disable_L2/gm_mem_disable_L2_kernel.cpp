@@ -10,7 +10,7 @@
 #undef L2_CACHE_HINT
 #include "kernel_operator.h"
 
-#include "aclshmem.h"
+#include "shmem.h"
 
 const int length = 16;
 const int ub_size = 256;

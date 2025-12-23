@@ -13,8 +13,8 @@
 #include <vector>
 #include <sstream>
 
-#include "host/aclshmem_host_def.h"
-#include "aclshmemi_logger.h"
+#include "host/shmem_host_def.h"
+#include "shmemi_logger.h"
 #include "store_tcp_config.h"
 #include "store_prefix.h"
 #include "store_string_util.h"

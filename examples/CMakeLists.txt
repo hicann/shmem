@@ -34,7 +34,7 @@ function(aclshmem_add_fusion_example NAME)
     if(DEFINED ENABLE_ASCENDC_DUMP AND ENABLE_ASCENDC_DUMP)
         target_link_libraries(${NAME} PRIVATE ascend_dump)
     endif()
-    target_link_libraries(${NAME} PRIVATE aclshmem)
+    target_link_libraries(${NAME} PRIVATE shmem)
     target_compile_options(${NAME} PRIVATE ${MPI_CXX_COMPILE_FLAGS})
 
 endfunction()
@@ -67,7 +67,7 @@ function(aclshmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/src/host/hybm/include/
         ${MPI_INCLUDE_PATH}
     )
-    target_link_libraries(${NAME} PRIVATE aclshmem ${NAME}_kernel)
+    target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)
     target_compile_options(${NAME} PRIVATE ${MPI_CXX_COMPILE_FLAGS})
 
 endfunction()

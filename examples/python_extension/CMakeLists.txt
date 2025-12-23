@@ -104,7 +104,7 @@ link_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/shared_lib/obj
 )
 
-link_libraries(aclshmem_example_kernel "${TORCH_LIBRARIES}" torch_npu tiling_api aclshmem)
+link_libraries(aclshmem_example_kernel "${TORCH_LIBRARIES}" torch_npu tiling_api shmem)
 
 if(BUILD_TORCH_LIB)
     set(TORCH_BINDINGS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/torch_bindings.cpp)

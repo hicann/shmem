@@ -45,7 +45,7 @@ typedef struct {
 #include <iostream>
 #include <unistd.h>
 #include <acl/acl.h>
-#include "aclshmem.h"
+#include "shmem.h"
 aclInit(nullptr);
 int status;
 int device_id = 0;

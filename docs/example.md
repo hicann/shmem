@@ -8,7 +8,7 @@
 
 #include "kernel_operator.h"
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 using namespace AscendC;
 
 constexpr int64_t SYNC_FLAG_INTERVAL = 16;

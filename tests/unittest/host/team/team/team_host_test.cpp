@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
+#include "shmemi_host_common.h"
 #include "unittest_main_test.h"
 #include "team_kernel.h"
 

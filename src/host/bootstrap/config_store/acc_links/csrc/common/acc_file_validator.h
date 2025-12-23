@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 
 namespace shm {
 namespace acc {

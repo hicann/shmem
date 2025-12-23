@@ -9,7 +9,7 @@
  */
 #include "kernel_operator.h"
 
-#include "aclshmem.h"
+#include "shmem.h"
 #include "func_type.h"
 
 const int length = 16;

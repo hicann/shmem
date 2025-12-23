@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmemi_host_common.h"
+#include "shmemi_host_common.h"
 #include "bfloat16.h"
 #include "fp16_t.h"
 #include "func_type.h"

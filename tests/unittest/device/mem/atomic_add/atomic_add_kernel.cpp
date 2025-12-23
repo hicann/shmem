@@ -9,7 +9,7 @@
  */
 #include "kernel_operator.h"
 
-#include "aclshmem.h"
+#include "shmem.h"
 #include "unittest/utils/func_type.h"
 constexpr uint64_t MESSAGE_SIZE = 64;
 

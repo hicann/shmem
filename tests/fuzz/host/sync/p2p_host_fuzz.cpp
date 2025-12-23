@@ -17,11 +17,11 @@
 #include <sys/types.h>
 
 #include "acl/acl_rt.h"
-#include "host/aclshmem_host_def.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/init/aclshmem_host_init.h"
-#include "host/data_plane/aclshmem_host_p2p_sync.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/init/shmem_host_init.h"
+#include "host/data_plane/shmem_host_p2p_sync.h"
+#include "shmem_fuzz.h"
 #include "utils/func_type.h"
 
 extern void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size);

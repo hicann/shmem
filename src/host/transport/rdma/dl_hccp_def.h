@@ -24,9 +24,9 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
-#include "aclshmem.h"
-#include "utils/aclshmemi_functions.h"
-#include "utils/aclshmemi_host_types.h"
+#include "shmem.h"
+#include "utils/shmemi_functions.h"
+#include "utils/shmemi_host_types.h"
 
 using Result = int32_t;
 

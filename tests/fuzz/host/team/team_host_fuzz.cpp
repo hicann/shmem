@@ -16,12 +16,12 @@
 #include <sys/types.h>
 
 #include "acl/acl_rt.h"
-#include "host/aclshmem_host_def.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/init/aclshmem_host_init.h"
-#include "host/team/aclshmem_host_team.h"
-#include "host_device/aclshmem_common_types.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/init/shmem_host_init.h"
+#include "host/team/shmem_host_team.h"
+#include "host_device/shmem_common_types.h"
+#include "shmem_fuzz.h"
 
 extern void get_device_state(uint32_t block_dim, void *stream, uint8_t *gva, aclshmem_team_t team_id);
 

@@ -11,7 +11,7 @@
 #include <string>
 #include <cstdint>
 #include "hybm_logger.h"
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 #include "hybm.h"
 
 std::string GetDriverVersionPath(const std::string &driverEnvStr, const std::string &keyStr)

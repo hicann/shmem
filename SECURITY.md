@@ -87,7 +87,7 @@ ASLR（address space layout randomization）开启后能增强漏洞攻击防护
 | 依赖  |           不涉及           | build.sh                | https://gitcode.com/cann/catlass.git                                                            | 从gitcode下载catlass源码，作用编译依赖          |
 | 依赖  | https://github.com/doxygen | build.sh                | https://github.com/doxygen/doxygen/releases/download/Release_1_9_6/doxygen-1.9.6.src.tar.gz | 从github下载doxygen-1.9.6源码，作用编译依赖   |
 | 依赖  |           不涉及           | build.sh                | https://gitcode.com/GitHub_Trending/go/googletest                                                    | 从gitcode下载googletest源码，单元测试框架依赖   |
-| 文档  |           不涉及           | aclshmemi_device_barrier.h | https://www.inf.ed.ac.uk/teaching/courses/ppls/BarrierPaper.pdf                             | 并行编程语言和系统                            |
+| 文档  |           不涉及           | shmemi_device_barrier.h | https://www.inf.ed.ac.uk/teaching/courses/ppls/BarrierPaper.pdf                             | 并行编程语言和系统                            |
 ## 漏洞机制说明
 [漏洞管理](https://gitcode.com/cann/community/blob/master/security/security.md)
 

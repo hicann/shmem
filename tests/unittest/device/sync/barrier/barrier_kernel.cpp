@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "aclshmem.h"
-#include "aclshmemi_device_common.h"
+#include "shmem.h"
+#include "shmemi_device_common.h"
 
 extern "C" ACLSHMEM_GLOBAL void increase(uint64_t config, GM_ADDR addr, int rank_id, int rank_size) {
     util_set_ffts_config(config);

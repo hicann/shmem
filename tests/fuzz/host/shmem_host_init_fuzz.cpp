@@ -11,9 +11,9 @@
 #include <gtest/gtest.h>
 #include <secodefuzz/secodeFuzz.h>
 
-#include "host/aclshmem_host_def.h"
-#include "host/init/aclshmem_host_init.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/init/shmem_host_init.h"
+#include "shmem_fuzz.h"
 
 class ShmemHostFuzz : public testing::Test {
 public:

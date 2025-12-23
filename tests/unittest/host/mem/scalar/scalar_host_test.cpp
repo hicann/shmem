@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmem.h"
+#include "shmem.h"
 #include "bfloat16.h"
 #include "fp16_t.h"
 #include "../utils/func_type.h"

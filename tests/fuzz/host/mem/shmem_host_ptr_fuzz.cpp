@@ -13,10 +13,10 @@
 #include <secodefuzz/secodeFuzz.h>
 
 #include "acl/acl_rt.h"
-#include "host/aclshmem_host_def.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/data_plane/aclshmem_host_rma.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/data_plane/shmem_host_rma.h"
+#include "shmem_fuzz.h"
 
 extern void get_device_ptr(uint32_t block_dim, void *stream, uint8_t *gva);
 

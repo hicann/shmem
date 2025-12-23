@@ -20,8 +20,8 @@
 #include "torch_npu/csrc/aten/common/from_blob.h"
 #include <algorithm>
 
-#include "aclshmem.h"
-#include "aclshmem_kernel.h"
+#include "shmem.h"
+#include "shmem_kernel.h"
 
 namespace ShmemOps {
 

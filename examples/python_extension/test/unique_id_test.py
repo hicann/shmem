@@ -11,7 +11,7 @@ import os
 import torch
 import torch.distributed as dist
 import torch_npu
-import aclshmem as ash
+import shmem as ash
 
 
 g_ash_size = 1024 * 1024 * 1024

@@ -19,10 +19,10 @@
 #include "acl/acl_rt.h"
 #include "bfloat16.h"
 #include "fp16_t.h"
-#include "host/aclshmem_host_def.h"
-#include "host/mem/aclshmem_host_heap.h"
-#include "host/init/aclshmem_host_init.h"
-#include "aclshmem_fuzz.h"
+#include "host/shmem_host_def.h"
+#include "host/mem/shmem_host_heap.h"
+#include "host/init/shmem_host_init.h"
+#include "shmem_fuzz.h"
 #include "utils/func_type.h"
 
 static constexpr int test_multi = 10;

@@ -1,4 +1,4 @@
-##### ACLSHMEM对外接口
+##### SHMEM对外接口
 1. 初始化共享内存模块
     ```python
     def aclshmem_init(mype, npes, mem_size) -> int
@@ -334,7 +334,7 @@
     |team|team id|
     |返回值|返回指定团队中PE的数目，出错时，返回-1|
 
-##### ACLSHMEM类
+##### SHMEM类
 1. OpEngineType枚举类
     ```python
     class OpEngineType(Enum):

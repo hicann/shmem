@@ -15,8 +15,8 @@
 #include <algorithm>
 
 #include "acl/acl.h"
-#include "aclshmem.h"
-#include "aclshmemi_host_common.h"
+#include "shmem.h"
+#include "shmemi_host_common.h"
 
 int g_npus = 8;
 const char *ipport;

@@ -21,8 +21,8 @@
 // from kernel
 #include "epilogue/block/block_swizzle_dynamic.hpp"
 
-// from aclshmem-device
-#include "aclshmem.h"
+// from shmem-device
+#include "shmem.h"
 
 using namespace Catlass;
 

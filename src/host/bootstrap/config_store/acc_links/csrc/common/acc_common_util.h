@@ -16,7 +16,7 @@
 #include <regex>
 
 #include "acc_includes.h"
-#include "aclshmemi_file_util.h"
+#include "shmemi_file_util.h"
 #include "openssl_api_wrapper.h"
 
 namespace shm {

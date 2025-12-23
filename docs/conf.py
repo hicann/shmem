@@ -15,7 +15,7 @@ git symbolic-ref -q --short HEAD \
 || git describe --tags --exact-match 2> /dev/null \
 || git rev-parse HEAD"""
 branch = subprocess.check_output(["/bin/bash", "-c", GIT_COMMAND]).strip().decode()
-PROJECT = "ACLSHMEM Guidebook"
+PROJECT = "SHMEM Guidebook"
 AUTHOR = "xxx"
 COPYRIGHT_INFO = " 2025 Huawei Technologies Co., Ltd."
 RELEASE = "1.0.0"

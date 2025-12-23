@@ -104,7 +104,7 @@ function(aclshmem_add_share_lib NAME)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/catlass/examples/common
         ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/${NAME}
     )
-    target_link_libraries(${NAME}_shared aclshmem ${NAME}_kernel)
+    target_link_libraries(${NAME}_shared shmem ${NAME}_kernel)
 
     set(GLOBAL_LIBS ${GLOBAL_LIBS} ${NAME}_kernel ${NAME}_shared PARENT_SCOPE)
 endfunction()

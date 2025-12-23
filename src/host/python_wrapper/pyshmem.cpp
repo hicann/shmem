@@ -15,7 +15,7 @@
 #include <vector>
 #include <iostream>
 
-#include "aclshmem.h"
+#include "shmem.h"
 
 namespace py = pybind11;
 
@@ -33,7 +33,7 @@ inline std::string get_connect_url()
     if (address != nullptr && port != nullptr) {
         return std::string("tcp://").append(address).append(":").append(port);
     }
-    // use pta addr:port+11 if aclshmem env not set
+    // use pta addr:port+11 if shmem env not set
     address = std::getenv("MASTER_ADDR");
     port = std::getenv("MASTER_PORT");
     if (address == nullptr || port == nullptr) {
@@ -58,7 +58,7 @@ int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
 {
     auto ret = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
     if (ret != 0) {
-        std::cerr << "initialize aclshmem failed, ret: " << ret;
+        std::cerr << "initialize shmem failed, ret: " << ret;
         return ret;
     }
 
@@ -218,7 +218,7 @@ PYBIND11_MODULE(_pyshmem, m)
 Initialize share memory module.
 
 Arguments:
-    attributes(InitAttr): attributes used to init aclshmem.
+    attributes(InitAttr): attributes used to init shmem.
 Returns:
     returns zero on success. On error, -1 is returned.
     )");
@@ -237,7 +237,7 @@ Arguments:
     mype(int): local processing element index, range in [0, npes).
     npes(int): total count of processing elements.
     mem_size(int): memory size for each processing element in bytes.
-    uid(aclshmem_uid): aclshmem uid
+    uid(aclshmem_uid): shmem uid
 Returns:
     returns zero on success. On error, -1 is returned.
     )");

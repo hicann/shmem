@@ -22,7 +22,7 @@ function(add_impl_share_lib NAME)
         ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
-    target_link_libraries(${NAME} PRIVATE aclshmem)
+    target_link_libraries(${NAME} PRIVATE shmem)
     add_dependencies(lib_impl ${NAME})
 endfunction()
 
@@ -54,7 +54,7 @@ target_include_directories(dynamic_tiling PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/utils
 )
 target_link_options(dynamic_tiling PRIVATE --cce-fatobj-link)
-target_link_libraries(dynamic_tiling PRIVATE tiling_lib aclshmem ${SHARE_LIB_LINK})
+target_link_libraries(dynamic_tiling PRIVATE tiling_lib shmem ${SHARE_LIB_LINK})
 target_compile_options(dynamic_tiling PRIVATE -O3 ${MPI_CXX_COMPILE_FLAGS})
 
 add_dependencies(dynamic_tiling lib_impl tiling_lib)

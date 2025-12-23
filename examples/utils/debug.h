@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACLSHMEM_DEBUG_H
-#define ACLSHMEM_DEBUG_H
+#ifndef SHMEM_DEBUG_H
+#define SHMEM_DEBUG_H
 
 #pragma push_macro("inline")
 #include <iostream>

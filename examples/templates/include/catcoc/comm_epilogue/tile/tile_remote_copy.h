@@ -17,8 +17,8 @@
 // from catlass
 #include "catlass/catlass.hpp"
 
-// from aclshmem
-#include "aclshmem.h"
+// from shmem
+#include "shmem.h"
 
 namespace Catcoc::CommEpilogue::Tile {
 

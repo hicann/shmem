@@ -16,8 +16,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <gtest/gtest.h>
-#include "aclshmemi_host_common.h"
-#include "host/aclshmem_host_def.h"
+#include "shmemi_host_common.h"
+#include "host/shmem_host_def.h"
 #include "unittest_main_test.h"
 
 namespace shm {
