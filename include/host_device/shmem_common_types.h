@@ -215,7 +215,7 @@ typedef struct {
 
     // Using aclshmemi_sync_bit instead of basic types to aclshmemi_store flag,
     // avoiding concurrent write due to cacheline sharing.
-    // Refer to aclshmemi_barrier.h for more details.
+    // Refer to shmemi_barrier.h for more details.
     // These members are 'shmemi_sync_bit *' types actully, but are defined as 'uint64_t' due to compiler restriction.
     uint64_t sync_pool;
     uint64_t sync_counter;

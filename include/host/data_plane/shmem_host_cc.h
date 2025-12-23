@@ -9,7 +9,7 @@
  */
 
 /*!
- * \file aclshmem_host_cc.h
+ * \file shmem_host_cc.h
  * \brief shmem host Collective Communication APIs
  */
 

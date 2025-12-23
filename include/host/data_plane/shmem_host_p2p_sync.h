@@ -15,7 +15,7 @@
         On systems with only HCCS: All operations of all pes of a team ON EXECUTING/INTERNAL STREAMs
         before the barrier are visiable to all pes of the team after the barrier.
 
-    Refer to aclshmem_device_sync.h for using restrictions.
+    Refer to shmem_device_sync.h for using restrictions.
 */
 
 #ifndef SHMEM_HOST_SYNC_H

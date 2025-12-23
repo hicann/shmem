@@ -1,32 +1,32 @@
 HOST API
 =================================
 
-aclshmem_host_heap.h
+shmem_host_heap.h
 ---------------------------------
 
-.. doxygenfile:: aclshmem_host_heap.h
+.. doxygenfile:: shmem_host_heap.h
     :project: ACLSHMEM_CPP_API
 
-aclshmem_host_init.h
+shmem_host_init.h
 ---------------------------------
 
-.. doxygenfile:: aclshmem_host_init.h
-    :project: ACLSHMEM_CPP_API
-    
-aclshmem_host_rma.h
----------------------------------
-
-.. doxygenfile:: aclshmem_host_rma.h
+.. doxygenfile:: shmem_host_init.h
     :project: ACLSHMEM_CPP_API
     
-aclshmem_host_p2p_sync.h
+shmem_host_rma.h
 ---------------------------------
 
-.. doxygenfile:: aclshmem_host_p2p_sync.h
+.. doxygenfile:: shmem_host_rma.h
     :project: ACLSHMEM_CPP_API
     
-aclshmem_host_team.h
+shmem_host_p2p_sync.h
 ---------------------------------
 
-.. doxygenfile:: aclshmem_host_team.h
+.. doxygenfile:: shmem_host_p2p_sync.h
+    :project: ACLSHMEM_CPP_API
+    
+shmem_host_team.h
+---------------------------------
+
+.. doxygenfile:: shmem_host_team.h
     :project: ACLSHMEM_CPP_API

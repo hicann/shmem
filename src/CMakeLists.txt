@@ -95,7 +95,7 @@ if(ACLSHMEM_MPI_SUPPORT)
     add_library(
     aclshmem_bootstrap_mpi SHARED
     )
-    target_sources(aclshmem_bootstrap_mpi PRIVATE host/bootstrap/aclshmemi_bootstrap_mpi.cpp)
+    target_sources(aclshmem_bootstrap_mpi PRIVATE host/bootstrap/shmemi_bootstrap_mpi.cpp)
     target_link_libraries(aclshmem_bootstrap_mpi PRIVATE MPI::MPI_CXX)
     target_include_directories(aclshmem_bootstrap_mpi
                                 PRIVATE
@@ -134,7 +134,7 @@ if(ACLSHMEM_RDMA_SUPPORT)
         aclshmem_transport_rdma SHARED
     )
     target_sources(aclshmem_transport_rdma PRIVATE 
-        host/transport/aclshmemi_rdma.cpp
+        host/transport/shmemi_rdma.cpp
         host/transport/rdma/device_qp_manager.cpp
         host/transport/rdma/dl_hccp_api.cpp
     )
