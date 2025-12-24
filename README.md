@@ -98,7 +98,7 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
 以```matmul_allreduce```为例，验证核心功能：
 1. 编译依赖库
    ```bash
-   cd 3rdparty && git clone https://gitee.com/ascend/catlass.git && cd ..
+   cd 3rdparty && git clone https://gitcode.com/cann/catlass.git && cd ..
    ```
 1. 编译并运行样例
    ```bash

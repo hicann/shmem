@@ -22,8 +22,8 @@
 #include <string.h>
 #include <errno.h>
 
-#include "fp16_t.h"
-#include "bfloat16.h"
+#include "opdev/fp16_t.h"
+#include "opdev/bfloat16.h"
 
 #include <acl/acl.h>
 #include "shmem.h"

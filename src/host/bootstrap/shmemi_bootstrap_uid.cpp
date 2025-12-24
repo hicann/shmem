@@ -489,8 +489,8 @@ static int aclshmemi_bootstrap_uid_allgather(const void *in, void *out, int len,
         size_t rslice = (rank - i - 1 + nranks) % nranks;
         size_t sslice = (rank - i + nranks) % nranks;
 
-        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, ((char*)out + sslice * len), len), "rank " << rank << ": barrier send failed");
-        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, ((char*)out + rslice * len), len), "rank " << rank << ": barrier recv failed");
+        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, ((char*)out + sslice * len), len), "pe " << rank << ": barrier send failed");
+        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, ((char*)out + rslice * len), len), "pe " << rank << ": barrier recv failed");
     }
     return ACLSHMEM_SUCCESS;
 }
@@ -519,11 +519,11 @@ static int aclshmemi_bootstrap_uid_barrier(aclshmemi_bootstrap_handle_t *handle)
 
     char token = 0;
     if (rank == 0) {
-        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, &token, 1), "rank 0: barrier send failed");
-        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, &token, 1), "rank 0: barrier recv failed");
+        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, &token, 1), "pe 0: barrier send failed");
+        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, &token, 1), "pe 0: barrier recv failed");
     } else {
-        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, &token, 1), "rank " << rank << ": barrier recv failed");
-        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, &token, 1), "rank " << rank << ": barrier send failed");
+        ACLSHMEM_CHECK_RET(socket_recv(&state->ring_recv_sock, &token, 1), "pe " << rank << ": barrier recv failed");
+        ACLSHMEM_CHECK_RET(socket_send(&state->ring_send_sock, &token, 1), "pe " << rank << ": barrier send failed");
     }
     return ACLSHMEM_SUCCESS;
 }
@@ -656,8 +656,8 @@ static int aclshmemi_bootstrap_uid_barrier_v2(aclshmemi_bootstrap_handle_t *hand
         int dst = (rank + mask) % nranks;
         tag++;
 
-        ACLSHMEM_CHECK_RET(bootstrap_send(state, dst, tag, data, sizeof(data)), "rank " << rank << ": barrier send failed, dst: " << dst << "tag: " << tag);
-        ACLSHMEM_CHECK_RET(bootstrap_recv(state, src, tag, data, sizeof(data)), "rank " << rank << ": barrier recv failed, src: " << src << "tag: " << tag);
+        ACLSHMEM_CHECK_RET(bootstrap_send(state, dst, tag, data, sizeof(data)), "pe " << rank << ": barrier send failed, dst: " << dst << "tag: " << tag);
+        ACLSHMEM_CHECK_RET(bootstrap_recv(state, src, tag, data, sizeof(data)), "pe " << rank << ": barrier recv failed, src: " << src << "tag: " << tag);
     }
 
     SHM_LOG_DEBUG("Barrier end. rank: " << rank << " nranks: " << nranks <<" tag: "<< tag);
@@ -1154,8 +1154,8 @@ int aclshmemi_bootstrap_get_unique_id(void* uid) {
         }
     }
     
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "rank 0: failed to init bootstrap net.");
-    ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "rank 0: failed to create root thread");
+    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "pe 0: failed to init bootstrap net.");
+    ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "pe 0: failed to create root thread");
     return ACLSHMEM_SUCCESS;
 }
 
@@ -1176,11 +1176,11 @@ int aclshmemi_bootstrap_get_unique_id_static_magic(void* uid, bool is_root) {
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }
     
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "rank 0: failed to init bootstrap net.");
+    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "pe 0: failed to init bootstrap net.");
     uid_args->magic = SOCKET_MAGIC + static_magic_count;
     static_magic_count++;
     if (is_root) {
-        ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "rank 0: failed to create root thread");
+        ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "pe 0: failed to create root thread");
     }
     return ACLSHMEM_SUCCESS;
 }
@@ -1207,11 +1207,11 @@ int aclshmemi_bootstrap_get_unique_id_by_ipport(void* uid, const char *ipport) {
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }
     
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "rank 0: failed to init bootstrap net.");
+    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_net_init(uid_args, false), "pe 0: failed to init bootstrap net.");
     uid_args->magic = SOCKET_MAGIC + static_magic_count;
     static_magic_count++;
     if (uid_args->my_pe == 0) {
-        ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "rank 0: failed to create root thread");
+        ACLSHMEM_CHECK_RET(bootstrap_create_root(uid_args), "pe 0: failed to create root thread");
     }
     return ACLSHMEM_SUCCESS;
 }
@@ -1374,6 +1374,6 @@ int aclshmemi_bootstrap_plugin_init(void* comm, aclshmemi_bootstrap_handle_t* ha
     handle->alltoall = nullptr;
     handle->global_exit = nullptr;
 
-    SHM_LOG_INFO("rank " << rank << ": bootstrap plugin initialized successfully");
+    SHM_LOG_INFO("pe " << rank << ": bootstrap plugin initialized successfully");
     return ACLSHMEM_SUCCESS;
 }

@@ -13,8 +13,8 @@
 #include "shmem.h"
 
 #undef inline
-#include "fp16_t.h"
-#include "bfloat16.h"
+#include "opdev/fp16_t.h"
+#include "opdev/bfloat16.h"
 #define inline inline attribute((always_inline))
 
 using namespace AscendC;

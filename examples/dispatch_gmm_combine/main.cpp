@@ -14,9 +14,6 @@
 #include <algorithm>
 
 // misc
-#include "helper.hpp"
-#include "golden.hpp"
-#include "fp16_t.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -29,6 +26,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include "golden.hpp"
+#include "opdev/fp16_t.h"
 
 // from catlass
 #include "catlass/catlass.hpp"

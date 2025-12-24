@@ -94,6 +94,7 @@ include_directories(
     ${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/impl
     ${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/interface
     ${ASCEND_HOME_PATH}/include
+    ${ASCEND_HOME_PATH}/include/aclnn
     ${ASCEND_HOME_PATH}/include/experiment/runtime
     ${ASCEND_HOME_PATH}/include/experiment/msprof
 

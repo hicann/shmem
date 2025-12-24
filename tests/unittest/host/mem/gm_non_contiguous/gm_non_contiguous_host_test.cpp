@@ -14,8 +14,8 @@
 
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
-#include "bfloat16.h"
-#include "fp16_t.h"
+#include "opdev/bfloat16.h"
+#include "opdev/fp16_t.h"
 #include "../utils/func_type.h"
 #include "unittest_main_test.h"
 

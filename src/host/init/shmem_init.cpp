@@ -217,7 +217,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     g_state.is_aclshmem_initialized = true;
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
-    SHM_LOG_INFO("ACLSHMEM init success.");
+    SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
     return ACLSHMEM_SUCCESS;
 }
 
