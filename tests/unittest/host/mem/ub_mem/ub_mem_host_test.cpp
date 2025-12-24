@@ -44,7 +44,7 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_FUNC);
         ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);     \
                                                                                                                  \
         uint32_t block_dim = 1;                                                                                  \
-        void *ptr = aclshmem_malloc(total_size * sizeof(TYPE));                                                     \
+        void *ptr = aclshmem_malloc(total_size * sizeof(TYPE));                                                  \
         test_ub_##NAME##_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                             \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                            \
                                                                                                                  \
@@ -67,15 +67,15 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_FUNC);
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_UB_PUT_GET);
 
-#define TEST_ACLSHMEM_UB_MEM(NAME, TYPE)                                                          \
-    void test_aclshmem_ub_##NAME##_mem(int rank_id, int n_ranks, uint64_t local_mem_size)         \
+#define TEST_ACLSHMEM_UB_MEM(NAME, TYPE)                                                       \
+    void test_aclshmem_ub_##NAME##_mem(int rank_id, int n_ranks, uint64_t local_mem_size)      \
     {                                                                                          \
         int32_t device_id = rank_id % test_gnpu_num + test_first_npu;                          \
         aclrtStream stream;                                                                    \
         test_init(rank_id, n_ranks, local_mem_size, &stream);                                  \
         ASSERT_NE(stream, nullptr);                                                            \
                                                                                                \
-        test_ub_##NAME##_put_get(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks); \
+        test_ub_##NAME##_put_get(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks);      \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;           \
         test_finalize(stream, device_id);                                                      \
         if (::testing::Test::HasFailure()) {                                                   \
@@ -85,12 +85,12 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_UB_PUT_GET);
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_ACLSHMEM_UB_MEM);
 
-#define TESTAPI(NAME, TYPE)                                                        \
-    TEST(TestMemApi, TestShmemUB##NAME##Mem)                                       \
-    {                                                                              \
-        const int processCount = test_gnpu_num;                                    \
-        uint64_t local_mem_size = 1024UL * 1024UL * 1024;                          \
-        test_mutil_task(test_aclshmem_ub_##NAME##_mem, local_mem_size, processCount); \
+#define TESTAPI(NAME, TYPE)                                                             \
+    TEST(TestMemApi, TestShmemUB##NAME##Mem)                                            \
+    {                                                                                   \
+        const int processCount = test_gnpu_num;                                         \
+        uint64_t local_mem_size = 1024UL * 1024UL * 1024;                               \
+        test_mutil_task(test_aclshmem_ub_##NAME##_mem, local_mem_size, processCount);   \
     }
 
 ACLSHMEM_FUNC_TYPE_HOST(TESTAPI);

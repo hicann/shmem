@@ -520,14 +520,14 @@ Returns:
     name(str)      [out]defined name
     )");
 
-#define PYBIND_ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                            \
+#define PYBIND_ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                         \
     {                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_p";                                                    \
+        std::string funcName = "aclshmem_" #NAME "_p";                                                 \
         m.def(                                                                                         \
             funcName.c_str(),                                                                          \
             [](intptr_t dst, const TYPE value, int pe) {                                               \
                 auto dst_addr = (TYPE *)dst;                                                           \
-                aclshmem_##NAME##_p(dst_addr, value, pe);                                                 \
+                aclshmem_##NAME##_p(dst_addr, value, pe);                                              \
             },                                                                                         \
             py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("value"), py::arg("pe"), \
             R"(                                                                                        \
@@ -543,20 +543,20 @@ Returns:
     ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPENAME_P)
 #undef PYBIND_ACLSHMEM_TYPENAME_P
 
-#define PYBIND_ACLSHMEM_TYPENAME_G(NAME, TYPE)                                          \
+#define PYBIND_ACLSHMEM_TYPENAME_G(NAME, TYPE)                                       \
     {                                                                                \
-        std::string funcName = "aclshmem_" #NAME "_g";                                  \
+        std::string funcName = "aclshmem_" #NAME "_g";                               \
         m.def(                                                                       \
             funcName.c_str(),                                                        \
             [](intptr_t src, int pe) {                                               \
                 auto src_addr = (TYPE *)src;                                         \
-                return aclshmem_##NAME##_g(src_addr, pe);                               \
+                return aclshmem_##NAME##_g(src_addr, pe);                            \
             },                                                                       \
             py::call_guard<py::gil_scoped_release>(), py::arg("src"), py::arg("pe"), \
-            R"(                                                              \
+            R"(                                                                      \
     Provide a low latency get single element of most basic types.
-                                                                                            \
-    Arguments:                                                                              \
+                                                                                     \
+    Arguments:                                                                       \
         src     [in] Symmetric address of the destination data on local PE.
         pe      [in] The number of the remote PE.
         A single element of type specified in the input pointer.

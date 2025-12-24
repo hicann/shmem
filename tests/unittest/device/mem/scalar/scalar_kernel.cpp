@@ -20,14 +20,14 @@
             gva_gm = (__gm__ TYPE *)gva;                                                    \
             dev_gm = (__gm__ TYPE *)dev;                                                    \
                                                                                             \
-            rank = aclshmem_my_pe();                                                           \
-            rank_size = aclshmem_n_pes();                                                      \
+            rank = aclshmem_my_pe();                                                        \
+            rank_size = aclshmem_n_pes();                                                   \
         }                                                                                   \
         __aicore__ inline void Process(uint64_t config)                                     \
         {                                                                                   \
-            util_set_ffts_config(config);                                                 \
-            aclshmem_##NAME##_p(gva_gm, *dev_gm, (rank + 1) % rank_size);                      \
-            aclshmemx_barrier_all_vec();                                                       \
+            util_set_ffts_config(config);                                                   \
+            aclshmem_##NAME##_p(gva_gm, *dev_gm, (rank + 1) % rank_size);                   \
+            aclshmemx_barrier_all_vec();                                                    \
         }                                                                                   \
     private:                                                                                \
         __gm__ TYPE *gva_gm;                                                                \
@@ -66,15 +66,15 @@ ACLSHMEM_FUNC_TYPE_KERNEL(PUT_ONE_NUM_DO);
             gva_gm = (__gm__ TYPE *)gva;                                                    \
             dev_gm = (__gm__ TYPE *)dev;                                                    \
                                                                                             \
-            rank = aclshmem_my_pe();                                                           \
-            rank_size = aclshmem_n_pes();                                                      \
+            rank = aclshmem_my_pe();                                                        \
+            rank_size = aclshmem_n_pes();                                                   \
         }                                                                                   \
         __aicore__ inline void Process(uint64_t config)                                     \
         {                                                                                   \
-            util_set_ffts_config(config);                                                 \
-            TYPE val = aclshmem_##NAME##_g(gva_gm, (rank + 1) % rank_size);                    \
+            util_set_ffts_config(config);                                                   \
+            TYPE val = aclshmem_##NAME##_g(gva_gm, (rank + 1) % rank_size);                 \
             *dev_gm = val;                                                                  \
-            aclshmemx_barrier_all_vec();                                                       \
+            aclshmemx_barrier_all_vec();                                                    \
         }                                                                                   \
     private:                                                                                \
         __gm__ TYPE *gva_gm;                                                                \

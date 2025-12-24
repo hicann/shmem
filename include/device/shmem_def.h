@@ -29,24 +29,24 @@ extern "C" {
  * |int32      | int32     |
  */
 #define ACLSHMEM_TYPE_FUNC_ATOMIC_INT(FUNC) \
-    FUNC(int8, int8_t, ATOMIC_S8);       \
-    FUNC(int16, int16_t, ATOMIC_S16);    \
+    FUNC(int8, int8_t, ATOMIC_S8);          \
+    FUNC(int16, int16_t, ATOMIC_S16);       \
     FUNC(int32, int32_t, ATOMIC_S32)
 
 #define ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(FUNC) \
-    FUNC(half, half, ATOMIC_F16);          \
+    FUNC(half, half, ATOMIC_F16);             \
     FUNC(float, float, ATOMIC_F32)
 
 #define ACLSHMEM_TEST_TYPE_FUNC(FUNC) \
-    FUNC(float, float);            \
-    FUNC(int8, int8_t);            \
-    FUNC(int16, int16_t);          \
-    FUNC(int32, int32_t);          \
-    FUNC(int64, int64_t);          \
-    FUNC(uint8, uint8_t);          \
-    FUNC(uint16, uint16_t);        \
-    FUNC(uint32, uint32_t);        \
-    FUNC(uint64, uint64_t);        \
+    FUNC(float, float);               \
+    FUNC(int8, int8_t);               \
+    FUNC(int16, int16_t);             \
+    FUNC(int32, int32_t);             \
+    FUNC(int64, int64_t);             \
+    FUNC(uint8, uint8_t);             \
+    FUNC(uint16, uint16_t);           \
+    FUNC(uint32, uint32_t);           \
+    FUNC(uint64, uint64_t);           \
     FUNC(char, char)
 
 constexpr uint64_t ACLSHMEM_INTERNAL_UB_BUF_START_ADDR = 188 * 1024;
