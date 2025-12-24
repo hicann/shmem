@@ -10,14 +10,14 @@
 # -----------------------------------------------------------------------------------------------------------
 set_env_path="${BASH_SOURCE[0]}"
 if [[ -f "$set_env_path" ]] && [[ "$(basename "$set_env_path")" == "set_env.sh" ]]; then
-    aclshmem_path=$(cd $(dirname $set_env_path); pwd)
-    export ACLSHMEM_HOME_PATH="$aclshmem_path"
-    export LD_LIBRARY_PATH=$ACLSHMEM_HOME_PATH/shmem/lib:$LD_LIBRARY_PATH
+    shmem_path=$(cd $(dirname $set_env_path); pwd)
+    export SHMEM_HOME_PATH="$shmem_path"
+    export LD_LIBRARY_PATH=$SHMEM_HOME_PATH/shmem/lib:$LD_LIBRARY_PATH
     export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/driver/:$LD_LIBRARY_PATH
-    export PATH=$ACLSHMEM_HOME_PATH/bin:$PATH
+    export PATH=$SHMEM_HOME_PATH/bin:$PATH
 fi
 # 是否有python扩展
-if [[ -d "$ACLSHMEM_HOME_PATH/../examples/shared_lib/output" ]] && [[ -d "$ACLSHMEM_HOME_PATH/../examples/python_extension/output" ]]; then
+if [[ -d "$SHMEM_HOME_PATH/../examples/shared_lib/output" ]] && [[ -d "$SHMEM_HOME_PATH/../examples/python_extension/output" ]]; then
     echo "Export the environment variable for the shmem python extension. "
-    export LD_LIBRARY_PATH=$ACLSHMEM_HOME_PATH/../examples/shared_lib/output/lib:$ACLSHMEM_HOME_PATH/../examples/python_extension/output/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$SHMEM_HOME_PATH/../examples/shared_lib/output/lib:$SHMEM_HOME_PATH/../examples/python_extension/output/lib:$LD_LIBRARY_PATH
 fi

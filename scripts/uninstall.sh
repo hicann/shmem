@@ -19,7 +19,7 @@ function print()
 function delete_install_files()
 {
     install_dir=$1
-    print "INFO" "ACLSHMEM $(basename $1) delete install files."
+    print "INFO" "SHMEM $(basename $1) delete install files."
     [ -n "$1" ] && rm -rf $1
 }
 
@@ -51,7 +51,7 @@ function delete_empty_recursion()
     if [ ! -d $1 ]; then
         return 0
     fi
-    print "INFO" "ACLSHMEM $(basename $1) delete empty recursion."
+    print "INFO" "SHMEM $(basename $1) delete empty recursion."
     for file in $1/*
     do
         if [ -d $file ]; then
@@ -66,7 +66,7 @@ function delete_empty_recursion()
 function delete_latest()
 {
     cd $1/..
-    print "INFO" "ACLSHMEM delete latest!"
+    print "INFO" "SHMEM delete latest!"
     if [ -d "latest" ]; then
         rm -rf latest
     fi
@@ -80,17 +80,17 @@ function uninstall_process()
     if [ ! -d $1 ]; then
         return 0
     fi
-    print "INFO" "ACLSHMEM $(basename $1) uninstall start!"
-    aclshmem_dir=$(cd $1/..;pwd)
+    print "INFO" "SHMEM $(basename $1) uninstall start!"
+    shmem_dir=$(cd $1/..;pwd)
     delete_latest $1
     delete_install_files $1
     if [ -d $1 ]; then
         delete_empty_recursion $1
     fi
-    if [ -z "$(ls $aclshmem_dir)" ]; then
-        rm -rf $aclshmem_dir
+    if [ -z "$(ls $shmem_dir)" ]; then
+        rm -rf $shmem_dir
     fi
-    print "INFO" "ACLSHMEM $(basename $1) uninstall success!"
+    print "INFO" "SHMEM $(basename $1) uninstall success!"
 }
 
 

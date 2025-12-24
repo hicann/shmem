@@ -142,7 +142,7 @@ function check_owner()
 function delete_latest()
 {
     cd $default_install_dir
-    print "INFO" "ACLSHMEM delete latest!"
+    print "INFO" "SHMEM delete latest!"
     if [ -d "latest" ]; then
         rm -rf latest
     fi
@@ -154,7 +154,7 @@ function delete_latest()
 function delete_install_files()
 {
     install_dir=$1
-    print "INFO" "ACLSHMEM $(basename $1) delete install files!"
+    print "INFO" "SHMEM $(basename $1) delete install files!"
     [ -n "$1" ] && rm -rf $1
 }
 
@@ -186,7 +186,7 @@ function delete_empty_recursion()
     if [ ! -d $1 ]; then
         return 0
     fi
-    print "INFO" "ACLSHMEM $(basename $1) delete empty recursion!"
+    print "INFO" "SHMEM $(basename $1) delete empty recursion!"
     for file in $1/*
     do
         if [ -d $file ]; then
@@ -203,17 +203,17 @@ function uninstall_process()
     if [ ! -d $1 ]; then
         return 0
     fi
-    print "INFO" "ACLSHMEM $(basename $1) uninstall start!"
-    aclshmem_dir=$(cd $1/..;pwd)
+    print "INFO" "SHMEM $(basename $1) uninstall start!"
+    shmem_dir=$(cd $1/..;pwd)
     delete_latest $1
     delete_install_files $1
     if [ -d $1 ]; then
         delete_empty_recursion $1
     fi
-    if [ "$2" == "y" -a -z "$(ls $aclshmem_dir)" ]; then
-        rm -rf $aclshmem_dir
+    if [ "$2" == "y" -a -z "$(ls $shmem_dir)" ]; then
+        rm -rf $shmem_dir
     fi
-    print "INFO" "ACLSHMEM $(basename $1) uninstall success!"
+    print "INFO" "SHMEM $(basename $1) uninstall success!"
 }
 
 function uninstall()
@@ -281,7 +281,7 @@ function copy_files()
 }
 function install_process()
 {
-    local arch_pkg=ACLSHMEMPKGARCH
+    local arch_pkg=SHMEMPKGARCH
 
     if [ $( uname -a | grep -c -i "x86_64" ) -ne 0 ]; then
         echo "it is system of x86_64"
@@ -318,7 +318,7 @@ function main()
         check_owner
         install_process
         chmod_authority
-        print "INFO" "ACLSHMEM install success"
+        print "INFO" "SHMEM install success"
     fi
 }
 
