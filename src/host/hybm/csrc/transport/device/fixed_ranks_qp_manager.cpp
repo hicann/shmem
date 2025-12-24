@@ -30,11 +30,6 @@ FixedRanksQpManager::FixedRanksQpManager(uint32_t deviceId, uint32_t rankId, uin
 
 FixedRanksQpManager::~FixedRanksQpManager() noexcept
 {
-    try {
-        CloseServices();
-    } catch (const std::exception& e) {
-        BM_LOG_ERROR(rankId_ << " destruct fixed ranks qp manager catch exception: " << e.what());
-    }
 }
 
 int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo> &ranks) noexcept
@@ -273,11 +268,18 @@ int FixedRanksQpManager::StartClientSide() noexcept
         connectInfos.emplace_back(connectInfo);
     }
 
-    auto ret = DlHccpApi::RaSocketBatchConnect(connectInfos.data(), connectInfos.size());
-    if (ret != 0) {
-        BM_LOG_ERROR(rankId_ << " connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
-        CloseClientConnections();
-        return BM_DL_FUNCTION_FAILED;
+    for (size_t i = 0; i < connectInfos.size(); i += RA_MAX_BATCH_NUM) {
+        size_t currentBatchSize = (connectInfos.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (connectInfos.size() - i);
+        auto batchStart = connectInfos.begin() + i;
+        auto batchEnd = batchStart + currentBatchSize;
+        std::vector<HccpSocketConnectInfo> currentBatch(batchStart, batchEnd);
+
+        auto ret = DlHccpApi::RaSocketBatchConnect(currentBatch.data(), currentBatch.size());
+        if (ret != 0) {
+            BM_LOG_ERROR(rankId_ << " connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
+            CloseClientConnections();
+            return BM_DL_FUNCTION_FAILED;
+        }
     }
 
     InitClientConnectThread();
@@ -312,114 +314,120 @@ int FixedRanksQpManager::GenerateWhiteList() noexcept
         return BM_OK;
     }
 
-    auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, whitelist.data(), whitelist.size());
-    if (ret != 0) {
-        BM_LOG_ERROR(rankId_ << " socket handle add white list failed: " << ret);
-        return BM_ERROR;
+    for (size_t i = 0; i < whitelist.size(); i += RA_MAX_BATCH_NUM) {
+        size_t currentBatchSize = (whitelist.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (whitelist.size() - i);
+        auto batchStart = whitelist.begin() + i;
+        auto batchEnd = batchStart + currentBatchSize;
+        std::vector<HccpSocketWhiteListInfo> currentBatch(batchStart, batchEnd);
+        auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, currentBatch.data(), currentBatch.size());
+        if (ret != 0) {
+            BM_LOG_ERROR(rankId_ << " socket handle add white list failed: " << ret);
+            return BM_ERROR;
+        }
     }
 
-    return BM_OK;
-}
-
-int FixedRanksQpManager::CheckConnectionSuccessCount(std::unordered_map<uint32_t, ConnectionChannel> &connections,
-                                                     std::vector<HccpSocketInfo> &socketInfos,
-                                                     std::unordered_map<net_addr_t, uint32_t> &addr2index,
-                                                     uint32_t &succCnt, IpType type)
-{
-    for (auto i = 0U; i < succCnt; i++) {
-        net_addr_t addr;
-        char ipStr[INET6_ADDRSTRLEN];
-        char* result {};
-        if (type == IpV4) {
-            addr = net_addr_t::from_ipv4(socketInfos[i].remoteIp.addr);
-            result = inet_ntoa(socketInfos[i].remoteIp.addr);
-        } else if (type == IpV6) {
-            addr = net_addr_t::from_ipv6(socketInfos[i].remoteIp.addr6);
-            inet_ntop(AF_INET6, &socketInfos[i].remoteIp.addr6, ipStr, INET6_ADDRSTRLEN);
-            result = ipStr;
-        }
-        auto socketInfoPos = addr2index.find(addr);
-        if (socketInfoPos == addr2index.end()) {
-            BM_LOG_ERROR(rankId_ << " socket ip(" << result << ") should not exist.");
-            return BM_DL_FUNCTION_FAILED;
-        }
-
-        auto rankId = socketInfoPos->second;
-        auto pos = connections.find(rankId);
-        if (pos == connections.end()) {
-            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":socket ip(" << result << ") should not exist.");
-            return BM_DL_FUNCTION_FAILED;
-        }
-
-        if (pos->second.socketFd != nullptr) {
-            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") already get socket fd.");
-            return BM_DL_FUNCTION_FAILED;
-        }
-
-        if (pos->second.socketHandle != socketInfos[i].handle) {
-            BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
-            return BM_DL_FUNCTION_FAILED;
-        }
-
-        pos->second.socketFd = socketInfos[i].fd;
-        BM_LOG_INFO(rankId_ << " connect to (" << rankId << ") ready.");
-    }
     return BM_OK;
 }
 
 int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept
 {
     IpType type{};
-    uint32_t totalSuccessCount = 0;
+    uint32_t cnt = 0;
     auto start = std::chrono::steady_clock::now();
     auto timeout = start + std::chrono::minutes(2);
     BM_LOG_DEBUG(rankId_ << " begin wait connections, size=" << connections.size());
-    while (totalSuccessCount < connections.size()) {
-        if (std::chrono::steady_clock::now() >= timeout) {
-            BM_LOG_ERROR(rankId_ << " waiting connection ready timeout.");
-            return BM_ERROR;
+
+    std::vector<HccpSocketInfo> socketInfos;
+    std::unordered_map<net_addr_t, uint32_t> addr2index;
+    for (auto it = connections.begin(); it != connections.end(); ++it) {
+        if (it->second.socketFd != nullptr) {
+            continue;
         }
 
-        uint32_t successCount = 0;
-        std::vector<HccpSocketInfo> socketInfos;
-        std::unordered_map<net_addr_t, uint32_t> addr2index;
-        for (auto it = connections.begin(); it != connections.end(); ++it) {
-            if (it->second.socketFd != nullptr) {
-                continue;
-            }
-
-            HccpSocketInfo info{};
-            info.handle = it->second.socketHandle;
-            info.fd = nullptr;
-            if (it->second.remoteIp.type == IpV4) {
-                info.remoteIp.addr = it->second.remoteIp.ip.ipv4;
-                type = IpV4;
-            } else if (it->second.remoteIp.type == IpV6) {
-                info.remoteIp.addr6 = it->second.remoteIp.ip.ipv6;
-                type = IpV6;
-            }
-            info.status = 0;
-            bzero(info.tag, sizeof(info.tag));
-            socketInfos.push_back(info);
-            addr2index.emplace(it->second.remoteIp, it->first);
+        HccpSocketInfo info{};
+        info.handle = it->second.socketHandle;
+        info.fd = nullptr;
+        if (it->second.remoteIp.type == IpV4) {
+            info.remoteIp.addr = it->second.remoteIp.ip.ipv4;
+            type = IpV4;
+        } else if (it->second.remoteIp.type == IpV6) {
+            info.remoteIp.addr6 = it->second.remoteIp.ip.ipv6;
+            type = IpV6;
         }
+        info.status = 0;
+        bzero(info.tag, sizeof(info.tag));
+        socketInfos.push_back(info);
+        addr2index.emplace(it->second.remoteIp, it->first);
+    }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        auto role = (&connections == &clientConnections_) ? 1 : 0;
-        auto ret = DlHccpApi::RaGetSockets(role, socketInfos.data(), socketInfos.size(), successCount);
+    if (socketInfos.empty()) {
+        BM_LOG_WARN(rankId_ << " socketInfos is empty.");
+        return BM_OK;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    auto role = (&connections == &clientConnections_) ? 1 : 0;
+
+    do {
+        uint32_t getSize = socketInfos.size() < RA_MAX_BATCH_NUM ? socketInfos.size() : RA_MAX_BATCH_NUM;
+        auto ret = DlHccpApi::RaGetSockets(role, socketInfos.data(), getSize, cnt);
         if (ret != 0) {
             BM_LOG_ERROR(rankId_ << " role(" << role << ") side get sockets failed: " << ret);
             return BM_DL_FUNCTION_FAILED;
         }
-
-        ret = CheckConnectionSuccessCount(connections, socketInfos, addr2index, successCount, type);
-        if (ret != 0) {
-            return ret;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100L));
+        if (cnt == 0) {
+            continue;
         }
+        for (auto i = 0U; i < getSize; i++) {
+            if (socketInfos[i].status != 1) {
+                continue;
+            }
+            net_addr_t addr;
+            char ipStr[INET6_ADDRSTRLEN];
+            char* result {};
+            if (type == IpV4) {
+                addr = net_addr_t::from_ipv4(socketInfos[i].remoteIp.addr);
+                result = inet_ntoa(socketInfos[i].remoteIp.addr);
+            } else if (type == IpV6) {
+                addr = net_addr_t::from_ipv6(socketInfos[i].remoteIp.addr6);
+                inet_ntop(AF_INET6, &socketInfos[i].remoteIp.addr6, ipStr, INET6_ADDRSTRLEN);
+                result = ipStr;
+            }
+            auto socketInfoPos = addr2index.find(addr);
+            if (socketInfoPos == addr2index.end()) {
+                BM_LOG_ERROR(rankId_ << " socket ip(" << result << ") should not exist.");
+                return BM_DL_FUNCTION_FAILED;
+            }
 
-        totalSuccessCount += successCount;
-    }
+            auto rankId = socketInfoPos->second;
+            auto pos = connections.find(rankId);
+            if (pos == connections.end()) {
+                BM_LOG_ERROR(rankId_ << " -> " << rankId << ":socket ip(" << result << ") should not exist.");
+                return BM_DL_FUNCTION_FAILED;
+            }
 
+            if (pos->second.socketFd != nullptr) {
+                BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") already get socket fd.");
+                return BM_DL_FUNCTION_FAILED;
+            }
+
+            if (pos->second.socketHandle != socketInfos[i].handle) {
+                BM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
+                return BM_DL_FUNCTION_FAILED;
+            }
+
+            pos->second.socketFd = socketInfos[i].fd;
+            BM_LOG_INFO(rankId_ << " connect to (" << rankId << ") ready.");
+        }
+        socketInfos.erase(
+            std::remove_if(socketInfos.begin(), socketInfos.end(),
+                [](const auto& info) {
+                    return info.status == 1;
+                }),
+            socketInfos.end()
+        );
+    } while (socketInfos.size() > 0);
     return BM_OK;
 }
 
