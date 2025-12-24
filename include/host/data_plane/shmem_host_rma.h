@@ -358,6 +358,17 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t e
                                             int32_t pe, aclrtStream stream);
 #define shmemx_getmem_on_stream aclshmemx_getmem_on_stream
 
+/**
+ * @brief Set necessary parameters for put or get.
+ *
+ * @param offset                [in] The start address on UB.
+ * @param ub_size               [in] The Size of Temp UB Buffer.
+ * @param event_id              [in] Sync ID for put or get.
+ * @return Returns 0 on success or an error code on failure.
+ */
+ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+#define shmem_set_mte_config aclshmemx_set_mte_config
+
 #ifdef __cplusplus
 }
 #endif
