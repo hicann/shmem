@@ -594,4 +594,14 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
 
 ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
 
+// Set Memcpy Interfaces necessary UB Buffer.
+ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
+{
+    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    
+    device_state->mte_config.aclshmem_ub = offset;
+    device_state->mte_config.ub_size = ub_size;
+    device_state->mte_config.event_id = event_id;
+}
+
 #endif

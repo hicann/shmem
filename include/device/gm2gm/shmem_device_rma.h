@@ -468,4 +468,14 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
 
 ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
 
+/**
+ * @brief Set necessary parameters for put or get.
+ *
+ * @param offset                [in] The start address on UB.
+ * @param ub_size               [in] The Size of Temp UB Buffer.
+ * @param event_id              [in] Sync ID for put or get.
+ * @return Returns 0 on success or an error code on failure.
+ */
+ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+
 #endif

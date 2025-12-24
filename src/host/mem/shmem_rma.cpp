@@ -40,7 +40,7 @@ void *aclshmem_ptr(void *ptr, int32_t pe)
 }
 
 // Set Memcpy Interfaces necessary UB Buffer.
-int32_t aclshmemx_mte_set_ub_params(uint64_t offset, uint32_t ub_size, uint32_t event_id)
+int32_t aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
 {
     g_state.mte_config.aclshmem_ub = offset;
     g_state.mte_config.ub_size = ub_size;
