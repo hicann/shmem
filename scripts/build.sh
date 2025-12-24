@@ -234,7 +234,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)
             fn_build_googletest
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass.git; cd $PROJECT_ROOT
+            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift
             ;;
@@ -249,7 +249,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -examples)
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass.git; cd $PROJECT_ROOT
+            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_EXAMPLES=ON"
             shift
             ;;

@@ -10,13 +10,24 @@
 #ifndef COPY_L0C_TO_GM_CUSTOM_H
 #define COPY_L0C_TO_GM_CUSTOM_H
 namespace Catlass::Gemm::Tile {
+
+template <
+    class ArchTag,
+    class ElementAccumulator,
+    class GmType,
+    ScaleGranularity DEQUANT_GRANULARITY = ScaleGranularity::NO_QUANT,
+    bool ReluEnable = false
+>
+struct ShmCopyL0CToGm {
+    static_assert(DEPENDENT_FALSE<ArchTag>, "Unsupported copy l0c to gm, can not find the specialization.");
+};
 // Fixpipe with quant VDEQF16
 template <
     class ElementAccumulator_,
     class ElementDst_,
     bool ReluEnable_
 >
-struct CopyL0CToGm<Catlass::Arch::AtlasA2,
+struct ShmCopyL0CToGm<Catlass::Arch::AtlasA2,
                 ElementAccumulator_,
                 Gemm::GemmType<ElementDst_, layout::RowMajor>,
                 ScaleGranularity::PER_CHANNEL,

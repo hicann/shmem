@@ -21,10 +21,10 @@
 #include "catlass/epilogue/tile/tile_copy.hpp"
 #include "shmem.h"
 
-#include "block_mmad_preload_async_fixpipe_quant.h"
-#include "block_mmad_preload_fixpipe.h"
 #include "copy_gm_to_l1_custom.h"
 #include "copy_l0c_to_gm_custom.h"
+#include "block_mmad_preload_async_fixpipe_quant.h"
+#include "block_mmad_preload_fixpipe.h"
 #include "block_epilogue_pertoken_row.h"
 #include "block_epilogue_pertoken_swiglu.h"
 #include "sync_util.h"

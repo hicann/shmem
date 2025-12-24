@@ -123,6 +123,15 @@ echo "DATA_DIR: $DATA_DIR"
 EXEC_BIN=${PROJECT_ROOT}/build/bin/dispatch_gmm_combine
 
 cd ${PROJECT_ROOT}/examples/dispatch_gmm_combine/
+
+if [ -d "out" ]; then
+    info_msg "文件夹已存在：out"
+else
+    info_msg "文件夹不存在，正在创建：out"
+    mkdir -p out
+fi
+
+
 python3 utils/gen_data.py
 if [[ $? -ne 0 ]]; then
     echo "gen data failed."

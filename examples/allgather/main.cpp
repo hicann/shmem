@@ -24,8 +24,8 @@
 #include <errno.h>
 #include <algorithm>
 
-#include "fp16_t.h"
-#include "bfloat16.h"
+#include "opdev/fp16_t.h"
+#include "opdev/bfloat16.h"
 #include "utils.h"
 #include "param.h"
 

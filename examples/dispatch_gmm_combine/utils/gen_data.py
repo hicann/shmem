@@ -22,7 +22,7 @@ import numpy
 
 
 LCAL_PATH = os.getcwd().replace("build", "")
-DATA_PATH = os.path.join(LCAL_PATH, "examples", "dispatch_gmm_combine", "utils", "test_data")
+DATA_PATH = os.path.join(LCAL_PATH, "utils", "test_data")
 shutil.rmtree(DATA_PATH, ignore_errors=True)
 os.makedirs(DATA_PATH)
 print(f'Use DATA_PATH = {DATA_PATH}')
