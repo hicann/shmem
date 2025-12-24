@@ -16,9 +16,14 @@
 
 ACLSHMEM_DEVICE __gm__ ACLSHMEMAIVRDMAInfo* aclshmemi_qp_info_fetch()
 {
-    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+#ifdef BACKEND_HYBM
+    __gm__ ACLSHMEMAIVRDMAInfo* RDMAInfo = (__gm__ ACLSHMEMAIVRDMAInfo*)(aclshmemi_get_qp_info_address(0));
+    return RDMAInfo;
+#else
+    __gm__ aclshmem_device_host_state_t  *device_state = aclshmemi_get_state();
     __gm__ ACLSHMEMAIVRDMAInfo* RDMAInfo = (__gm__ ACLSHMEMAIVRDMAInfo*)(device_state->qp_info);
     return RDMAInfo;
+#endif
 }
 
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq(uint32_t remoteRankId, uint32_t qpIdx, uint32_t idx,

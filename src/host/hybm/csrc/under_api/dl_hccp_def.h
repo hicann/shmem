@@ -25,6 +25,7 @@ namespace hybm {
 
 const int HOST_LITE_RESERVED = 4;
 const int RA_MR_MAX_NUM = 8;
+const uint32_t RA_MAX_BATCH_NUM = 16;
 
 struct ra_rdma_ops;
 struct rdma_lite_cq;

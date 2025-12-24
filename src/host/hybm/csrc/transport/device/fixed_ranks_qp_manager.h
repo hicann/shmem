@@ -71,9 +71,6 @@ private:
     void CloseClientConnections() noexcept;
     void CloseServerConnections() noexcept;
     void CloseConnections(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept;
-    int CheckConnectionSuccessCount(std::unordered_map<uint32_t, ConnectionChannel> &connections,
-        std::vector<HccpSocketInfo> &socketInfos, std::unordered_map<net_addr_t, uint32_t> &addr2index,
-        uint32_t &succCnt, IpType type);
     void InitClientConnectThread();
     void FillQpPreSettingCopyInfo(AiQpRMAQueueInfo *&copyInfo);
     void FillQpPostSettingCopyInfo(AiQpRMAQueueInfo *&copyInfo);
