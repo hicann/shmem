@@ -50,152 +50,152 @@ int32_t aclshmemx_mte_set_ub_params(uint64_t offset, uint32_t ub_size, uint32_t 
 }
 
 #define ACLSHMEM_TYPE_PUT(NAME, TYPE)                                                                                    \
-    /**                                                                                                               \
-     * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.     \
-     *                                                                                                                \
-     * @param dest               [in] Pointer on Symmetric memory of the destination data.                            \
-     * @param source             [in] Pointer on local device of the source data.                                     \
-     * @param nelems             [in] Number of elements in the destination and source arrays.                        \
-     * @param pe                 [in] PE number of the remote PE.                                                     \
-     */                                                                                                               \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                       \
-    {                                                                                                                 \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem", ACLSHMEMI_OP_PUT, NO_NBI, (uint8_t *)dest,      \
-                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,       \
-                                              g_state_host.default_stream, g_state_host.default_block_num);           \
-        if (ret < 0) {                                                                                                \
-            SHM_LOG_ERROR("device calling transfer failed");                                                          \
-        }                                                                                                             \
+    /**                                                                                                                  \
+     * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.        \
+     *                                                                                                                   \
+     * @param dest               [in] Pointer on Symmetric memory of the destination data.                               \
+     * @param source             [in] Pointer on local device of the source data.                                        \
+     * @param nelems             [in] Number of elements in the destination and source arrays.                           \
+     * @param pe                 [in] PE number of the remote PE.                                                        \
+     */                                                                                                                  \
+    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                    \
+    {                                                                                                                    \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem", ACLSHMEMI_OP_PUT, NO_NBI, (uint8_t *)dest,\
+                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,          \
+                                              g_state_host.default_stream, g_state_host.default_block_num);              \
+        if (ret < 0) {                                                                                                   \
+            SHM_LOG_ERROR("device calling transfer failed");                                                             \
+        }                                                                                                                \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT)
 #undef ACLSHMEM_TYPE_PUT
 
-#define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                                \
-    /**                                                                                                               \
-     * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.    \
-     *                                                                                                                \
-     * @param dest               [in] Pointer on Symmetric memory of the destination data.                            \
-     * @param source             [in] Pointer on local device of the source data.                                     \
-     * @param nelems             [in] Number of elements in the destination and source arrays.                        \
-     * @param pe                 [in] PE number of the remote PE.                                                     \
-     */                                                                                                               \
+#define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                                   \
+    /**                                                                                                                     \
+     * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.          \
+     *                                                                                                                      \
+     * @param dest               [in] Pointer on Symmetric memory of the destination data.                                  \
+     * @param source             [in] Pointer on local device of the source data.                                           \
+     * @param nelems             [in] Number of elements in the destination and source arrays.                              \
+     * @param pe                 [in] PE number of the remote PE.                                                           \
+     */                                                                                                                     \
     ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                   \
-    {                                                                                                                 \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_nbi", ACLSHMEMI_OP_PUT, NBI, (uint8_t *)dest,     \
-                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,       \
-                                              g_state_host.default_stream, g_state_host.default_block_num);           \
-        if (ret < 0) {                                                                                                \
-            SHM_LOG_ERROR("device calling transfer failed");                                                          \
-        }                                                                                                             \
+    {                                                                                                                       \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_nbi", ACLSHMEMI_OP_PUT, NBI, (uint8_t *)dest,  \
+                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,             \
+                                              g_state_host.default_stream, g_state_host.default_block_num);                 \
+        if (ret < 0) {                                                                                                      \
+            SHM_LOG_ERROR("device calling transfer failed");                                                                \
+        }                                                                                                                   \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI)
 #undef ACLSHMEM_TYPE_PUT_NBI
 
 #define ACLSHMEM_TYPE_GET(NAME, TYPE)                                                                                    \
-    /**                                                                                                               \
-     * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the \
-     * local PE.                                                                                                      \
-     *                                                                                                                \
-     * @param dest               [in] Pointer on local device of the destination data.                                \
-     * @param source             [in] Pointer on Symmetric memory of the source data.                                 \
-     * @param nelems             [in] Number of elements in the destination and source arrays.                        \
-     * @param pe                 [in] PE number of the remote PE.                                                     \
-     */                                                                                                               \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                       \
-    {                                                                                                                 \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem", ACLSHMEMI_OP_GET, NO_NBI, (uint8_t *)dest,      \
-                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,       \
-                                              g_state_host.default_stream, g_state_host.default_block_num);           \
-        if (ret < 0) {                                                                                                \
-            SHM_LOG_ERROR("device calling transfer failed");                                                          \
-        }                                                                                                             \
+    /**                                                                                                                  \
+     * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the    \
+     * local PE.                                                                                                         \
+     *                                                                                                                   \
+     * @param dest               [in] Pointer on local device of the destination data.                                   \
+     * @param source             [in] Pointer on Symmetric memory of the source data.                                    \
+     * @param nelems             [in] Number of elements in the destination and source arrays.                           \
+     * @param pe                 [in] PE number of the remote PE.                                                        \
+     */                                                                                                                  \
+    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                    \
+    {                                                                                                                    \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem", ACLSHMEMI_OP_GET, NO_NBI, (uint8_t *)dest,\
+                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,          \
+                                              g_state_host.default_stream, g_state_host.default_block_num);              \
+        if (ret < 0) {                                                                                                   \
+            SHM_LOG_ERROR("device calling transfer failed");                                                             \
+        }                                                                                                                \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET)
 #undef ACLSHMEM_TYPE_GET
 
-#define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE)                                                                                 \
-    /**                                                                                                                \
-     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the \
-     * local PE.                                                                                                       \
-     *                                                                                                                 \
-     * @param dest               [in] Pointer on local device of the destination data.                                 \
-     * @param source             [in] Pointer on Symmetric memory of the source data.                                  \
-     * @param nelems             [in] Number of elements in the destination and source arrays.                         \
-     * @param pe                 [in] PE number of the remote PE.                                                      \
-     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                    \
-    {                                                                                                                  \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem_nbi", ACLSHMEMI_OP_GET, NBI, (uint8_t *)dest,      \
-                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,        \
-                                              g_state_host.default_stream, g_state_host.default_block_num);            \
-        if (ret < 0) {                                                                                                 \
-            SHM_LOG_ERROR("device calling transfer failed");                                                           \
-        }                                                                                                              \
+#define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE)                                                                                   \
+    /**                                                                                                                     \
+     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the      \
+     * local PE.                                                                                                            \
+     *                                                                                                                      \
+     * @param dest               [in] Pointer on local device of the destination data.                                      \
+     * @param source             [in] Pointer on Symmetric memory of the source data.                                       \
+     * @param nelems             [in] Number of elements in the destination and source arrays.                              \
+     * @param pe                 [in] PE number of the remote PE.                                                           \
+     */                                                                                                                     \
+    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                   \
+    {                                                                                                                       \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem_nbi", ACLSHMEMI_OP_GET, NBI, (uint8_t *)dest,  \
+                                              (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,             \
+                                              g_state_host.default_stream, g_state_host.default_block_num);                 \
+        if (ret < 0) {                                                                                                      \
+            SHM_LOG_ERROR("device calling transfer failed");                                                                \
+        }                                                                                                                   \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI)
 #undef ACLSHMEM_TYPE_GET_NBI
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                                    \
-    /**                                                                                                              \
-     * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.    \
-     *                                                                                                               \
-     * @param dst               [in] Pointer on local device of the destination data.                                \
-     * @param src               [in] Pointer on Symmetric memory of the source data.                                 \
-     * @param elem_size         [in] Number of elements in the dest and source arrays.                               \
-     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                             \
-     * @param signal            [in] The value used to update sig_addr.                                              \
-     * @param sig_op            [in] Operation used to update sig_addr with signal.                                  \
-     *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                              \
-     * @param pe                [in] PE number of the remote PE.                                                     \
-     */                                                                                                              \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,     \
-                                                      int32_t signal, int sig_op, int pe)                            \
-    {                                                                                                                \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal", ACLSHMEMI_OP_PUT_SIGNAL, NO_NBI,        \
-                                              (uint8_t *)dst, (uint8_t *)src, elem_size, sizeof(TYPE), pe, sig_addr, \
-                                              signal, sig_op, 1, 1, g_state_host.default_stream,                     \
-                                              g_state_host.default_block_num);                                       \
-        if (ret < 0) {                                                                                               \
-            SHM_LOG_ERROR("device calling transfer failed");                                                         \
-        }                                                                                                            \
+    /**                                                                                                                 \
+     * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.       \
+     *                                                                                                                  \
+     * @param dst               [in] Pointer on local device of the destination data.                                   \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                                    \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                                  \
+     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                                \
+     * @param signal            [in] The value used to update sig_addr.                                                 \
+     * @param sig_op            [in] Operation used to update sig_addr with signal.                                     \
+     *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                           \
+     * @param pe                [in] PE number of the remote PE.                                                        \
+     */                                                                                                                 \
+    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,  \
+                                                      int32_t signal, int sig_op, int pe)                               \
+    {                                                                                                                   \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal", ACLSHMEMI_OP_PUT_SIGNAL, NO_NBI,  \
+                                              (uint8_t *)dst, (uint8_t *)src, elem_size, sizeof(TYPE), pe, sig_addr,    \
+                                              signal, sig_op, 1, 1, g_state_host.default_stream,                        \
+                                              g_state_host.default_block_num);                                          \
+        if (ret < 0) {                                                                                                  \
+            SHM_LOG_ERROR("device calling transfer failed");                                                            \
+        }                                                                                                               \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL)
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL
 
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                                \
-    /**                                                                                                              \
-     * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.   \
-     *                                                                                                               \
-     * @param dst               [in] Pointer on local device of the destination data.                                \
-     * @param src               [in] Pointer on Symmetric memory of the source data.                                 \
-     * @param elem_size         [in] Number of elements in the dest and source arrays.                               \
-     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                             \
-     * @param signal            [in] The value used to update sig_addr.                                              \
-     * @param sig_op            [in] Operation used to update sig_addr with signal.                                  \
-     *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                              \
-     * @param pe                [in] PE number of the remote PE.                                                     \
-     */                                                                                                              \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr, \
-                                                          int32_t signal, int sig_op, int pe)                        \
-    {                                                                                                                \
-        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal_nbi", ACLSHMEMI_OP_PUT_SIGNAL, NBI,       \
-                                              (uint8_t *)dst, (uint8_t *)src, elem_size, sizeof(TYPE), pe, sig_addr, \
-                                              signal, sig_op, 1, 1, g_state_host.default_stream,                     \
-                                              g_state_host.default_block_num);                                       \
-        if (ret < 0) {                                                                                               \
-            SHM_LOG_ERROR("device calling transfer failed");                                                         \
-        }                                                                                                            \
+#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                                    \
+    /**                                                                                                                     \
+     * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.          \
+     *                                                                                                                      \
+     * @param dst               [in] Pointer on local device of the destination data.                                       \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                                        \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                                      \
+     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                                    \
+     * @param signal            [in] The value used to update sig_addr.                                                     \
+     * @param sig_op            [in] Operation used to update sig_addr with signal.                                         \
+     *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                               \
+     * @param pe                [in] PE number of the remote PE.                                                            \
+     */                                                                                                                     \
+    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,  \
+                                                          int32_t signal, int sig_op, int pe)                               \
+    {                                                                                                                       \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal_nbi", ACLSHMEMI_OP_PUT_SIGNAL, NBI,     \
+                                              (uint8_t *)dst, (uint8_t *)src, elem_size, sizeof(TYPE), pe, sig_addr,        \
+                                              signal, sig_op, 1, 1, g_state_host.default_stream,                            \
+                                              g_state_host.default_block_num);                                              \
+        if (ret < 0) {                                                                                                      \
+            SHM_LOG_ERROR("device calling transfer failed");                                                                \
+        }                                                                                                                   \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI)
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI
 
-#define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                                                   \
+#define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                                                \
     /**                                                                                                                \
      * @brief Provide a low latency put capability for single element of most basic types.                             \
      *                                                                                                                 \
@@ -203,16 +203,16 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI)
      * @param value             [in] The element to be put.                                                            \
      * @param pe                [in] The number of the remote PE.                                                      \
      */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_##NAME##_p(TYPE *dst, const TYPE value, int pe)                                          \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_p(TYPE *dst, const TYPE value, int pe)                                    \
     {                                                                                                                  \
-        aclshmemi_prepare_and_post_rma_##NAME##_p("aclshmem_" #NAME "_p", (uint8_t *)dst, value, pe,                         \
+        aclshmemi_prepare_and_post_rma_##NAME##_p("aclshmem_" #NAME "_p", (uint8_t *)dst, value, pe,                   \
                                                g_state_host.default_stream, g_state_host.default_block_num);           \
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P)
 #undef ACLSHMEM_TYPENAME_P
 
-#define ACLSHMEM_TYPENAME_G(NAME, TYPE)                                                                                   \
+#define ACLSHMEM_TYPENAME_G(NAME, TYPE)                                                                                \
     /**                                                                                                                \
      * @brief Provide a low latency get single element of most basic types.                                            \
      *                                                                                                                 \
@@ -220,18 +220,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P)
      * @param pe                [in] The number of the remote PE.                                                      \
      * @return A single element of type specified in the input pointer.                                                \
      */                                                                                                                \
-    ACLSHMEM_HOST_API TYPE aclshmem_##NAME##_g(TYPE *src, int32_t pe)                                                        \
+    ACLSHMEM_HOST_API TYPE aclshmem_##NAME##_g(TYPE *src, int32_t pe)                                                  \
     {                                                                                                                  \
         TYPE value {};                                                                                                 \
-        auto ptr = aclshmem_ptr(src, pe);                                                                                 \
+        auto ptr = aclshmem_ptr(src, pe);                                                                              \
         if (ptr == nullptr) {                                                                                          \
-            SHM_LOG_ERROR("aclshmem_g failed");                                                                           \
+            SHM_LOG_ERROR("aclshmem_g failed");                                                                        \
             return value;                                                                                              \
         }                                                                                                              \
         int ret =                                                                                                      \
             aclrtMemcpy(&value, sizeof(TYPE), reinterpret_cast<void *>(ptr), sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST); \
         if (ret != 0) {                                                                                                \
-            SHM_LOG_ERROR("aclshmem_g failed");                                                                           \
+            SHM_LOG_ERROR("aclshmem_g failed");                                                                        \
         }                                                                                                              \
         return value;                                                                                                  \
     }

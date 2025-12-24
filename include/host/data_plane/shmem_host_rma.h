@@ -35,7 +35,7 @@ enum {
 ACLSHMEM_HOST_API void* aclshmem_ptr(void *ptr, int pe);
 #define shmem_ptr aclshmem_ptr
 
-#define ACLSHMEM_TYPE_PUT(NAME, TYPE)                                                                                    \
+#define ACLSHMEM_TYPE_PUT(NAME, TYPE)                                                                                 \
     /**                                                                                                               \
     * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.      \
     *                                                                                                                 \
@@ -61,7 +61,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
 #define shmem_put_char_mem aclshmem_put_char_mem
 #undef ACLSHMEM_TYPE_PUT
 
-#define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                                \
+#define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                             \
     /**                                                                                                               \
     * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.     \
     *                                                                                                                 \
@@ -90,7 +90,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
 
 #undef ACLSHMEM_TYPE_PUT_NBI
 
-#define ACLSHMEM_TYPE_GET(NAME, TYPE)                                                                                    \
+#define ACLSHMEM_TYPE_GET(NAME, TYPE)                                                                                 \
     /**                                                                                                               \
     * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the  \
     *   local PE.                                                                                                     \
@@ -119,7 +119,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
 
 #undef ACLSHMEM_TYPE_GET
 
-#define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE)                                                                                \
+#define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE)                                                                             \
     /**                                                                                                               \
     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the \
     * local PE.                                                                                                       \
@@ -148,7 +148,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 
 #undef ACLSHMEM_TYPE_GET_NBI
 
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                                     \
+#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                                  \
     /**                                                                                                               \
     * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.      \
     *                                                                                                                 \
@@ -158,10 +158,10 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                               \
     * @param signal            [in] The value used to update sig_addr.                                                \
     * @param sig_op            [in] Operation used to update sig_addr with signal.                                    \
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                           \
+    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
     * @param pe                [in] PE number of the remote PE.                                                       \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE* dst, TYPE* src, size_t elem_size,                         \
+    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE* dst, TYPE* src, size_t elem_size,                   \
                                                         uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
     
 
@@ -179,7 +179,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
 #define shmem_put_char_mem_signal aclshmem_put_char_mem_signal
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL
 
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                                 \
+#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                              \
     /**                                                                                                               \
     * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.     \
     *                                                                                                                 \
@@ -189,10 +189,10 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                               \
     * @param signal            [in] The value used to update sig_addr.                                                \
     * @param sig_op            [in] Operation used to update sig_addr with signal.                                    \
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                           \
+    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
     * @param pe                [in] PE number of the remote PE.                                                       \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,                     \
+    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,               \
                                                         uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
     
 
@@ -210,7 +210,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
 #define shmem_put_char_mem_signal_nbi aclshmem_put_char_mem_signal_nbi
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI
 
-#define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                        \
+#define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                     \
     /**                                                                                     \
     * @brief Provide a low latency put capability for single element of most basic types.   \
     *                                                                                       \
@@ -235,7 +235,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
 #define shmem_char_p aclshmem_char_p
 #undef ACLSHMEM_TYPENAME_P
 
-#define ACLSHMEM_TYPENAME_G(NAME, TYPE)                                                        \
+#define ACLSHMEM_TYPENAME_G(NAME, TYPE)                                                     \
     /**                                                                                     \
     * @brief Provide a low latency get single element of most basic types.                  \
     *                                                                                       \

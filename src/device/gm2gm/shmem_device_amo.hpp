@@ -13,8 +13,8 @@
 #include "kernel_operator.h"
 #include "shmemi_device_cc.h"
 
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                         \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                          \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                      \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                    \
     {                                                                                                              \
         /* ROCE */                                                                                                 \
         /* RDMA */                                                                                                 \
@@ -22,14 +22,14 @@
         dcci_atomic();                                                                                             \
         dsb_all();                                                                                                 \
         set_st_atomic_cfg(ATOMIC_TYPE, ATOMIC_SUM);                                                                \
-        st_atomic<TYPE>(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                                 \
+        st_atomic<TYPE>(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                              \
         dcci_atomic();                                                                                             \
     }
 
 ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
 
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                   \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                          \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                    \
     {                                                                                                              \
         /* ROCE */                                                                                                 \
         /* RDMA */                                                                                                 \
@@ -37,7 +37,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
         dcci_atomic();                                                                                             \
         dsb_all();                                                                                                 \
         set_st_atomic_cfg(ATOMIC_TYPE, ATOMIC_SUM);                                                                \
-        st_atomic(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                                       \
+        st_atomic(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                                    \
         dcci_atomic();                                                                                             \
     }
 

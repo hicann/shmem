@@ -28,7 +28,7 @@ extern void test_finalize(aclrtStream stream, int device_id);
     extern void test_atomic_add_##NAME##_do(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ATOMIC_ADD_FUNC);
 
-#define TEST_ACLSHMEM_ATOMIC_ADD_HOST(NAME, TYPE)                                                                        \
+#define TEST_ACLSHMEM_ATOMIC_ADD_HOST(NAME, TYPE)                                                                     \
     static void test_atomic_add_##NAME##_host(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size) \
     {                                                                                                                 \
         size_t messageSize = 64;                                                                                      \
@@ -40,12 +40,12 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ATOMIC_ADD_FUNC);
             xHost[i] = rank_id + 1;                                                                                   \
         }                                                                                                             \
                                                                                                                       \
-        uint8_t *ptr = (uint8_t *)aclshmem_malloc(totalSize);                                                            \
+        uint8_t *ptr = (uint8_t *)aclshmem_malloc(totalSize);                                                         \
         ASSERT_EQ(aclrtMemcpy(ptr + rank_id * messageSize, messageSize,                                               \
             xHost, messageSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);                                                       \
                                                                                                                       \
         uint32_t block_dim = 3;                                                                                       \
-        test_atomic_add_##NAME##_do(block_dim, stream, (uint8_t *)ptr, util_get_ffts_config());                     \
+        test_atomic_add_##NAME##_do(block_dim, stream, (uint8_t *)ptr, util_get_ffts_config());                       \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                 \
                                                                                                                       \
         std::string p_name = "[Process " + std::to_string(rank_id) + "] ";                                            \
@@ -61,17 +61,17 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ATOMIC_ADD_FUNC);
     }
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD_HOST);
 
-#define TEST_CLEANUP_AND_EXIT(rank_id, stream, device_id)                                          \
+#define TEST_CLEANUP_AND_EXIT(rank_id, stream, device_id)                                           \
     do {                                                                                            \
-        std::cout << "[TEST] begin to exit...... rank_id: " << (rank_id) << std::endl;                \
+        std::cout << "[TEST] begin to exit...... rank_id: " << (rank_id) << std::endl;              \
         test_finalize(stream, device_id);                                                           \
         if (::testing::Test::HasFailure()) {                                                        \
             exit(1);                                                                                \
         }                                                                                           \
     } while (0)
 
-#define TEST_ACLSHMEM_ATOMIC_ADD(NAME, TYPE)                                                           \
-    void test_aclshmem_atomic_add_##NAME##_mem(int rank_id, int n_ranks, uint64_t local_mem_size)      \
+#define TEST_ACLSHMEM_ATOMIC_ADD(NAME, TYPE)                                                        \
+    void test_aclshmem_atomic_add_##NAME##_mem(int rank_id, int n_ranks, uint64_t local_mem_size)   \
     {                                                                                               \
         int32_t device_id = rank_id % test_gnpu_num + test_first_npu;                               \
         aclrtStream stream;                                                                         \
@@ -87,12 +87,12 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD_HOST);
     }
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD);
 
-#define TEST_ATOMIC_ADD_API(NAME, TYPE)                                                    \
-    TEST(TestMemApi, TestShmemAtomicAdd##NAME##Mem)                                        \
-    {                                                                                      \
-        const int processCount = test_gnpu_num;                                            \
-        uint64_t local_mem_size = 1024UL * 1024UL * 64;                                    \
-        test_mutil_task(test_aclshmem_atomic_add_##NAME##_mem, local_mem_size, processCount); \
+#define TEST_ATOMIC_ADD_API(NAME, TYPE)                                                         \
+    TEST(TestMemApi, TestShmemAtomicAdd##NAME##Mem)                                             \
+    {                                                                                           \
+        const int processCount = test_gnpu_num;                                                 \
+        uint64_t local_mem_size = 1024UL * 1024UL * 64;                                         \
+        test_mutil_task(test_aclshmem_atomic_add_##NAME##_mem, local_mem_size, processCount);   \
     }
 
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ATOMIC_ADD_API);

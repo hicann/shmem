@@ -16,9 +16,9 @@ constexpr uint64_t MESSAGE_SIZE = 64;
 #define ATOMIC_ADD_TEST_KERNEL(NAME, TYPE)                                                              \
     extern "C" __global__ __aicore__ void test_atomic_add_##NAME##_kernel(GM_ADDR gva, uint64_t config) \
     {                                                                                                   \
-        util_set_ffts_config(config);                                                                 \
-        int64_t rank = aclshmem_my_pe();                                                                   \
-        int64_t rank_size = aclshmem_n_pes();                                                              \
+        util_set_ffts_config(config);                                                                   \
+        int64_t rank = aclshmem_my_pe();                                                                \
+        int64_t rank_size = aclshmem_n_pes();                                                           \
         GM_ADDR dst_addr;                                                                               \
                                                                                                         \
         for (int64_t peer = 0; peer < rank_size; peer++) {                                              \
@@ -27,10 +27,10 @@ constexpr uint64_t MESSAGE_SIZE = 64;
             }                                                                                           \
             dst_addr = gva + rank * MESSAGE_SIZE;                                                       \
             if (AscendC::GetSubBlockIdx() == 0) {                                                       \
-                aclshmem_##NAME##_atomic_add((__gm__ TYPE *)dst_addr, rank + 1, peer);                     \
+                aclshmem_##NAME##_atomic_add((__gm__ TYPE *)dst_addr, rank + 1, peer);                  \
             }                                                                                           \
         }                                                                                               \
-        aclshmem_barrier_all();                                                                            \
+        aclshmem_barrier_all();                                                                         \
     }
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_KERNEL(ATOMIC_ADD_TEST_KERNEL);
 

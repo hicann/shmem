@@ -11,71 +11,71 @@
 #include "shmem.h"
 #include "unittest/utils/func_type.h"
 
-#define KERNEL_UB_PUT_NUM_NON_CONTIGUOUS(NAME, TYPE)                                                                  \
-    class kernel_ub_##NAME##_put_num_non_contiguous {                                                                 \
-    public:                                                                                                           \
-        __aicore__ inline kernel_ub_##NAME##_put_num_non_contiguous()                                                 \
-        {                                                                                                             \
-        }                                                                                                             \
-        __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)                                                         \
-        {                                                                                                             \
-            gva_gm = (__gm__ TYPE *)gva;                                                                              \
-            dev_gm = (__gm__ TYPE *)dev;                                                                              \
-                                                                                                                      \
+#define KERNEL_UB_PUT_NUM_NON_CONTIGUOUS(NAME, TYPE)                                                                     \
+    class kernel_ub_##NAME##_put_num_non_contiguous {                                                                    \
+    public:                                                                                                              \
+        __aicore__ inline kernel_ub_##NAME##_put_num_non_contiguous()                                                    \
+        {                                                                                                                \
+        }                                                                                                                \
+        __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)                                                            \
+        {                                                                                                                \
+            gva_gm = (__gm__ TYPE *)gva;                                                                                 \
+            dev_gm = (__gm__ TYPE *)dev;                                                                                 \
+                                                                                                                         \
             rank      = aclshmem_my_pe();                                                                                \
             rank_size = aclshmem_n_pes();                                                                                \
-                                                                                                                      \
-            /* set GM Buffer */                                                                                       \
-            src_gm.SetGlobalBuffer(dev_gm);                                                                           \
-            dst_gm.SetGlobalBuffer(gva_gm);                                                                           \
-                                                                                                                      \
-            /* 1x4096 Bytes Buffer */                                                                                 \
-            pipe.InitBuffer(buf_queue, 1, 4096);                                                                      \
-        }                                                                                                             \
-        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                       \
-        {                                                                                                             \
-            util_set_ffts_config(config);                                                                           \
-            AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                    \
-            uintptr_t addr                        = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);           \
-            __ubuf__ TYPE *buf                    = (__ubuf__ TYPE *)addr;                                            \
-            AscendC::DataCopy(buf_tensor, src_gm, repeat *length);                                                    \
-                                                                                                                      \
-            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                               \
-            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                              \
-                                                                                                                      \
-            non_contiguous_copy_param copy_params;                                                                    \
-            /* Test all overloaded interfaces, divide task into 4 pieces. */                                          \
-            int task_repeat    = repeat / 4;                                                                          \
-            copy_params.repeat = task_repeat / 2; /* Only copy even lines. */                                         \
-            copy_params.length = length;                                                                              \
-            copy_params.src_ld = 2 * length;                                                                          \
-            copy_params.dst_ld = length;                                                                              \
-                                                                                                                      \
-            int src_offset = task_repeat * length;                                                                    \
-            int dst_offset = task_repeat / 2 * length;                                                                \
+                                                                                                                         \
+            /* set GM Buffer */                                                                                          \
+            src_gm.SetGlobalBuffer(dev_gm);                                                                              \
+            dst_gm.SetGlobalBuffer(gva_gm);                                                                              \
+                                                                                                                         \
+            /* 1x4096 Bytes Buffer */                                                                                    \
+            pipe.InitBuffer(buf_queue, 1, 4096);                                                                         \
+        }                                                                                                                \
+        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                          \
+        {                                                                                                                \
+            util_set_ffts_config(config);                                                                                \
+            AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                       \
+            uintptr_t addr                        = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);              \
+            __ubuf__ TYPE *buf                    = (__ubuf__ TYPE *)addr;                                               \
+            AscendC::DataCopy(buf_tensor, src_gm, repeat *length);                                                       \
+                                                                                                                         \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                  \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                 \
+                                                                                                                         \
+            non_contiguous_copy_param copy_params;                                                                       \
+            /* Test all overloaded interfaces, divide task into 4 pieces. */                                             \
+            int task_repeat    = repeat / 4;                                                                             \
+            copy_params.repeat = task_repeat / 2; /* Only copy even lines. */                                            \
+            copy_params.length = length;                                                                                 \
+            copy_params.src_ld = 2 * length;                                                                             \
+            copy_params.dst_ld = length;                                                                                 \
+                                                                                                                         \
+            int src_offset = task_repeat * length;                                                                       \
+            int dst_offset = task_repeat / 2 * length;                                                                   \
             aclshmem_mte_put_mem_nbi(dst_gm[dst_offset * 0], buf_tensor[src_offset * 0], copy_params,                    \
-                                  (rank + 1) % rank_size, EVENT_ID0);                                                 \
+                                  (rank + 1) % rank_size, EVENT_ID0);                                                    \
             aclshmem_mte_put_mem_nbi(gva_gm + dst_offset * 1, buf + src_offset * 1, copy_params, (rank + 1) % rank_size, \
-                                  EVENT_ID0);                                                                         \
+                                  EVENT_ID0);                                                                            \
             aclshmem_put_##NAME##_mem_nbi(dst_gm[dst_offset * 2], buf_tensor[src_offset * 2], copy_params,               \
-                                       (rank + 1) % rank_size);                                                       \
+                                       (rank + 1) % rank_size);                                                          \
             aclshmem_put_##NAME##_mem_nbi(gva_gm + dst_offset * 3, buf + src_offset * 3, copy_params,                    \
-                                       (rank + 1) % rank_size);                                                       \
-                                                                                                                      \
+                                       (rank + 1) % rank_size);                                                          \
+                                                                                                                         \
             aclshmemx_barrier_all_vec();                                                                                 \
-            buf_queue.FreeTensor(buf_tensor);                                                                         \
-        }                                                                                                             \
-                                                                                                                      \
-    private:                                                                                                          \
-        AscendC::TPipe pipe;                                                                                          \
-        AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;                                                        \
-                                                                                                                      \
-        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                   \
-        __gm__ TYPE *gva_gm;                                                                                          \
-        __gm__ TYPE *dev_gm;                                                                                          \
-                                                                                                                      \
-        int64_t rank;                                                                                                 \
-        int64_t rank_size;                                                                                            \
+            buf_queue.FreeTensor(buf_tensor);                                                                            \
+        }                                                                                                                \
+                                                                                                                         \
+    private:                                                                                                             \
+        AscendC::TPipe pipe;                                                                                             \
+        AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;                                                           \
+                                                                                                                         \
+        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                      \
+        __gm__ TYPE *gva_gm;                                                                                             \
+        __gm__ TYPE *dev_gm;                                                                                             \
+                                                                                                                         \
+        int64_t rank;                                                                                                    \
+        int64_t rank_size;                                                                                               \
     }
 
 ACLSHMEM_FUNC_TYPE_KERNEL(KERNEL_UB_PUT_NUM_NON_CONTIGUOUS);
@@ -100,70 +100,70 @@ ACLSHMEM_FUNC_TYPE_KERNEL(UB_PUT_NUM_NON_CONTIGUOUS_TEST);
 
 ACLSHMEM_FUNC_TYPE_KERNEL(TEST_UB_NON_CONTIGUOUS_PUT);
 
-#define KERNEL_UB_GET_NUM_NON_CONTIGUOUS(NAME, TYPE)                                                                  \
-    class kernel_ub_##NAME##_get_num_non_contiguous {                                                                 \
-    public:                                                                                                           \
-        __aicore__ inline kernel_ub_##NAME##_get_num_non_contiguous()                                                 \
-        {                                                                                                             \
-        }                                                                                                             \
-        __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)                                                         \
-        {                                                                                                             \
-            gva_gm = (__gm__ TYPE *)gva;                                                                              \
-            dev_gm = (__gm__ TYPE *)dev;                                                                              \
-                                                                                                                      \
+#define KERNEL_UB_GET_NUM_NON_CONTIGUOUS(NAME, TYPE)                                                                     \
+    class kernel_ub_##NAME##_get_num_non_contiguous {                                                                    \
+    public:                                                                                                              \
+        __aicore__ inline kernel_ub_##NAME##_get_num_non_contiguous()                                                    \
+        {                                                                                                                \
+        }                                                                                                                \
+        __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)                                                            \
+        {                                                                                                                \
+            gva_gm = (__gm__ TYPE *)gva;                                                                                 \
+            dev_gm = (__gm__ TYPE *)dev;                                                                                 \
+                                                                                                                         \
             rank      = aclshmem_my_pe();                                                                                \
             rank_size = aclshmem_n_pes();                                                                                \
-                                                                                                                      \
-            /* set GM Buffer */                                                                                       \
-            src_gm.SetGlobalBuffer(gva_gm);                                                                           \
-            dst_gm.SetGlobalBuffer(dev_gm);                                                                           \
-                                                                                                                      \
-            /* 1x4096 Bytes Buffer */                                                                                 \
-            pipe.InitBuffer(buf_queue, 1, 4096);                                                                      \
-        }                                                                                                             \
-        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                       \
-        {                                                                                                             \
-            util_set_ffts_config(config);                                                                           \
-            AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                    \
-            uintptr_t addr                        = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);           \
-            __ubuf__ TYPE *buf                    = (__ubuf__ TYPE *)addr;                                            \
-                                                                                                                      \
-            non_contiguous_copy_param copy_params;                                                                    \
-            /* Test all overloaded interfaces, divide task into 4 pieces. */                                          \
-            int task_repeat    = repeat / 4;                                                                          \
-            copy_params.repeat = task_repeat / 2; /* Only copy even lines. */                                         \
-            copy_params.length = length;                                                                              \
-            copy_params.src_ld = 2 * length;                                                                          \
-            copy_params.dst_ld = length;                                                                              \
-                                                                                                                      \
-            int src_offset = task_repeat * length;                                                                    \
-            int dst_offset = task_repeat / 2 * length;                                                                \
+                                                                                                                         \
+            /* set GM Buffer */                                                                                          \
+            src_gm.SetGlobalBuffer(gva_gm);                                                                              \
+            dst_gm.SetGlobalBuffer(dev_gm);                                                                              \
+                                                                                                                         \
+            /* 1x4096 Bytes Buffer */                                                                                    \
+            pipe.InitBuffer(buf_queue, 1, 4096);                                                                         \
+        }                                                                                                                \
+        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                          \
+        {                                                                                                                \
+            util_set_ffts_config(config);                                                                                \
+            AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                       \
+            uintptr_t addr                        = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);              \
+            __ubuf__ TYPE *buf                    = (__ubuf__ TYPE *)addr;                                               \
+                                                                                                                         \
+            non_contiguous_copy_param copy_params;                                                                       \
+            /* Test all overloaded interfaces, divide task into 4 pieces. */                                             \
+            int task_repeat    = repeat / 4;                                                                             \
+            copy_params.repeat = task_repeat / 2; /* Only copy even lines. */                                            \
+            copy_params.length = length;                                                                                 \
+            copy_params.src_ld = 2 * length;                                                                             \
+            copy_params.dst_ld = length;                                                                                 \
+                                                                                                                         \
+            int src_offset = task_repeat * length;                                                                       \
+            int dst_offset = task_repeat / 2 * length;                                                                   \
             aclshmem_mte_get_mem_nbi(buf + dst_offset * 0, gva_gm + src_offset * 0, copy_params, (rank + 1) % rank_size, \
-                                  EVENT_ID0);                                                                         \
+                                  EVENT_ID0);                                                                            \
             aclshmem_mte_get_mem_nbi(buf_tensor[dst_offset * 1], src_gm[src_offset * 1], copy_params,                    \
-                                  (rank + 1) % rank_size, EVENT_ID0);                                                 \
+                                  (rank + 1) % rank_size, EVENT_ID0);                                                    \
             aclshmem_get_##NAME##_mem_nbi(buf + dst_offset * 2, gva_gm + src_offset * 2, copy_params,                    \
-                                       (rank + 1) % rank_size);                                                       \
+                                       (rank + 1) % rank_size);                                                          \
             aclshmem_get_##NAME##_mem_nbi(buf_tensor[dst_offset * 3], src_gm[src_offset * 3], copy_params,               \
-                                       (rank + 1) % rank_size);                                                       \
-                                                                                                                      \
-            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                               \
-            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                              \
-                                                                                                                      \
-            AscendC::DataCopy(dst_gm, buf_tensor, repeat *length);                                                    \
+                                       (rank + 1) % rank_size);                                                          \
+                                                                                                                         \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                  \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                 \
+                                                                                                                         \
+            AscendC::DataCopy(dst_gm, buf_tensor, repeat *length);                                                       \
             aclshmemx_barrier_all_vec();                                                                                 \
-            buf_queue.FreeTensor(buf_tensor);                                                                         \
-        }                                                                                                             \
-                                                                                                                      \
-    private:                                                                                                          \
-        AscendC::TPipe pipe;                                                                                          \
-        AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;                                                        \
-        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                   \
-        __gm__ TYPE *gva_gm;                                                                                          \
-        __gm__ TYPE *dev_gm;                                                                                          \
-                                                                                                                      \
-        int64_t rank;                                                                                                 \
-        int64_t rank_size;                                                                                            \
+            buf_queue.FreeTensor(buf_tensor);                                                                            \
+        }                                                                                                                \
+                                                                                                                         \
+    private:                                                                                                             \
+        AscendC::TPipe pipe;                                                                                             \
+        AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;                                                           \
+        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                      \
+        __gm__ TYPE *gva_gm;                                                                                             \
+        __gm__ TYPE *dev_gm;                                                                                             \
+                                                                                                                         \
+        int64_t rank;                                                                                                    \
+        int64_t rank_size;                                                                                               \
     }
 
 ACLSHMEM_FUNC_TYPE_KERNEL(KERNEL_UB_GET_NUM_NON_CONTIGUOUS);

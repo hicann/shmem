@@ -14,7 +14,7 @@
 #include "device/gm2gm/engine/shmem_device_mte.h"
 #include "gm2gm/shmem_device_amo.hpp"
 
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                         \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                      \
     /**                                                                                                            \
      * @brief Asynchronous interface. Perform contiguous data atomic add opeartion                                 \
               on symmetric memory from the specified PE to address on the local PE.                                \
@@ -29,7 +29,7 @@
 
 ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
 
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                   \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
     /**                                                                                                            \
      * @brief Asynchronous interface. Perform contiguous data atomic add opeartion on                              \
               symmetric memory from the specified PE to address on the local PE.                                   \

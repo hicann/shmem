@@ -34,7 +34,7 @@ constexpr int input_length = 32;
     static void TestUB##NAME##NonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t rank_id,        \
                                                   uint32_t rank_size)                                        \
     {                                                                                                        \
-        int rank_flag = rank_id * 10; /* Used as input data */                                                \
+        int rank_flag = rank_id * 10; /* Used as input data */                                               \
         int total_size = input_repeat * input_length;                                                        \
         size_t input_size = total_size * sizeof(TYPE);                                                       \
                                                                                                              \
@@ -50,13 +50,13 @@ constexpr int input_length = 32;
         ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0); \
                                                                                                              \
         uint32_t block_dim = 1;                                                                              \
-        void *ptr = aclshmem_malloc(total_size * sizeof(TYPE));                                                 \
-        test_ub_##NAME##_non_contiguous_put(block_dim, stream, util_get_ffts_config(), (uint8_t *)ptr,     \
+        void *ptr = aclshmem_malloc(total_size * sizeof(TYPE));                                              \
+        test_ub_##NAME##_non_contiguous_put(block_dim, stream, util_get_ffts_config(), (uint8_t *)ptr,       \
                                             (uint8_t *)dev_ptr, input_repeat, input_length);                 \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                        \
                                                                                                              \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);     \
-        test_ub_##NAME##_non_contiguous_get(block_dim, stream, util_get_ffts_config(), (uint8_t *)ptr,     \
+        test_ub_##NAME##_non_contiguous_get(block_dim, stream, util_get_ffts_config(), (uint8_t *)ptr,       \
                                             (uint8_t *)dev_ptr, input_repeat / 2, input_length);             \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                        \
                                                                                                              \
@@ -75,15 +75,15 @@ constexpr int input_length = 32;
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_UB_NON_CONTIGUOUS_PUT_GET);
 
-#define TEST_ACLSHMEM_UB_NON_CONTIGUOUS(NAME, TYPE)                                                        \
-    void test_aclshmem_ub_##NAME##_non_contiguous(int rank_id, int n_ranks, uint64_t local_mem_size)       \
+#define TEST_ACLSHMEM_UB_NON_CONTIGUOUS(NAME, TYPE)                                                     \
+    void test_aclshmem_ub_##NAME##_non_contiguous(int rank_id, int n_ranks, uint64_t local_mem_size)    \
     {                                                                                                   \
         int32_t device_id = rank_id % test_gnpu_num + test_first_npu;                                   \
         aclrtStream stream;                                                                             \
         test_init(rank_id, n_ranks, local_mem_size, &stream);                                           \
         ASSERT_NE(stream, nullptr);                                                                     \
                                                                                                         \
-        TestUB##NAME##NonContiguousPutGet(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks); \
+        TestUB##NAME##NonContiguousPutGet(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks);      \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                    \
         test_finalize(stream, device_id);                                                               \
         if (::testing::Test::HasFailure()) {                                                            \
@@ -93,11 +93,11 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_UB_NON_CONTIGUOUS_PUT_GET);
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_ACLSHMEM_UB_NON_CONTIGUOUS)
 
-#define TESTAPI(NAME, TYPE)                                                                   \
-    TEST(TestMemApi, TestShmemUB##NAME##NonContiguous)                                        \
-    {                                                                                         \
-        const int processCount = test_gnpu_num;                                               \
-        uint64_t local_mem_size = 1024UL * 1024UL * 1024;                                     \
+#define TESTAPI(NAME, TYPE)                                                                      \
+    TEST(TestMemApi, TestShmemUB##NAME##NonContiguous)                                           \
+    {                                                                                            \
+        const int processCount = test_gnpu_num;                                                  \
+        uint64_t local_mem_size = 1024UL * 1024UL * 1024;                                        \
         test_mutil_task(test_aclshmem_ub_##NAME##_non_contiguous, local_mem_size, processCount); \
     }
 
