@@ -29,15 +29,11 @@ SHMEM 是面向昇腾平台的多机多卡内存通信库，通过封装Host侧�
 int32_t ret = shmem_set_conf_store_tls(false, NULL, 0);
 - 提供安全加固指南，包括权限配置、加密套件选择等企业级安全策略。
 
-**4. 昇腾生态适配**
-- 支持Atlas 800I/A800T A2/A3系列硬件，兼容aarch64/x86架构
-- 依赖CANN 8.1.RC1+环境，与Ascend处理器加速能力深度协同。
-
-**5. 多语言与扩展支持**
+**4. 多语言与扩展支持**
 - 提供C++原生接口与Python封装，满足不同开发场景需求
 - 模块化设计支持通信后端（MTE/xDMA）动态切换，便于功能扩展。
 
-**6. 丰富场景样例**
+**5. 丰富场景样例**
 
 覆盖基础通信到复杂算子融合场景：
 - rdma_demo：RDMA协议通信演示
@@ -78,7 +74,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 git clone https://gitcode.com/cann/shmem.git
 cd shmem
 
-# 编译核心库（默认包含示例和测试）
+# 编译核心库（默认不包含xDMA能力，也不包含示例和测试）
 bash scripts/build.sh
 
 # 配置环境变量
