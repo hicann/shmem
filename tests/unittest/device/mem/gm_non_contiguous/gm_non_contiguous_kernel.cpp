@@ -55,11 +55,11 @@ const int ub_size = 256;
                                                                                                                 \
             int src_offset = task_repeat * length;                                                              \
             int dst_offset = task_repeat / 2 * length;                                                          \
-            aclshmem_mte_put_mem_nbi(gva_gm + dst_offset * 0, dev_gm + src_offset * 0, buf, (uint32_t)ub_size,  \
+            aclshmemx_mte_put_mem_nbi(gva_gm + dst_offset * 0, dev_gm + src_offset * 0, buf, (uint32_t)ub_size, \
                                   copy_params, (rank + 1) % rank_size, EVENT_ID0);                              \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                         \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                        \
-            aclshmem_mte_put_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params,   \
+            aclshmemx_mte_put_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params,  \
                                   (rank + 1) % rank_size, EVENT_ID0);                                           \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                         \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                        \
@@ -147,11 +147,11 @@ ACLSHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
             int src_offset = task_repeat * length;                                                              \
             int dst_offset = task_repeat / 2 * length;                                                          \
                                                                                                                 \
-            aclshmem_mte_get_mem_nbi(dev_gm + dst_offset * 0, gva_gm + src_offset * 0, buf, (uint32_t)ub_size,  \
+            aclshmemx_mte_get_mem_nbi(dev_gm + dst_offset * 0, gva_gm + src_offset * 0, buf, (uint32_t)ub_size, \
                                   copy_params, (rank + 1) % rank_size, EVENT_ID0);                              \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                         \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                        \
-            aclshmem_mte_get_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params,   \
+            aclshmemx_mte_get_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params,  \
                                   (rank + 1) % rank_size, EVENT_ID0);                                           \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                         \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                        \

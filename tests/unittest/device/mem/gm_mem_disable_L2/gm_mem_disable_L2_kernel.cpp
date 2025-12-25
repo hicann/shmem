@@ -41,10 +41,10 @@ public:
         AscendC::LocalTensor<int8_t> buf_tensor = buf_queue.AllocTensor<int8_t>();
         uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);
         __ubuf__ int8_t *buf = (__ubuf__ int8_t *)addr;
-        aclshmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size * length / 4U, rank, EVENT_ID0);
+        aclshmemx_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size * length / 4U, rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        aclshmem_mte_put_mem_nbi(dst_gm[rank_size * length / 4U], src_gm[rank_size * length / 4U], buf_tensor,
+        aclshmemx_mte_put_mem_nbi(dst_gm[rank_size * length / 4U], src_gm[rank_size * length / 4U], buf_tensor,
             rank_size * length / 4U, rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
@@ -109,11 +109,11 @@ public:
         __ubuf__ int8_t *buf = (__ubuf__ int8_t *)addr;
 
         for (int i = 0; i < rank_size / 2U; i++) {
-            aclshmem_mte_get_mem_nbi(dev_gm + length * i, gva_gm, buf, (uint32_t)ub_size,
+            aclshmemx_mte_get_mem_nbi(dev_gm + length * i, gva_gm, buf, (uint32_t)ub_size,
                 length / 2U, i % rank_size, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-            aclshmem_mte_get_mem_nbi(dst_gm[length * i + length / 2U], src_gm, buf_tensor,
+            aclshmemx_mte_get_mem_nbi(dst_gm[length * i + length / 2U], src_gm, buf_tensor,
                 length / 2U, i % rank_size, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
