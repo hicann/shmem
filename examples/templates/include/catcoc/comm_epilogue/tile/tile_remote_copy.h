@@ -65,7 +65,7 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Get> {
         copyParams.length = copyShape.column();
         copyParams.src_ld = srcLayout.stride(0);
         copyParams.dst_ld = dstLayout.stride(0);
-        aclshmem_mte_get_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
+        aclshmemx_mte_get_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
     }
 };
 
@@ -99,7 +99,7 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Put> {
         copyParams.length = copyShape.column();
         copyParams.src_ld = srcLayout.stride(0);
         copyParams.dst_ld = dstLayout.stride(0);
-        aclshmem_mte_put_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
+        aclshmemx_mte_put_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
     }
 };
 

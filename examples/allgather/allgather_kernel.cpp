@@ -72,7 +72,7 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
         int64_t times = 0;
         int64_t flag = 0;
         while (copy_total_size >= copy_ub_size) {
-            aclshmem_mte_put_mem_nbi(gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
+            aclshmemx_mte_put_mem_nbi(gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
                                   input_gm + aivIndex * len_per_core + times * copy_ub_num, tmp_buff, copy_ub_size,
                                   copy_ub_num, my_rank, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
@@ -92,7 +92,7 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
         if (copy_total_size <= 0) {
             return;
         }
-        aclshmem_mte_put_mem_nbi(gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
+        aclshmemx_mte_put_mem_nbi(gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
                               input_gm + aivIndex * len_per_core + times * copy_ub_num, tmp_buff, copy_ub_size,
                               copy_total_size / sizeof(T), my_rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
@@ -163,7 +163,7 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
                 uint32_t copy_num = num_total > copy_ub_num ? copy_ub_num : num_total;
 
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-                aclshmem_mte_get_mem_nbi(output_gm + group_recv_offset + recv_offset,
+                aclshmemx_mte_get_mem_nbi(output_gm + group_recv_offset + recv_offset,
                                       gva_data_gm + group_send_offset + send_offset, buf, copy_ub_size, copy_num, x,
                                       EVENT_ID);
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
@@ -252,7 +252,7 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T *input, _
     if (aivIndex == aivNum - 1) {
         num_per_core = elements - num_per_core * aivIndex;
     }
-    aclshmem_mte_put_mem_nbi(gva_data_gm + gva_offset, input_gm + input_offset, tmp_buff, ub_size, num_per_core, my_rank,
+    aclshmemx_mte_put_mem_nbi(gva_data_gm + gva_offset, input_gm + input_offset, tmp_buff, ub_size, num_per_core, my_rank,
                           EVENT_ID0);
 
     const int64_t core_per_rank = aivNum / pe_size;
@@ -273,7 +273,7 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T *input, _
     if (core_rank_idx == core_per_rank - 1) {
         num_per_core = elements - num_per_core * core_rank_idx;
     }
-    aclshmem_mte_get_mem_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x,
+    aclshmemx_mte_get_mem_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x,
                           EVENT_ID0);
 #endif
 }

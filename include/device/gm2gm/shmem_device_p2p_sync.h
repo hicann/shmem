@@ -19,6 +19,19 @@ extern "C" {
 #endif
 
 /**
+ * @brief The aclshmemx_signal_op operation updates sig_addr with signal using operation sig_op on the specified PE.
+ *        This operation can be used together with aclshmem_signal_wait_until for efficient point-to-point synchronization.
+ * WARNING: Atomicity NOT Guaranteed.
+ *
+ * @param sig_addr              [in] Symmetric address of the signal word to be updated.
+ * @param signal                [in] The value used to update sig_addr.
+ * @param sig_op                [in] Operation used to update sig_addr with signal. Supported operations:
+ *                                   ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+ * @param pe                    [in] PE number of the remote PE.
+ */
+ACLSHMEM_DEVICE void aclshmemx_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe);
+
+/**
  * @brief This routine can be used to implement point-to-point synchronization between PEs or between threads within
  *        the same PE. A call to this routine blocks until the value of sig_addr at the calling PE satisfies the wait
  *        condition specified by the comparison operator, cmp, and comparison value, cmp_val.

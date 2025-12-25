@@ -211,10 +211,10 @@ extern "C" __global__ __aicore__ void rdma_mte_put_bw(uint64_t fftsConfig, GM_AD
             peer = 1;
             int64_t start = AscendC::GetSystemCycle();
             for (int i = 0; i < 10000; i++) {
-                aclshmem_mte_put_mem_nbi(src_addr, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, message_length, peer, copy_event_id);
+                aclshmemx_mte_put_mem_nbi(src_addr, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, message_length, peer, copy_event_id);
             }
             AscendC::PipeBarrier<PIPE_ALL>();
-            aclshmem_mte_put_mem_nbi(gva + rank_size * message_length * 2 + 24, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, sizeof(uint32_t), peer, copy_event_id);
+            aclshmemx_mte_put_mem_nbi(gva + rank_size * message_length * 2 + 24, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, sizeof(uint32_t), peer, copy_event_id);
             while (*(__gm__ uint32_t*)(gva + message_length * rank_size * 2 + 32) != peer + MAGIC_VAL + iter) {
                 dcci_cachelines(gva + message_length * rank_size * 2 + 32, 8);
                 AscendC::GetSystemCycle();
@@ -229,7 +229,7 @@ extern "C" __global__ __aicore__ void rdma_mte_put_bw(uint64_t fftsConfig, GM_AD
                 AscendC::GetSystemCycle();
             }
             AscendC::PipeBarrier<PIPE_ALL>();
-            aclshmem_mte_put_mem_nbi(gva + rank_size * message_length * 2 + 32, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, sizeof(uint32_t), peer, copy_event_id);
+            aclshmemx_mte_put_mem_nbi(gva + rank_size * message_length * 2 + 32, src_addr, reinterpret_cast<__ubuf__ uint8_t*>(copy_ub), copy_ub_size, sizeof(uint32_t), peer, copy_event_id);
         }
     }
 }

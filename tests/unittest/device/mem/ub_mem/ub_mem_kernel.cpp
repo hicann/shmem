@@ -45,8 +45,8 @@
             AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                 \
             AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                \
                                                                                                                         \
-            aclshmem_mte_put_mem_nbi(dst_gm, buf_tensor, local_size, (rank + 1) % rank_size, EVENT_ID0);                \
-            aclshmem_mte_put_mem_nbi(gva_gm + local_size * 1, buf + local_size * 1, local_size, (rank + 1) % rank_size, \
+            aclshmemx_mte_put_mem_nbi(dst_gm, buf_tensor, local_size, (rank + 1) % rank_size, EVENT_ID0);               \
+            aclshmemx_mte_put_mem_nbi(gva_gm + local_size * 1, buf + local_size * 1, local_size, (rank + 1) % rank_size,\
                                   EVENT_ID0);                                                                           \
                                                                                                                         \
             aclshmem_put_##NAME##_mem_nbi(dst_gm[local_size * 2], buf_tensor[local_size * 2], local_size,               \
@@ -119,8 +119,8 @@ ACLSHMEM_FUNC_TYPE_KERNEL(TEST_UB_PUT);
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                      \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                   \
                                                                                                           \
-            aclshmem_mte_get_mem_nbi(buf, gva_gm, local_size, (rank + 1) % rank_size, EVENT_ID0);         \
-            aclshmem_mte_get_mem_nbi(buf_tensor[local_size * 1], src_gm[local_size * 1], local_size,      \
+            aclshmemx_mte_get_mem_nbi(buf, gva_gm, local_size, (rank + 1) % rank_size, EVENT_ID0);        \
+            aclshmemx_mte_get_mem_nbi(buf_tensor[local_size * 1], src_gm[local_size * 1], local_size,     \
                                   (rank + 1) % rank_size, EVENT_ID0);                                     \
                                                                                                           \
             aclshmem_get_##NAME##_mem_nbi(buf + local_size * 2, gva_gm + local_size * 2, local_size,      \
