@@ -21,10 +21,10 @@ public:
     virtual int finalize_device_state() = 0;
     virtual int update_device_state(void* host_ptr, size_t size) = 0;
 
-    virtual int reserve_heap() = 0;
-    virtual int setup_heap() = 0;
-    virtual int remove_heap() = 0;
-    virtual int release_heap() = 0;
+    virtual int reserve_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) = 0;
+    virtual int setup_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) = 0;
+    virtual int remove_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) = 0;
+    virtual int release_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) = 0;
 
     virtual int transport_init() = 0;
     virtual int transport_finalize() = 0;

@@ -26,6 +26,8 @@
 #include "runtime/dev.h"
 #include "runtime/rt_ffts.h"
 
+#include "shmemi_heap_factory.h"
+
 const int IPC_NAME_SIZE = 65;
 
 class aclshmem_symmetric_heap : public aclshmem_symmetric_heap_base {
@@ -76,5 +78,7 @@ private:
     std::vector<int64_t> sdid_list = {};
 };
 
+// 注册DEVICE_SIDE堆实现
+REGISTER_HEAP_CREATOR(DEVICE_SIDE, aclshmem_symmetric_heap);
 
 #endif  // ACLSHMEMI_HEAP_H

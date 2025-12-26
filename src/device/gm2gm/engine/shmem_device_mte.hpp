@@ -15,17 +15,31 @@
 #include "ub2gm/mte/shmemi_device_mte.h"
 #include "shmemi_device_common.h"
 
+ACLSHMEM_DEVICE bool is_host_mem_heap(__gm__ void *ptr)
+{
+    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    if (device_state->host_heap_base == nullptr) {
+        return false;
+    }
+    uint64_t ptr_uint = reinterpret_cast<uint64_t>(ptr);
+    uint64_t base_uint = reinterpret_cast<uint64_t>(device_state->host_heap_base);
+    uint64_t end_uint = base_uint + device_state->heap_size;
+    return (ptr_uint >= base_uint && ptr_uint <= end_uint);
+}
+
 ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe)
 {
     // Get Global State
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
-
+    if (is_host_mem_heap(ptr)) {
+        uint64_t host_heap_offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->host_heap_base);
+        uint64_t remote_host_ptr = reinterpret_cast<uint64_t>(device_state->p2p_host_heap_base[pe]) + host_heap_offset;
+        return reinterpret_cast<__gm__ void *>(remote_host_ptr);
+    }
     // Back to root address
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->heap_base);
-
     // Address translate
     uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->p2p_device_heap_base[pe]) + offset;
-
     return reinterpret_cast<__gm__ void *>(remote_ptr);
 }
 

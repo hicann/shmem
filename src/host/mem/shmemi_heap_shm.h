@@ -7,11 +7,13 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef _HOST_MEM_ACLSHMEMI_SYMMETRIC_HEAP_SHM_H_
-#define _HOST_MEM_ACLSHMEMI_SYMMETRIC_HEAP_SHM_H_
+#ifndef HOST_MEM_SHMEMI_HEAP_SHM_H
+#define HOST_MEM_SHMEMI_HEAP_SHM_H
 #include "host_device/shmem_common_types.h"
 #include "shmemi_heap_base.h"
 #include "acl/acl.h"
+#include "shmemi_heap_factory.h"
+
 class aclshmemi_symmetric_heap : public aclshmem_symmetric_heap_base {
 public:
     aclshmemi_symmetric_heap(int rank_id, int rank_size, int device_id, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
@@ -52,4 +54,6 @@ protected:
     aclrtMemFabricHandle shareable_handle_;
 #endif
 };
+REGISTER_HEAP_CREATOR(HOST_SIDE, aclshmemi_symmetric_heap);
+
 #endif

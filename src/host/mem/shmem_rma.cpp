@@ -15,27 +15,44 @@
 #include "host_device/shmem_common_types.h"
 
 using namespace std;
+
+inline bool check_heap_addr(void *ptr, uint64_t heap_base, size_t heap_size)
+{
+    uint64_t lower_bound = heap_base;
+    uint64_t upper_bound = lower_bound + heap_size;
+    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
+        return false;
+    }
+    return true;
+}
+inline bool is_host_mem_heap(void *ptr)
+{
+    if (g_state.host_heap_base == nullptr) {
+        return false;
+    }
+    return check_heap_addr(ptr, (uint64_t)g_state.host_heap_base, g_state.heap_size);
+}
+
 void *aclshmem_ptr(void *ptr, int32_t pe)
 {
     if (pe < 0 || pe >= aclshmem_n_pes()) {
         SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Ilegal PE !!");
         return nullptr;
     }
-    uint64_t lower_bound = (uint64_t)g_state.heap_base;
-    uint64_t upper_bound = lower_bound + g_state.heap_size;
-    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
+    uint64_t heap_base = is_host_mem_heap(ptr) ? (uint64_t)g_state.host_heap_base : (uint64_t)g_state.heap_base;
+    if (!check_heap_addr(ptr, heap_base, g_state.heap_size)) {
         SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Ilegal Address !!");
         return nullptr;
     }
 
-    uint64_t offset = (uint64_t)ptr - (uint64_t)g_state.heap_base;
-    void *symm_ptr = g_state.p2p_device_heap_base[pe];
+    uint64_t offset = (uint64_t)ptr - heap_base;
+    void *symm_ptr = is_host_mem_heap(ptr) ? g_state.p2p_host_heap_base[pe] : g_state.p2p_device_heap_base[pe];
     if (symm_ptr != nullptr) {
         symm_ptr = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(symm_ptr) + offset);
         return symm_ptr;
     }
     SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe()
-                                           << " g_state.p2p_device_heap_base contains nullptr, Please Check Init Status!!");
+        << " g_state.p2p_" << (is_host_mem_heap(ptr) ? "host" : "device") << "_heap_base contains nullptr, Please Check Init Status!!");
     return nullptr;
 }
 
