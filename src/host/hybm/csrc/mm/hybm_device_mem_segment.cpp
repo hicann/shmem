@@ -43,11 +43,15 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
     }
 
     uint64_t base = 0;
-    totalVirtualSize_ = options_.rankCnt * options_.size;
-    auto ret = drv::HalGvaReserveMemory(&base, totalVirtualSize_, options_.devId, 0ULL);
-    if (ret != 0 || base == 0) {
-        BM_LOG_ERROR("prepare virtual memory size(" << totalVirtualSize_ << ") failed. ret: " << ret);
-        return BM_MALLOC_FAILED;
+    for (uint32_t i = 0; i < options_.rankCnt; i++) {
+        auto ret = drv::HalGvaReserveMemory(&base, options_.size, options_.devId, 0ULL);
+        if (ret != 0 || base == 0) {
+            BM_LOG_ERROR("prepare virtual memory size to (" << totalVirtualSize_ << ") failed. ret: " << ret);
+            return BM_MALLOC_FAILED;
+        }
+        size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+        totalVirtualSize_ += reserveAlignedSize;
+        reservedVirtualAddresses_.emplace_back(base);
     }
 
     globalVirtualAddress_ = reinterpret_cast<uint8_t *>(base);
@@ -72,7 +76,8 @@ Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlic
         return BM_INVALID_PARAM;
     }
 
-    auto localVirtualBase = globalVirtualAddress_ + options_.size * options_.rankId;
+    size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+    auto localVirtualBase = globalVirtualAddress_ + reserveAlignedSize * options_.rankId;
     auto ret = drv::HalGvaAlloc((uint64_t)(localVirtualBase + allocatedSize_), size, 0);
     if (ret != BM_OK) {
         BM_LOG_ERROR("HalGvaAlloc memory failed: " << ret);
@@ -157,8 +162,9 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     BM_LOG_ERROR_RETURN_IT_IF_NOT_OK(ret, "set memory name failed: " << ret);
 
     BM_LOG_ERROR_RETURN_IT_IF_NOT_OK(SetDeviceInfo(options_.devId), "get device info failed.");
-    info.mappingOffset =
-        slice->vAddress_ - (uint64_t)(ptrdiff_t)(globalVirtualAddress_ + options_.size * options_.rankId);
+    size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+    auto localVirtualBase = globalVirtualAddress_ + reserveAlignedSize * options_.rankId;
+    info.mappingOffset = slice->vAddress_ - (uint64_t)(ptrdiff_t)localVirtualBase;
     info.sliceIndex = static_cast<uint32_t>(slice->index_);
     info.deviceId = options_.devId;
     info.pid = pid_;
@@ -265,7 +271,8 @@ Result MemSegmentDevice::Mmap() noexcept
             continue;
         }
 
-        auto remoteAddress = globalVirtualAddress_ + options_.size * im.rankId + im.mappingOffset;
+        size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+        auto remoteAddress = globalVirtualAddress_ + reserveAlignedSize * im.rankId + im.mappingOffset;
         if (mappedMem_.find((uint64_t)remoteAddress) != mappedMem_.end()) {
             BM_LOG_INFO("remote slice on rank(" << im.rankId << ") has maped: " << (void *)remoteAddress);
             continue;
@@ -311,10 +318,11 @@ Result MemSegmentDevice::RemoveImported(const std::vector<uint32_t> &ranks) noex
     }
 
     for (auto &rank : ranks) {
-        uint64_t addr = reinterpret_cast<uint64_t>(globalVirtualAddress_) + options_.size * rank;
+        size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+        uint64_t addr = reinterpret_cast<uint64_t>(globalVirtualAddress_) + reserveAlignedSize * rank;
         auto it = mappedMem_.lower_bound(addr);
         auto st = it;
-        while (it != mappedMem_.end() && (*it) < addr + options_.size) {
+        while (it != mappedMem_.end() && (*it) < addr + reserveAlignedSize) {
             int32_t ret = drv::HalGvaClose((*it), 0);
             if (ret != 0) {
                 BM_LOG_ERROR("HalGvaClose failed " << ret);
@@ -368,10 +376,15 @@ void MemSegmentDevice::FreeMemory() noexcept
     allocatedSize_ = 0;
     sliceCount_ = 0;
     if (globalVirtualAddress_ != nullptr) {
-        auto ret = drv::HalGvaUnreserveMemory((uint64_t)globalVirtualAddress_);
-        if (ret != 0) {
-            BM_LOG_ERROR("HalGvaUnreserveMemory failed: " << ret);
+        for (auto reserved : reservedVirtualAddresses_) {
+            auto ret = drv::HalGvaUnreserveMemory((uint64_t)reserved);
+            if (ret != 0) {
+                BM_LOG_ERROR("HalGvaUnreserveMemory failed: " << ret);
+            }
         }
+
+        reservedVirtualAddresses_.clear();
+        totalVirtualSize_ = 0;
         globalVirtualAddress_ = nullptr;
     }
 }
@@ -507,8 +520,12 @@ void MemSegmentDevice::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t
     auto end = static_cast<const uint8_t *>(addr) + size;
     if (addr >= globalVirtualAddress_ && end < globalVirtualAddress_ + totalVirtualSize_) {
         auto offset = static_cast<const uint8_t *>(addr) - static_cast<const uint8_t *>(globalVirtualAddress_);
-        rankId = offset / options_.size;
-        return;
+        auto reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+        auto alignOffset = offset % reserveAlignedSize;
+        if (alignOffset < options_.size) {
+            rankId = offset / reserveAlignedSize;
+            return;
+        }
     }
 
     BM_LOG_ERROR("input address, size: " << size << " cannot matches rankId.");

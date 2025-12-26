@@ -209,7 +209,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
     ACLSHMEM_CHECK_RET(init_manager->transport_init());
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
-    
+
     // shmem submodules init
     ACLSHMEM_CHECK_RET(memory_manager_initialize(g_state.heap_base, g_state.heap_size));
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
@@ -325,7 +325,7 @@ int32_t aclshmemx_set_log_level(int level)
             level = aclshmem_log::FATAL_LEVEL;
         }
     }
-    
+
     return aclshmem_log::aclshmem_out_logger::Instance().set_log_level(static_cast<aclshmem_log::log_level>(level));
 }
 

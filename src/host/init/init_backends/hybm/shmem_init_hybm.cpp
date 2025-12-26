@@ -178,6 +178,7 @@ int aclshmemi_init_hybm::reserve_heap()
 
 int aclshmemi_init_hybm::reach_info_init(void *&gva)
 {
+    auto aligned = ALIGN_UP(host_state_->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
     for (int32_t i = 0; i < host_state_->npes; i++) {
         hybm_data_op_type reaches_types;
         auto ret = hybm_entity_reach_types(entity_, i, reaches_types, 0);
@@ -186,7 +187,7 @@ int aclshmemi_init_hybm::reach_info_init(void *&gva)
             return ACLSHMEM_SMEM_ERROR;
         }
 
-        host_state_->p2p_device_heap_base[i] = (void *)((uintptr_t)gva + host_state_->heap_size * static_cast<uint32_t>(i));
+        host_state_->p2p_device_heap_base[i] = (void *)((uintptr_t)gva + aligned * static_cast<uint32_t>(i));
         if (reaches_types & HYBM_DOP_TYPE_MTE) {
             host_state_->topo_list[i] |= ACLSHMEM_TRANSPORT_MTE;
         }
@@ -295,7 +296,8 @@ int aclshmemi_init_hybm::setup_heap()
         SHM_LOG_ERROR("hybm mmap failed, result: " << ret);
         return ret;
     }
-    host_state_->heap_base = (void *)((uintptr_t)gva_ + host_state_->heap_size * static_cast<uint32_t>(attributes->my_pe));
+    auto aligned = ALIGN_UP(host_state_->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
+    host_state_->heap_base = (void *)((uintptr_t)gva_ + aligned * static_cast<uint32_t>(attributes->my_pe));
     ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->p2p_device_heap_base, host_state_->npes * sizeof(void *)));
     ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->rdma_device_heap_base, host_state_->npes * sizeof(void *)));
     ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->sdma_device_heap_base, host_state_->npes * sizeof(void *)));
@@ -321,7 +323,7 @@ int aclshmemi_init_hybm::setup_heap()
 
 int aclshmemi_init_hybm::remove_heap()
 {
-    hybm_uninit();    
+    hybm_uninit();
     return ACLSHMEM_SUCCESS;
 }
 

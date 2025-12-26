@@ -26,7 +26,7 @@ MemEntityDefault::MemEntityDefault(int id) noexcept : id_(id), initialized(false
 
 MemEntityDefault::~MemEntityDefault()
 {
-    BM_LOG_WARN("Deconstruct MemEntity begin, try to release resource.");
+    BM_LOG_INFO("Deconstruct MemEntity begin, try to release resource.");
     ReleaseResources();
 }
 
