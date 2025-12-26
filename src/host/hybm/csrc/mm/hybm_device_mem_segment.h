@@ -85,6 +85,7 @@ protected:
 
 protected:
     uint8_t *globalVirtualAddress_{nullptr};
+    std::vector<uint64_t> reservedVirtualAddresses_;
     uint64_t totalVirtualSize_{0UL};
     uint64_t allocatedSize_{0UL};
     uint16_t sliceCount_{0};

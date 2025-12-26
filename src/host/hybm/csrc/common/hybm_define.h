@@ -44,6 +44,8 @@ constexpr uint64_t EXPORT_INFO_MAGIC = 0xAABB1234FFFFEEEEUL;
 constexpr uint64_t EXPORT_SLICE_MAGIC = 0xAABB1234FFFFBBBBUL;
 constexpr uint64_t EXPORT_INFO_VERSION = 0x1UL;
 
+constexpr uint64_t DEVMM_HEAP_SIZE = (1UL << 30UL);     // same definition in devmm
+
 inline bool IsVirtualAddressNpu(uint64_t address)
 {
     return (address >= HYBM_DEVICE_VA_START && address < (HYBM_DEVICE_VA_START + HYBM_DEVICE_VA_SIZE));

@@ -187,6 +187,13 @@ TEST(TestInitAPI, TestShmemInit)
     test_mutil_task(test_aclshmem_init, local_mem_size, process_count);
 }
 
+TEST(TestInitAPI, TestShmemInitHugePool)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 38 * 1024UL * 1024UL * 1024;
+    test_mutil_task(test_shmem_init, local_mem_size, process_count);
+}
+
 TEST(TestInitAPI, TestShmemInitErrorInvalidRankId)
 {
     const int process_count = test_gnpu_num;

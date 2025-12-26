@@ -151,7 +151,7 @@ struct aclshmem_handle_t {
 #define ACLSHMEM_CORE_SYNC_COUNTER_SIZE ACLSHMEMI_SYNCBIT_SIZE
 
 // Total extra
-#define ACLSHMEM_EXTRA_SIZE_UNALIGHED SYNC_POOL_SIZE
+#define ACLSHMEM_EXTRA_SIZE_UNALIGHED (SYNC_POOL_SIZE + SYNC_COUNTERS_SIZE)
 #define ACLSHMEM_EXTRA_SIZE ALIGH_TO(ACLSHMEM_EXTRA_SIZE_UNALIGHED, ACLSHMEM_PAGE_SIZE)
 
 // global_state
@@ -161,6 +161,12 @@ constexpr uint64_t GLOBAL_STATE_SIZE = 4UL * 1024UL * 1024UL; // global_state fi
 
 // synchronization
 typedef int32_t aclshmemi_sync_bit[ACLSHMEMI_SYNCBIT_SIZE / sizeof(int32_t)];
+
+// devmm constants reference
+constexpr uint64_t ACLSHMEM_HEAP_ALIGNMENT_SIZE = (1UL << 30UL);     // same definition with DEVMM_HEAP_SIZE
+#ifndef ALIGN_UP
+#define ALIGN_UP(val, al) (((val) + ((al) - 1)) & ~((al) - 1))
+#endif
 
 /**
  * @brief 分组管理配置
