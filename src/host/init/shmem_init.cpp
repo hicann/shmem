@@ -18,6 +18,7 @@
 #include <functional>
 
 #include "acl/acl.h"
+#include "acl/acl_rt.h"
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 
@@ -42,6 +43,7 @@ constexpr int DEFAULT_BLOCK_NUM = 1;
             (DEFAULT_MY_PE),                            /* mype */                      \
             (DEFAULT_N_PES),                            /* npes */                      \
             NULL,                                       /* heap_base */                 \
+            NULL,                                       /* host_heap_base */            \
             NULL,                                       /* p2p_device_heap_base */      \
             NULL,                                       /* rdma_device_heap_base */     \
             NULL,                                       /* sdma_device_heap_base */     \
@@ -184,6 +186,28 @@ int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int64_t local_mem_siz
     return ACLSHMEM_SUCCESS;
 }
 
+bool check_support_d2h()
+{
+#if defined(BACKEND_HYBM)
+    SHM_LOG_WARN("Use BACKEND_HYBM, not support d2h feature");
+    return false;
+#else
+    int32_t major_version = -1;
+    int32_t minor_version = -1;
+    int32_t patch_version = -1;
+    if (aclrtGetVersion(&major_version, &minor_version, &patch_version) != 0) {
+        SHM_LOG_WARN("aclrtGetVersion failed, disable d2h feature");
+        return false;
+    }
+    if (major_version <= 1 && minor_version < 15) {
+        SHM_LOG_WARN("The current AscendCL version is "
+            << major_version << "." << minor_version << "." << patch_version << ", which does not support d2h.");
+        return false;
+    }
+    return true;
+#endif
+}
+
 int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t *attributes)
 {
     int32_t ret;
@@ -212,6 +236,11 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
 
     // shmem submodules init
     ACLSHMEM_CHECK_RET(memory_manager_initialize(g_state.heap_base, g_state.heap_size));
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+    if (check_support_d2h()) {
+        ACLSHMEM_CHECK_RET(init_manager->reserve_heap(HOST_SIDE));
+    }
+#endif
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
     g_state.is_aclshmem_initialized = true;
@@ -231,6 +260,12 @@ int32_t aclshmem_finalize()
     ACLSHMEM_CHECK_RET(init_manager->remove_heap());
     ACLSHMEM_CHECK_RET(init_manager->transport_finalize());
     ACLSHMEM_CHECK_RET(init_manager->release_heap());
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+    if (check_support_d2h()) {
+        ACLSHMEM_CHECK_RET(init_manager->remove_heap(HOST_SIDE));
+        ACLSHMEM_CHECK_RET(init_manager->release_heap(HOST_SIDE));
+    }
+#endif
     ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     delete init_manager;
 #ifdef BACKEND_HYBM

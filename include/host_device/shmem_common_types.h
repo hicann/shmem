@@ -203,6 +203,8 @@ typedef struct {
     int mype;
     int npes;
     void *heap_base;
+    // heap_base for host side memory type
+    void *host_heap_base;
 
     // Store All Devices' heap_base.
     void **p2p_device_heap_base;

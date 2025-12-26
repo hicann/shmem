@@ -10,15 +10,14 @@
 #ifndef SHMEMI_INIT_NORMAL_H
 #define SHMEMI_INIT_NORMAL_H
 
-#include <iostream>
-
+#include <memory>
 #include "init/init_backends/shmemi_init_base.h"
 
 #include "host/shmem_host_def.h"
 #include "host_device/shmem_common_types.h"
 
 #include "mem/shmemi_global_state.h"
-#include "mem/shmemi_heap.h"
+#include "mem/shmemi_heap_base.h"
 
 #include "init/bootstrap/shmemi_bootstrap.h"
 
@@ -33,10 +32,10 @@ public:
     int finalize_device_state() override;
     int update_device_state(void* host_ptr, size_t size) override;
 
-    int reserve_heap() override;
-    int setup_heap() override;
-    int remove_heap() override;
-    int release_heap() override;
+    int reserve_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int setup_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int remove_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int release_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
 
     int transport_init() override;
     int transport_finalize() override;
@@ -53,7 +52,9 @@ private:
     global_state_reigister *global_state_d = nullptr;
 
     // heap_obj
-    aclshmem_symmetric_heap *heap_obj = nullptr;
+    std::unique_ptr<aclshmem_symmetric_heap_base> heap_obj = nullptr;
+    // host side mem heap_obj
+    std::unique_ptr<aclshmem_symmetric_heap_base> host_heap_obj = nullptr;
     aclshmem_init_optional_attr_t option_attr_;
 };
 

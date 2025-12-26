@@ -37,10 +37,10 @@ public:
     int finalize_device_state() override;
     int update_device_state(void* host_ptr, size_t size) override;
 
-    int reserve_heap() override;
-    int setup_heap() override;
-    int remove_heap() override;
-    int release_heap() override;
+    int reserve_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int setup_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int remove_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
+    int release_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE) override;
 
     int transport_init() override;
     int transport_finalize() override;

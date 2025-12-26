@@ -162,10 +162,10 @@ int aclshmemi_init_hybm::finalize_device_state()
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_hybm::reserve_heap()
+int aclshmemi_init_hybm::reserve_heap(aclshmem_mem_type_t mem_type)
 {
+    (void)mem_type;
     void *gva = nullptr;
-
     auto ret = hybm_reserve_mem_space(entity_, 0, &gva);
     if (ret != 0 || gva == nullptr) {
         SHM_LOG_ERROR("reserve mem failed, result: " << ret);
@@ -269,8 +269,9 @@ int aclshmemi_init_hybm::exchange_entity()
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_hybm::setup_heap()
+int aclshmemi_init_hybm::setup_heap(aclshmem_mem_type_t mem_type)
 {
+    (void)mem_type;
     // alloc memory
     auto slice = hybm_alloc_local_memory(entity_, HYBM_MEM_TYPE_DEVICE, host_state_->heap_size, 0);
     if (slice == nullptr) {
@@ -321,14 +322,16 @@ int aclshmemi_init_hybm::setup_heap()
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_hybm::remove_heap()
+int aclshmemi_init_hybm::remove_heap(aclshmem_mem_type_t mem_type)
 {
+    (void)mem_type;
     hybm_uninit();
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_hybm::release_heap()
+int aclshmemi_init_hybm::release_heap(aclshmem_mem_type_t mem_type)
 {
+    (void)mem_type;
     if (host_state_->p2p_device_heap_base != nullptr) {
         ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->p2p_device_heap_base));
     }
