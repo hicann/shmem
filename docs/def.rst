@@ -1,4 +1,4 @@
-ACLSHMEM DEF
+SHMEM DEF
 =================================
 .. _enums:
 
@@ -28,4 +28,10 @@ Structs
 ------------
 
 .. doxygengroup:: group_structs
+    :project: ACLSHMEM_CPP_API
+
+Constants
+------------
+
+.. doxygengroup:: group_constants
     :project: ACLSHMEM_CPP_API

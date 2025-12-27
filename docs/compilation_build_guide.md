@@ -24,13 +24,14 @@ SHMEM的基本编译命令是`bash build.sh`，默认构建模式下生成版本
 - `-use_cxx11_abi1`：启用 `C++11 ABI`，默认
 - `-use_cxx11_abi0`：禁用 `C++11 ABI`
 - `-mf`：启用MF后端
-- `-debug`：设置构建类型为 `Debug` 模式
+- `-uttests`：构建`tests/unittest`目录下所有ut用例
 - `-examples`：构建examples目录下所有用例
 - `-enable_rdma`：构建并启用RDMA相关能力
 - `-enable_ascendc_dump`：启用`AscendC_Dump`模式，用于对算子内核代码进行调测
 - `-package`：构建py扩展的whl包
 - `-gendoc`：生成文档
 - `-onlygendoc`: 生成文档，不构建源码
+- `-debug`：设置构建类型为 `Debug` 模式
 
 ### SHMEM关键文件介绍
 1. `scripts`目录：

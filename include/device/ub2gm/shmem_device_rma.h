@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_DEVICE_UB2GM_RMA_H
 #define SHMEM_DEVICE_UB2GM_RMA_H
@@ -14,7 +16,6 @@
 #include "device/ub2gm/engine/shmem_device_mte.h"
 #include "device/gm2gm/engine/shmem_device_mte.h"
 #include "device/shmem_def.h"
-#include "ub2gm/shmem_device_rma.hpp"
 
 /**
  * @brief Standard RMA Types and Names
@@ -166,4 +167,5 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_DETAILED_NBI);
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_TENSOR_DETAILED_NBI);
 
+#include "ub2gm/shmem_device_rma.hpp"
 #endif

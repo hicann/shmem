@@ -9,17 +9,29 @@
 # -----------------------------------------------------------------------------------------------------------
 import subprocess
 import warnings
+import os
 
 GIT_COMMAND = """\
 git symbolic-ref -q --short HEAD \
 || git describe --tags --exact-match 2> /dev/null \
 || git rev-parse HEAD"""
-branch = subprocess.check_output(["/bin/bash", "-c", GIT_COMMAND]).strip().decode()
+try:
+    branch = subprocess.check_output(["/bin/bash", "-c", GIT_COMMAND]).strip().decode()
+except subprocess.CalledProcessError:
+    branch = "main"
+    warnings.warn("获取Git分支失败，使用默认分支main")
+
 PROJECT = "SHMEM Guidebook"
-AUTHOR = "xxx"
+AUTHOR = "Ascend"
 COPYRIGHT_INFO = " 2025 Huawei Technologies Co., Ltd."
 RELEASE = "1.0.0"
 HTML_SHOW_SPHINX = False
+
+project = PROJECT 
+author = AUTHOR
+copyright = COPYRIGHT_INFO
+release = RELEASE
+version = RELEASE.split('.')[0]
 
 extensions = [
     'myst_parser',
@@ -27,6 +39,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+]
+
+myst_heading_anchors = 3
+myst_enable_extensions = [
+    "linkify",
 ]
 
 templates_path = ["_templates"]
@@ -37,11 +54,20 @@ source_suffix = {
     '.md': 'markdown',
 }
 
-HTML_THEME = 'sphinx_rtd_theme'
+
+html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
-    'navigation_depth': 4,
-    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'logo_only': False,
 }
 
+toc_depth = 4
+toc_object_entries_show_parents = 'hide'
+
+html_static_path = ["_static"]
+html_css_files = [
+    'css/custom.css',
+]
+
 breathe_projects = {"ACLSHMEM_CPP_API": f"./{branch}/xml"}
-BREATHE_DEFAULT_PROJECT = "ACLSHMEM_CPP_API"
+breathe_default_project = "ACLSHMEM_CPP_API"

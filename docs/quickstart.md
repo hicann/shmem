@@ -91,7 +91,7 @@ run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的�
 bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -test_filter Init
 ```
 
-## python侧test用例     [python接口API列表](./doc/pythonAPI.md)
+## python侧test用例     [python接口API列表](pythonAPI.md)
 1. 在scripts目录下编译的时候，带上build python的选项
 
 ```sh
@@ -168,7 +168,7 @@ aclshmemx_init_attr_t *attr;
 int ret = aclshmemx_get_uniqueid(&uid);
 ret = aclshmemx_set_attr(my_pe, n_pes, mem_size, nullptr, &attr); // 第4个参数是ip_port，当前场景传入nullptr
 ret = aclshmemx_set_attr_uniqueid_args(my_pe, n_pes, &uid, attr);
-
+```
 ## aclshmem方式
 注：使用unique id的接口初始化，可以手动配置环境变量ACLSHMEM_UID_SESSION_ID或者ACLSHMEM_UID_SOCK_IFNAM，同时配置时只读ACLSHMEM_UID_SESSION_ID，都不配置会自动搜索可用网口。
 ACLSHMEM_UID_SESSION_ID配置示例：

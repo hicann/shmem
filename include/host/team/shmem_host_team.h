@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_HOST_TEAM_H
 #define SHMEM_HOST_TEAM_H
@@ -115,8 +117,9 @@ ACLSHMEM_HOST_API int aclshmem_team_n_pes(aclshmem_team_t team);
 /**
  * @brief return team config which pass in as team created
  *
- * @param team [IN] team handle
- * @param config [OUT] the config associated with team, reserved for future use
+ * @param team [in] team handle
+ * @param config [out] the config associated with team, reserved for future use
+ * @return Returns 0 on success or an error code on failure
  */
 ACLSHMEM_HOST_API int aclshmem_team_get_config(aclshmem_team_t team, aclshmem_team_config_t *config);
 #define shmem_team_get_config aclshmem_team_get_config

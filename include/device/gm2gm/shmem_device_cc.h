@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 
 /*
@@ -29,6 +31,10 @@
     4. The scalar unit of cube core is not affected by aclshmem_barrier_xxx. Make sure don't use that.
 */
 
+/*!
+ * \file shmem_device_cc.h
+ * \brief shmem device Collective Communication APIs
+ */
 #ifndef _DEVICE_GM2GM_ACLSHMEM_DEVICE_CC_H_
 #define _DEVICE_GM2GM_ACLSHMEM_DEVICE_CC_H_
 
@@ -59,7 +65,9 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
  *        from the CPU and the NPU, respectively. To ensure completion of GPU-side operations from the CPU, using
  *        aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
+ * @cond
  * @param team              [in] team to do barrier
+ * @endcond
  */
 ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team);
 
@@ -81,7 +89,6 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
 /**
  * @brief aclshmemx_barrier_vec of all PEs.
  *
- * @param team              [in] team to do barrier
  */
 [[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier_all instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec();
@@ -98,7 +105,6 @@ ACLSHMEM_DEVICE void aclshmem_sync(aclshmem_team_t team);
 /**
  * @brief aclshmem_sync_all of all PEs.
  *
- * @param team              [in] team to do barrier
  */
 ACLSHMEM_DEVICE void aclshmem_sync_all();
 

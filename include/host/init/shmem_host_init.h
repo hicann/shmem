@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_HOST_INIT_H
 #define SHMEM_HOST_INIT_H
@@ -75,9 +77,9 @@ ACLSHMEM_HOST_API int aclshmem_finalize(void);
 /**
  * @brief returns the major and minor version.
  *
- * @param major [OUT] major version
+ * @param major [out] major version
  *
- * @param minor [OUT] minor version
+ * @param minor [out] minor version
  */
 ACLSHMEM_HOST_API void aclshmem_info_get_version(int *major, int *minor);
 #define shmem_info_get_version aclshmem_info_get_version
@@ -86,15 +88,21 @@ ACLSHMEM_HOST_API void aclshmem_info_get_version(int *major, int *minor);
 /**
  * @brief returns the vendor defined name string.
  *
- * @param name [OUT] name
+ * @param name [out] name
  */
 ACLSHMEM_HOST_API void aclshmem_info_get_name(char *name);
 #define shmem_info_get_name aclshmem_info_get_name
 
 
 /**
- * @brief aclshmemx_set_config_store_tls_key.
+ * @brief Set the TLS private key and password, and register a decrypt key password handler.
  *
+ * @param tls_pk the content of tls private key
+ * @param tls_pk_len length of tls private key
+ * @param tls_pk_pw the content of tls private key password
+ * @param tls_pk_pw_len length of tls private key password
+ * @param decrypt_handler decrypt function pointer
+ * @return Returns 0 on success or an error code on failure
  */
 ACLSHMEM_HOST_API int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk, const uint32_t tls_pk_len,
     const char *tls_pk_pw, const uint32_t tls_pk_pw_len, const aclshmem_decrypt_handler decrypt_handler);
@@ -102,8 +110,9 @@ ACLSHMEM_HOST_API int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk,
 
 
 /**
- * @brief aclshmem_global_exit.
+ * @brief exit all ranks.
  *
+ * @param status [in] name
  */
 ACLSHMEM_HOST_API void aclshmem_global_exit(int status);
 #define shmem_global_exit aclshmem_global_exit
@@ -111,6 +120,10 @@ ACLSHMEM_HOST_API void aclshmem_global_exit(int status);
 /**
  * @brief aclshmemx_set_conf_store_tls.
  *
+ * @param enable whether to enable tls
+ * @param tls_info the format describle in memfabric SECURITYNOTE.md, if disabled tls_info won't be use
+ * @param tls_info_len length of tls_info, if disabled tls_info_len won't be use
+ * @return Returns 0 on success or an error code on failure
  */
 ACLSHMEM_HOST_API int32_t aclshmemx_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len);
 #define shmem_set_conf_store_tls aclshmemx_set_conf_store_tls

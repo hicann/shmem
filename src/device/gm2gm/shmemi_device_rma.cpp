@@ -13,7 +13,7 @@
 #include "host_device/shmem_common_types.h"
 #include "shmemi_device_common.h"
 #include "gm2gm/engine/shmem_device_rdma.hpp"
-#include "gm2gm/shmem_device_rma.hpp"
+#include "device/gm2gm/shmem_device_rma.h"
 
 using namespace std;
 
