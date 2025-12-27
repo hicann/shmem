@@ -56,9 +56,13 @@ inline std::string get_connect_url()
 
 int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
 {
-    auto ret = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
+    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_UNIQUEID;
+#if defined(BACKEND_HYBM)
+    bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
+#endif
+    auto ret = aclshmemx_init_attr(bootstrap_flags, &attributes);
     if (ret != 0) {
-        std::cerr << "initialize shmem failed, ret: " << ret;
+        std::cerr << "initialize shmem failed, ret: " << ret << std::endl;
         return ret;
     }
 
@@ -91,8 +95,11 @@ int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, co
         std::cerr << "set attr failed " << ret << std::endl;
         return ret;
     }
-
-    return aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attr);
+    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_UNIQUEID;
+#if defined(BACKEND_HYBM)
+    bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
+#endif
+    return aclshmemx_init_attr(bootstrap_flags, &attr);
 }
 
 static int py_decrypt_handler_wrapper(const char *cipherText, size_t cipherTextLen, char *plainText,
@@ -166,6 +173,10 @@ void DefineShmemAttr(py::module_ &m)
     py::class_<aclshmem_init_optional_attr_t>(m, "OptionalAttr")
         .def(py::init([]() {
             auto optional_attr = new (std::nothrow) aclshmem_init_optional_attr_t;
+            optional_attr->shm_init_timeout = DEFAULT_TIMEOUT;
+            optional_attr->shm_create_timeout = DEFAULT_TIMEOUT;
+            optional_attr->control_operation_timeout = DEFAULT_TIMEOUT;
+            optional_attr->sockFd = -1;
             return optional_attr;
         }))
         .def_readwrite("version", &aclshmem_init_optional_attr_t::version)

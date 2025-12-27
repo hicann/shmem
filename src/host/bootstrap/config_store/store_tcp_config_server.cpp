@@ -135,7 +135,7 @@ void AccStoreServer::Shutdown(bool afterFork) noexcept
             }
         }
     }
-
+    sockFd_ = -1;
     accTcpServer_ = nullptr;
     SHM_LOG_INFO("finished shutdown Acc Store Server");
 }

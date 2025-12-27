@@ -119,7 +119,7 @@ private:
 
     const std::string listenIp_;
     const uint16_t listenPort_;
-    const int32_t sockFd_;
+    int32_t sockFd_;
     std::mutex mutex_;
 };
 using AccStoreServerPtr = SmRef<AccStoreServer>;

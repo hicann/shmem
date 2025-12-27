@@ -16,6 +16,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <functional>
+#include <unordered_set>
 
 #include "acl/acl.h"
 #include "acl/acl_rt.h"
@@ -93,26 +94,37 @@ int32_t aclshmemi_state_init_attr(aclshmemx_init_attr_t *attributes)
     return status;
 }
 
+bool is_valid_data_op_engine_type(data_op_engine_type_t value)
+{
+    static const std::unordered_set<int> valid_values = {
+        ACLSHMEM_DATA_OP_MTE,
+        ACLSHMEM_DATA_OP_SDMA,
+        ACLSHMEM_DATA_OP_ROCE
+    };
+    
+    return valid_values.find(static_cast<int>(value)) != valid_values.end();
+}
+
 int32_t check_attr(aclshmemx_init_attr_t *attributes)
 {
-    if ((attributes->my_pe < 0) || (attributes->n_pes <= 0)) {
-        SHM_LOG_ERROR("my_pe:" << attributes->my_pe << " and n_pes: " << attributes->n_pes
-                                 << " cannot be less 0 , n_pes still cannot be equal 0");
-        return ACLSHMEM_INVALID_VALUE;
-    } else if (attributes->n_pes > ACLSHMEM_MAX_PES) {
-        SHM_LOG_ERROR("n_pes: " << attributes->n_pes << " cannot be more than " << ACLSHMEM_MAX_PES);
-        return ACLSHMEM_INVALID_VALUE;
-    } else if (attributes->my_pe >= attributes->n_pes) {
-        SHM_LOG_ERROR("n_pes:" << attributes->n_pes << " cannot be less than my_pe:" << attributes->my_pe);
-        return ACLSHMEM_INVALID_PARAM;
-    } else if (attributes->local_mem_size <= 0) {
-        SHM_LOG_ERROR("local_mem_size:" << attributes->local_mem_size << " cannot be less or equal 0");
-        return ACLSHMEM_INVALID_VALUE;
-    }
+    SHM_LOG_DEBUG("check_attr my_pe=" << attributes->my_pe << " n_pes=" << attributes->n_pes << " local_mem_size=" << attributes->local_mem_size
+                                      << " shm_init_timeout=" << attributes->option_attr.shm_init_timeout
+                                      << " control_operation_timeout=" << attributes->option_attr.control_operation_timeout);
+    SHM_VALIDATE_RETURN(attributes->my_pe >= 0, "my_pe is less than zero", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(attributes->n_pes > 0, "n_pes is less than or equal to zero", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(attributes->n_pes <= ACLSHMEM_MAX_PES, "n_pes is too large", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(attributes->my_pe < attributes->n_pes, "my_pe is greater than or equal to n_pes", ACLSHMEM_INVALID_PARAM);
+    SHM_VALIDATE_RETURN(attributes->local_mem_size > 0, "local_mem_size less than or equal to 0", ACLSHMEM_INVALID_VALUE);
+    SHM_ASSERT_RETURN(attributes->local_mem_size <= ACLSHMEM_MAX_LOCAL_SIZE, ACLSHMEM_INVALID_VALUE);
+
+    SHM_VALIDATE_RETURN(attributes->option_attr.shm_init_timeout != 0, "shm_init_timeout is zero", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(attributes->option_attr.control_operation_timeout != 0, "control_operation_timeout is zero", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(attributes->option_attr.data_op_engine_type > 0, "sockFd is invalid", ACLSHMEM_INVALID_VALUE);
+    SHM_ASSERT_RETURN(is_valid_data_op_engine_type(attributes->option_attr.data_op_engine_type), ACLSHMEM_INVALID_VALUE);
     return ACLSHMEM_SUCCESS;
 }
 
-aclshmemi_init_base* init_manager;
+aclshmemi_init_base* init_manager = nullptr;
 
 int32_t aclshmemi_control_barrier_all()
 {
@@ -255,7 +267,11 @@ int32_t aclshmem_finalize()
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " begins to finalize.");
     // shmem submodules finalize
     ACLSHMEM_CHECK_RET(aclshmemi_team_finalize());
-
+    if (init_manager == nullptr) {
+        SHM_LOG_INFO("init_manager is null finalize success.");
+        g_state.is_aclshmem_initialized = false;
+        return ACLSHMEM_SUCCESS;
+    }
     // shmem basic finalize
     ACLSHMEM_CHECK_RET(init_manager->remove_heap());
     ACLSHMEM_CHECK_RET(init_manager->transport_finalize());
@@ -268,12 +284,14 @@ int32_t aclshmem_finalize()
 #endif
     ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     delete init_manager;
+    init_manager = nullptr;
 #ifdef BACKEND_HYBM
     memory_manager_destroy();
 #else
     aclshmemi_bootstrap_finalize();
 #endif
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
+    g_state.is_aclshmem_initialized = false;
     return ACLSHMEM_SUCCESS;
 }
 

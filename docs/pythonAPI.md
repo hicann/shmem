@@ -25,28 +25,6 @@
     |-|-|
     |返回值|返回初始化状态。返回 ACLSHMEM_STATUS_IS_INITIALIZED 表示初始化已完成|
 
-1. 修改将用于初始化的属性中的数据操作引擎类型
-    ```python
-    def aclshmemx_set_data_op_engine_type(attributes, vaue) -> int
-    ```
-
-    |参数/返回值|含义|
-    |-|-|
-    |attributes|InitAttr类型，属性集|
-    |vaue|int类型，数据操作引擎类型的值|
-    |返回值|成功时返回0,失败时返回错误代码|
-
-1. 修改用于初始化的属性中的超时设置
-    ```python
-    def aclshmemx_set_timeout(attributes, vaue) -> int
-    ```
-
-    |参数/返回值|含义|
-    |-|-|
-    |attributes|InitAttr类型，属性集|
-    |vaue|int类型，数据操作引擎类型的值|
-    |返回值|成功时返回0,失败时返回错误代码|
-
 1. 注册一个Python解密处理程序
     ```python
     def set_conf_store_tls_key(tls_pk, tls_pk_pw, py_decrypt_func:Callable[[str], str]) -> int

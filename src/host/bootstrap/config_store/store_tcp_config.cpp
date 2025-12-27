@@ -175,12 +175,14 @@ Result TcpConfigStore::Startup(const AcclinkTlsOption &tlsOption, int reconnectR
         if (accServer_ == nullptr) {
             SHM_LOG_ERROR("Failed to create AccStoreServer instance");
             Shutdown();
+            sockFd_ = -1;
             return SM_NEW_OBJECT_FAILED;
         }
 
         if ((result = accServer_->Startup(tlsOption)) != SM_OK) {
             SHM_LOG_ERROR("AccStoreServer startup failed: " << result);
             Shutdown();
+            sockFd_ = -1;
             return result;
         }
     }
@@ -225,6 +227,7 @@ void TcpConfigStore::Shutdown(bool afterFork) noexcept
         accServer_->Shutdown(afterFork);
         accServer_ = nullptr;
     }
+    sockFd_ = -1;
 }
 
 Result TcpConfigStore::Set(const std::string &key, const std::vector<uint8_t> &value) noexcept

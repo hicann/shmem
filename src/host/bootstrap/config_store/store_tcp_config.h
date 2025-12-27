@@ -93,7 +93,7 @@ private:
     const uint16_t serverPort_;
     const bool isServer_;
     const int32_t rankId_;
-    const int32_t sockFd_;
+    int32_t sockFd_;
 };
 using TcpConfigStorePtr = SmRef<TcpConfigStore>;
 }  // namespace store

@@ -313,6 +313,7 @@ void AccTcpServerDefault::StopAndCleanListener(bool afterFork)
     }
 
     listener_->Stop(afterFork);
+    options_.sockFd = -1;
     listener_ = nullptr;
 }
 
