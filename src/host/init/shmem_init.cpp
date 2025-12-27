@@ -285,6 +285,11 @@ int32_t aclshmem_finalize()
     ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     delete init_manager;
     init_manager = nullptr;
+    if (g_state_host.default_stream != nullptr) {
+      ACLSHMEM_CHECK_RET(aclrtSynchronizeStream(g_state_host.default_stream));
+      ACLSHMEM_CHECK_RET(aclrtDestroyStream(g_state_host.default_stream));
+      g_state_host.default_stream = nullptr;
+    }
 #ifdef BACKEND_HYBM
     memory_manager_destroy();
 #else
