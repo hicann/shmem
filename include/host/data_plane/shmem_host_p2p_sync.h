@@ -31,13 +31,13 @@ extern "C" {
 #endif
 
 /**
- * @fn ACLSHMEM_HOST_API uint64_t util_get_ffts_config()
+ * @fn ACLSHMEM_HOST_API uint64_t util_get_ffts_config(void)
  * @brief Get runtime ffts config. This config should be passed to MIX Kernel and set by MIX Kernel
  * using aclshmemx_set_ffts. Refer to aclshmemx_set_ffts for more details.
  *
  * @return ffts config
  */
-ACLSHMEM_HOST_API uint64_t util_get_ffts_config();
+ACLSHMEM_HOST_API uint64_t util_get_ffts_config(void);
 #define shmemx_get_ffts_config util_get_ffts_config
 
 /**

@@ -72,10 +72,10 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
 ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team);
 
 /**
- * @fn ACLSHMEM_DEVICE void aclshmem_barrier_all()
+ * @fn ACLSHMEM_DEVICE void aclshmem_barrier_all(void)
  * @brief aclshmem_barrier of all PEs.
  */
-ACLSHMEM_DEVICE void aclshmem_barrier_all();
+ACLSHMEM_DEVICE void aclshmem_barrier_all(void);
 
 /**
  * @brief Similar to aclshmem_barrier except that only vector cores participate. Useful in communication-over-compute
@@ -91,7 +91,7 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
  *
  */
 [[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier_all instead.")]]
-ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec();
+ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
 
 /**
  * @brief Similar to aclshmem_barrier. In constract with the aclshmem_barrier routine, aclshmem_sync only ensures
@@ -106,7 +106,7 @@ ACLSHMEM_DEVICE void aclshmem_sync(aclshmem_team_t team);
  * @brief aclshmem_sync_all of all PEs.
  *
  */
-ACLSHMEM_DEVICE void aclshmem_sync_all();
+ACLSHMEM_DEVICE void aclshmem_sync_all(void);
 
 #ifdef __cplusplus
 }
