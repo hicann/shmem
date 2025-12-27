@@ -31,7 +31,7 @@ extern "C" {
  *        the CPU, using aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
  */
-ACLSHMEM_DEVICE void aclshmem_quiet();
+ACLSHMEM_DEVICE void aclshmem_quiet(void);
 
 /**
  * @brief In OpenACLSHMEM specification, aclshmem_fence assures ordering of delivery of Put, AMOs, and memory store routines
@@ -43,7 +43,7 @@ ACLSHMEM_DEVICE void aclshmem_quiet();
  *        using aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
  */
-ACLSHMEM_DEVICE void aclshmem_fence();
+ACLSHMEM_DEVICE void aclshmem_fence(void);
 
 #ifdef __cplusplus
 }

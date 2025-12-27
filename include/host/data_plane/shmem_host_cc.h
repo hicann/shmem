@@ -43,10 +43,10 @@ extern "C" {
 ACLSHMEM_HOST_API void aclshmem_barrier(aclshmem_team_t team);
 
 /**
- * @fn ACLSHMEM_HOST_API void aclshmem_barrier_all()
+ * @fn ACLSHMEM_HOST_API void aclshmem_barrier_all(void)
  * @brief aclshmem_barrier of all PEs.
  */
-ACLSHMEM_HOST_API void aclshmem_barrier_all();
+ACLSHMEM_HOST_API void aclshmem_barrier_all(void);
 
 /**
  * @fn ACLSHMEM_HOST_API void aclshmemx_barrier_on_stream(aclshmem_team_t team, aclrtStream stream)
@@ -80,7 +80,7 @@ ACLSHMEM_HOST_API void aclshmem_sync(aclshmem_team_t team);
  * @brief aclshmem_sync_all of all PEs.
  *
  */
-ACLSHMEM_HOST_API void aclshmem_sync_all();
+ACLSHMEM_HOST_API void aclshmem_sync_all(void);
 
 #ifdef __cplusplus
 }
