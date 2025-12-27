@@ -70,7 +70,7 @@ int aclshmemi_init_hybm::init_device_state()
         port_ = option.port;
     }
     else {
-        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, false, attributes->my_pe, 120);
+        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, false, attributes->my_pe, attributes->option_attr.shm_init_timeout);
         ip_ = option.ip;
         port_ = option.port;
     }
@@ -83,8 +83,9 @@ int aclshmemi_init_hybm::init_device_state()
     // 创建groupengine
     std::string prefix = "SHM_(" + std::to_string(DEFAULT_ID) + ")_";
     shm::store::StorePtr store_ptr = shm::store::StoreFactory::PrefixStore(store_, prefix);
-    shm::store::SmemGroupOption opt = {(uint32_t)attributes->n_pes, (uint32_t)attributes->my_pe,  120 * 1000U,
-                           false, nullptr, nullptr};
+    shm::store::SmemGroupOption opt = {(uint32_t)attributes->n_pes, (uint32_t)attributes->my_pe,
+                                       attributes->option_attr.control_operation_timeout * 1000U,
+                                       false, nullptr, nullptr};
     shm::store::SmemGroupEnginePtr group = shm::store::SmemNetGroupEngine::Create(store_ptr, opt);
     SHM_ASSERT_RETURN(group != nullptr, ACLSHMEM_SMEM_ERROR);
 
@@ -149,12 +150,16 @@ int aclshmemi_init_hybm::update_device_state(void* host_ptr, size_t size)
 int aclshmemi_init_hybm::finalize_device_state()
 {
     if (!inited_) {
-        SHM_LOG_WARN("smem shm not initialized yet");
-        return ACLSHMEM_INNER_ERROR;
+        SHM_LOG_WARN("shm hybm backend not initialized yet, skip finalize device state.");
+        return ACLSHMEM_SUCCESS;
+    } else {
+        std::free(device_state_);
+        hybm_destroy_entity(entity_, 0);
+        hybm_uninit();
     }
-    std::free(device_state_);
-    hybm_destroy_entity(entity_, 0);
-    hybm_uninit();
+    if (store_ != nullptr) {
+        shm::store::StoreFactory::DestroyStore(ip_, port_);
+    }
     inited_ = false;
     store_ = nullptr;
 
@@ -334,23 +339,19 @@ int aclshmemi_init_hybm::release_heap(aclshmem_mem_type_t mem_type)
     (void)mem_type;
     if (host_state_->p2p_device_heap_base != nullptr) {
         ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->p2p_device_heap_base));
-    }
-    if (host_state_->p2p_device_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->rdma_device_heap_base));
-    }
-    if (host_state_->p2p_device_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->sdma_device_heap_base));
-    }
-    if (device_state_->p2p_device_heap_base != nullptr) {
         ACLSHMEM_CHECK_RET(aclrtFree(device_state_->p2p_device_heap_base));
+        host_state_->p2p_device_heap_base = nullptr;
     }
-    if (device_state_->rdma_device_heap_base != nullptr) {
+    if (host_state_->rdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->rdma_device_heap_base));
         ACLSHMEM_CHECK_RET(aclrtFree(device_state_->rdma_device_heap_base));
+        host_state_->rdma_device_heap_base = nullptr;
     }
-    if (device_state_->sdma_device_heap_base != nullptr) {
+    if (host_state_->sdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->sdma_device_heap_base));
         ACLSHMEM_CHECK_RET(aclrtFree(device_state_->sdma_device_heap_base));
+        host_state_->sdma_device_heap_base = nullptr;
     }
-
     if (globalGroup_ != nullptr) {
         globalGroup_ = nullptr;
     }

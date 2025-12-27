@@ -89,16 +89,16 @@ Result AccTcpListener::Start() noexcept
         return ACC_ERROR;
     }
 
-    LOG_INFO("create socket success " << tmpFD);
+    LOG_INFO("create socket success tmp_fd = " << tmpFD << " listen fd = " << listenFd_);
     /* assign address */
     PrepareSockAddr(addr);
     int result_bind = -1;
     /* set option, bind and listen */
     if (listenFd_ > 0) {
+        LOG_INFO("use already applied listen fd=" << listenFd_ << " close tmp_fd=" << tmpFD);
         SafeCloseFd(tmpFD);
         tmpFD = listenFd_;  // use already applied fd
         result_bind = 0;
-        LOG_INFO("use already applied listen fd " << tmpFD);
     } else {
         if (reusePort_) {
             int flags = 1;
@@ -120,15 +120,18 @@ Result AccTcpListener::Start() noexcept
         SafeCloseFd(tmpFD);
         if (errorNum == EADDRINUSE) {
             LOG_ERROR("address in use for bind listen on " << NameAndPort());
+            listenFd_ = -1;
             return ACC_LINK_ADDRESS_IN_USE;
         }
-        LOG_ERROR("Failed to bind or listen on " << NameAndPort() << " as errno " << strerror(errorNum));
+        LOG_ERROR("Failed to bind or listen on " << NameAndPort() << " as errno " << strerror(errorNum) << ", please check fd:" << listenFd_);
+        listenFd_ = -1;
         return ACC_ERROR;
     }
 
     auto ret = StartAcceptThread();
     if (ret != ACC_OK) {
         SafeCloseFd(tmpFD);
+        listenFd_ = -1;
         return ret;
     }
 
@@ -180,9 +183,7 @@ void AccTcpListener::Stop(bool afterFork) noexcept
             acceptThread_.join();
         }
     }
-
     SafeCloseFd(listenFd_, !afterFork);
-
     started_ = false;
 }
 

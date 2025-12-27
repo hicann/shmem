@@ -33,8 +33,8 @@ from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_usin
 current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
 sys.path.append(current_dir)
-libs_path = os.path.join(os.getenv('ACLSHMEM_HOME_PATH', current_dir), 'shmem/lib')
-for lib in ["libaclshmem.so"]:
+libs_path = os.path.join(os.getenv('SHMEM_HOME_PATH', current_dir), 'shmem/lib')
+for lib in ["libshmem.so"]:
     lib_path = os.path.join(libs_path, lib)
     try:
         ctypes.CDLL(lib_path)
