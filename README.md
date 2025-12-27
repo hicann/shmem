@@ -27,7 +27,7 @@ SHMEM 是面向昇腾平台的多机多卡内存通信库，通过封装Host侧�
 
 **3. 安全通信机制**
 - 默认启用TLS加密保护跨设备数据传输，支持接口级关闭控制：
-int32_t ret = shmem_set_conf_store_tls(false, NULL, 0);
+int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
 - 提供安全加固指南，包括权限配置、加密套件选择等企业级安全策略。
 
 **4. 多语言与扩展支持**
@@ -209,10 +209,9 @@ shmem/                                        # 项目根目录
 
 默认开启 TLS 加密，若为内网可信环境，可关闭以提升通信速度：
 ```c
-// C/C++ 接口
-int32_t ret = shmem_set_conf_store_tls(false, null, 0);
-
-# Python 接口
+int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
+```
+```python
 import shmem as shm
 shm.set_conf_store_tls(False, "")
 ```
@@ -220,9 +219,9 @@ shm.set_conf_store_tls(False, "")
 
 初始化时指定共享内存池大小（默认 16GB），适配大内存场景：
 ```c
-shmem_attr_t attr;
-attr.mem_size = 32 * 1024 * 1024 * 1024; // 32GB
-shmem_init_with_attr(&attr);
+aclshmemx_init_attr_t attr;
+attr.local_mem_size = 32 * 1024 * 1024 * 1024; // 32GB
+aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attr);
 ```
 **3. 性能调优建议**
 
@@ -237,7 +236,7 @@ A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8
 ### Q3：Python 导入 shmem 时报「找不到模块」？
 A：确认已安装 wheel 包，且 ```source``` 了 install 目录下的 ```set_env.sh```，环境变量 ```PYTHONPATH``` 包含 shmem 路径。
 ### Q4：关闭 TLS 后仍提示加密失败？
-A：需在 ```shmem_init()``` 前调用 ```shmem_set_conf_store_tls()```，初始化后无法修改 TLS 配置。
+A：需在 ```aclshmemx_init_attr``` 前调用 ```aclshmemx_set_conf_store_tls```，初始化后无法修改 TLS 配置。
 > 更多故障排查见：[Troubleshooting](docs/Troubleshooting_FAQs.md)
 ## 九、测试框架
 - **单元测试：** 覆盖核心接口（初始化、内存操作、同步等），位于tests/unittest/
