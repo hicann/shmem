@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 
 /*
@@ -39,8 +41,11 @@ ACLSHMEM_HOST_API uint64_t util_get_ffts_config();
 #define shmemx_get_ffts_config util_get_ffts_config
 
 /**
- * @fn ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle)
+ * @fn ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStream stream)
  * @brief Wait asynchronous RMA operations to finish.
+ *
+ * @param handle              [in] handle use to wait asynchronous RMA operations to finish
+ * @param stream              [in] specifed stream to do wait
  */
 ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStream stream);
 #define shmem_handle_wait aclshmemx_handle_wait

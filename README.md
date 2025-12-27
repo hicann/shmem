@@ -9,6 +9,7 @@ SHMEM 是面向昇腾平台的多机多卡内存通信库，通过封装Host侧�
 - 简化分布式场景下的卡间通信逻辑，降低算子开发门槛
 - 集成MTE、xDMA等高性能通信引擎，提升多设备协同效率
 - 与CANN生态深度适配，支持通算融合类算子的快速部署
+- 更多详细资料请参考[SHMEM](https://shmem-doc.pages.dev/)
 
 ## 二、核心功能
 ![核心功能](docs/images/readme-features.png)

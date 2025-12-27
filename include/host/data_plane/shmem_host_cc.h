@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 
 /*!
@@ -60,7 +62,6 @@ ACLSHMEM_HOST_API void aclshmemx_barrier_on_stream(aclshmem_team_t team, aclrtSt
  * @fn ACLSHMEM_HOST_API void aclshmemx_barrier_all_on_stream(aclrtStream stream)
  * @brief aclshmemx_barrier_on_stream of all PEs.
  *
- * @param team              [in] team to do barrier
  * @param stream            [in] specifed stream to do barrier
  */
 ACLSHMEM_HOST_API void aclshmemx_barrier_all_on_stream(aclrtStream stream);
@@ -78,7 +79,6 @@ ACLSHMEM_HOST_API void aclshmem_sync(aclshmem_team_t team);
 /**
  * @brief aclshmem_sync_all of all PEs.
  *
- * @param team              [in] team to do barrier
  */
 ACLSHMEM_HOST_API void aclshmem_sync_all();
 

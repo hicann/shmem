@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_HOST_HEAP_H
 #define SHMEM_HOST_HEAP_H
@@ -61,40 +63,40 @@ ACLSHMEM_HOST_API void aclshmem_free(void *ptr);
 #define shmem_free aclshmem_free
 
 /**
- * @brief 申请一块aclshmem对称内存，该内存中数据未被初始化
+ * @brief Allocates a block of ACLSHMEM symmetric memory, the data in this memory is uninitialized
  *
- * @param size          [in] 内存申请大小（bytes）
- * @param mem_type      [in] 对称内存申请位置(Host/Device)
- * @return 对称内存指针
+ * @param size          [in] Memory allocation size (in bytes)
+ * @param mem_type      [in] Allocation location of symmetric memory (Host/Device)
+ * @return Pointer to the symmetric memory
  *
  */
 ACLSHMEM_HOST_API void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
- * @brief 申请一块shmem对称内存，并初始化内容为全
+ * @brief Allocates a block of SHMEM symmetric memory and initializes all content to zero
  *
- * @param count         [in] 元素个数
- * @param size          [in] 每个元素所占字节数
- * @param mem_type      [in] 对称内存申请位置(Host/Device)
- * @return 对称内存指针
+ * @param count         [in] Number of elements
+ * @param size          [in] Number of bytes occupied by each element
+ * @param mem_type      [in] Allocation location of symmetric memory (Host/Device)
+ * @return Pointer to the symmetric memory
  */
 ACLSHMEM_HOST_API void *aclshmemx_calloc(size_t count, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
- * @brief 申请一块shmem对称内存，并按指定长度对齐
+ * @brief Allocates a block of SHMEM symmetric memory with alignment to the specified length
  *
- * @param alignment     [in] 对齐长度（bytes）
- * @param size          [in] 内存申请大小（bytes）
- * @param mem_type      [in] 对称内存申请位置(Host/Device)
- * @return 对称内存指针
+ * @param alignment     [in] Alignment length (in bytes)
+ * @param size          [in] Memory allocation size (in bytes)
+ * @param mem_type      [in] Allocation location of symmetric memory (Host/Device)
+ * @return Pointer to the symmetric memory
  */
 ACLSHMEM_HOST_API void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
- * @brief 释放申请的对称内存
+ * @brief Frees the allocated symmetric memory
  *
- * @param ptr           [in] 需要释放的内存指针
- * @param mem_type      [in] 对称内存申请位置(Host/Device)
+ * @param ptr           [in] Pointer to the memory to be freed
+ * @param mem_type      [in] Allocation location of the symmetric memory (Host/Device)
  */
 ACLSHMEM_HOST_API void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 #ifdef __cplusplus

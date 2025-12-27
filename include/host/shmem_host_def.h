@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_HOST_DEF_H
 #define SHMEM_HOST_DEF_H
@@ -18,36 +20,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-constexpr int DEFAULT_TIMEOUT = 120;
+
 /**
-* @brief Standard RMA Types and Names valid on Host
-*
-* |NAME       | TYPE      |
-* |-----------|-----------|
-* |float      | float     |
-* |double     | double    |
-* |int8       | int8      |
-* |int16      | int16     |
-* |int32      | int32     |
-* |int64      | int64     |
-* |uint8      | uint8     |
-* |uint16     | uint16    |
-* |uint32     | uint32    |
-* |uint64     | uint64    |
-* |char       | char      |
-*/
-#define ACLSHMEM_TYPE_FUNC(FUNC) \
-    FUNC(float, float);          \
-    FUNC(double, double);        \
-    FUNC(int8, int8_t);          \
-    FUNC(int16, int16_t);        \
-    FUNC(int32, int32_t);        \
-    FUNC(int64, int64_t);        \
-    FUNC(uint8, uint8_t);        \
-    FUNC(uint16, uint16_t);      \
-    FUNC(uint32, uint32_t);      \
-    FUNC(uint64, uint64_t);      \
-    FUNC(char, char)
+ * @defgroup group_constants Constants
+ * @{
+ */
+ 
+/// \brief Inner length of the unique ID buffer for ACLSHMEM
+constexpr uint16_t ACLSHMEM_UNIQUE_ID_INNER_LEN = 124;
+/// \brief Default timeout value (in seconds) for ACLSHMEM operations
+constexpr int DEFAULT_TIMEOUT = 120;
+
+/**@} */
+
 /**
  * @defgroup group_macros Macros
  * @{
@@ -56,15 +41,34 @@ constexpr int DEFAULT_TIMEOUT = 120;
 /// \brief A macro that identifies a function on the host side.
 #define ACLSHMEM_HOST_API __attribute__((visibility("default")))
 
-/// \def ACLSHMEM_XXX_VERSION
-/// \brief macros that define current version info
+/// \def ACLSHMEM_MAJOR_VERSION
+/// \brief Macros that define major version info of ACLSHMEM
 #define ACLSHMEM_MAJOR_VERSION 1
+
+/// \def ACLSHMEM_MINOR_VERSION
+/// \brief Macros that define minor version info of ACLSHMEM
 #define ACLSHMEM_MINOR_VERSION 1
+
+/// \def ACLSHMEM_MAX_NAME_LEN
+/// \brief Maximum length of the name string in ACLSHMEM (including null terminator)
 #define ACLSHMEM_MAX_NAME_LEN 256
+
+/// \def ACLSHMEM_VENDOR_MAJOR_VER
+/// \brief Macros that define vendor major version info of ACLSHMEM
 #define ACLSHMEM_VENDOR_MAJOR_VER 1
+
+/// \def ACLSHMEM_VENDOR_MINOR_VER
+/// \brief Macros that define vendor minor version info of ACLSHMEM
 #define ACLSHMEM_VENDOR_MINOR_VER 1
+
+/// \def ACLSHMEM_VENDOR_PATCH_VER
+/// \brief Macros that define vendor patch version info of ACLSHMEM
 #define ACLSHMEM_VENDOR_PATCH_VER 1
+
+/// \def ACLSHMEM_MAX_IP_PORT_LEN
+/// \brief Maximum length of the IP and port string in ACLSHMEM (including null terminator)
 #define ACLSHMEM_MAX_IP_PORT_LEN 64
+
 /**@} */  // end of group_macros
 
 /**
@@ -170,6 +174,26 @@ typedef struct {
 } aclshmemx_init_attr_t;
 #define shmem_init_attr_t aclshmemx_init_attr_t
 
+
+/**
+ * @struct aclshmemx_uniqueid_t
+ * @brief Structure required for SHMEM unique ID (uid) initialization
+ *
+ * - int32_t version: version.
+ * - int my_pe: The pe of the current process.
+ * - int n_pes: The total pe number of all processes.
+ * - char internal[ACLSHMEM_UNIQUE_ID_INNER_LEN]: Internal information of uid.
+*/
+typedef struct {
+    int32_t version;
+    int my_pe;
+    int n_pes;
+    char internal[ACLSHMEM_UNIQUE_ID_INNER_LEN];
+} aclshmemx_uniqueid_t;
+#define shmem_uniqueid_t aclshmemx_uniqueid_t
+
+/**@} */  // end of group_structs
+
 /**
  * @brief Callback function of private key password decryptor, see aclshmemx_set_config_store_tls_key
  *
@@ -181,27 +205,29 @@ typedef struct {
 typedef int (*aclshmem_decrypt_handler)(const char *cipherText, size_t cipherTextLen, char *plainText,
                                      size_t &plainTextLen);
 #define shmem_decrypt_handler aclshmem_decrypt_handler
-
-constexpr uint16_t ACLSHMEM_UNIQUE_ID_INNER_LEN = 124;
-
-typedef struct {
-    int32_t version;
-    int my_pe;
-    int n_pes;
-    char internal[ACLSHMEM_UNIQUE_ID_INNER_LEN];
-} aclshmemx_uniqueid_t;
-#define shmem_uniqueid_t aclshmemx_uniqueid_t
-
+/**
+ * @addtogroup group_constants
+ * @{
+*/
+/// \brief Version number of the ACLSHMEM unique ID structure
 constexpr int32_t ACLSHMEM_UNIQUEID_VERSION = (1 << 16) + sizeof(aclshmemx_uniqueid_t);
+/**@} */ // end of group_constants
 
+/**
+ * @addtogroup group_macros
+ * @{
+*/
+/// \def ACLSHMEM_UNIQUEID_INITIALIZER
+/// \brief Initializer macro for the ACLSHMEM unique ID structure
 #define ACLSHMEM_UNIQUEID_INITIALIZER                   \
     {                                                   \
         ACLSHMEM_UNIQUEID_VERSION,                      \
         {                                               \
             0                                           \
         }                                               \
-    }                                                   \
+    }
 
+/**@} */ // end of group_macros
 #ifdef __cplusplus
 }
 #endif

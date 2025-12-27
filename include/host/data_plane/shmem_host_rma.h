@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_HOST_RMA_H
 #define SHMEM_HOST_RMA_H
@@ -17,10 +19,46 @@
 extern "C" {
 #endif
 
-enum {
-    NO_NBI = 0,
-    NBI,
+/**
+* @brief Standard RMA Types and Names valid on Host
+*
+* |NAME       | TYPE      |
+* |-----------|-----------|
+* |float      | float     |
+* |double     | double    |
+* |int8       | int8      |
+* |int16      | int16     |
+* |int32      | int32     |
+* |int64      | int64     |
+* |uint8      | uint8     |
+* |uint16     | uint16    |
+* |uint32     | uint32    |
+* |uint64     | uint64    |
+* |char       | char      |
+*/
+#define ACLSHMEM_TYPE_FUNC(FUNC) \
+    FUNC(float, float);          \
+    FUNC(double, double);        \
+    FUNC(int8, int8_t);          \
+    FUNC(int16, int16_t);        \
+    FUNC(int32, int32_t);        \
+    FUNC(int64, int64_t);        \
+    FUNC(uint8, uint8_t);        \
+    FUNC(uint16, uint16_t);      \
+    FUNC(uint32, uint32_t);      \
+    FUNC(uint64, uint64_t);      \
+    FUNC(char, char)
+
+/**
+ * @addtogroup group_enums
+ * @{
+*/
+/// \brief Enumeration indicating whether the method is blocking or non-blocking
+enum aclshmem_block_mode_t{
+    NO_NBI = 0,  ///< Non-blocking mode disabled (method is blocking)
+    NBI          ///< Non-blocking mode enabled (method is non-blocking, NBI = Non-Blocking Interface)
 };
+/**@} */ // end of group_enums
 
 /**
  * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
@@ -287,8 +325,7 @@ ACLSHMEM_HOST_API void aclshmem_getmem(void* dst, void* src, size_t elem_size, i
 
 
 /**
-* @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to
-*        address on the local PE.
+* @brief Asynchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
 *
 * @param dst                [in] Pointer on Symmetric addr of local PE.
 * @param src                [in] Pointer on local memory of the source data.

@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_DEVICE_GM2GM_RMA_H
 #define SHMEM_DEVICE_GM2GM_RMA_H
@@ -16,7 +18,6 @@
 #include "device/gm2gm/shmem_device_mo.h"
 #include "host/shmem_host_def.h"
 #include "device/shmem_def.h"
-#include "gm2gm/shmem_device_rma.hpp"
 
 /**
  * @brief Standard RMA Types and Names
@@ -51,6 +52,34 @@
     FUNC(uint64, uint64_t);      \
     FUNC(char, char);            \
     FUNC(bfloat16, bfloat16_t)
+
+/**
+ * @brief Standard test Types and Names
+ *
+ * |NAME       | TYPE      |
+ * |-----------|-----------|
+ * |float      | float     |
+ * |int8       | int8      |
+ * |int16      | int16     |
+ * |int32      | int32     |
+ * |int64      | int64     |
+ * |uint8      | uint8     |
+ * |uint16     | uint16    |
+ * |uint32     | uint32    |
+ * |uint64     | uint64    |
+ * |char       | char      |
+ */
+#define ACLSHMEM_TEST_TYPE_FUNC(FUNC) \
+    FUNC(float, float);               \
+    FUNC(int8, int8_t);               \
+    FUNC(int16, int16_t);             \
+    FUNC(int32, int32_t);             \
+    FUNC(int64, int64_t);             \
+    FUNC(uint8, uint8_t);             \
+    FUNC(uint16, uint16_t);           \
+    FUNC(uint32, uint32_t);           \
+    FUNC(uint64, uint64_t);           \
+    FUNC(char, char)
 
 #define ACLSHMEM_TYPENAME_P_AICORE(NAME, TYPE)                                              \
     /**                                                                                     \
@@ -461,8 +490,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
      *        on local UB to symmetric address on the specified PE.                                           \
      *                                                                                                        \
      * @param ivar               [in] Pointer on local device of the destination data.                        \
-     * @param cmp                [in] Pointer on Symmetric memory of the source data.                         \
-     * @param cmp_value          [in] Params to describe how non-contiguous data is organized in src and dst. \
+     * @param cmp                [in] Compare type i.e. SHMEM_CMP_EQ, SHMEM_CMP_GT, etc.                      \
+     * @param cmp_value          [in] Expected data for comparation                                           \
      */                                                                                                       \
     ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivar, int cmp, TYPE cmp_value)
 
@@ -474,8 +503,8 @@ ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
  * @param offset                [in] The start address on UB.
  * @param ub_size               [in] The Size of Temp UB Buffer.
  * @param event_id              [in] Sync ID for put or get.
- * @return Returns 0 on success or an error code on failure.
  */
 ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
 
+#include "gm2gm/shmem_device_rma.hpp"
 #endif

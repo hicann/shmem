@@ -15,6 +15,8 @@ Welcome to Shmem's Documentation!
     :name: Using ACLSHMEM
     
     api_demo.md
+    compilation_build_guide.md
+    log_debug.md
 
 .. toctree::
     :maxdepth: 2
@@ -24,6 +26,7 @@ Welcome to Shmem's Documentation!
     def.rst
     host_api.rst
     device_api.rst
+    pythonAPI.md
 
 .. toctree::
     :maxdepth: 2

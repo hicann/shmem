@@ -1,4 +1,5 @@
 /**
+ * @cond IGNORE_COPYRIGHT
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,6 +7,7 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
+ * @endcond
  */
 #ifndef SHMEM_DEVICE_DEF_H
 #define SHMEM_DEVICE_DEF_H
@@ -16,38 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief Standard Atomic Add Types and Names
- *
- * |NAME       | TYPE      |
- * |-----------|-----------|
- * |half       | half      |
- * |float      | float     |
- * |int8       | int8      |
- * |int16      | int16     |
- * |int32      | int32     |
- */
-#define ACLSHMEM_TYPE_FUNC_ATOMIC_INT(FUNC) \
-    FUNC(int8, int8_t, ATOMIC_S8);          \
-    FUNC(int16, int16_t, ATOMIC_S16);       \
-    FUNC(int32, int32_t, ATOMIC_S32)
-
-#define ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(FUNC) \
-    FUNC(half, half, ATOMIC_F16);             \
-    FUNC(float, float, ATOMIC_F32)
-
-#define ACLSHMEM_TEST_TYPE_FUNC(FUNC) \
-    FUNC(float, float);               \
-    FUNC(int8, int8_t);               \
-    FUNC(int16, int16_t);             \
-    FUNC(int32, int32_t);             \
-    FUNC(int64, int64_t);             \
-    FUNC(uint8, uint8_t);             \
-    FUNC(uint16, uint16_t);           \
-    FUNC(uint32, uint32_t);           \
-    FUNC(uint64, uint64_t);           \
-    FUNC(char, char)
 
 constexpr uint64_t ACLSHMEM_INTERNAL_UB_BUF_START_ADDR = 188 * 1024;
 constexpr uint32_t UB_ALIGN_SIZE = 32;
