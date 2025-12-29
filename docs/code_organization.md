@@ -14,73 +14,42 @@
 ```
 include目录下的头文件是按照如下文件层级进行组织的
 include/
-├── shmem.h                              // shmem所有对外API汇总
+├── shmem.h                                 // shmem所有对外API汇总
 ├── device/                                 // device侧头文件
-│   ├── shmem_def.h               // device侧定义的公共标展接口
-│   ├── shmemx_def.h               // device侧定义的公共扩展接口
-│   ├── ub2gm/                             // device侧aicore驱动ub2gm数据面低阶接口，扩展接口+x
-│   │   ├── shmem_device_rma.h           // aicore ub2gm 远端内存访问 RMA 接口
-│   │   ├── shmem_device_amo.h           // aicore ub2gm 内存原子操作接口
-│   │   ├── shmem_device_so.h           // aicore ub2gm 信号操作接口
-│   │   ├── shmem_device_cc.h           // aicore ub2gm 集合通信接口
-│   │   ├── shmem_device_p2p_sync.h            // aicore ub2gm p2p同步接口
-│   │   └── shmem_device_mo.h            // aicore ub2gm 内存保序接口
-│   │   └── engine/                // aicore 直驱gm2gm 低阶接口，扩展接口+x
-│   │       ├── shmem_device_mte.h           // aicore 直驱 mte接口
-│   │       └── shmem_device_tma.h           // aicore 直驱 tma接口
-│   ├── gm2gm/                             // device侧aicore驱动gm2gm数据面高阶和低阶接口，扩展接口+x
-│   │   ├── shmem_device_rma.h           // aicore high-level RMA 接口
-│   │   ├── shmem_device_amo.h           // aicore high-level 原子内存操作接口
-│   │   ├── shmem_device_so.h           // aicore high-level 信号操作接口
-│   │   ├── shmem_device_cc.h           // aicore high-level 集合通信接口
-│   │   ├── shmem_device_p2p_sync.h     // aicore high-level p2p同步接口
-│   │   ├── shmem_device_mo.h            // aicore high-level 内存保序接口
-│   │   └── engine/                // aicore 直驱gm2gm 低阶接口，扩展接口+x
-│   │       ├── shmem_device_proxy.h           // aicore -> aicpu 代理
-│   │       ├── shmem_device_rdma.h           // aicore 直驱 rdma 接口
-│   │       ├── shmem_device_sdma.h           // aicore 直驱 sdma 接口
-│   │       ├── shmem_device_ccu.h           // aicore 直驱 ccu 接口
-│   │       └── shmem_device_udma.h           // aicore 直驱 udma接口
-│   │       └── shmem_device_mte.h           // aicore 直驱 udma接口
-│   ├── xpu(aicpu、dpu、cx...)/       // device侧aicpu、dpu、CX等驱动gm2gm数据面高阶和低阶接口.以so交付，接入鲲鹏；以so交付的都参考此目录实现交付
-│   │   ├── shmem_device_rma.h     // xpu high-level RMA接口，扩展接口+x
-│   │   ├── shmem_device_amo.h     // xpu high-level 内存原子操作接口
-│   │   ├── shmem_device_so.h      // xpu high-level 接口
-│   │   ├── shmem_device_cc.h       // xpu high-level 接口
-│   │   ├── shmem_device_p2p_sync.h   // xpu high-level 接口
-│   │   ├── shmem_device_mo.h            // xpu high-level 接口
-│   │   └── engine/                // xpu 驱动低阶接口
-│   │       ├── shmem_device_rdma.h           // aicore rdma: shmemx_rdma_put()..
-│   │       ├── shmem_device_sdma.h           // aicore远端内存访问(Remote Memory Access)标准接口
-│   │       ├── shmem_device_ccu.h           // aicore远端内存访问(Remote Memory Access)标准接口                              // 6类12个头文件
-│   │       └── shmem_device_udma.h           // aicore udma接口
-│   ├── team/                               // device侧通信域管理
-│   └── utils/                              // device侧dfx接口
-│       ├── shmem_log.h                     // device dfx-log接口
-│       ├── shmem_counter.h                 // device dfx-counter接口
-│       ├── shmem_profiling.h               // device dfx-profiling接口
-│       └── shmem_check.h                   // device dfx-check接口
-├── device_host/                            // device_host共用目录
-│       └── shmem_common_types.h                   // 公共数据结构等
+│   ├── shmem_def.h                         // device侧定义的公共标展接口
+│   ├── ub2gm/                              // device侧aicore驱动ub2gm数据面低阶接口，扩展接口+x
+│   │   ├── shmem_device_rma.h              // aicore ub2gm 远端内存访问 RMA 接口
+│   │   └── engine/                         // aicore 直驱ub2gm 低阶接口，扩展接口+x
+│   │       └── shmem_device_mte.h          // aicore 直驱 mte接口
+│   ├── gm2gm/                              // device侧aicore驱动gm2gm数据面高阶和低阶接口，扩展接口+x
+│   │   ├── shmem_device_rma.h              // aicore high-level RMA 接口
+│   │   ├── shmem_device_amo.h              // aicore high-level 原子内存操作接口
+│   │   ├── shmem_device_so.h               // aicore high-level 信号操作接口
+│   │   ├── shmem_device_cc.h               // aicore high-level 集合通信接口
+│   │   ├── shmem_device_p2p_sync.h         // aicore high-level p2p同步接口
+│   │   ├── shmem_device_mo.h               // aicore high-level 内存保序接口
+│   │   └── engine/                         // aicore 直驱gm2gm 低阶接口，扩展接口+x
+│   │       ├── shmem_device_rdma.h         // aicore 直驱 rdma 接口
+│   │       └── shmem_device_mte.h          // aicore 直驱 mte接口
+│   └── team/                               // device侧通信域管理接口
+│       └── shmem_device_team.h             // device侧通信域管理接口
+├── host_device/                            // device_host共用目录
+│       └── shmem_common_types.h            // 公共数据结构等
 └── host/                                   // host侧头文件
     ├── shmem_host_def.h                    // host侧定义的接口
     ├── init/                               // host侧初始化接口
+    │   └── shmem_host_init.h               // host初始化接口
     ├── team/                               // host侧通信域管理接口
+    │   └── shmem_host_team.h               // host通信域管理接口
     ├── mem/                                // host侧内存管理接口
-    ├── multi_instance/                     // host侧多实例管理（预留）
+    │   └── shmem_host_heap.h               // host内存管理接口
     ├── data_plane/                         // host侧CPU驱动数据面接口
-    │   ├── shmem_host_rma.h           // host 接口
-    │   ├── shmem_host_amo.h           // host 接口
-    │   ├── shmem_host_so.h           // host 接口
-    │   ├── shmem_host_cc.h           // host 接口
-    │   ├── shmem_host_p2p_sync.h            // host high-level 接口
-    │   └── shmem_host_mo.h            // host high-level 接口
+    │   ├── shmem_host_rma.h                // host high-level RMA 接口
+    │   ├── shmem_device_so.h               // host high-level 信号操作接口
+    │   ├── shmem_host_cc.h                 // host high-level 集合通信接口
+    │   └── shmem_host_p2p_sync.h           // host high-level p2p同步接口
     └── utils/                              // host侧dfx接口
-        ├── shmem_log.h                     // host dfx-log接口
-        ├── shmem_counter.h                 // host dfx-counter接口
-        ├── shmem_profiling.h               // host dfx-profiling接口
-        └── shmem_check.h                   // host dfx-check接口
-
+        └── shmem_log.h                     // host dfx-log接口
 ```
 ## src
 ```

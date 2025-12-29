@@ -186,68 +186,6 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 
 #undef ACLSHMEM_TYPE_GET_NBI
 
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                                  \
-    /**                                                                                                               \
-    * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.      \
-    *                                                                                                                 \
-    * @param dst               [in] Pointer on local device of the destination data.                                  \
-    * @param src               [in] Pointer on Symmetric memory of the source data.                                   \
-    * @param elem_size         [in] Number of elements in the dest and source arrays.                                 \
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.                               \
-    * @param signal            [in] The value used to update sig_addr.                                                \
-    * @param sig_op            [in] Operation used to update sig_addr with signal.                                    \
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
-    * @param pe                [in] PE number of the remote PE.                                                       \
-    */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE* dst, TYPE* src, size_t elem_size,                   \
-                                                        uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
-    
-
-ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
-#define shmem_put_float_mem_signal aclshmem_put_float_mem_signal
-#define shmem_put_double_mem_signal aclshmem_put_double_mem_signal
-#define shmem_put_int8_mem_signal aclshmem_put_int8_mem_signal
-#define shmem_put_int16_mem_signal aclshmem_put_int16_mem_signal
-#define shmem_put_int32_mem_signal aclshmem_put_int32_mem_signal
-#define shmem_put_int64_mem_signal aclshmem_put_int64_mem_signal
-#define shmem_put_uint8_mem_signal aclshmem_put_uint8_mem_signal
-#define shmem_put_uint16_mem_signal aclshmem_put_uint16_mem_signal
-#define shmem_put_uint32_mem_signal aclshmem_put_uint32_mem_signal
-#define shmem_put_uint64_mem_signal aclshmem_put_uint64_mem_signal
-#define shmem_put_char_mem_signal aclshmem_put_char_mem_signal
-#undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL
-
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                              \
-    /**                                                                                                               \
-    * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.     \
-    *                                                                                                                 \
-    * @param dst               [in] Pointer on local device of the destination data.                                  \
-    * @param src               [in] Pointer on Symmetric memory of the source data.                                   \
-    * @param elem_size         [in] Number of elements in the dest and source arrays.                                 \
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.                               \
-    * @param signal            [in] The value used to update sig_addr.                                                \
-    * @param sig_op            [in] Operation used to update sig_addr with signal.                                    \
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
-    * @param pe                [in] PE number of the remote PE.                                                       \
-    */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,               \
-                                                        uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
-    
-
-ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
-#define shmem_put_float_mem_signal_nbi aclshmem_put_float_mem_signal_nbi
-#define shmem_put_double_mem_signal_nbi aclshmem_put_double_mem_signal_nbi
-#define shmem_put_int8_mem_signal_nbi aclshmem_put_int8_mem_signal_nbi
-#define shmem_put_int16_mem_signal_nbi aclshmem_put_int16_mem_signal_nbi
-#define shmem_put_int32_mem_signal_nbi aclshmem_put_int32_mem_signal_nbi
-#define shmem_put_int64_mem_signal_nbi aclshmem_put_int64_mem_signal_nbi
-#define shmem_put_uint8_mem_signal_nbi aclshmem_put_uint8_mem_signal_nbi
-#define shmem_put_uint16_mem_signal_nbi aclshmem_put_uint16_mem_signal_nbi
-#define shmem_put_uint32_mem_signal_nbi aclshmem_put_uint32_mem_signal_nbi
-#define shmem_put_uint64_mem_signal_nbi aclshmem_put_uint64_mem_signal_nbi
-#define shmem_put_char_mem_signal_nbi aclshmem_put_char_mem_signal_nbi
-#undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI
-
 #define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                     \
     /**                                                                                     \
     * @brief Provide a low latency put capability for single element of most basic types.   \
@@ -346,41 +284,6 @@ ACLSHMEM_HOST_API void aclshmem_putmem_nbi(void* dst, void* src, size_t elem_siz
 */
 ACLSHMEM_HOST_API void aclshmem_getmem_nbi(void* dst, void* src, size_t elem_size, int32_t pe);
 #define shmem_getmem_nbi aclshmem_getmem_nbi
-
-
-/**
-    * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
-    *
-    * @param dst               [in] Pointer on local device of the destination data.
-    * @param src               [in] Pointer on Symmetric memory of the source data.
-    * @param elem_size         [in] Number of elements in the dest and source arrays.
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.
-    * @param signal            [in] The value used to update sig_addr.
-    * @param sig_op            [in] Operation used to update sig_addr with signal.
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
-    * @param pe                [in] PE number of the remote PE.
- */
-ACLSHMEM_HOST_API void aclshmemx_putmem_signal_nbi(void* dst, void* src, size_t elem_size,
-                                            void* sig_addr, int32_t signal, int sig_op, int pe);
-#define shmem_putmem_signal_nbi aclshmemx_putmem_signal_nbi
-
-
-/**
-    * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
-    *
-    * @param dst               [in] Pointer on local device of the destination data.
-    * @param src               [in] Pointer on Symmetric memory of the source data.
-    * @param elem_size         [in] Number of elements in the dest and source arrays.
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.
-    * @param signal            [in] The value used to update sig_addr.
-    * @param sig_op            [in] Operation used to update sig_addr with signal.
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
-    * @param pe                [in] PE number of the remote PE.
- */
-ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem_size,
-                                        void* sig_addr, int32_t signal, int sig_op, int pe);
-#define shmem_putmem_signal aclshmemx_putmem_signal
-
 
 /**
     * @brief Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
