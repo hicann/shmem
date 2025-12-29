@@ -32,6 +32,15 @@
         }                                                                                    \
     } while (0)
 
+// ACL错误检查宏
+#define ACL_CHECK_WITH_RET(cond, log_func, return_expr)                                                           \
+    do {                                                                                                 \
+        if ((cond) != ACL_ERROR_NONE) {                                                                  \
+            log_func;                                                                                    \
+            return_expr;                                                                                 \
+        }                                                                                                \
+    } while (0)
+
 // Macro function for unwinding rt errors.
 #define RT_CHECK(status)                                                                     \
     do {                                                                                     \
