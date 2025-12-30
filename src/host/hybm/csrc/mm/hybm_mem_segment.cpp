@@ -17,6 +17,7 @@ namespace shm {
 namespace hybm {
 bool MemSegment::deviceInfoReady{false};
 int MemSegment::deviceId_{-1};
+int MemSegment::logicDeviceId_{-1};
 uint32_t MemSegment::pid_{0};
 uint32_t MemSegment::sdid_{0};
 uint32_t MemSegment::serverId_{0};
@@ -30,9 +31,9 @@ MemSegmentPtr MemSegment::Create(const MemSegmentOptions &options, int entityId)
         return nullptr;
     }
 
-    auto ret = MemSegmentDevice::SetDeviceInfo(options.devId);
+    auto ret = MemSegment::InitDeviceInfo();
     if (ret != BM_OK) {
-        BM_LOG_ERROR("MemSegmentDevice::GetDeviceId with devId: " << options.devId << " failed: " << ret);
+        BM_LOG_ERROR("MemSegment::InitDeviceInfo failed: " << ret);
         return nullptr;
     }
 
@@ -62,6 +63,12 @@ Result MemSegment::InitDeviceInfo()
     if (ret != 0) {
         BM_LOG_ERROR("get device id failed: " << ret);
         return BM_DL_FUNCTION_FAILED;
+    }
+
+    ret = DlAclApi::RtGetLogicDevIdByUserDevId(deviceId_, &logicDeviceId_);
+    if (ret != 0 || logicDeviceId_ < 0) {
+        BM_LOG_ERROR("Failed to get logic deviceId: " << deviceId_ << ", ret=" << ret);
+        return BM_ERROR;
     }
 
     ret = DlAclApi::RtDeviceGetBareTgid(&pid_);

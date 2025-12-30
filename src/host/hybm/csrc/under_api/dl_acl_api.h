@@ -37,6 +37,7 @@ using rtIpcDestroyMemoryNameFunc = int32_t (*)(const char *);
 using rtIpcOpenMemoryFunc = int32_t (*)(void **, const char *);
 using rtIpcCloseMemoryFunc = int32_t (*)(const void *);
 using aclrtGetSocNameFunc = const char *(*)();
+using rtGetLogicDevIdByUserDevIdFunc = int32_t (*)(const int32_t, int32_t *const);
 
 class DlAclApi {
 public:
@@ -212,6 +213,11 @@ public:
         return pAclrtGetSocName();
     }
 
+    static inline Result RtGetLogicDevIdByUserDevId(const int32_t userDevId, int32_t * const logicDevId)
+    {
+        return pRtGetLogicDevIdByUserDevId(userDevId, logicDevId);
+    }
+
 private:
     static std::mutex gMutex;
     static bool gLoaded;
@@ -239,6 +245,7 @@ private:
     static rtIpcOpenMemoryFunc pRtIpcOpenMemory;
     static rtIpcCloseMemoryFunc pRtIpcCloseMemory;
     static aclrtGetSocNameFunc pAclrtGetSocName;
+    static rtGetLogicDevIdByUserDevIdFunc pRtGetLogicDevIdByUserDevId;
 };
 }
 }

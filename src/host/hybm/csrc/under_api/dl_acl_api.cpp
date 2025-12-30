@@ -39,6 +39,7 @@ rtIpcSetMemoryNameFunc DlAclApi::pRtIpcSetMemoryName = nullptr;
 rtIpcOpenMemoryFunc DlAclApi::pRtIpcOpenMemory = nullptr;
 rtIpcCloseMemoryFunc DlAclApi::pRtIpcCloseMemory = nullptr;
 aclrtGetSocNameFunc DlAclApi::pAclrtGetSocName = nullptr;
+rtGetLogicDevIdByUserDevIdFunc DlAclApi::pRtGetLogicDevIdByUserDevId = nullptr;
 
 Result DlAclApi::LoadLibrary(const std::string &libDirPath)
 {
@@ -82,6 +83,7 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     DL_LOAD_SYM(pRtIpcOpenMemory, rtIpcOpenMemoryFunc, rtHandle, "rtIpcOpenMemory");
     DL_LOAD_SYM(pRtIpcCloseMemory, rtIpcCloseMemoryFunc, rtHandle, "rtIpcCloseMemory");
     DL_LOAD_SYM(pAclrtGetSocName, aclrtGetSocNameFunc, rtHandle, "aclrtGetSocName");
+    DL_LOAD_SYM(pRtGetLogicDevIdByUserDevId, rtGetLogicDevIdByUserDevIdFunc, rtHandle, "rtGetLogicDevIdByUserDevId");
 
     gLoaded = true;
     return BM_OK;
@@ -113,6 +115,7 @@ void DlAclApi::CleanupLibrary()
     pRtIpcDestroyMemoryName = nullptr;
     pRtIpcSetMemoryName = nullptr;
     pAclrtGetSocName = nullptr;
+    pRtGetLogicDevIdByUserDevId = nullptr;
 
     if (rtHandle != nullptr) {
         dlclose(rtHandle);

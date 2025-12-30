@@ -44,11 +44,12 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
 
     uint64_t base = 0;
     for (uint32_t i = 0; i < options_.rankCnt; i++) {
-        auto ret = drv::HalGvaReserveMemory(&base, options_.size, options_.devId, 0ULL);
+        auto ret = drv::HalGvaReserveMemory(&base, options_.size, logicDeviceId_, 0ULL);
         if (ret != 0 || base == 0) {
             BM_LOG_ERROR("prepare virtual memory size to (" << totalVirtualSize_ << ") failed. ret: " << ret);
             return BM_MALLOC_FAILED;
         }
+        BM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_);
         size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         totalVirtualSize_ += reserveAlignedSize;
         reservedVirtualAddresses_.emplace_back(base);
@@ -167,6 +168,7 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     info.mappingOffset = slice->vAddress_ - (uint64_t)(ptrdiff_t)localVirtualBase;
     info.sliceIndex = static_cast<uint32_t>(slice->index_);
     info.deviceId = options_.devId;
+    info.logicDeviceId = logicDeviceId_;
     info.pid = pid_;
     info.rankId = options_.rankId;
     info.size = slice->size_;
@@ -233,11 +235,13 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
             continue;
         }
 
-        if (CanLocalHostReaches(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].deviceId)) {
+        if (CanLocalHostReaches(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].logicDeviceId != logicDeviceId_)) {
             auto ret = DlAclApi::AclrtDeviceEnablePeerAccess(desInfos[i].deviceId, 0);
             if (ret != 0) {
                 BM_LOG_ERROR("enable device access failed:" << ret << " local_device:" << options_.devId
-                                                            << " remote_device:" << (int)desInfos[i].deviceId);
+                                                            << " remote_device:" << desInfos[i].deviceId
+                                                            << " logic_device:" << logicDeviceId_
+                                                            << " remote_logic:" << desInfos[i].logicDeviceId);
                 return BM_DL_FUNCTION_FAILED;
             }
         }
