@@ -35,6 +35,7 @@ const std::string DRIVER_VER_V1 = "V100R001C18B100";
 static uint64_t g_baseAddr = 0ULL;
 int64_t initialized = 0;
 uint16_t initedDeviceId = 0;
+int32_t initedLogicDeviceId = -1;
 HybmGvaVersion checkVer = HYBM_GVA_UNKNOWN;
 std::mutex initMutex;
 }
@@ -157,7 +158,13 @@ HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
 
     BM_LOG_ERROR_RETURN_IT_IF_NOT_OK(hybm_load_library(), "load library failed");
 
-    auto ret = DlAclApi::AclrtSetDevice(deviceId);
+    auto ret = DlAclApi::RtGetLogicDevIdByUserDevId(deviceId, &initedLogicDeviceId);
+    if (ret != 0 || initedLogicDeviceId < 0) {
+        BM_LOG_ERROR("fail to get logic device id " << deviceId << ", ret=" << ret);
+        return BM_ERROR;
+    }
+    BM_LOG_INFO("success to get logic device user id=" << deviceId << ", logic deviceId = " << initedLogicDeviceId);
+    ret = DlAclApi::AclrtSetDevice(deviceId);
     if (ret != BM_OK) {
         DlApi::CleanupLibrary();
         BM_LOG_ERROR("set device id to be " << deviceId << " failed: " << ret);
@@ -166,8 +173,8 @@ HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
 
     void *globalMemoryBase = nullptr;
     size_t allocSize = HYBM_DEVICE_INFO_SIZE;  // 申请meta空间
-    drv::HybmInitialize(deviceId, DlHalApi::GetFd());
-    ret = drv::HalGvaReserveMemory((uint64_t *)&globalMemoryBase, allocSize, (int32_t)deviceId, flags);
+    drv::HybmInitialize(initedLogicDeviceId, DlHalApi::GetFd());
+    ret = drv::HalGvaReserveMemory((uint64_t *)&globalMemoryBase, allocSize, initedLogicDeviceId, flags);
     if (ret != 0) {
         DlApi::CleanupLibrary();
         BM_LOG_ERROR("initialize mete memory with size: " << allocSize << ", flag: " << flags << " failed: " << ret);
@@ -183,6 +190,7 @@ HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
     }
 
     initedDeviceId = deviceId;
+    BM_LOG_INFO("hybm_init end device id " << deviceId << ", logic device id " << initedLogicDeviceId);
     initialized = 1L;
     g_baseAddr = (uint64_t)globalMemoryBase;
     BM_LOG_INFO("hybm init successfully.");

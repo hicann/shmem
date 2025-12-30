@@ -72,20 +72,22 @@ int HybmMapShareMemory(const char *name, void *expectAddr, uint64_t size, uint64
     std::copy_n(name, strlen(name), arg.data.openParam.name);
     ret = ioctl(gDeviceFd, DEVMM_SVM_IPC_MEM_OPEN, &arg);
     if (ret != 0) {
-        BM_LOG_ERROR("open share memory failed:" << ret << " : " << errno << " : " << strerror(errno)
-                                                 << ", name = " << arg.data.openParam.name);
+        BM_LOG_ERROR("open share memory failed:" << ret << " : " << errno << " : " << strerror(errno) <<
+            ", name = " << arg.data.openParam.name << ", device id = " << gDeviceId << ", fd = " << gDeviceFd);
         return -1;
     }
+    BM_LOG_INFO("open share memory success, name=" << name << ", device id: " << gDeviceId << ", fd: " << gDeviceFd);
 
     std::fill_n(reinterpret_cast<char *>(&arg.data), sizeof(arg.data), 0);
     arg.data.prefetchParam.ptr = reinterpret_cast<uint64_t>(expectAddr);
     arg.data.prefetchParam.count = size;
     ret = ioctl(gDeviceFd, DEVMM_SVM_PREFETCH, &arg);
     if (ret != 0) {
-        BM_LOG_ERROR("prefetch share memory failed:" << ret << " : " << errno << " : " << strerror(errno)
-                                                     << ", name = " << arg.data.openParam.name);
+        BM_LOG_ERROR("prefetch share memory failed:" << ret << " : " << errno << " : " << strerror(errno) <<
+            ", name = " << arg.data.openParam.name << ", device id = " << gDeviceId << ", fd = " << gDeviceFd);
         return -1;
     }
+    BM_LOG_INFO("prefetch share memory success, name=" << name << ", device id: " << gDeviceId << ", fd: " << gDeviceFd);
 
     return 0;
 }
