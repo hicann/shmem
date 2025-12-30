@@ -29,7 +29,7 @@ using namespace std;
      *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                           \
      * @param pe                [in] PE number of the remote PE.                                                        \
      */                                                                                                                 \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,  \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,      \
                                                       int32_t signal, int sig_op, int pe)                               \
     {                                                                                                                   \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal", ACLSHMEMI_OP_PUT_SIGNAL, NO_NBI,  \
@@ -57,7 +57,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL)
      *                          Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                               \
      * @param pe                [in] PE number of the remote PE.                                                            \
      */                                                                                                                     \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,  \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal_nbi(TYPE *dst, TYPE *src, size_t elem_size, uint8_t *sig_addr,      \
                                                           int32_t signal, int sig_op, int pe)                               \
     {                                                                                                                       \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_signal_nbi", ACLSHMEMI_OP_PUT_SIGNAL, NBI,     \

@@ -110,7 +110,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_gm2ub(const AscendC::LocalTensor<T> &dstUb,
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__ubuf__ T *dst, __gm__ T *src, uint32_t elem_size, int pe,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, uint32_t elem_size, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(src, pe);
@@ -127,7 +127,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__ubuf__ T *dst, __gm__ T *src, u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elem_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elem_size,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
@@ -146,7 +146,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, Asce
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__ubuf__ T *dst, __gm__ T *src, const non_contiguous_copy_param &copy_params,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(src, pe);
@@ -173,7 +173,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__ubuf__ T *dst, __gm__ T *src, c
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         const non_contiguous_copy_param &copy_params, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
@@ -197,7 +197,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, Asce
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __ubuf__ T *src, uint32_t elem_size, int pe,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, uint32_t elem_size, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(dst, pe);
@@ -214,7 +214,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __ubuf__ T *src, u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, uint32_t elem_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, uint32_t elem_size,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
@@ -233,7 +233,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, Asc
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __ubuf__ T *src, const non_contiguous_copy_param &copy_params,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(dst, pe);
@@ -261,7 +261,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __ubuf__ T *src, c
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src,
                                         const non_contiguous_copy_param &copy_params, int pe,
                                         AscendC::TEventID EVENT_ID)
 {

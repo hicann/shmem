@@ -30,7 +30,7 @@ extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva, int me
         if (i == my_rank) {
             continue;
         }
-        aclshmemx_roce_put_mem_nbi(gva + message_length * my_rank, gva + message_length * my_rank,
+        aclshmemx_roce_put_nbi(gva + message_length * my_rank, gva + message_length * my_rank,
                                 (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), message_length, i);
     }
 }
@@ -43,7 +43,7 @@ extern "C" __global__ __aicore__ void device_copy(GM_ADDR src, GM_ADDR dst, int 
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
     int64_t my_rank = aclshmem_my_pe();
     AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
-    aclshmemx_mte_put_mem_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
+    aclshmemx_mte_put_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub),
                           copy_ub_size, message_length, my_rank, copy_event_id);
     aclshmem_quiet();

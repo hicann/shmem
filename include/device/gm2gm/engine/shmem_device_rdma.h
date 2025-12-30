@@ -38,7 +38,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_roce_ptr(__gm__ void *ptr, int pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
@@ -53,7 +53,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe);
 
 /**
@@ -68,7 +68,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(AscendC::GlobalTensor<T> dst, As
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -83,7 +83,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
 
 #endif

@@ -75,7 +75,7 @@ int32_t aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t eve
      * @param nelems             [in] Number of elements in the destination and source arrays.                           \
      * @param pe                 [in] PE number of the remote PE.                                                        \
      */                                                                                                                  \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                    \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE *dest, TYPE *source, size_t nelems, int pe)                        \
     {                                                                                                                    \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem", ACLSHMEMI_OP_PUT, NO_NBI, (uint8_t *)dest,\
                                               (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,          \
@@ -97,7 +97,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT)
      * @param nelems             [in] Number of elements in the destination and source arrays.                              \
      * @param pe                 [in] PE number of the remote PE.                                                           \
      */                                                                                                                     \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                   \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                       \
     {                                                                                                                       \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_put_" #NAME "_mem_nbi", ACLSHMEMI_OP_PUT, NBI, (uint8_t *)dest,  \
                                               (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,             \
@@ -120,7 +120,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI)
      * @param nelems             [in] Number of elements in the destination and source arrays.                           \
      * @param pe                 [in] PE number of the remote PE.                                                        \
      */                                                                                                                  \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)                    \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_get(TYPE *dest, TYPE *source, size_t nelems, int pe)                        \
     {                                                                                                                    \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem", ACLSHMEMI_OP_GET, NO_NBI, (uint8_t *)dest,\
                                               (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,          \
@@ -143,7 +143,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET)
      * @param nelems             [in] Number of elements in the destination and source arrays.                              \
      * @param pe                 [in] PE number of the remote PE.                                                           \
      */                                                                                                                     \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                   \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_get_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)                       \
     {                                                                                                                       \
         int ret = aclshmemi_prepare_and_post_rma("aclshmem_get_" #NAME "_mem_nbi", ACLSHMEMI_OP_GET, NBI, (uint8_t *)dest,  \
                                               (uint8_t *)source, nelems, sizeof(TYPE), pe, nullptr, 0, 0, 1, 1,             \

@@ -22,7 +22,7 @@ extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t confi
     // All Gather
     for (int i = 0; i < team_size - 1; i++) {
         int64_t dst_rank = aclshmem_team_translate_pe(team_id, (team_rank + 1 + i) % team_size, ACLSHMEM_TEAM_WORLD);
-        aclshmem_put_int32_mem_nbi(gva_gm + 16 * team_rank, gva_gm + 16 * team_rank, 16, dst_rank);
+        aclshmem_int32_put_nbi(gva_gm + 16 * team_rank, gva_gm + 16 * team_rank, 16, dst_rank);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }

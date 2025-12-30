@@ -80,7 +80,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, 
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                      \
      * @param pe                [in] PE number of the remote PE.                                                  \
      */                                                                                                           \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size,   \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size,       \
                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
@@ -98,7 +98,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                                \
      * @param pe                [in] PE number of the remote PE.                                                            \
      */                                                                                                                     \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                     size_t elem_size, __gm__ int32_t *sig_addr, int32_t signal,             \
                                                     int sig_op, int pe)
 
@@ -118,7 +118,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                       \
      * @param pe                [in] PE number of the remote PE.                                                   \
      */                                                                                                            \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal(__gm__ TYPE *dst, __gm__ TYPE *src,                      \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal(__gm__ TYPE *dst, __gm__ TYPE *src,                          \
                                                     const non_contiguous_copy_param &copy_params,                  \
                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
@@ -138,7 +138,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                                \
      * @param pe                [in] PE number of the remote PE.                                                            \
      */                                                                                                                     \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                     const non_contiguous_copy_param &copy_params,                           \
                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
@@ -173,7 +173,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal_nbi(__gm__ void *dst, __gm__ void *s
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                          \
      * @param pe                [in] PE number of the remote PE.                                                      \
      */                                                                                                               \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size,   \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size,       \
                                                         __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
@@ -191,7 +191,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                          \
      * @param pe                [in] PE number of the remote PE.                                                      \
      */                                                                                                               \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal_nbi(AscendC::GlobalTensor<TYPE> dst,                        \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal_nbi(AscendC::GlobalTensor<TYPE> dst,                            \
                                                         AscendC::GlobalTensor<TYPE> src, size_t elem_size,            \
                                                         __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
@@ -211,7 +211,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_NBI);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                          \
      * @param pe                [in] PE number of the remote PE.                                                      \
      */                                                                                                               \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                     \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                         \
                                                         const non_contiguous_copy_param &copy_params,                 \
                                                         __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
@@ -231,7 +231,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
      *                               ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                                        \
      * @param pe                [in] PE number of the remote PE.                                                    \
      */                                                                                                             \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_signal_nbi(                                                      \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_signal_nbi(                                                          \
         AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,                                           \
         const non_contiguous_copy_param &copy_params, __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 

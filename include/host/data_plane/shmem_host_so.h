@@ -31,22 +31,22 @@ extern "C" {
     *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
     * @param pe                [in] PE number of the remote PE.                                                       \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal(TYPE* dst, TYPE* src, size_t elem_size,                   \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal(TYPE* dst, TYPE* src, size_t elem_size,                       \
                                                         uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
-#define shmem_put_float_mem_signal aclshmem_put_float_mem_signal
-#define shmem_put_double_mem_signal aclshmem_put_double_mem_signal
-#define shmem_put_int8_mem_signal aclshmem_put_int8_mem_signal
-#define shmem_put_int16_mem_signal aclshmem_put_int16_mem_signal
-#define shmem_put_int32_mem_signal aclshmem_put_int32_mem_signal
-#define shmem_put_int64_mem_signal aclshmem_put_int64_mem_signal
-#define shmem_put_uint8_mem_signal aclshmem_put_uint8_mem_signal
-#define shmem_put_uint16_mem_signal aclshmem_put_uint16_mem_signal
-#define shmem_put_uint32_mem_signal aclshmem_put_uint32_mem_signal
-#define shmem_put_uint64_mem_signal aclshmem_put_uint64_mem_signal
-#define shmem_put_char_mem_signal aclshmem_put_char_mem_signal
+#define shmem_put_float_mem_signal aclshmem_float_put_signal
+#define shmem_put_double_mem_signal aclshmem_doubl_put_signal
+#define shmem_put_int8_mem_signal aclshmem_int8_put_signal
+#define shmem_put_int16_mem_signal aclshmem_int16_put_signal
+#define shmem_put_int32_mem_signal aclshmem_int32_put_signal
+#define shmem_put_int64_mem_signal aclshmem_int64_put_signal
+#define shmem_put_uint8_mem_signal aclshmem_uint8_put_signal
+#define shmem_put_uint16_mem_signal aclshmem_uint16_put_signal
+#define shmem_put_uint32_mem_signal aclshmem_uint32_put_signal
+#define shmem_put_uint64_mem_signal aclshmem_uint64_put_signal
+#define shmem_put_char_mem_signal aclshmem_char_put_signal
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                              \
@@ -62,22 +62,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
     *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
     * @param pe                [in] PE number of the remote PE.                                                       \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,               \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,                   \
                                                         uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
-#define shmem_put_float_mem_signal_nbi aclshmem_put_float_mem_signal_nbi
-#define shmem_put_double_mem_signal_nbi aclshmem_put_double_mem_signal_nbi
-#define shmem_put_int8_mem_signal_nbi aclshmem_put_int8_mem_signal_nbi
-#define shmem_put_int16_mem_signal_nbi aclshmem_put_int16_mem_signal_nbi
-#define shmem_put_int32_mem_signal_nbi aclshmem_put_int32_mem_signal_nbi
-#define shmem_put_int64_mem_signal_nbi aclshmem_put_int64_mem_signal_nbi
-#define shmem_put_uint8_mem_signal_nbi aclshmem_put_uint8_mem_signal_nbi
-#define shmem_put_uint16_mem_signal_nbi aclshmem_put_uint16_mem_signal_nbi
-#define shmem_put_uint32_mem_signal_nbi aclshmem_put_uint32_mem_signal_nbi
-#define shmem_put_uint64_mem_signal_nbi aclshmem_put_uint64_mem_signal_nbi
-#define shmem_put_char_mem_signal_nbi aclshmem_put_char_mem_signal_nbi
+#define shmem_put_float_mem_signal_nbi aclshmem_float_put_signal_nbi
+#define shmem_put_double_mem_signal_nbi aclshmem_double_put_signal_nbi
+#define shmem_put_int8_mem_signal_nbi aclshmem_int8_put_signal_nbi
+#define shmem_put_int16_mem_signal_nbi aclshmem_int16_put_signal_nbi
+#define shmem_put_int32_mem_signal_nbi aclshmem_int32_put_signal_nbi
+#define shmem_put_int64_mem_signal_nbi aclshmem_int64_put_signal_nbi
+#define shmem_put_uint8_mem_signal_nbi aclshmem_uint8_put_signal_nbi
+#define shmem_put_uint16_mem_signal_nbi aclshmem_uint16_put_signal_nbi
+#define shmem_put_uint32_mem_signal_nbi aclshmem_uint32_put_signal_nbi
+#define shmem_put_uint64_mem_signal_nbi aclshmem_uint64_put_signal_nbi
+#define shmem_put_char_mem_signal_nbi aclshmem_char_put_signal_nbi
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI
 
 /**

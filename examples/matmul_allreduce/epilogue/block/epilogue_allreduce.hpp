@@ -204,8 +204,8 @@ public:
                     // [ReduceScatter] 2. Pre Interface Sync
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
 
-                    // [ReduceScatter] 3. Start aclshmemx_mte_get_mem_nbi
-                    aclshmemx_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], buf, copySize,
+                    // [ReduceScatter] 3. Start aclshmemx_mte_get_nbi
+                    aclshmemx_mte_get_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], buf, copySize,
                                           mRankIdx % rankSize, EVENT_ID);
 
                     // [ReduceScatter] 4. Post Interface Sync
@@ -305,8 +305,8 @@ public:
                             copyParams.src_ld = layoutInput.stride(0);
                             copyParams.dst_ld = layoutOutput.stride(0);
 
-                            // [AllGather] 3. Start aclshmemx_mte_get_mem_nbi non-contiguous version
-                            aclshmemx_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf,
+                            // [AllGather] 3. Start aclshmemx_mte_get_nbi non-contiguous version
+                            aclshmemx_mte_get_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf,
                                                   copyParams, mRankIdx % rankSize, EVENT_ID);
 
                             // [AllGather] 4. Post Interface Sync

@@ -397,7 +397,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_roce_ptr(__gm__ void *ptr, int pe)
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe)
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe)
 {
     auto ptr = aclshmem_roce_ptr(src, pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
@@ -413,7 +413,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe)
 {
     auto ptr = aclshmem_roce_ptr((__gm__ void *)src.GetPhyAddr(), pe);
@@ -430,7 +430,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_mem_nbi(AscendC::GlobalTensor<T> dst, As
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe)
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe)
 {
     auto ptr = aclshmem_roce_ptr(dst, pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
@@ -446,7 +446,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_roce_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_roce_ptr((__gm__ void *)dst.GetPhyAddr(), pe);

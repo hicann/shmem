@@ -82,21 +82,21 @@ ACLSHMEM_HOST_API void* aclshmem_ptr(void *ptr, int pe);
     * @param nelems             [in] Number of elements in the destination and source arrays.                         \
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE *dest, TYPE *source, size_t nelems, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
-#define shmem_put_float_mem aclshmem_put_float_mem
-#define shmem_put_double_mem aclshmem_put_double_mem
-#define shmem_put_int8_mem aclshmem_put_int8_mem
-#define shmem_put_int16_mem aclshmem_put_int16_mem
-#define shmem_put_int32_mem aclshmem_put_int32_mem
-#define shmem_put_int64_mem aclshmem_put_int64_mem
-#define shmem_put_uint8_mem aclshmem_put_uint8_mem
-#define shmem_put_uint16_mem aclshmem_put_uint16_mem
-#define shmem_put_uint32_mem aclshmem_put_uint32_mem
-#define shmem_put_uint64_mem aclshmem_put_uint64_mem
-#define shmem_put_char_mem aclshmem_put_char_mem
+#define shmem_put_float_mem aclshmem_float_put
+#define shmem_put_double_mem aclshmem_double_put
+#define shmem_put_int8_mem aclshmem_int8_put
+#define shmem_put_int16_mem aclshmem_int16_put
+#define shmem_put_int32_mem aclshmem_int32_put
+#define shmem_put_int64_mem aclshmem_int64_put
+#define shmem_put_uint8_mem aclshmem_uint8_put
+#define shmem_put_uint16_mem aclshmem_uint16_put
+#define shmem_put_uint32_mem aclshmem_uint32_put
+#define shmem_put_uint64_mem aclshmem_uint64_put
+#define shmem_put_char_mem aclshmem_char_put
 #undef ACLSHMEM_TYPE_PUT
 
 #define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                             \
@@ -108,22 +108,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
     * @param nelems             [in] Number of elements in the destination and source arrays.                         \
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_put_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
 
-#define shmem_put_float_mem_nbi aclshmem_put_float_mem_nbi
-#define shmem_put_double_mem_nbi aclshmem_put_double_mem_nbi
-#define shmem_put_int8_mem_nbi aclshmem_put_int8_mem_nbi
-#define shmem_put_int16_mem_nbi aclshmem_put_int16_mem_nbi
-#define shmem_put_int32_mem_nbi aclshmem_put_int32_mem_nbi
-#define shmem_put_int64_mem_nbi aclshmem_put_int64_mem_nbi
-#define shmem_put_uint8_mem_nbi aclshmem_put_uint8_mem_nbi
-#define shmem_put_uint16_mem_nbi aclshmem_put_uint16_mem_nbi
-#define shmem_put_uint32_mem_nbi aclshmem_put_uint32_mem_nbi
-#define shmem_put_uint64_mem_nbi aclshmem_put_uint64_mem_nbi
-#define shmem_put_char_mem_nbi aclshmem_put_char_mem_nbi
+#define shmem_put_float_mem_nbi aclshmem_float_put_nbi
+#define shmem_put_double_mem_nbi aclshmem_double_put_nbi
+#define shmem_put_int8_mem_nbi aclshmem_int8_put_nbi
+#define shmem_put_int16_mem_nbi aclshmem_int16_put_nbi
+#define shmem_put_int32_mem_nbi aclshmem_int32_put_nbi
+#define shmem_put_int64_mem_nbi aclshmem_int64_put_nbi
+#define shmem_put_uint8_mem_nbi aclshmem_uint8_put_nbi
+#define shmem_put_uint16_mem_nbi aclshmem_uint16_put_nbi
+#define shmem_put_uint32_mem_nbi aclshmem_uint32_put_nbi
+#define shmem_put_uint64_mem_nbi aclshmem_uint64_put_nbi
+#define shmem_put_char_mem_nbi aclshmem_char_put_nbi
 
 
 #undef ACLSHMEM_TYPE_PUT_NBI
@@ -138,22 +138,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
     * @param nelems             [in] Number of elements in the destination and source arrays.                         \
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem(TYPE *dest, TYPE *source, size_t nelems, int pe)
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_get(TYPE *dest, TYPE *source, size_t nelems, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
 
-#define shmem_get_float_mem aclshmem_get_float_mem
-#define shmem_get_double_mem aclshmem_get_double_mem
-#define shmem_get_int8_mem aclshmem_get_int8_mem
-#define shmem_get_int16_mem aclshmem_get_int16_mem
-#define shmem_get_int32_mem aclshmem_get_int32_mem
-#define shmem_get_int64_mem aclshmem_get_int64_mem
-#define shmem_get_uint8_mem aclshmem_get_uint8_mem
-#define shmem_get_uint16_mem aclshmem_get_uint16_mem
-#define shmem_get_uint32_mem aclshmem_get_uint32_mem
-#define shmem_get_uint64_mem aclshmem_get_uint64_mem
-#define shmem_get_char_mem aclshmem_get_char_mem
+#define shmem_get_float_mem aclshmem_float_get
+#define shmem_get_double_mem aclshmem_double_get
+#define shmem_get_int8_mem aclshmem_int8_get
+#define shmem_get_int16_mem aclshmem_int16_get
+#define shmem_get_int32_mem aclshmem_int32_get
+#define shmem_get_int64_mem aclshmem_int64_get
+#define shmem_get_uint8_mem aclshmem_uint8_get
+#define shmem_get_uint16_mem aclshmem_uint16_get
+#define shmem_get_uint32_mem aclshmem_uint32_get
+#define shmem_get_uint64_mem aclshmem_uint64_get
+#define shmem_get_char_mem aclshmem_char_get
 
 #undef ACLSHMEM_TYPE_GET
 
@@ -167,22 +167,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
     * @param nelems             [in] Number of elements in the destination and source arrays.                         \
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
-    ACLSHMEM_HOST_API void aclshmem_get_##NAME##_mem_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_get_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
     
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 
-#define shmem_get_float_mem_nbi aclshmem_get_float_mem_nbi
-#define shmem_get_double_mem_nbi aclshmem_get_double_mem_nbi
-#define shmem_get_int8_mem_nbi aclshmem_get_int8_mem_nbi
-#define shmem_get_int16_mem_nbi aclshmem_get_int16_mem_nbi
-#define shmem_get_int32_mem_nbi aclshmem_get_int32_mem_nbi
-#define shmem_get_int64_mem_nbi aclshmem_get_int64_mem_nbi
-#define shmem_get_uint8_mem_nbi aclshmem_get_uint8_mem_nbi
-#define shmem_get_uint16_mem_nbi aclshmem_get_uint16_mem_nbi
-#define shmem_get_uint32_mem_nbi aclshmem_get_uint32_mem_nbi
-#define shmem_get_uint64_mem_nbi aclshmem_get_uint64_mem_nbi
-#define shmem_get_char_mem_nbi aclshmem_get_char_mem_nbi
+#define shmem_get_float_mem_nbi aclshmem_float_get_nbi
+#define shmem_get_double_mem_nbi aclshmem_double_get_nbi
+#define shmem_get_int8_mem_nbi aclshmem_int8_get_nbi
+#define shmem_get_int16_mem_nbi aclshmem_int16_get_nbi
+#define shmem_get_int32_mem_nbi aclshmem_int32_get_nbi
+#define shmem_get_int64_mem_nbi aclshmem_int64_get_nbi
+#define shmem_get_uint8_mem_nbi aclshmem_uint8_get_nbi
+#define shmem_get_uint16_mem_nbi aclshmem_uint16_get_nbi
+#define shmem_get_uint32_mem_nbi aclshmem_uint32_get_nbi
+#define shmem_get_uint64_mem_nbi aclshmem_uint64_get_nbi
+#define shmem_get_char_mem_nbi aclshmem_char_get_nbi
 
 #undef ACLSHMEM_TYPE_GET_NBI
 

@@ -29,7 +29,7 @@ extern "C" __global__ __aicore__ void RDMAGetTestLowLevel(GM_ADDR gva, uint64_t 
             continue;
         }
         dest_addr = gva + peer * MESSAGE_SIZE;
-        aclshmemx_roce_get_mem_nbi(dest_addr, dest_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_roce_get_nbi(dest_addr, dest_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
     }
 }
 
@@ -55,7 +55,7 @@ extern "C" __global__ __aicore__ void RDMAPutTestLowLevel(GM_ADDR gva, uint64_t 
             continue;
         }
         src_addr = gva + rank * MESSAGE_SIZE;
-        aclshmemx_roce_put_mem_nbi(src_addr, src_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_roce_put_nbi(src_addr, src_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
     }
 }
 
@@ -76,7 +76,7 @@ extern "C" __global__ __aicore__ void RDMAGetTestHighLevel(GM_ADDR gva, uint64_t
             continue;
         }
         dest_addr = gva + peer * MESSAGE_SIZE;
-        aclshmem_get_uint8_mem_nbi(dest_addr, dest_addr, MESSAGE_SIZE, peer);
+        aclshmem_uint8_get_nbi(dest_addr, dest_addr, MESSAGE_SIZE, peer);
         AscendC::PipeBarrier<PIPE_ALL>();
     }
 }
@@ -98,7 +98,7 @@ extern "C" __global__ __aicore__ void RDMAPutTestHighLevel(GM_ADDR gva, uint64_t
             continue;
         }
         src_addr = gva + rank * MESSAGE_SIZE;
-        aclshmem_put_uint8_mem_nbi(src_addr, src_addr, MESSAGE_SIZE, peer);
+        aclshmem_uint8_put_nbi(src_addr, src_addr, MESSAGE_SIZE, peer);
         AscendC::PipeBarrier<PIPE_ALL>();
     }
 }

@@ -97,7 +97,7 @@ void host_test_getmem_stream(uint8_t *gva, uint8_t *dev, int32_t rank_, size_t e
     op.Process();
 }
 
-static void host_test_put_get_mem_stream(int rank_id, int rank_size, uint64_t local_mem_size, aclrtStream stream)
+static void host_test_put_get_stream(int rank_id, int rank_size, uint64_t local_mem_size, aclrtStream stream)
 {
     int sleep_time = 1;
     int stage_total = 16;
@@ -163,7 +163,7 @@ void test_host_aclshmem_putmem_and_getmemstream(int rank_id, int n_ranks, uint64
     test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
-    host_test_put_get_mem_stream(rank_id, n_ranks, local_mem_size, stream);
+    host_test_put_get_stream(rank_id, n_ranks, local_mem_size, stream);
     std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()) {

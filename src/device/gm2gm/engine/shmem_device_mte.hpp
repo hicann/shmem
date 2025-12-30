@@ -44,7 +44,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe)
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                         uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(src, pe);
@@ -76,7 +76,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ T *dst, __gm__ T *src, __u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                         const non_contiguous_copy_param &copy_params, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
@@ -108,7 +108,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ T *dst, __gm__ T *src, __u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
@@ -143,7 +143,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, Asc
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
@@ -169,7 +169,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, Asc
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                         uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = aclshmem_ptr(dst, pe);
@@ -201,7 +201,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __gm__ T *src, __u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                         const non_contiguous_copy_param &copy_params, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
@@ -233,7 +233,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ T *dst, __gm__ T *src, __u
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
                                         AscendC::TEventID EVENT_ID)
 {
@@ -268,7 +268,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, Asc
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID)
 {
@@ -293,7 +293,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, Asc
     aclshmemi_copy_ub2gm(remote_buff, buf, data_copy_params_ub2gm);
 }
 
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
     uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID, bool enable_L2)
 {
     auto ptr = aclshmem_ptr(src, pe);
@@ -324,7 +324,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t
     }
 }
 
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
     uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID, bool enable_L2)
 {
     auto ptr = aclshmem_ptr(dst, pe);
@@ -355,7 +355,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t
     }
 }
 
-ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size,
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size,
     int32_t pe, bool enable_L2)
 {
     /* Global State Get */
@@ -364,11 +364,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
     AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
-    aclshmemx_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
+    aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
         elem_size, pe, copy_event_id, enable_L2);
 }
 
-ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size, int32_t pe,
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size, int32_t pe,
     bool enable_L2)
 {
         /* Global State Get */
@@ -377,7 +377,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_mem_nbi(__gm__ int8_t* dst, __gm__ int8_t
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->mte_config.ub_size;
         AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
-        aclshmemx_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
+        aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
             elem_size, pe, copy_event_id, enable_L2);
 }
 

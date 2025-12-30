@@ -429,7 +429,7 @@ bool support_host_mem_type(aclshmem_mem_type_t mem_type)
     return true;
 }
 
-std::shared_ptr<memory_heap> get_memory_manager(aclshmem_mem_type_t mem_type)
+std::shared_ptr<memory_heap> getory_manager(aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {
         if (aclshmemi_host_memory_manager != nullptr) {
@@ -461,7 +461,7 @@ void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type)
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
     }
-    auto mem_manager = get_memory_manager(mem_type);
+    auto mem_manager = getory_manager(mem_type);
     if (mem_manager == nullptr) {
         return nullptr;
     }
@@ -483,7 +483,7 @@ void *aclshmemx_calloc(size_t nmemb, size_t size, aclshmem_mem_type_t mem_type)
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
     }
-    auto mem_manager = get_memory_manager(mem_type);
+    auto mem_manager = getory_manager(mem_type);
     if (mem_manager == nullptr) {
         return nullptr;
     }
@@ -516,7 +516,7 @@ void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_typ
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
     }
-    auto mem_manager = get_memory_manager(mem_type);
+    auto mem_manager = getory_manager(mem_type);
     if (mem_manager == nullptr) {
         return nullptr;
     }

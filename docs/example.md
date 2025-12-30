@@ -1,7 +1,7 @@
 # AllGather
 该样例工程位于`examples\allgather`文件夹下。
 
-在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括aclshmemx_mte_put_mem_nbi、aclshmemx_signal_op以及aclshmemx_mte_get_mem_nbi等，用于p2p的通信以及同步任务。
+在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括aclshmemx_mte_put_nbi、aclshmemx_signal_op以及aclshmemx_mte_get_nbi等，用于p2p的通信以及同步任务。
 
 ## 核函数实现
 ```c++
@@ -47,7 +47,7 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, _
     if (aivIndex == aivNum - 1) {
         num_per_core = elements - num_per_core * aivIndex;
     }
-    aclshmemx_mte_put_mem_nbi(gva_data_gm + gva_offset, input_gm + input_offset, tmp_buff, ub_size, num_per_core, my_rank, EVENT_ID0);
+    aclshmemx_mte_put_nbi(gva_data_gm + gva_offset, input_gm + input_offset, tmp_buff, ub_size, num_per_core, my_rank, EVENT_ID0);
 
     const int64_t core_per_rank = aivNum / pe_size;
     const int64_t core_rank_idx = aivIndex % core_per_rank;
@@ -67,7 +67,7 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, _
     if (core_rank_idx == core_per_rank - 1) {
         num_per_core = elements - num_per_core * core_rank_idx;
     }
-    aclshmemx_mte_get_mem_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x, EVENT_ID0);
+    aclshmemx_mte_get_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x, EVENT_ID0);
 #endif
 }
 ```

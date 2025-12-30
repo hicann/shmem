@@ -33,36 +33,36 @@ using namespace std;
 // kernels
 ACLSHMEM_GLOBAL void aclshmemi_putmem_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_put_uint8_mem_nbi(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_put_nbi(lptr, rptr, elem_size, pe);
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_putmem(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_put_uint8_mem(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_put(lptr, rptr, elem_size, pe);
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_getmem_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_get_uint8_mem_nbi(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_get_nbi(lptr, rptr, elem_size, pe);
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_getmem(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_get_uint8_mem(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_get(lptr, rptr, elem_size, pe);
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_putmem_signal(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
                                        int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
-    aclshmem_put_uint8_mem_signal(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
+    aclshmem_uint8_put_signal(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_putmem_signal_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, GM_ADDR sig_addr,
                                            int32_t signal, int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
-    aclshmem_put_uint8_mem_signal_nbi(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
+    aclshmem_uint8_put_signal_nbi(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
 }
 
 ACLSHMEM_GLOBAL void k_aclshmem_getmem(GM_ADDR dst, GM_ADDR src, size_t elem_size, int32_t pe)

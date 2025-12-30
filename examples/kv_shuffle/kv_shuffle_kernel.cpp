@@ -86,7 +86,7 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
             if (aiv_idx < 8) {
                 local_ptr = (__gm__ int8_t*)k_cache + src_offset;
                 remote_ptr = (__gm__ int8_t*)k_cache + dst_offset;
-                aclshmemx_mte_put_mem_nbi(
+                aclshmemx_mte_put_nbi(
                     remote_ptr,
                     local_ptr,
                     reinterpret_cast<__ubuf__ int8_t*>(k_cache_copy_ub),
@@ -101,7 +101,7 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
             if (aiv_idx >= 8) {
                 local_ptr = (__gm__ int8_t*)v_cache + src_offset;
                 remote_ptr = (__gm__ int8_t*)v_cache + dst_offset;
-                aclshmemx_mte_put_mem_nbi(
+                aclshmemx_mte_put_nbi(
                     remote_ptr,
                     local_ptr,
                     reinterpret_cast<__ubuf__ int8_t*>(v_cache_copy_ub),

@@ -53,13 +53,13 @@
                                                                                                                          \
             int src_offset = task_repeat * length;                                                                       \
             int dst_offset = task_repeat / 2 * length;                                                                   \
-            aclshmemx_mte_put_mem_nbi(dst_gm[dst_offset * 0], buf_tensor[src_offset * 0], copy_params,                   \
+            aclshmemx_mte_put_nbi(dst_gm[dst_offset * 0], buf_tensor[src_offset * 0], copy_params,                       \
                                   (rank + 1) % rank_size, EVENT_ID0);                                                    \
-            aclshmemx_mte_put_mem_nbi(gva_gm + dst_offset * 1, buf + src_offset * 1, copy_params, (rank + 1) % rank_size,\
+            aclshmemx_mte_put_nbi(gva_gm + dst_offset * 1, buf + src_offset * 1, copy_params, (rank + 1) % rank_size,    \
                                   EVENT_ID0);                                                                            \
-            aclshmem_put_##NAME##_mem_nbi(dst_gm[dst_offset * 2], buf_tensor[src_offset * 2], copy_params,               \
+            aclshmem_##NAME##_put_nbi(dst_gm[dst_offset * 2], buf_tensor[src_offset * 2], copy_params,                   \
                                        (rank + 1) % rank_size);                                                          \
-            aclshmem_put_##NAME##_mem_nbi(gva_gm + dst_offset * 3, buf + src_offset * 3, copy_params,                    \
+            aclshmem_##NAME##_put_nbi(gva_gm + dst_offset * 3, buf + src_offset * 3, copy_params,                        \
                                        (rank + 1) % rank_size);                                                          \
                                                                                                                          \
             aclshmemx_barrier_all_vec();                                                                                 \
@@ -138,13 +138,13 @@ ACLSHMEM_FUNC_TYPE_KERNEL(TEST_UB_NON_CONTIGUOUS_PUT);
                                                                                                                          \
             int src_offset = task_repeat * length;                                                                       \
             int dst_offset = task_repeat / 2 * length;                                                                   \
-            aclshmemx_mte_get_mem_nbi(buf + dst_offset * 0, gva_gm + src_offset * 0, copy_params, (rank + 1) % rank_size,\
+            aclshmemx_mte_get_nbi(buf + dst_offset * 0, gva_gm + src_offset * 0, copy_params, (rank + 1) % rank_size,    \
                                   EVENT_ID0);                                                                            \
-            aclshmemx_mte_get_mem_nbi(buf_tensor[dst_offset * 1], src_gm[src_offset * 1], copy_params,                   \
+            aclshmemx_mte_get_nbi(buf_tensor[dst_offset * 1], src_gm[src_offset * 1], copy_params,                       \
                                   (rank + 1) % rank_size, EVENT_ID0);                                                    \
-            aclshmem_get_##NAME##_mem_nbi(buf + dst_offset * 2, gva_gm + src_offset * 2, copy_params,                    \
+            aclshmem_##NAME##_get_nbi(buf + dst_offset * 2, gva_gm + src_offset * 2, copy_params,                        \
                                        (rank + 1) % rank_size);                                                          \
-            aclshmem_get_##NAME##_mem_nbi(buf_tensor[dst_offset * 3], src_gm[src_offset * 3], copy_params,               \
+            aclshmem_##NAME##_get_nbi(buf_tensor[dst_offset * 3], src_gm[src_offset * 3], copy_params,                   \
                                        (rank + 1) % rank_size);                                                          \
                                                                                                                          \
             AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                  \

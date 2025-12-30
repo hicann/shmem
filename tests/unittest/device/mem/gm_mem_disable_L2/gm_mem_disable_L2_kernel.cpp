@@ -41,18 +41,18 @@ public:
         AscendC::LocalTensor<int8_t> buf_tensor = buf_queue.AllocTensor<int8_t>();
         uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);
         __ubuf__ int8_t *buf = (__ubuf__ int8_t *)addr;
-        aclshmemx_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size * length / 4U, rank, EVENT_ID0);
+        aclshmemx_mte_put_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size * length / 4U, rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        aclshmemx_mte_put_mem_nbi(dst_gm[rank_size * length / 4U], src_gm[rank_size * length / 4U], buf_tensor,
+        aclshmemx_mte_put_nbi(dst_gm[rank_size * length / 4U], src_gm[rank_size * length / 4U], buf_tensor,
             rank_size * length / 4U, rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        aclshmemx_mte_put_mem_nbi(gva_gm + rank_size * length / 2U, dev_gm + rank_size * length / 2U,
+        aclshmemx_mte_put_nbi(gva_gm + rank_size * length / 2U, dev_gm + rank_size * length / 2U,
             rank_size * length / 4U, rank, false);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        aclshmemx_mte_put_mem_nbi(gva_gm + rank_size * length * 3U / 4U, dev_gm + rank_size * length * 3U / 4U,
+        aclshmemx_mte_put_nbi(gva_gm + rank_size * length * 3U / 4U, dev_gm + rank_size * length * 3U / 4U,
             rank_size * length / 4U, rank, false);
         aclshmemx_barrier_all_vec();
         buf_queue.FreeTensor(buf_tensor);
@@ -109,21 +109,21 @@ public:
         __ubuf__ int8_t *buf = (__ubuf__ int8_t *)addr;
 
         for (int i = 0; i < rank_size / 2U; i++) {
-            aclshmemx_mte_get_mem_nbi(dev_gm + length * i, gva_gm, buf, (uint32_t)ub_size,
+            aclshmemx_mte_get_nbi(dev_gm + length * i, gva_gm, buf, (uint32_t)ub_size,
                 length / 2U, i % rank_size, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-            aclshmemx_mte_get_mem_nbi(dst_gm[length * i + length / 2U], src_gm, buf_tensor,
+            aclshmemx_mte_get_nbi(dst_gm[length * i + length / 2U], src_gm, buf_tensor,
                 length / 2U, i % rank_size, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         }
 
         for (int i = rank_size / 2U; i < rank_size; i++) {
-            aclshmemx_mte_get_mem_nbi(dev_gm + length * i, gva_gm, length, i % rank_size, true);
+            aclshmemx_mte_get_nbi(dev_gm + length * i, gva_gm, length, i % rank_size, true);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-            aclshmemx_mte_get_mem_nbi(dev_gm + length * i + length / 2U, gva_gm, length / 2U, i % rank_size, true);
+            aclshmemx_mte_get_nbi(dev_gm + length * i + length / 2U, gva_gm, length / 2U, i % rank_size, true);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         }

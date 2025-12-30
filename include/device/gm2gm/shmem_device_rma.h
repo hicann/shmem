@@ -126,7 +126,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
      * @param elem_size         [in] Number of elements in the dest and source arrays.                           \
      * @param pe                [in] PE number of the remote PE.                                                 \
      */                                                                                                          \
-    ACLSHMEM_DEVICE void aclshmem_get_##NAME##_mem(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 
@@ -149,7 +149,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
      * @param elem_size         [in] Number of elements in the destination and source arrays.                     \
      * @param pe                [in] PE number of the remote PE.                                                  \
      */                                                                                                           \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 
@@ -176,7 +176,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
      * @param elem_size         [in] Number of elements in the dest and source arrays.                               \
      * @param pe                [in] PE number of the remote PE.                                                     \
      */                                                                                                              \
-    ACLSHMEM_DEVICE void aclshmem_get_##NAME##_mem_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
 
@@ -190,7 +190,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
      * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.         \
      * @param pe                [in] PE number of the remote PE.                                                   \
      */                                                                                                            \
-    ACLSHMEM_DEVICE void aclshmem_get_##NAME##_mem_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                             \
                                                  const non_contiguous_copy_param &copy_params, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
@@ -207,7 +207,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
      * @param elem_size         [in] Number of elements in the dest and source arrays.                                   \
      * @param pe                [in] PE number of the remote PE.                                                         \
      */                                                                                                                  \
-    ACLSHMEM_DEVICE void aclshmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                  uint32_t elem_size, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
@@ -222,7 +222,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
      * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.               \
      * @param pe                [in] PE number of the remote PE.                                                         \
      */                                                                                                                  \
-    ACLSHMEM_DEVICE void aclshmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                  const non_contiguous_copy_param &copy_params, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
@@ -238,7 +238,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
      * @param elem_size         [in] Number of elements in the destination and source arrays.                        \
      * @param pe                [in] PE number of the remote PE.                                                     \
      */                                                                                                              \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
 
@@ -252,7 +252,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
      * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.         \
      * @param pe                [in] PE number of the remote PE.                                                   \
      */                                                                                                            \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                             \
                                                  const non_contiguous_copy_param &copy_params, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
@@ -268,7 +268,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
      * @param elem_size         [in] Number of elements in the destination and source arrays.                            \
      * @param pe                [in] PE number of the remote PE.                                                         \
      */                                                                                                                  \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                  uint32_t elem_size, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
@@ -283,7 +283,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
      * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.               \
      * @param pe                [in] PE number of the remote PE.                                                         \
      */                                                                                                                  \
-    ACLSHMEM_DEVICE void aclshmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
                                                  const non_contiguous_copy_param &copy_params, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
