@@ -65,3 +65,23 @@ int32_t aclshmemi_memset(int32_t *array, int32_t len, int32_t val, int32_t count
     k_memset<int32_t><<<1, nullptr, nullptr>>>((uint8_t *)array, len, val, count);
     return aclrtSynchronizeStream(nullptr);
 }
+
+ACLSHMEM_GLOBAL void k_aclshmem_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val)
+{
+    aclshmem_signal_wait_until(sig_addr, cmp, cmp_val);
+}
+
+void call_aclshmemi_signal_wait_until_on_stream_kernel(int32_t *sig_addr, int cmp, int32_t cmp_val, aclrtStream stream)
+{
+    k_aclshmem_signal_wait_until<<<1, nullptr, stream>>>(sig_addr, cmp, cmp_val);
+}
+
+ACLSHMEM_GLOBAL void k_aclshmem_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+{
+    aclshmemx_signal_op(sig_addr, signal, sig_op, pe);
+}
+
+void call_aclshmemi_signal_op_on_stream_kernel(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
+{
+    k_aclshmem_signal_op<<<1, nullptr, stream>>>(sig_addr, signal, sig_op, pe);
+}

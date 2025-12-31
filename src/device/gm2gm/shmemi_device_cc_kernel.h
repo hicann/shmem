@@ -21,4 +21,8 @@ int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStrea
 
 void aclshmemi_handle_wait_on_stream(aclshmem_handle_t handle, aclrtStream stream);
 
+void call_aclshmemi_signal_wait_until_on_stream_kernel(int32_t *sig_addr, int cmp, int32_t cmp_val, aclrtStream stream);
+
+void call_aclshmemi_signal_op_on_stream_kernel(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream);
+
 #endif // _DEVICE_GM2GM_ACLSHMEMI_DEVICE_CC_KERNEL_H_

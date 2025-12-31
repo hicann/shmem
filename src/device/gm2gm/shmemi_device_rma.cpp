@@ -31,38 +31,38 @@ using namespace std;
     FUNC(char, char)
 
 // kernels
-ACLSHMEM_GLOBAL void aclshmemi_putmem_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
+ACLSHMEM_GLOBAL void aclshmemi_putmem_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_uint8_put_nbi(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_put_nbi(dst, src, elem_size, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_putmem(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
+ACLSHMEM_GLOBAL void aclshmemi_putmem(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_uint8_put(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_put(dst, src, elem_size, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_getmem_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
+ACLSHMEM_GLOBAL void aclshmemi_getmem_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_uint8_get_nbi(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_get_nbi(dst, src, elem_size, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_getmem(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, int32_t pe)
+ACLSHMEM_GLOBAL void aclshmemi_getmem(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
-    aclshmem_uint8_get(lptr, rptr, elem_size, pe);
+    aclshmem_uint8_get(dst, src, elem_size, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_putmem_signal(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
+ACLSHMEM_GLOBAL void aclshmemi_putmem_signal(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
                                        int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
-    aclshmem_uint8_put_signal(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
+    aclshmem_uint8_put_signal(dst, src, elem_size, sig_addr_int32, signal, sig_op, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_putmem_signal_nbi(GM_ADDR lptr, GM_ADDR rptr, uint32_t elem_size, GM_ADDR sig_addr,
+ACLSHMEM_GLOBAL void aclshmemi_putmem_signal_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr,
                                            int32_t signal, int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
-    aclshmem_uint8_put_signal_nbi(lptr, rptr, elem_size, sig_addr_int32, signal, sig_op, pe);
+    aclshmem_uint8_put_signal_nbi(dst, src, elem_size, sig_addr_int32, signal, sig_op, pe);
 }
 
 ACLSHMEM_GLOBAL void k_aclshmem_getmem(GM_ADDR dst, GM_ADDR src, size_t elem_size, int32_t pe)
@@ -71,7 +71,7 @@ ACLSHMEM_GLOBAL void k_aclshmem_getmem(GM_ADDR dst, GM_ADDR src, size_t elem_siz
 }
 
 // kernel function calling entrance
-int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc, bool is_nbi, uint8_t *lptr, uint8_t *rptr,
+int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc, bool is_nbi, uint8_t *dst, uint8_t *src,
                                     size_t n_elems, size_t elem_bytes, int pe, uint8_t *sig_addr, int32_t signal,
                                     int sig_op, ptrdiff_t lstride, ptrdiff_t rstride, aclrtStream acl_strm,
                                     size_t block_size)
@@ -83,13 +83,13 @@ int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc
     if (is_nbi) {
         switch (desc) {
             case ACLSHMEMI_OP_PUT:
-                aclshmemi_putmem_nbi<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, pe);
+                aclshmemi_putmem_nbi<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
                 break;
             case ACLSHMEMI_OP_GET:
-                aclshmemi_getmem_nbi<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, pe);
+                aclshmemi_getmem_nbi<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
                 break;
             case ACLSHMEMI_OP_PUT_SIGNAL:
-                aclshmemi_putmem_signal_nbi<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, sig_addr,
+                aclshmemi_putmem_signal_nbi<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, sig_addr,
                                                                       signal, sig_op, pe);
             default:
                 break;
@@ -97,25 +97,19 @@ int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc
     } else {
         switch (desc) {
             case ACLSHMEMI_OP_PUT:
-                aclshmemi_putmem<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, pe);
+                aclshmemi_putmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
                 break;
             case ACLSHMEMI_OP_GET:
-                aclshmemi_getmem<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, pe);
+                aclshmemi_getmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
                 break;
             case ACLSHMEMI_OP_PUT_SIGNAL:
-                aclshmemi_putmem_signal<<<block_size, 0, acl_strm>>>(lptr, rptr, n_elems * elem_bytes, sig_addr, signal,
+                aclshmemi_putmem_signal<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, sig_addr, signal,
                                                                   sig_op, pe);
             default:
                 break;
         }
     }
     return 0;
-}
-
-int32_t aclshmemi_getmem_on_stream(uint8_t *dst, uint8_t *src, size_t elem_size, int32_t pe, aclrtStream stream)
-{
-    k_aclshmem_getmem<<<1, nullptr, stream>>>(dst, src, elem_size, pe);
-    return aclrtSynchronizeStream(stream);
 }
 
 #define ACLSHMEMI_TYPENAME_P(NAME, TYPE)                                                \

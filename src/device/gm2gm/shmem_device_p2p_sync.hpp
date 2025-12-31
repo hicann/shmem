@@ -14,78 +14,6 @@
 #include "shmemi_device_p2p_sync.h"
 #include "device/gm2gm/engine/shmem_device_rdma.h"
 
-ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int32_t val)
-{
-    aclshmemi_store(addr, val);
-
-    // flush data cache to GM after signal to ensure it is visiable to other ranks
-    dcci_cacheline((__gm__ uint8_t *)addr);
-}
-
-ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t val)
-{
-    aclshmemi_signal_set((__gm__ int32_t *)aclshmem_ptr(addr, pe), val);
-}
-
-ACLSHMEM_DEVICE void aclshmemi_highlevel_signal_set(__gm__ int32_t *dst, __gm__ int32_t *src, int pe)
-{
-    AscendC::LocalTensor<uint32_t> ub_tensor_32;
-    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
-    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);
-    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
-    AscendC::LocalTensor<uint64_t> ub_tensor_64;
-    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
-    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR
-                                                                        + UB_ALIGN_SIZE);
-    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
-    aclshmemi_roce_write((__gm__ uint8_t*)aclshmem_roce_ptr(dst, pe), (__gm__ uint8_t*)src, pe, 0, sizeof(int32_t),
-        ub_tensor_64, ub_tensor_32);
-    aclshmemi_roce_quiet(pe, 0, ub_tensor_64, ub_tensor_32);
-}
-
-ACLSHMEM_DEVICE void aclshmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val)
-{
-    // ensure previous atomic operations end
-    dcci_atomic();
-    dsb_all();
-
-    // atomic add
-    set_st_atomic_cfg(ATOMIC_S32, ATOMIC_SUM);
-    st_atomic<int32_t>(val, (__gm__ int32_t *)aclshmem_ptr(addr, pe));
-    dcci_atomic();
-}
-
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_eq_for_barrier(__gm__ int32_t *sig_addr, int32_t cmp_val)
-{
-    do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-
-        if (*sig_addr == cmp_val) {
-            return *sig_addr;
-        }
-
-        // in case when peer pe enters next barrier
-        if (*sig_addr == cmp_val + 1) {
-            return *sig_addr;
-        }
-    } while (true);
-
-    // never reach
-    return -1;
-}
-
-ACLSHMEM_DEVICE void aclshmemi_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
-{
-    switch (sig_op) {
-        case ACLSHMEM_SIGNAL_SET:
-            aclshmemi_signal_set(sig_addr, pe, signal);
-            break;
-        case ACLSHMEM_SIGNAL_ADD:
-            aclshmemi_signal_add(sig_addr, pe, signal);
-            break;
-    }
-}
-
 ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_eq(__gm__ int32_t *sig_addr, int32_t cmp_val)
 {
     int32_t ret;
@@ -282,11 +210,6 @@ ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, const 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-ACLSHMEM_DEVICE void aclshmemx_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
-{
-    aclshmemi_signal_op(sig_addr, signal, sig_op, pe);
-}
 
 ACLSHMEM_DEVICE int32_t aclshmem_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val)
 {

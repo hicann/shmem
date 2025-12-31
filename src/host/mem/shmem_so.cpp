@@ -13,6 +13,7 @@
 #include "host/data_plane/shmem_host_so.h"
 #include "gm2gm/shmemi_device_rma.h"
 #include "host_device/shmem_common_types.h"
+#include "gm2gm/shmemi_device_cc_kernel.h"
 
 using namespace std;
 
@@ -90,4 +91,9 @@ void aclshmemx_putmem_signal(void *dst, void *src, size_t elem_size, void *sig_a
     if (ret < 0) {
         SHM_LOG_ERROR("device calling transfer failed");
     }
+}
+
+void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
+{
+    call_aclshmemi_signal_op_on_stream_kernel(sig_addr, signal, sig_op, pe, stream);                            
 }

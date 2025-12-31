@@ -113,6 +113,21 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem
                                         void* sig_addr, int32_t signal, int sig_op, int pe);
 #define shmem_putmem_signal aclshmemx_putmem_signal
 
+/**
+ * @brief This routine performs an atomic operation on a remote signal variable at the specified PE, with the operation 
+ *        executed on the given stream. It is used to modify a remote signal and is typically paired with wait routines
+ *        like aclshmemx_signal_wait_until_on_stream.
+ *
+ * @param sig_addr              [in] Local address of the source signal variable that is accessible at the target PE.
+ * @param signal                [in] The value to be used in the atomic operation.
+ * @param sig_op                [in] The operation to perform on the remote signal. Supported operations:
+ *                                   ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD.
+ * @param pe                    [in] The PE number on which the remote signal variable is to be updated.
+ * @param stream                [in] Used stream(use default stream if stream == NULL).
+ */
+ACLSHMEM_HOST_API void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream);
+#define shmem_signal_op_on_stream aclshmemx_signal_op_on_stream
+
 #ifdef __cplusplus
 }
 #endif

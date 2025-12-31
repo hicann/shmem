@@ -10,9 +10,9 @@
 #include <iostream>
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
-#include "host/data_plane/shmem_host_rma.h"
 #include "gm2gm/shmemi_device_rma.h"
 #include "host_device/shmem_common_types.h"
+#include "host/data_plane/shmem_host_rma.h"
 
 using namespace std;
 
@@ -242,8 +242,21 @@ void aclshmem_getmem_nbi(void *dst, void *src, size_t elem_size, int32_t pe)
 
 void aclshmemx_getmem_on_stream(void* dst, void* src, size_t elem_size, int32_t pe, aclrtStream stream)
 {
-    int ret = aclshmemi_getmem_on_stream((uint8_t *)dst, (uint8_t *)src, elem_size, pe, stream);
+    int ret = aclshmemi_prepare_and_post_rma("aclshmemx_getmem_on_stream", ACLSHMEMI_OP_GET, NO_NBI, (uint8_t *)dst, (uint8_t *)src,
+                                          elem_size, 1, pe, nullptr, 0, 0, 1, 1, stream,
+                                          g_state_host.default_block_num);
     if (ret < 0) {
-        SHM_LOG_ERROR("aclshmemi_getmem_on_stream failed");
+        SHM_LOG_ERROR("aclshmemx_getmem_on_stream failed");
+    }
+}
+
+void aclshmemx_putmem_on_stream(void* dst, void* src, size_t elem_size, int32_t pe, aclrtStream stream)
+{
+    int ret = aclshmemi_prepare_and_post_rma("aclshmemx_putmem_on_stream", ACLSHMEMI_OP_PUT, NO_NBI, (uint8_t *)dst, (uint8_t *)src,
+                                          elem_size, 1, pe, nullptr, 0, 0, 1, 1, stream,
+                                          g_state_host.default_block_num);
+                                        
+    if (ret != 0) {
+        SHM_LOG_ERROR("aclshmemx_putmem_on_stream failed");
     }
 }

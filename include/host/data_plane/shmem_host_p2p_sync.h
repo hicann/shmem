@@ -50,6 +50,20 @@ ACLSHMEM_HOST_API uint64_t util_get_ffts_config(void);
 ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStream stream);
 #define shmem_handle_wait aclshmemx_handle_wait
 
+/**
+ * @brief This routine can be used to implement point-to-point synchronization between PEs or between threads within
+ *        the same PE. A call to this routine blocks until the value of sig_addr at the calling PE satisfies the wait
+ *        condition specified by the comparison operator, cmp, and comparison value, cmp_val.
+ *
+ * @param sig_addr              [in] Local address of the source signal variable.
+ * @param cmp                   [in] The comparison operator that compares sig_addr with cmp_val. Supported operators:
+ *                                   ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
+ * @param cmp_val               [in] The value against which the object pointed to by sig_addr will be compared.
+ * @param stream                [in] Used stream(use default stream if stream == NULL).
+ */
+ACLSHMEM_HOST_API void aclshmemx_signal_wait_until_on_stream(int32_t *sig_addr, int cmp, int32_t cmp_val, aclrtStream stream);
+#define shmem_signal_wait_until_on_stream aclshmemx_signal_wait_until_on_stream
+
 #ifdef __cplusplus
 }
 #endif

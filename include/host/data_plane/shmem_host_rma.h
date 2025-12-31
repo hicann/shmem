@@ -299,6 +299,18 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t e
 #define shmemx_getmem_on_stream aclshmemx_getmem_on_stream
 
 /**
+    * @brief Copy contiguous data on local PE to symmetric address on the specified PE.
+    *
+    * @param dst               [in] Pointer on local device of the destination data.
+    * @param src               [in] Pointer on Symmetric memory of the source data.
+    * @param elem_size         [in] Number of elements in the dest and source arrays.
+    * @param pe                [in] PE number of the remote PE.
+    * @param stream            [in] copy used stream(use default stream if stream == NULL).
+ */
+ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t elem_size,
+                                            int32_t pe, aclrtStream stream);
+#define shmemx_putmem_on_stream aclshmemx_putmem_on_stream
+/**
  * @brief Set necessary parameters for put or get.
  *
  * @param offset                [in] The start address on UB.
