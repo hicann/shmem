@@ -18,8 +18,7 @@ DeviceQpManager::DeviceQpManager(uint32_t deviceId, uint32_t rankId, uint32_t ra
     : deviceId_{deviceId},
       rankId_{rankId},
       rankCount_{rankCount},
-      deviceAddress_{devNet},
-      rankRole_{role}
+      deviceAddress_{devNet}
 {
 }
 
@@ -102,6 +101,7 @@ static constexpr uint32_t MAX_SEND_WR = 8192;
 static constexpr uint32_t MAX_RECV_WR = 128;
 static constexpr uint32_t MAX_SEND_SGE = 1;
 static constexpr uint32_t MAX_RECV_SGE = 1;
+static constexpr uint32_t RA_MAX_BATCH_NUM = 16;
 static constexpr uint32_t QP_MODE = 2;
 static constexpr uint32_t CALLER_POLL_CQ_CSTM = 1;
 
@@ -185,6 +185,16 @@ void DeviceQpManager::Shutdown() noexcept
 
 int DeviceQpManager::WaitingConnectionReady() noexcept
 {
+    if (serverConnectThread_ != nullptr) {
+        serverConnectThread_->join();
+        serverConnectThread_ = nullptr;
+    }
+
+    if (clientConnectThread_ != nullptr) {
+        clientConnectThread_->join();
+        clientConnectThread_ = nullptr;
+    }
+
     if (serverConnectResult == ACLSHMEM_SUCCESS && clientConnectResult == ACLSHMEM_SUCCESS) {
         SHM_LOG_INFO("client & server connections ready.");
         return ACLSHMEM_SUCCESS;
@@ -248,26 +258,31 @@ int DeviceQpManager::StartServerSide() noexcept
         return ACLSHMEM_INNER_ERROR;
     }
 
-    aclrtSetDevice(deviceId_);
-    ret = WaitConnectionsReady(serverConnections_);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("wait connection ready failed: " << ret);
-        serverConnectResult = ret;
+    try {
+        serverConnectThread_ = std::make_shared<std::thread>([this]() {
+            aclrtSetDevice(deviceId_);
+            serverConnectResult = WaitConnectionsReady(serverConnections_);
+            if (serverConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] wait connection ready failed: " << serverConnectResult);
+            }
+            
+            serverConnectResult = CreateQpWaitingReady(serverConnections_, CONN_QP_AI_CORE);
+            if (serverConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] wait connection AI qp ready failed: " << serverConnectResult);
+            }
+            
+            serverConnectResult = CreateQpWaitingReady(serverConnections_, CONN_QP_STARS);
+            if (serverConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] wait connection STARS qp ready failed: " << serverConnectResult);
+            }
+        });
+    } catch (const std::exception& e) {
+        SHM_LOG_ERROR("[Rank " << rankId_ << "] Failed to create server thread for rank " << rankId_ << ": " << e.what());
+        return ACLSHMEM_INNER_ERROR;
+    } catch (...) {
+        SHM_LOG_ERROR("[Rank " << rankId_ << "] Unknown exception when creating server thread for rank " << rankId_);
         return ACLSHMEM_INNER_ERROR;
     }
-    ret = CreateQpWaitingReady(serverConnections_, CONN_QP_AI_CORE);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("wait connection AI qp ready failed: " << ret);
-        serverConnectResult = ret;
-    }
-
-    ret = CreateQpWaitingReady(serverConnections_, CONN_QP_STARS);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("wait connection STARS qp ready failed: " << ret);
-        serverConnectResult = ret;
-    }
-
-    serverConnectResult = ACLSHMEM_SUCCESS;
 
     return ACLSHMEM_SUCCESS;
 }
@@ -303,35 +318,49 @@ int DeviceQpManager::StartClientSide() noexcept
         connectInfos.emplace_back(connectInfo);
     }
 
-    auto ret = DlHccpApi::RaSocketBatchConnect(connectInfos.data(), connectInfos.size());
-    if (ret != 0) {
-        SHM_LOG_ERROR("connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
-        CloseClientConnections();
+    for (size_t i = 0; i < connectInfos.size(); i += RA_MAX_BATCH_NUM) {
+        size_t currentBatchSize = (connectInfos.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (connectInfos.size() - i);
+        auto batchStart = connectInfos.begin() + i;
+        auto batchEnd = batchStart + currentBatchSize;
+        std::vector<HccpSocketConnectInfo> currentBatch(batchStart, batchEnd);
+
+        auto ret = DlHccpApi::RaSocketBatchConnect(currentBatch.data(), currentBatch.size());
+        if (ret != 0) {
+            SHM_LOG_ERROR("[Rank " << rankId_ << "] connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
+            CloseClientConnections();
+            return ACLSHMEM_INNER_ERROR;
+        }
+    }
+
+    try {
+        clientConnectThread_ = std::make_shared<std::thread>([this]() {
+            aclrtSetDevice(deviceId_);
+            clientConnectResult = WaitConnectionsReady(clientConnections_);
+            if (clientConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] client wait connections failed: " << clientConnectResult);
+                CloseClientConnections();
+            }
+
+            clientConnectResult = CreateQpWaitingReady(clientConnections_, CONN_QP_AI_CORE);
+            if (clientConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] client create qp for AI CORE failed: " << clientConnectResult);
+                CloseClientConnections();
+            }
+
+            clientConnectResult = CreateQpWaitingReady(clientConnections_, CONN_QP_STARS);
+            if (clientConnectResult != ACLSHMEM_SUCCESS) {
+                SHM_LOG_ERROR("[Rank " << rankId_ << "] client create qp for STARS failed: " << clientConnectResult);
+                CloseClientConnections();
+            }
+        });
+    } catch (const std::exception &e) {
+        SHM_LOG_ERROR("[Rank " << rankId_ << "]Failed to create client thread: " << e.what());
+        return ACLSHMEM_INNER_ERROR;
+    } catch (...) {
+        SHM_LOG_ERROR("[Rank " << rankId_ << "] Unknown exception when creating client thread for rank " << rankId_);
         return ACLSHMEM_INNER_ERROR;
     }
 
-    aclrtSetDevice(deviceId_);
-    ret = WaitConnectionsReady(clientConnections_);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("client wait connections failed: " << ret);
-        CloseClientConnections();
-        return ret;
-    }
-
-    ret = CreateQpWaitingReady(clientConnections_, CONN_QP_AI_CORE);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("client create qp for AI CORE failed: " << ret);
-        CloseClientConnections();
-        return ret;
-    }
-
-    ret = CreateQpWaitingReady(clientConnections_, CONN_QP_STARS);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("client create qp for STARS failed: " << ret);
-        CloseClientConnections();
-        return ret;
-    }
-    clientConnectResult = ACLSHMEM_SUCCESS;
     return ACLSHMEM_SUCCESS;
 }
 
@@ -354,10 +383,16 @@ int DeviceQpManager::GenerateWhiteList() noexcept
         return ACLSHMEM_SUCCESS;
     }
 
-    auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, whitelist.data(), whitelist.size());
-    if (ret != 0) {
-        SHM_LOG_ERROR("socket handle add white list failed: " << ret);
-        return ACLSHMEM_INNER_ERROR;
+    for (size_t i = 0; i < whitelist.size(); i += RA_MAX_BATCH_NUM) {
+        size_t currentBatchSize = (whitelist.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (whitelist.size() - i);
+        auto batchStart = whitelist.begin() + i;
+        auto batchEnd = batchStart + currentBatchSize;
+        std::vector<HccpSocketWhiteListInfo> currentBatch(batchStart, batchEnd);
+        auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, currentBatch.data(), currentBatch.size());
+        if (ret != 0) {
+            SHM_LOG_ERROR("[Rank " << rankId_ << "] socket handle add white list failed: " << ret);
+            return ACLSHMEM_INNER_ERROR;
+        }
     }
 
     return ACLSHMEM_SUCCESS;
@@ -365,75 +400,92 @@ int DeviceQpManager::GenerateWhiteList() noexcept
 
 int DeviceQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept
 {
-    uint32_t totalSuccessCount = 0;
+    uint32_t cnt = 0;
     auto start = std::chrono::steady_clock::now();
     auto timeout = start + std::chrono::minutes(2);
-    while (totalSuccessCount < connections.size()) {
-        if (std::chrono::steady_clock::now() >= timeout) {
-            SHM_LOG_ERROR("waiting connection ready timeout.");
-            return ACLSHMEM_INNER_ERROR;
+    SHM_LOG_DEBUG(rankId_ << " begin wait connections, size=" << connections.size());
+
+    std::vector<HccpSocketInfo> socketInfos;
+    std::unordered_map<in_addr_t, uint32_t> addr2index;
+    for (auto it = connections.begin(); it != connections.end(); ++it) {
+        if (it->second.socketFd != nullptr) {
+            continue;
         }
 
-        uint32_t successCount = 0;
-        std::vector<HccpSocketInfo> socketInfos;
-        std::unordered_map<in_addr_t, uint32_t> addr2index;
-        for (auto it = connections.begin(); it != connections.end(); ++it) {
-            if (it->second.socketFd != nullptr) {
+        HccpSocketInfo info{};
+        info.handle = it->second.socketHandle;
+        info.fd = nullptr;
+        info.remoteIp.addr = it->second.remoteIp;
+        info.status = 0;
+        bzero(info.tag, sizeof(info.tag));
+        socketInfos.push_back(info);
+        addr2index.emplace(it->second.remoteIp.s_addr, it->first);
+    }
+
+    if (socketInfos.empty()) {
+        SHM_LOG_WARN(rankId_ << " socketInfos is empty.");
+        return ACLSHMEM_SUCCESS;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    auto role = (&connections == &clientConnections_) ? 1 : 0;
+
+    do {
+        uint32_t getSize = socketInfos.size() < RA_MAX_BATCH_NUM ? socketInfos.size() : RA_MAX_BATCH_NUM;
+        auto ret = DlHccpApi::RaGetSockets(role, socketInfos.data(), getSize, cnt);
+        if (ret != 0) {
+            SHM_LOG_ERROR(rankId_ << " role(" << role << ") side get sockets failed: " << ret);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100L));
+        if (cnt == 0) {
+            continue;
+        }
+        for (auto i = 0U; i < getSize; i++) {
+            if (socketInfos[i].status != 1) {
                 continue;
             }
-
-            HccpSocketInfo info{};
-            info.handle = it->second.socketHandle;
-            info.fd = nullptr;
-            info.remoteIp.addr = it->second.remoteIp;
-            info.status = 0;
-            bzero(info.tag, sizeof(info.tag));
-            socketInfos.push_back(info);
-            addr2index.emplace(it->second.remoteIp.s_addr, it->first);
-        }
-
-        auto role = (&connections == &clientConnections_) ? 1 : 0;
-        auto ret = DlHccpApi::RaGetSockets(role, socketInfos.data(), socketInfos.size(), successCount);
-        if (ret != 0) {
-            SHM_LOG_ERROR("role(" << role << ") side get sockets failed: " << ret);
-            return ACLSHMEM_INNER_ERROR;
-        }
-
-        for (auto i = 0U; i < successCount; i++) {
-            auto socketInfoPos = addr2index.find(socketInfos[i].remoteIp.addr.s_addr);
+            in_addr_t addr = socketInfos[i].remoteIp.addr.s_addr;
+            char ipStr[INET6_ADDRSTRLEN];
+            char* result {};
+            result = inet_ntoa(socketInfos[i].remoteIp.addr);
+            auto socketInfoPos = addr2index.find(addr);
             if (socketInfoPos == addr2index.end()) {
-                SHM_LOG_ERROR("socket ip(" << inet_ntoa(socketInfos[i].remoteIp.addr) << ") should not exist.");
+                SHM_LOG_ERROR(rankId_ << " socket ip(" << result << ") should not exist.");
                 return ACLSHMEM_INNER_ERROR;
             }
 
             auto rankId = socketInfoPos->second;
             auto pos = connections.find(rankId);
             if (pos == connections.end()) {
-                SHM_LOG_ERROR("socket ip(" << inet_ntoa(socketInfos[i].remoteIp.addr) << ") should not exist.");
+                SHM_LOG_ERROR(rankId_ << " -> " << rankId << ":socket ip(" << result << ") should not exist.");
                 return ACLSHMEM_INNER_ERROR;
             }
 
             if (pos->second.socketFd != nullptr) {
-                SHM_LOG_ERROR("get socket ip(" << inet_ntoa(socketInfos[i].remoteIp.addr) << ") already get socket fd.");
+                SHM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") already get socket fd.");
                 return ACLSHMEM_INNER_ERROR;
             }
 
             if (pos->second.socketHandle != socketInfos[i].handle) {
-                SHM_LOG_ERROR("get socket ip(" << inet_ntoa(socketInfos[i].remoteIp.addr)
-                                              << ") socket handle not match.");
+                SHM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
                 return ACLSHMEM_INNER_ERROR;
             }
 
             pos->second.socketFd = socketInfos[i].fd;
-            SHM_LOG_INFO("connect to (" << rankId << ") ready.");
+            SHM_LOG_INFO(rankId_ << " connect to (" << rankId << ") ready.");
         }
-
-        totalSuccessCount += successCount;
-    }
-
+        std::vector<HccpSocketInfo>::iterator it = socketInfos.begin();
+        for (; it != socketInfos.end();) {
+            if (it->status == 1) {
+                it = socketInfos.erase(it);
+            } else {
+                it++;
+            }
+        }
+    } while (socketInfos.size() > 0);
     return ACLSHMEM_SUCCESS;
 }
-
 int DeviceQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, ConnectionChannel> &connections,
                                               ConnQpType qpType) noexcept
 {

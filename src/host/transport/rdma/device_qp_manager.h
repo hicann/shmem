@@ -13,6 +13,8 @@
 
 #include <netinet/in.h>
 #include <cstdint>
+#include <thread>
+#include <memory>
 #include <unordered_map>
 #include "dl_hccp_api.h"
 
@@ -39,7 +41,6 @@ protected:
     const uint32_t deviceId_;
     const uint32_t rankId_;
     const uint32_t rankCount_;
-    const hybm_role_type rankRole_;
     sockaddr_in deviceAddress_;
     void *serverSocketHandle_{nullptr};
 
@@ -85,6 +86,8 @@ private:
     std::unordered_map<uint32_t, ConnectRankInfo> currentRanksInfo_;
     MemoryRegionMap currentLocalMrs_;
     AiQpRMAQueueInfo *qpInfo_{nullptr};
+    std::shared_ptr<std::thread> clientConnectThread_;
+    std::shared_ptr<std::thread> serverConnectThread_;
     std::unordered_map<uint32_t, ConnectionChannel> clientConnections_;
     std::unordered_map<uint32_t, ConnectionChannel> serverConnections_;
 };
