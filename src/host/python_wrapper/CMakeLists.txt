@@ -30,6 +30,8 @@ message(STATUS "PYBIND11_DIR = ${PYBIND11_DIR}")
 list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_DIR})
 find_package(pybind11 REQUIRED)
 
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+
 pybind11_add_module(_pyshmem pyshmem.cpp)
 set_target_properties(_pyshmem PROPERTIES CXX_STANDARD 17)
 target_include_directories(_pyshmem PRIVATE
