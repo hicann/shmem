@@ -54,9 +54,9 @@ ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int
 
 /**
  * @brief Initialize the resources required for ACLSHMEM task based on attributes.
- *        Attributes can be created by users or obtained by calling <b>aclshmemx_set_attr()</b>.
+ *        Attributes can be created by users or obtained by calling <b>aclshmemx_set_attr_uniqueid_args()</b>.
  *        if the self-created attr structure is incorrect, the initialization will fail.
- *        It is recommended to build the attributes by <b>aclshmemx_set_attr()</b> or <b>aclshmemx_set_attr_uniqueid_args()</b>.
+ *        It is recommended to build the attributes by <b>aclshmemx_set_attr_uniqueid_args()</b>.
  *
  * @param bootstrap_flags   [in] bootstrap_flags for init.
  * @param attributes        [in] Pointer to the user-defined attributes.

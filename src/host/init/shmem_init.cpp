@@ -231,7 +231,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(aclshmemi_options_init());
 #if defined(BACKEND_HYBM)
     SHM_LOG_INFO("The current backend is HYBM.");
-    ACLSHMEM_CHECK_RET(bootstrap_flags != ACLSHMEMX_INIT_WITH_DEFAULT, "The current backend is MF, and the value of bootstrap_flags only supports SHMEMX_INIT_WITH_DEFAULT.", ACLSHMEM_INVALID_PARAM);
+    ACLSHMEM_CHECK_RET(bootstrap_flags != ACLSHMEMX_INIT_WITH_DEFAULT, "The current backend is MF, and the value of bootstrap_flags only supports ACLSHMEMX_INIT_WITH_DEFAULT.", ACLSHMEM_INVALID_PARAM);
     init_manager = new aclshmemi_init_hybm(attributes, attributes->ip_port, &g_state);
 #else
     // shmem basic init
