@@ -245,8 +245,14 @@ A：需在 ```aclshmemx_init_attr``` 前调用 ```aclshmemx_set_conf_store_tls``
 ```bash
 # 编译并运行单元测试
 bash scripts/build.sh -uttests
-cd tests/unittest && ./shmem_unittest
+bash scripts/run.sh
 ```
+run.sh脚本提供-ranks -test_filter等参数自定义执行用例的卡数、gtest_filter等，例如：
+```bash
+# 8卡，运行所有*Init*用例
+bash scripts/run.sh -ranks 8 -test_filter Init
+```
+具体参数请见[相关脚本-run.sh](docs/related_scripts.md#runsh)
 ### 2. 运行 Python 测试用例
 ```bash
 # 编译 Python 扩展
