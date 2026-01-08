@@ -235,10 +235,10 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
             continue;
         }
 
-        if (CanLocalHostReaches(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].logicDeviceId != logicDeviceId_)) {
+        if (CanLocalHostReaches(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].logicDeviceId)) {
             auto ret = DlAclApi::AclrtDeviceEnablePeerAccess(desInfos[i].deviceId, 0);
             if (ret != 0) {
-                BM_LOG_ERROR("enable device access failed:" << ret << " local_device:" << options_.devId
+                BM_LOG_ERROR("enable device access failed:" << ret << " local_device:" << deviceId_
                                                             << " remote_device:" << desInfos[i].deviceId
                                                             << " logic_device:" << logicDeviceId_
                                                             << " remote_logic:" << desInfos[i].logicDeviceId);
@@ -246,7 +246,7 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
             }
         }
 
-        if (!IsSdmaAccessible(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].deviceId)) {
+        if (!IsSdmaAccessible(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].logicDeviceId)) {
             continue;
         }
 
