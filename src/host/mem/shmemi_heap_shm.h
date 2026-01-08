@@ -49,9 +49,9 @@ protected:
     aclshmem_mem_type_t mem_type_ = DEVICE_SIDE;
     void *heap_base_ = nullptr;
     void **peer_heap_base_p2p_ = nullptr;
-    aclrtDrvMemHandle local_handle_;
+    aclrtDrvMemHandle local_handle_ = nullptr;
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
-    aclrtMemFabricHandle shareable_handle_;
+    aclrtMemFabricHandle shareable_handle_ = {0};
 #endif
 };
 REGISTER_HEAP_CREATOR(HOST_SIDE, aclshmemi_symmetric_heap);

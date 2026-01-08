@@ -148,7 +148,7 @@ int32_t aclshmemi_symmetric_heap::import_memory()
 
 int32_t aclshmemi_symmetric_heap::unmap()
 {
-    if (local_handle_ != nullptr) {
+    if (local_handle_ == nullptr) {
         return ACLSHMEM_SUCCESS;
     }
     // 取消映射所有进程的内存
