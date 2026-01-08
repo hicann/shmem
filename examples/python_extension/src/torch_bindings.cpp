@@ -82,14 +82,14 @@ public:
         return name_;
     }
 
-    int64_t attr_init(int64_t my_rank, int64_t n_ranks, int64_t local_mem_size, const std::string& ip_port)
+    int64_t attr_init(int64_t my_pe, int64_t n_ranks, int64_t local_mem_size, const std::string& ip_port)
     {
         int64_t status = 0;
         status = aclshmemx_set_conf_store_tls(false, nullptr, 0);
         aclshmemx_init_attr_t attributes;
-        test_set_attr(rank_id, n_ranks, local_mem_size, ip_port.c_str(), &attributes);
+        test_set_attr(my_pe, n_ranks, local_mem_size, ip_port.c_str(), &attributes);
 
-        status = aclshmemx_init_attr(&attributes);
+        status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
         return status;
     }
     int64_t finalize()
@@ -117,8 +117,8 @@ public:
 
     void free_tensor(const at::Tensor& aclshmem_tensor)
     {
-        void *aclshmem_ptr = static_cast<void *>(const_cast<voaclshmem_shmem_shmem_shmem_tensor.storage().data()));
-        aclshmemaclshmem_shmem_shmem_shmem_ptr);
+        void *aclshmem_ptr = static_cast<void *>(const_cast<void *>(aclshmem_tensor.storage().data()));
+        aclshmem_free(aclshmem_ptr);
         return;
     }
 
@@ -134,7 +134,7 @@ public:
     {
         fftsAddr_ = util_get_ffts_config();
         int64_t SYNC_FLAG_INTERVAL = 16;
-        sync_ptr_ = aclshmem_malloc(sizeof(int32aclshmem_shmem_shmem_shmem_n_pes() * block_dim_ * SYNC_FLAG_INTERVAL));
+        sync_ptr_ = aclshmem_malloc(sizeof(int32_t) * aclshmem_n_pes() * block_dim_ * SYNC_FLAG_INTERVAL);
         aclrtMemset(sync_ptr_, sizeof(int32_t) * aclshmem_n_pes() * block_dim_  * SYNC_FLAG_INTERVAL, 0,
                     sizeof(int32_t) * aclshmem_n_pes() * block_dim_ * SYNC_FLAG_INTERVAL);
     }

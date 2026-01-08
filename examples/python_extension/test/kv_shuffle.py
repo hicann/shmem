@@ -209,10 +209,10 @@ def worker(rank):
     global_shuffle_tensor = global_shuffle_table.npu()
     # k_cache
     k_cache = my_cache_data.k_cache_list[rank]
-    aclshmem_k_cache_tensor = aclshmem_shmem_common.malloc_like(k_cache)
+    aclshmem_k_cache_tensor = aclshmem_common.malloc_like(k_cache)
     # v_cache
     v_cache = my_cache_data.v_cache_list[rank]
-    aclshmem_v_cache_tensor = aclshmem_shmem_common.malloc_like(v_cache)
+    aclshmem_v_cache_tensor = aclshmem_common.malloc_like(v_cache)
     int64_data = my_cache_data.block_num_list[rank]
     
     # 检查第一个值是否为 0
@@ -271,8 +271,8 @@ def worker(rank):
     print("K are equal may be False:", torch.equal(npu_tensork, my_cache_data.k_cache_list[rank]))  # may be False
     print("V are equal may be False:", torch.equal(npu_tensorv, my_cache_data.v_cache_list[rank]))  # may be False
 
-    aclshmem_common.free(aclshmem_shmem_k_cache_tensor)
-    aclshmem_common.free(aclshmem_shmem_v_cache_tensor)
+    aclshmem_common.free(aclshmem_k_cache_tensor)
+    aclshmem_common.free(aclshmem_v_cache_tensor)
 
 
 if __name__ == "__main__":

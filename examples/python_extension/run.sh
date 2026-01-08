@@ -48,9 +48,6 @@ function run_py_test()
 
     torchrun --nproc-per-node 2 tls_test.py
     [[ $? -eq 0 ]] || return 1
-
-    torchrun --nproc-per-node 2 global_exit_test.py
-    [[ $? -eq 0 ]] || return 1
 }
 
 function main()

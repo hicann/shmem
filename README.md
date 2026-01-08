@@ -93,43 +93,49 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
 ```
 ### 验证安装
 以```matmul_allreduce```为例，验证核心功能：
-1. 编译依赖库
-   ```bash
-   cd 3rdparty && git clone https://gitcode.com/cann/catlass.git && cd ..
-   ```
-1. 编译并运行样例
-   ```bash
-   # 编译样例
-   cd examples/matmul_allreduce && bash build.sh
+1. 在源码shmem/目录编译:
 
-   # 生成测试数据（M=1024, K=2048, N=8192）
-   python3 utils/gen_data.py 1 2 1024 2048 8192 16 0 0
+   ```sh
+   bash scripts/build.sh -examples
+   ```
 
-   # 启动2卡运行
-   bash run.sh -ranks 2 -M 1024 -K 2048 -N 8192
+1. 在shmem/examples/matmul_allreduce目录执行demo:
+
+   ```sh
+   bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
    ```
-1. 精度验证
-   ```bash
-   python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 8192 16
-   ```
+   注意：example及其他样例代码仅供参考，在生产环境中请谨慎使用。
 ### Python接口使用
-1. 编译时启用Python扩展
-   ```bash
-   bash scripts/build.sh -python_extension
-   ```
-1. 安装wheel包
-   ```bash
-   cd src/python && python3 setup.py bdist_wheel
-   pip3 install dist/shmem-1.0.0-cp39-cp39-linux_aarch64.whl
-   ```
-1. 测试运行
-   ```bash
-   # 关闭TLS加密（可选）
-   export SHMEM_TLS_DISABLE=1
+注意：python接口API列表可参考：[python接口API列表](./docs/pythonAPI.md)。
 
-   # 多进程测试（2个rank）
-   torchrun --nprocs-per-node=2 test_shmem.py
+1. 在scripts目录下编译的时候，带上build python的选项
+
+   ```sh
+   bash build.sh -package -mf
    ```
+1. 在install目录下，source环境变量
+
+   ```sh
+   source set_env.sh
+   ```
+1. 设置是否开启TLS认证，默认开启，若关闭TLS认证，请使用如下接口
+
+   ```python
+   import shmem as shm
+   shm.set_conf_store_tls(False, "")   # 关闭tls认证
+   ```
+
+   ```python
+   import shmem as shm
+   tls_info = "xxx"
+   shm.set_conf_store_tls(True, tls_info)      # 开启TLS认证
+   ```
+1. 在examples/python_extension运行测试demo
+
+   ```sh
+   bash run.sh
+   ```
+   看到日志中打印出“test.py running success!”即为demo运行成功
 ## 五、典型使用场景
 **1. 通算融合类算子开发**
 

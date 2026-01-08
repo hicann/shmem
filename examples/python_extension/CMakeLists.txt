@@ -110,6 +110,6 @@ if(BUILD_TORCH_LIB)
     set(TORCH_BINDINGS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/torch_bindings.cpp)
     add_library(aclshmem_torch
         SHARED ${TORCH_BINDINGS_SRC})
-    target_link_libraries(aclshmem_torch PRaclshmem_shmem_shmem_shmem_example_kernel)
-    install(TARGETS aclshmem_torch DESTINATION lib COMPaclshmem_shmem_shmem_shmem_torch)
+    target_link_libraries(aclshmem_torch PRIVATE aclshmem_example_kernel)
+    install(TARGETS aclshmem_torch DESTINATION lib COMPONENT aclshmem_torch)
 endif()

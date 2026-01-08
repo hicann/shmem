@@ -40,6 +40,11 @@ add_compile_options(
     -DTILING_KEY_VAR
 )
 
+option(ENABLE_HYBM_BACKEND "Enable HYBM backend" OFF)
+if (ENABLE_HYBM_BACKEND)
+    add_compile_definitions(BACKEND_HYBM)
+endif()
+
 set(CMAKE_CCE_COMPILE_OPTIONS
     -xcce
     "SHELL:-mllvm -cce-aicore-stack-size=0x8000"
@@ -63,6 +68,7 @@ include_directories(
     ${ASCEND_HOME_PATH}/include
     ${ASCEND_HOME_PATH}/include/experiment/runtime
     ${ASCEND_HOME_PATH}/include/experiment/msprof
+    ${ASCEND_HOME_PATH}/include/aclnn
 )
 
 link_directories(
@@ -88,6 +94,7 @@ function(aclshmem_add_share_lib NAME)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/catlass/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/catlass/examples/common
         ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/${NAME}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src/device
     )
 
     add_library(${NAME}_shared SHARED src/host/${NAME}.cpp)

@@ -44,8 +44,8 @@ def run_init_with_unique_id_tests():
         raise ValueError('[ERROR] aclshmem_init failed')
 
     # test malloc
-    aclshmem_eaclshmem_shmem_shmem_shmem_shmem_shmem_shmem_malloc(g_malloc_size)
-    print(f'rank[{rank}]: aclshmemaclshmem_shmem_shmem_shmem_shaclshmem_aclshmem_aclshmem_aclshmem_aclshmem_aclshmem_aclshmem_ptr)}')
+    aclshmem_ptr = ash.aclshmem_malloc(g_malloc_size)
+    print(f'rank[{rank}]: aclshmem_ptr: {aclshmem_ptr} with type {type(aclshmem_ptr)}')
     if aclshmem_ptr is None:
         raise ValueError('[ERROR] aclshmem_malloc failed')
 
@@ -56,7 +56,7 @@ def run_init_with_unique_id_tests():
         raise ValueError('[ERROR] pe/world failed')
 
     # test free
-    _ = ash.aclshmemaclshmem_shmem_shmem_shmem_shmem_shmem_shmem_ptr)
+    _ = ash.aclshmem_free(aclshmem_ptr)
 
     # test finialize
     _ = ash.aclshmem_finialize()

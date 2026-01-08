@@ -233,6 +233,28 @@ function fn_gen_doc()
     sphinx-build -M html $PROJECT_ROOT/docs $sphinx_out_dir
 }
 
+function build_shared_lib() {
+    echo "build shared lib start"
+    cd "$PROJECT_ROOT"/examples/shared_lib || exit
+    rm -rf build
+    cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/shared_lib/output
+    cmake --build build -j
+    cmake --install build
+    cd "$PROJECT_ROOT" || exit
+    echo "build shared lib success"
+}
+
+function build_torch_library() {
+    echo "build torch library start"
+    cd "$PROJECT_ROOT"/examples/python_extension || exit
+    rm -rf build
+    cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/python_extension/output -DPython3_EXECUTABLE="$(which python3)" -DBUILD_TORCH_LIB=True
+    cmake --build build -j
+    cmake --install build
+    cd "$PROJECT_ROOT" || exit
+    echo "build torch library success"
+}
+
 set -e
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -263,6 +285,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -python_extension)
             PYEXPAND_TYPE=ON
+            shift
+            ;;
+        -python_example)
+            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
+            PYEXPAND_EXAMPLE=ON
             shift
             ;;
         -gendoc)
@@ -315,6 +342,11 @@ fi
 
 if [ "$PACKAGE" == "ON" ]; then
     make_package
+fi
+
+if [ ${PYEXPAND_EXAMPLE} == "ON" ]; then
+    build_shared_lib
+    build_torch_library
 fi
 
 cd ${CURRENT_DIR}

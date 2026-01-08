@@ -36,11 +36,11 @@ def run_tests():
     if ret != 0:
         raise ValueError('[ERROR] aclshmem_init failed')
     # 3. test malloc
-    aclshmem_ptr = ash.aclshmem_shmem_malloc(g_malloc_size)
-    print(f'rank[{rank}]: aclshmem_ptr:{aclshmem_shmem_ptr} with type{tyaclshmem_aclshmem_ptr)}')
+    aclshmem_ptr = ash.aclshmem_malloc(g_malloc_size)
+    print(f'rank[{rank}]: aclshmem_ptr:{aclshmem_ptr} with type{type(aclshmem_ptr)}')
     if aclshmem_ptr is None:
         raise ValueError('[ERROR] aclshmem_malloc failed')
-    _ = ash.aclshmem_free(aclshmem_shmem_ptr)
+    _ = ash.aclshmem_free(aclshmem_ptr)
     # 4. test pe
     my_pe, pe_count = ash.my_pe(), ash.pe_count()
     print(f'rank[{rank}]: my_pe:{my_pe} and pe_count:{pe_count}')
