@@ -414,6 +414,7 @@ int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk, const uint32_t tl
 
 int32_t aclshmemx_set_extern_logger(void (*func)(int level, const char *msg))
 {
+    aclshmem_log::aclshmem_out_logger::Instance().set_extern_log_func(func);
     return ACLSHMEM_SUCCESS;
 }
 

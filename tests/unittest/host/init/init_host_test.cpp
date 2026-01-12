@@ -179,6 +179,55 @@ void test_shmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
         exit(1);
     }
 }
+void aclshmem_test_logger(int level, const char *msg) {
+    if (level < 1) {
+        return;
+    }
+    if (msg == NULL) {
+        printf("extern log set :(null)\n");
+        return;
+    }
+    const char* level_name = "unknown";
+    switch (level) {
+        case 0: level_name = "debug"; break;
+        case 1: level_name = "info"; break;
+        case 2: level_name = "warn"; break;
+        case 3: level_name = "error"; break;
+        case 4: level_name = "fatal"; break;
+        default: break;
+    }
+
+    printf("extern log set [%s]: %s\n", level_name, msg);
+}
+
+void test_aclshmem_extern_logger(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    int status = ACLSHMEM_SUCCESS;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+    EXPECT_EQ(aclshmemx_set_extern_logger(aclshmem_test_logger), ACLSHMEM_SUCCESS);
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(g_state.mype, rank_id);
+    EXPECT_EQ(g_state.npes, n_ranks);
+    EXPECT_NE(g_state.heap_base, nullptr);
+    EXPECT_NE(g_state.p2p_device_heap_base[rank_id], nullptr);
+    EXPECT_EQ(g_state.heap_size, local_mem_size + ACLSHMEM_EXTRA_SIZE);
+    EXPECT_NE(g_state.team_pools[0], nullptr);
+    status = aclshmemx_init_status();
+    EXPECT_EQ(status, ACLSHMEM_STATUS_IS_INITIALIZED);
+    status = aclshmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+    if (::testing::Test::HasFailure()) {
+        exit(1);
+    }
+}
 
 TEST(TestInitAPI, TestShmemInit)
 {
@@ -297,4 +346,11 @@ TEST(TestInitAPI, TestShmemInitAlias)
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_shmem_init, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemExternLog)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_extern_logger, local_mem_size, process_count);
 }
