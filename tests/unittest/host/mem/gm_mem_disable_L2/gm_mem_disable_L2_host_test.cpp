@@ -77,9 +77,6 @@ void test_shmemx_mte_mem(int rank_id, int n_ranks, uint64_t local_mem_size)
     test_shmemx_mte_put_get(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks);
     std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TestMemApi, TestShmemGmDisableL2)

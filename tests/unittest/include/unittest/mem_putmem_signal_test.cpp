@@ -116,9 +116,6 @@ ACLSHMEM_MEM_PUT_GET_FUNC(put_SIGNAL)
                                                                                                                 \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                            \
         test_finalize(stream, device_id);                                                                       \
-        if (::testing::Test::HasFailure()) {                                                                    \
-            exit(1);                                                                                            \
-        }                                                                                                       \
     }
 ACLSHMEM_MEM_PUT_GET_FUNC(put_SIGNAL)
 #undef put_SIGNAL
@@ -215,9 +212,6 @@ ACLSHMEM_MEM_PUT_GET_FUNC(put_SIGNAL_NBI)
                                                                                                                     \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                                \
         test_finalize(stream, device_id);                                                                           \
-        if (::testing::Test::HasFailure()) {                                                                        \
-            exit(1);                                                                                                \
-        }                                                                                                           \
     }
 ACLSHMEM_MEM_PUT_GET_FUNC(put_SIGNAL_NBI)
 #undef put_SIGNAL_NBI

@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <gtest/gtest.h>
+#include <csignal>
 #include <iostream>
 #include <algorithm>
 #include "acl/acl.h"
@@ -129,14 +130,17 @@ void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t loca
             std::cout << "fork failed ! " << pids[i] << std::endl;
         } else if (pids[i] == 0) {
             func(i + test_first_rank, test_global_ranks, local_mem_size);
-            exit(0);
+            raise(::testing::Test::HasFailure() ? SIGUSR2 : SIGUSR1);
         }
     }
     for (int i = 0; i < process_count; ++i) {
         waitpid(pids[i], &status[i], 0);
-        if (WIFEXITED(status[i]) && WEXITSTATUS(status[i]) != 0) {
-            FAIL();
-        } else if (WIFSIGNALED(status[i])) {
+        if (WIFSIGNALED(status[i])) {
+            int sig = WTERMSIG(status[i]);
+            if (sig != SIGUSR1) {
+                FAIL();
+            }
+        } else {
             FAIL();
         }
     }

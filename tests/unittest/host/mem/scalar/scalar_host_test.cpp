@@ -82,9 +82,6 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_SCALAR_PUT_GET);
                                                                                             \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;        \
         test_finalize(stream, device_id);                                                   \
-        if (::testing::Test::HasFailure()) {                                                \
-            exit(1);                                                                        \
-        }                                                                                   \
     }
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_ACLSHMEM_SCALAR);

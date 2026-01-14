@@ -53,9 +53,6 @@ static void test_signal_eq_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_signal_ne_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -95,9 +92,6 @@ static void test_signal_ne_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_signal_gt_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -137,9 +131,6 @@ static void test_signal_gt_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_signal_ge_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -179,9 +170,6 @@ static void test_signal_ge_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_signal_lt_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -221,9 +209,6 @@ static void test_signal_lt_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_signal_le_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -263,9 +248,6 @@ static void test_signal_le_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t 
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 // ==================== 所有rank环形测试ADD操作 ====================
@@ -321,9 +303,6 @@ static void test_signal_add_all_ranks(int32_t rank_id, int32_t n_ranks, uint64_t
 
     aclshmem_free(sig_addr);
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TEST_SIGNAL_API, test_signal_eq_all_ranks)

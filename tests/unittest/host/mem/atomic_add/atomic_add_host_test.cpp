@@ -65,9 +65,6 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD_HOST);
     do {                                                                                            \
         std::cout << "[TEST] begin to exit...... rank_id: " << (rank_id) << std::endl;              \
         test_finalize(stream, device_id);                                                           \
-        if (::testing::Test::HasFailure()) {                                                        \
-            exit(1);                                                                                \
-        }                                                                                           \
     } while (0)
 
 #define TEST_ACLSHMEM_ATOMIC_ADD(NAME, TYPE)                                                        \
@@ -77,13 +74,9 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD_HOST);
         aclrtStream stream;                                                                         \
         test_init(rank_id, n_ranks, local_mem_size, &stream);                                       \
         ASSERT_NE(stream, nullptr);                                                                 \
-        test_atomic_add_##NAME##_host(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks); \
+        test_atomic_add_##NAME##_host(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks);      \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                \
         test_finalize(stream, device_id);                                                           \
-        if (::testing::Test::HasFailure())                                                          \
-        {                                                                                           \
-            exit(1);                                                                                \
-        }                                                                                           \
     }
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD);
 

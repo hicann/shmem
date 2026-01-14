@@ -176,9 +176,6 @@ ACLSHMEM_MEM_PUT_GET_FUNC(PUT_GET_TEST)
                                                                                                          \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                     \
         test_finalize(stream, device_id);                                                                \
-        if (::testing::Test::HasFailure()) {                                                             \
-            exit(1);                                                                                     \
-        }                                                                                                \
     }
 
 ACLSHMEM_MEM_PUT_GET_FUNC(TEST_MEM)

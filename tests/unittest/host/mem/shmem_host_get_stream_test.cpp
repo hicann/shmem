@@ -166,9 +166,6 @@ void test_host_aclshmem_putmem_and_getmemstream(int rank_id, int n_ranks, uint64
     host_test_put_get_stream(rank_id, n_ranks, local_mem_size, stream);
     std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TestGetMemStreamHostApi, TestShmemMemGetMemStream)

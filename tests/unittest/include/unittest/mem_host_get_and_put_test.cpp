@@ -160,9 +160,6 @@ void test_host_aclshmem_putmem_and_getmem(int rank_id, int n_ranks, uint64_t loc
     host_test_put_get(rank_id, n_ranks, local_mem_size);
     std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 #define TEST_P_AND_G(NAME, TYPE)                                                                 \
@@ -203,9 +200,6 @@ ACLSHMEM_MEM_PUT_GET_FUNC(TEST_P_AND_G)
         host_test_##NAME##_g_and_p(rank_id, n_ranks, local_mem_size);                        \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;         \
         test_finalize(stream, device_id);                                                    \
-        if (::testing::Test::HasFailure()) {                                                 \
-            exit(1);                                                                         \
-        }                                                                                    \
     }
 ACLSHMEM_MEM_PUT_GET_FUNC(TEST_P_AND_G)
 #undef TEST_P_AND_G

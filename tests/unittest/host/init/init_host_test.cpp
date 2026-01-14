@@ -51,9 +51,6 @@ void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 void test_aclshmem_init_invalid_rank_id(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -76,9 +73,6 @@ void test_aclshmem_init_invalid_rank_id(int rank_id, int n_ranks, uint64_t local
     EXPECT_EQ(status, ACLSHMEM_STATUS_NOT_INITIALIZED);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 void test_aclshmem_init_invalid_n_ranks(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -102,9 +96,6 @@ void test_aclshmem_init_invalid_n_ranks(int rank_id, int n_ranks, uint64_t local
     EXPECT_EQ(status, ACLSHMEM_STATUS_NOT_INITIALIZED);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 void test_aclshmem_init_rank_id_over_size(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -124,9 +115,6 @@ void test_aclshmem_init_rank_id_over_size(int rank_id, int n_ranks, uint64_t loc
     EXPECT_EQ(status, ACLSHMEM_STATUS_NOT_INITIALIZED);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 void test_aclshmem_init_zero_mem(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -146,9 +134,6 @@ void test_aclshmem_init_zero_mem(int rank_id, int n_ranks, uint64_t local_mem_si
     EXPECT_EQ(status, ACLSHMEM_STATUS_NOT_INITIALIZED);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 void test_shmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -175,9 +160,6 @@ void test_shmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 void aclshmem_test_logger(int level, const char *msg) {
     if (level < 1) {

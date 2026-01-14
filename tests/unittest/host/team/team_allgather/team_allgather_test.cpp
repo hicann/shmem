@@ -69,9 +69,6 @@ void test_aclshmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_
 
     std::cerr << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TestTeamFunc, TestShmemTeam)

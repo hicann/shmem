@@ -61,9 +61,6 @@ static void test_barrier_black_box(int32_t rank_id, int32_t n_ranks, uint64_t lo
     aclshmem_free(addr_dev_vec);
 
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_barrier_black_box_odd_team(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -125,9 +122,6 @@ static void test_barrier_black_box_odd_team(int32_t rank_id, int32_t n_ranks, ui
     aclshmem_team_destroy(team_odd);
 
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TEST_SYNC_API, test_barrier_black_box)

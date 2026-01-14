@@ -30,9 +30,6 @@ static void test_p2p(int rank_id, int rank_size, uint64_t local_mem_size)
 
     int32_t dev_id = rank_id % test_gnpu_num + test_first_npu;
     test_finalize(stream, dev_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TEST_SYNC_API, test_p2p)

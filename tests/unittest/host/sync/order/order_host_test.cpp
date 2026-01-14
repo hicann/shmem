@@ -47,9 +47,6 @@ static void test_quiet_order(int32_t rank_id, int32_t n_ranks, uint64_t local_me
     aclshmem_free(dev_ptr);
 
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 static void test_fence_order(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
@@ -80,9 +77,6 @@ static void test_fence_order(int32_t rank_id, int32_t n_ranks, uint64_t local_me
     aclshmem_free(addr_dev);
 
     test_finalize(stream, device_id);
-    if (::testing::Test::HasFailure()) {
-        exit(1);
-    }
 }
 
 TEST(TEST_SYNC_API, test_quiet_order)

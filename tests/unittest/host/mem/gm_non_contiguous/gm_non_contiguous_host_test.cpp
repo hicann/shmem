@@ -88,9 +88,6 @@ ACLSHMEM_FUNC_TYPE_HOST(TEST_NON_CONTIGUOUS_PUT_GET);
         test_##NAME##_non_contiguous_put_get(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks);      \
         std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                       \
         test_finalize(stream, device_id);                                                                  \
-        if (::testing::Test::HasFailure()) {                                                               \
-            exit(1);                                                                                       \
-        }                                                                                                  \
     }
 
 ACLSHMEM_FUNC_TYPE_HOST(TEST_ACLSHMEM_NON_CONTIGUOUS);
