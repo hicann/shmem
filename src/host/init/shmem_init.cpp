@@ -161,8 +161,6 @@ int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int64_t local_mem_siz
     SHM_ASSERT_RETURN(n_pes <= ACLSHMEM_MAX_PES, ACLSHMEM_INVALID_VALUE);
     SHM_ASSERT_RETURN(my_pe < ACLSHMEM_MAX_PES, ACLSHMEM_INVALID_VALUE);
     aclshmemi_bootstrap_uid_state_t *uid_args = (aclshmemi_bootstrap_uid_state_t *)(uid);
-    uid_args->my_pe = my_pe;
-    uid_args->n_pes = n_pes;
     void * comm_args = reinterpret_cast<void *>(uid_args);
     aclshmem_attr->comm_args = comm_args;
     aclshmem_attr->my_pe = my_pe;

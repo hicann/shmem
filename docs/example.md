@@ -1,5 +1,211 @@
+# 初始化
+该样例工程位于`examples/init`文件夹下。
+
+SHMEM当前提供了三种flag用于初始化：
+    - ACLSHMEMX_INIT_WITH_DEFAULT 默认初始化流程，可以不依赖第三方库完成初始化，但需要保证设定的ipport空闲
+    - ACLSHMEMX_INIT_WITH_MPI 依赖MPI的多进程管理能力的初始化流程
+    - ACLSHMEMX_INIT_WITH_UNIQUEID 运行时依赖第三方库广播能力（MPI_Bcast/torch.distributed.broadcast等）的初始化流程
+
+同时SHMEM提供了两套后端，在编译时可以通过-mf控制。其中mf后端仅支持ACLSHMEMX_INIT_WITH_DEFAULT的初始化流程。
+
+在该样例中，分别实现了SHMEM提供的所有初始化流程调用方式。可以通过脚本参数编译运行不同flag对应的初始化流程。默认使用回环地址127.0.0.1，端口8666。该用例仅用以单机示范，请保证端口空闲可绑定。
+
+## ACLSHMEMX_INIT_WITH_DEFAULT（支持双后端）
+
+### 样例运行
+在根目录调用`scripts/build.sh`控制后端。
+```bash
+bash scripts/build.sh # 启用默认后端
+bash scripts/build.sh -mf # 启用mf后端
+```
+
+```bash
+cd examples/init
+# 编译并运行两个pe的default初始化流程
+bash run.sh -mode default -pesize 2
+```
+### 代码实现
+SHMEM初始化接口调用前需要完成attributes创建，此用例提供了一种attributes构建方式，也可根据实际需要参考`aclshmemx_init_attr_t`定义自行设置。
+```cpp
+// attributes设置函数
+int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
+                       aclshmemx_uniqueid_t *default_flag_uid, aclshmemx_init_attr_t *attributes)
+{
+    size_t ip_len = 0;
+    if (ip_port != nullptr) {
+        ip_len = std::min(strlen(ip_port), (size_t)(ACLSHMEM_MAX_IP_PORT_LEN - 1));
+
+        std::copy_n(ip_port, ip_len, attributes->ip_port);
+        if (attributes->ip_port[0] == '\0') {
+            return ACLSHMEM_INVALID_VALUE;
+        }
+    }
+
+    int attr_version = (1 << 16) + sizeof(aclshmemx_init_attr_t);
+    attributes->my_pe = my_pe;
+    attributes->n_pes = n_pes;
+    attributes->ip_port[ip_len] = '\0';
+    attributes->local_mem_size = local_mem_size;
+    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
+                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    attributes->comm_args = reinterpret_cast<void *>(default_flag_uid);
+    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
+
+    return ACLSHMEM_SUCCESS;
+}
+```
+
+```cpp
+//default初始化流程
+int run_main(int argc, char* argv[]) {
+    int pe = atoi(argv[1]);
+    int pe_size = atoi(argv[2]);
+    std::string ipport = argv[3];
+    aclshmemx_uniqueid_t default_flag_uid = ACLSHMEM_UNIQUEID_INITIALIZER;
+    aclshmemx_init_attr_t attributes;
+
+    int status = ACLSHMEM_SUCCESS;
+    // acl初始化
+    aclInit(nullptr);
+    aclrtSetDevice(pe);
+    
+    uint64_t local_mem_size = 1024 * 1024 * 1024;
+    // 创建attributes
+    test_set_attr(pe, pe_size, local_mem_size, ipport.c_str(), &default_flag_uid, &attributes);
+    // 初始化
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+
+    /*
+    你的任务
+    */
+
+    //去初始化
+    status = shmem_finalize();
+    aclrtResetDevice(pe);
+    aclFinalize();
+
+    return 0;
+}
+```
+## ACLSHMEMX_INIT_WITH_MPI（仅支持非mf编译）
+
+### 样例运行
+编译前需要安装并配置MPI环境变量，不配置无法编译MPI能力so。
+```bash
+# mpich安装在默认路径时可参考，需根据实际情况替换。
+export PATH=/usr/local/mpich/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/mpich/lib:$LD_LIBRARY_PATH
+```
+
+在根目录调用`scripts/build.sh`控制后端。
+```bash
+bash scripts/build.sh # 启用默认后端，该流程不支持-mf
+```
+
+```bash
+cd examples/init
+# 编译并运行两个pe的mpi初始化流程
+bash run.sh -mode mpi -pesize 2
+```
+### 代码实现
+```cpp
+//mpi初始化流程
+int run_main() {
+    // MPI初始化
+    MPI_Init(nullptr, nullptr);
+    int pe;
+    int pe_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &pe);
+    MPI_Comm_size(MPI_COMM_WORLD, &pe_size);
+    int status = ACLSHMEM_SUCCESS;
+    // acl初始化
+    aclInit(nullptr);
+    aclrtSetDevice(pe);
+    uint64_t local_mem_size = 1024 * 1024 * 1024;
+    // 创建attributes，依赖MPI无需使用ipport可以不传。
+    aclshmemx_init_attr_t attributes = {
+        pe, pe_size, "", local_mem_size, {0, ACLSHMEM_DATA_OP_MTE, 120, 120, 120}};
+    // 初始化
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_MPI, &attributes);
+
+    /*
+    你的任务
+    */
+
+    //去初始化
+    status = shmem_finalize();
+    aclrtResetDevice(pe);
+    aclFinalize();
+    MPI_Finalize();
+    return 0;
+}
+```
+## ACLSHMEMX_INIT_WITH_UNIQUEID（仅支持非mf编译）
+### 样例运行
+编译前需要安装并配置MPI环境变量，不配置无法编译MPI能力so。
+```bash
+# mpich安装在默认路径时可参考，需根据实际情况替换。
+export PATH=/usr/local/mpich/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/mpich/lib:$LD_LIBRARY_PATH
+```
+
+在根目录调用`scripts/build.sh`控制后端。
+```bash
+bash scripts/build.sh # 启用默认后端，该流程不支持-mf
+```
+
+```bash
+cd examples/init
+# 编译并运行两个pe的mpi初始化流程
+bash run.sh -mode mpi -pesize 2
+```
+### 代码实现
+```cpp
+//uid初始化流程
+int run_main() {
+    // MPI初始化
+    MPI_Init(nullptr, nullptr);
+    int pe;
+    int pe_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &pe);
+    MPI_Comm_size(MPI_COMM_WORLD, &pe_size);
+    int status = ACLSHMEM_SUCCESS;
+    // acl初始化
+    aclInit(nullptr);
+    aclrtSetDevice(pe);
+    
+    aclshmemx_init_attr_t attributes;
+    aclshmemx_uniqueid_t uid = ACLSHMEM_UNIQUEID_INITIALIZER;
+    
+    int64_t local_mem_size = 1024 * 1024 * 1024;
+    // pe 0 获取uid
+    if (pe == 0) {
+        status = aclshmemx_get_uniqueid(&uid);
+    }
+    // 广播pe 0 uid到其他pe
+    MPI_Bcast(&uid, sizeof(aclshmemx_uniqueid_t), MPI_UINT8_T, 0, MPI_COMM_WORLD);
+    // 调用uid的set接口创建attributes。
+    status = aclshmemx_set_attr_uniqueid_args(pe, pe_size, 
+                                                local_mem_size, 
+                                                &uid, &attributes);
+    // 初始化                                            
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
+
+    /*
+    你的任务
+    */
+
+    //去初始化
+    status = shmem_finalize();
+    aclrtResetDevice(pe);
+    aclFinalize();
+    MPI_Finalize();
+    return 0;
+
+}
+```
 # AllGather
-该样例工程位于`examples\allgather`文件夹下。
+该样例工程位于`examples/allgather`文件夹下。
 
 在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括aclshmemx_mte_put_nbi、aclshmemx_signal_op以及aclshmemx_mte_get_nbi等，用于p2p的通信以及同步任务。
 

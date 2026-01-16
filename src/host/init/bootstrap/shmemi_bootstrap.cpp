@@ -138,6 +138,9 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
             sizeof(g_boot_handle.ipport));
         plugin_name = BOOTSTRAP_MODULE_UID;
         arg = (attr != NULL) ? attr->comm_args : NULL;
+        aclshmemx_uniqueid_t *uid = (aclshmemx_uniqueid_t *) arg;
+        uid->my_pe = attr->my_pe;
+        uid->n_pes = attr->n_pes;
     } else if (flags & ACLSHMEMX_INIT_WITH_MPI) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_MPI");
         plugin_name = BOOTSTRAP_MODULE_MPI;
@@ -146,6 +149,9 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_UNIQUEID");
         plugin_name = BOOTSTRAP_MODULE_UID;
         arg = (attr != NULL) ? attr->comm_args : NULL;
+        aclshmemx_uniqueid_t *uid = (aclshmemx_uniqueid_t *) arg;
+        uid->my_pe = attr->my_pe;
+        uid->n_pes = attr->n_pes;
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
         status = ACLSHMEM_INVALID_PARAM;
