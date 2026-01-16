@@ -163,6 +163,7 @@ typedef struct {
  *   with other modules and processes.
  * - uint64_t local_mem_size: The size of shared memory currently occupied by current pe.
  * - aclshmem_init_optional_attr_t option_attr: Optional Parameters.
+ * - void *comm_args: Parameters required for communication during the bootstrap phase when initializing different flags.
 */
 typedef struct {
     int my_pe;

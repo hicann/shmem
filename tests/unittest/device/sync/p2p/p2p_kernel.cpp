@@ -29,18 +29,6 @@ extern "C" ACLSHMEM_GLOBAL void p2p_chain(uint64_t config, GM_ADDR addr, int ran
 #endif
 
     aclshmem_barrier_all();
-
-#ifdef __DAV_C220_VEC__
-    if (rank_id == 0) {
-        aclshmemx_signal_op(sig_addr, 1, ACLSHMEM_SIGNAL_ADD, next);
-        aclshmem_signal_wait_until(sig_addr, ACLSHMEM_CMP_EQ, 1 + AscendC::GetBlockNum() * AscendC::GetTaskRation());
-    } else {
-        aclshmem_signal_wait_until(sig_addr, ACLSHMEM_CMP_EQ, 1 + AscendC::GetBlockNum() * AscendC::GetTaskRation());
-        aclshmemx_signal_op(sig_addr, 1, ACLSHMEM_SIGNAL_ADD, next);
-    }
-#endif
-
-    aclshmem_barrier_all();
 }
 
 void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size)
