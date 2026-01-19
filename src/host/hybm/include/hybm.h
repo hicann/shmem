@@ -12,10 +12,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Initialize hybrid big memory library
  *
@@ -30,8 +26,5 @@ int32_t hybm_init(uint16_t deviceId, uint64_t flags);
  */
 void hybm_uninit(void);
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif // MEM_FABRIC_HYBRID_HYBM_H

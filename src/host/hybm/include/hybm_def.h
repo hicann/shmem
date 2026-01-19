@@ -13,10 +13,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef __cplusplus
-extern "C" {
-#endif
-
 typedef void *smem_shm_t;
 
 typedef void *hybm_entity_t;
@@ -81,9 +77,5 @@ typedef struct {
     hybm_role_type role;
     char nic[64];
 } hybm_options;
-
-#ifndef __cplusplus
-}
-#endif
 
 #endif // MEM_FABRIC_HYBRID_HYBRID_BIG_MEM_DL_H

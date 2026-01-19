@@ -14,10 +14,6 @@
 #include "hybm.h"
 #include "hybm_def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Create Hybrid Big Memory(HyBM) entity at local side
  *
@@ -178,9 +174,5 @@ int32_t hybm_set_extra_context(hybm_entity_t e, const void *context, uint32_t si
  * @param flags             [in] optional flags, default value 0
  */
 void hybm_unmap(hybm_entity_t e, uint32_t flags);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // MEM_FABRIC_HYBRID_HYBM_BIG_MEM_C_H
