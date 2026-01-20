@@ -164,3 +164,11 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
 )
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/device
+        DESTINATION src
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/host_device
+        DESTINATION src
+)
