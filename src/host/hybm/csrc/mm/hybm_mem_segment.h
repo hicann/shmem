@@ -29,8 +29,10 @@ using MemSegmentPtr = std::shared_ptr<MemSegment>;
 
 struct MemSliceStatus {
     std::shared_ptr<MemSlice> slice;
+    void *handle;
 
-    explicit MemSliceStatus(std::shared_ptr<MemSlice> s) noexcept : slice{std::move(s)} {}
+    explicit MemSliceStatus(std::shared_ptr<MemSlice> s) noexcept : slice{std::move(s)}, handle(nullptr) {}
+    MemSliceStatus(std::shared_ptr<MemSlice> s, void *h) noexcept : slice{std::move(s)}, handle(h) {}
 };
 
 class MemSegment {
@@ -49,7 +51,7 @@ public:
 
     virtual Result ReserveMemorySpace(void **address) noexcept = 0;
 
-    virtual Result UnreserveMemorySpace() noexcept = 0;
+    virtual Result UnReserveMemorySpace() noexcept = 0;
 
     /*
      * Allocate memory according to segType
@@ -115,14 +117,14 @@ public:
      * check memery area in this segment
      * @return true if in range
     */
-    virtual void GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept = 0;
+    virtual bool GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept = 0;
 
     /*
      * get memory type
      */
     virtual hybm_mem_type GetMemoryType() const noexcept = 0;
 
-    virtual bool CheckSmdaReaches(uint32_t rankId) const noexcept;
+    virtual bool CheckSdmaReaches(uint32_t rankId) const noexcept;
 
 protected:
     static Result InitDeviceInfo();

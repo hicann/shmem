@@ -22,7 +22,7 @@ namespace device {
 
 class FixedRanksQpManager : public DeviceQpManager {
 public:
-    FixedRanksQpManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet) noexcept;
+    FixedRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet) noexcept;
     ~FixedRanksQpManager() noexcept override;
 
     int SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo> &ranks) noexcept override;
@@ -88,6 +88,7 @@ private:
     std::shared_ptr<std::thread> serverConnectThread_;
     std::unordered_map<uint32_t, ConnectionChannel> clientConnections_;
     std::unordered_map<uint32_t, ConnectionChannel> serverConnections_;
+    uint32_t userDeviceId_{0};
 };
 }
 }

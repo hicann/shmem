@@ -22,22 +22,23 @@
 namespace shm {
 namespace hybm {
 struct EntityExportInfo {
-    uint64_t magic{EXPORT_INFO_MAGIC};
-    uint64_t version{0};
+    uint64_t magic{ENTITY_EXPORT_INFO_MAGIC};
+    uint64_t version{EXPORT_INFO_VERSION};
     uint16_t rankId{0};
     uint16_t role{0};
     uint32_t reserved{0};
     char nic[64]{};
 };
-
 struct SliceExportTransportKey {
-    uint64_t magic{EXPORT_SLICE_MAGIC};
+    uint64_t magic;
     uint16_t rankId;
     uint16_t reserved[3]{};
     uint64_t address;
-    transport::TransportMemoryKey key{};
-    SliceExportTransportKey() : SliceExportTransportKey{0, 0} {}
-    SliceExportTransportKey(uint16_t rank, uint64_t addr) : rankId{rank}, address{addr} {}
+    transport::TransportMemoryKey key;
+    SliceExportTransportKey() : SliceExportTransportKey{0, 0, 0} {}
+    SliceExportTransportKey(uint64_t mag, uint16_t rank, uint64_t addr)
+        : magic{mag}, rankId{rank}, address{addr}, key{0}
+    {}
 };
 
 class MemEntityDefault : public MemEntity {
@@ -50,8 +51,9 @@ public:
 
     int32_t ReserveMemorySpace(void **reservedMem) noexcept override;
     int32_t UnReserveMemorySpace() noexcept override;
+    void *GetReservedMemoryPtr(hybm_mem_type memType) noexcept override;
 
-    int32_t AllocLocalMemory(uint64_t size, uint32_t flags, hybm_mem_slice_t &slice) noexcept override;
+    int32_t AllocLocalMemory(uint64_t size, hybm_mem_type mType, uint32_t flags, hybm_mem_slice_t &slice) noexcept override;
     int32_t RegisterLocalMemory(const void *ptr, uint64_t size, uint32_t flags,
                                 hybm_mem_slice_t &slice) noexcept override;
     int32_t FreeLocalMemory(hybm_mem_slice_t slice, uint32_t flags) noexcept override;
@@ -85,6 +87,7 @@ private:
 
     Result InitSegment();
     Result InitHbmSegment();
+    Result InitDramSegment();
     Result InitTransManager();
 
     void ReleaseResources();
@@ -96,7 +99,10 @@ private:
     const int32_t id_; /* id of the engine */
     static thread_local bool isSetDevice_;
     hybm_options options_{};
-    std::shared_ptr<MemSegment> segment_;
+    void *hbmGva_{nullptr};
+    void *dramGva_{nullptr};
+    std::shared_ptr<MemSegment> hbmSegment_{nullptr};
+    std::shared_ptr<MemSegment> dramSegment_{nullptr};
     transport::TransManagerPtr transportManager_;
     std::mutex importMutex_;
     std::unordered_map<uint32_t, EntityExportInfo> importedRanks_;

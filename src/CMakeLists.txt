@@ -8,10 +8,8 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-if(ENABLE_HYBM_BACKEND)
-    add_subdirectory(host/hybm)
-    add_subdirectory(host/bootstrap/config_store)
-endif()
+add_subdirectory(host/hybm)
+add_subdirectory(host/bootstrap/config_store)
 
 if (BUILD_PYTHON STREQUAL "ON")
     add_subdirectory(host/python_wrapper)
@@ -50,6 +48,7 @@ target_include_directories(aclshmem_host
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src/host
         ${PROJECT_SOURCE_DIR}/src/device
+        ${PROJECT_SOURCE_DIR}/src/host/utils
         ${PROJECT_SOURCE_DIR}/src/host/hybm/include
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
@@ -58,31 +57,8 @@ target_include_directories(aclshmem_host
 add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
 target_link_options(shmem PRIVATE --cce-fatobj-link)
 
-if(ENABLE_HYBM_BACKEND)
-        if(NOT USE_UNIT_TEST)
-                target_link_libraries(shmem PRIVATE hybmm_shared config_store_shared)
-        endif()
-endif()
-
-set(ACLSHMEM_MTE_SUPPORT ON)
-if(ACLSHMEM_MTE_SUPPORT)
-        add_library(aclshmem_transport_mte SHARED)
-
-        target_sources(aclshmem_transport_mte PRIVATE 
-                host/transport/shmemi_mte.cpp)
-        
-        target_include_directories(aclshmem_transport_mte PRIVATE
-                ${PROJECT_SOURCE_DIR}/include
-                ${PROJECT_SOURCE_DIR}/src/host
-                ${PROJECT_SOURCE_DIR}/src/host/hybm/include
-                ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
-                ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
-        )
-        
-        set_target_properties(aclshmem_transport_mte PROPERTIES PREFIX "")
-
-        install(TARGETS aclshmem_transport_mte
-                LIBRARY DESTINATION lib)
+if(NOT USE_UNIT_TEST)
+        target_link_libraries(shmem PRIVATE hybmm_shared config_store_shared)
 endif()
 
 # MPI
@@ -127,32 +103,6 @@ target_include_directories(aclshmem_bootstrap_uid
 set_target_properties(aclshmem_bootstrap_uid PROPERTIES PREFIX "")
 install(TARGETS aclshmem_bootstrap_uid
         LIBRARY DESTINATION lib)
-
-
-if(ACLSHMEM_RDMA_SUPPORT)
-    add_library(
-        aclshmem_transport_rdma SHARED
-    )
-    target_sources(aclshmem_transport_rdma PRIVATE 
-        host/transport/shmemi_rdma.cpp
-        host/transport/rdma/device_qp_manager.cpp
-        host/transport/rdma/dl_hccp_api.cpp
-    )
-    target_link_libraries(aclshmem_transport_rdma PRIVATE MPI::MPI_CXX)
-    target_include_directories(aclshmem_transport_rdma
-                                PRIVATE
-                                ${PROJECT_SOURCE_DIR}/include
-                                ${PROJECT_SOURCE_DIR}/src/host
-                                ${PROJECT_SOURCE_DIR}/src/modules
-                                ${PROJECT_SOURCE_DIR}/src/host/hybm/include
-                                ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
-                                ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
-    )
-    set_target_properties(aclshmem_transport_rdma PROPERTIES PREFIX "")
-    install(TARGETS aclshmem_transport_rdma
-        LIBRARY DESTINATION lib
-    )
-endif()
 
 # 安装配置
 install(TARGETS shmem

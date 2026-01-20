@@ -23,17 +23,17 @@
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 
-#ifdef BACKEND_HYBM
 #include "store_factory.h"
-#endif
+#include "sotre_net.h"
+#include "store_net_common.h"
+#include "shmemi_net_util.h"
 
 using namespace std;
+using namespace shm::utils;
 
 #define DEFAULT_MY_PE (-1)
 #define DEFAULT_N_PES (-1)
 
-constexpr int DEFAULT_FLAG = 0;
-constexpr int DEFAULT_ID = 0;
 constexpr int DEFAULT_TEVENT = 0;
 constexpr int DEFAULT_BLOCK_NUM = 1;
 
@@ -67,13 +67,10 @@ constexpr int DEFAULT_BLOCK_NUM = 1;
 aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
 aclshmem_host_state_t g_state_host = {nullptr, DEFAULT_TEVENT, DEFAULT_BLOCK_NUM};
 
-int32_t version_compatible()
-{
-    int32_t status = ACLSHMEM_SUCCESS;
-    return status;
-}
+aclshmemi_init_backend* init_manager = nullptr;
+aclshmemx_bootstrap_t g_bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
 
-int32_t aclshmemi_options_init()
+int32_t version_compatible()
 {
     int32_t status = ACLSHMEM_SUCCESS;
     return status;
@@ -124,15 +121,9 @@ int32_t check_attr(aclshmemx_init_attr_t *attributes)
     return ACLSHMEM_SUCCESS;
 }
 
-aclshmemi_init_base* init_manager = nullptr;
-
 int32_t aclshmemi_control_barrier_all()
 {
-#ifdef BACKEND_HYBM
     return init_manager->aclshmemi_control_barrier_all();
-#else
-    return aclshmemi_control_barrier_all_default(g_boot_handle);
-#endif
 }
 
 int32_t update_device_state()
@@ -166,42 +157,38 @@ int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int64_t local_mem_siz
     aclshmem_attr->my_pe = my_pe;
     aclshmem_attr->n_pes = n_pes;
     aclshmem_attr->local_mem_size = local_mem_size;
-#ifdef BACKEND_HYBM
-    std::string ipPort;
-    if (uid_args->addr.type == ADDR_IPv6) {
-        char ipStr[INET6_ADDRSTRLEN] = {0};
-        if (inet_ntop(AF_INET6, &(uid_args->addr.addr.addr6.sin6_addr), ipStr, sizeof(ipStr)) == nullptr) {
-            SHM_LOG_ERROR("inet_ntop failed for IPv6");
-            return ACLSHMEM_INNER_ERROR;
+    if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_DEFAULT) {
+        std::string ipPort;
+        if (uid_args->addr.type == ADDR_IPv6) {
+            char ipStr[INET6_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET6, &(uid_args->addr.addr.addr6.sin6_addr), ipStr, sizeof(ipStr)) == nullptr) {
+                SHM_LOG_ERROR("inet_ntop failed for IPv6");
+                return ACLSHMEM_INNER_ERROR;
+            }
+            uint16_t port = ntohs(uid_args->addr.addr.addr6.sin6_port);
+            ipPort = "tcp6://[" + std::string(ipStr) + "]:" + std::to_string(port);
+        } else {
+            char ipStr[INET_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET, &(uid_args->addr.addr.addr4.sin_addr), ipStr, sizeof(ipStr)) == nullptr) {
+                SHM_LOG_ERROR("inet_ntop failed for IPv4");
+                return ACLSHMEM_INNER_ERROR;
+            }
+            uint16_t port = ntohs(uid_args->addr.addr.addr4.sin_port);
+            ipPort = "tcp://" + std::string(ipStr) + ":" + std::to_string(port);
         }
-        uint16_t port = ntohs(uid_args->addr.addr.addr6.sin6_port);
-        ipPort = "tcp6://[" + std::string(ipStr) + "]:" + std::to_string(port);
-    } else {
-        char ipStr[INET_ADDRSTRLEN] = {0};
-        if (inet_ntop(AF_INET, &(uid_args->addr.addr.addr4.sin_addr), ipStr, sizeof(ipStr)) == nullptr) {
-            SHM_LOG_ERROR("inet_ntop failed for IPv4");
-            return ACLSHMEM_INNER_ERROR;
-        }
-        uint16_t port = ntohs(uid_args->addr.addr.addr4.sin_port);
-        ipPort = "tcp://" + std::string(ipStr) + ":" + std::to_string(port);
+        std::copy(ipPort.begin(), ipPort.end(), aclshmem_attr->ip_port);
+        aclshmem_attr->ip_port[ipPort.size()] = '\0';
+        int attr_version = static_cast<int>((1 << 16) + sizeof(aclshmemx_init_attr_t));
+        aclshmem_attr->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT,
+                                DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, 0};
+        aclshmem_attr->option_attr.sockFd = uid_args->inner_sockFd;
+        SHM_LOG_INFO("extract ip port:" << ipPort);
     }
-    std::copy(ipPort.begin(), ipPort.end(), aclshmem_attr->ip_port);
-    aclshmem_attr->ip_port[ipPort.size()] = '\0';
-    int attr_version = static_cast<int>((1 << 16) + sizeof(aclshmemx_init_attr_t));
-    aclshmem_attr->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT,
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, 0};
-     aclshmem_attr->option_attr.sockFd = uid_args->inner_sockFd;
-    SHM_LOG_INFO("extract ip port:" << ipPort);
-#endif
     return ACLSHMEM_SUCCESS;
 }
 
 bool check_support_d2h()
 {
-#if defined(BACKEND_HYBM)
-    SHM_LOG_WARN("Use BACKEND_HYBM, not support d2h feature");
-    return false;
-#else
     int32_t major_version = -1;
     int32_t minor_version = -1;
     int32_t patch_version = -1;
@@ -215,42 +202,40 @@ bool check_support_d2h()
         return false;
     }
     return true;
-#endif
 }
 
 int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t *attributes)
 {
     int32_t ret;
+    g_bootstrap_flags = bootstrap_flags;
     // config init
     SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
     ACLSHMEM_CHECK_RET(aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL));
     ACLSHMEM_CHECK_RET(check_attr(attributes), "An error occurred while checking the initialization attributes. Please check the initialization parameters.");
     ACLSHMEM_CHECK_RET(version_compatible(), "ACLSHMEM Version mismatch.");
     ACLSHMEM_CHECK_RET(aclshmemi_options_init());
-#if defined(BACKEND_HYBM)
-    SHM_LOG_INFO("The current backend is HYBM.");
-    ACLSHMEM_CHECK_RET(bootstrap_flags != ACLSHMEMX_INIT_WITH_DEFAULT, "The current backend is MF, and the value of bootstrap_flags only supports ACLSHMEMX_INIT_WITH_DEFAULT.", ACLSHMEM_INVALID_PARAM);
-    init_manager = new aclshmemi_init_hybm(attributes, attributes->ip_port, &g_state);
-#else
-    // shmem basic init
-    SHM_LOG_INFO("The current backend is ACLSHMEM default.");
-    // bootstrap init
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_init(bootstrap_flags, attributes));
-    init_manager = new aclshmemi_init_default(attributes, &g_state);
-#endif
+    // init bootstrap
+    if (bootstrap_flags != ACLSHMEMX_INIT_WITH_DEFAULT) {
+        ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_init(bootstrap_flags, attributes));
+    }
+    // init backend for memory manager
+    init_manager = new aclshmemi_init_backend(attributes, &g_state, g_bootstrap_flags, &g_boot_handle);
     ACLSHMEM_CHECK_RET(aclshmemi_state_init_attr(attributes));
+
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
-    ACLSHMEM_CHECK_RET(init_manager->transport_init());
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
 
     // shmem submodules init
     ACLSHMEM_CHECK_RET(memory_manager_initialize(g_state.heap_base, g_state.heap_size));
+
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     if (check_support_d2h()) {
+        // only reserve dramp heap, skip setup_heap for host dram, setup heap when malloc on host
         ACLSHMEM_CHECK_RET(init_manager->reserve_heap(HOST_SIDE));
     }
 #endif
+
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
     g_state.is_aclshmem_initialized = true;
@@ -272,8 +257,8 @@ int32_t aclshmem_finalize()
     }
     // shmem basic finalize
     ACLSHMEM_CHECK_RET(init_manager->remove_heap());
-    ACLSHMEM_CHECK_RET(init_manager->transport_finalize());
     ACLSHMEM_CHECK_RET(init_manager->release_heap());
+    SHM_LOG_INFO("release_heap success.");
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     if (check_support_d2h()) {
         ACLSHMEM_CHECK_RET(init_manager->remove_heap(HOST_SIDE));
@@ -288,11 +273,8 @@ int32_t aclshmem_finalize()
       ACLSHMEM_CHECK_RET(aclrtDestroyStream(g_state_host.default_stream));
       g_state_host.default_stream = nullptr;
     }
-#ifdef BACKEND_HYBM
     memory_manager_destroy();
-#else
     aclshmemi_bootstrap_finalize();
-#endif
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
     g_state.is_aclshmem_initialized = false;
     return ACLSHMEM_SUCCESS;
@@ -318,50 +300,17 @@ void aclshmem_info_get_name(char *name)
     name[i] = '\0';
 }
 
-int32_t aclshmemi_get_uniqueid_default(aclshmemx_uniqueid_t *uid)
-{
-    int status = 0;
-    ACLSHMEM_CHECK_RET(aclshmemi_options_init(), "Bootstrap failed during the preloading step.");
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_pre_init(ACLSHMEMX_INIT_WITH_UNIQUEID, &g_boot_handle), "Get uniqueid failed during the bootstrap preloading step.");
-
-    if (g_boot_handle.pre_init_ops) {
-        ACLSHMEM_CHECK_RET(g_boot_handle.pre_init_ops->get_unique_id((void *)uid), "Get uniqueid failed during the get uniqueid step.");
-    } else {
-        SHM_LOG_ERROR("Pre_init_ops is empty, unique_id cannot be obtained.");
-        status = ACLSHMEM_INVALID_PARAM;
+int32_t aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid) {
+    aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL);
+    *uid = ACLSHMEM_UNIQUEID_INITIALIZER;
+    if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_DEFAULT) {
+        ACLSHMEM_CHECK_RET(aclshmemi_get_uniqueid_acclink(uid), "aclshmemi_get_uniqueid_acclink failed.");
     }
-
-    return (status);
-}
-
-int32_t aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid){
-    aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL);
-    *uid = ACLSHMEM_UNIQUEID_INITIALIZER;
-#ifdef BACKEND_HYBM
-    ACLSHMEM_CHECK_RET(aclshmemi_get_uniqueid_hybm(uid), "shmem_get_uniqueid failed, backend: hybm");
-#else
-    ACLSHMEM_CHECK_RET(aclshmemi_get_uniqueid_default(uid), "aclshmemx_get_uniqueid failed, backend: default");
-#endif
-    return ACLSHMEM_SUCCESS;
-
-}
-
-int32_t aclshmemi_get_uniqueid_static_magic(aclshmemx_uniqueid_t *uid, bool is_root) {
-    aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL);
-    *uid = ACLSHMEM_UNIQUEID_INITIALIZER;
-    int status = 0;
-    ACLSHMEM_CHECK_RET(aclshmemi_options_init(), "Bootstrap failed during the preloading step.");
-    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_pre_init(ACLSHMEMX_INIT_WITH_UNIQUEID, &g_boot_handle), "Get uniqueid failed during the bootstrap preloading step.");
-
-    if (g_boot_handle.pre_init_ops) {
-        ACLSHMEM_CHECK_RET(g_boot_handle.pre_init_ops->get_unique_id_static_magic((void *)uid, is_root), "Get uniqueid failed during the get uniqueid step.");
-    } else {
-        SHM_LOG_ERROR("Pre_init_ops is empty, unique_id cannot be obtained.");
-        status = ACLSHMEM_INVALID_PARAM;
+    else if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_UNIQUEID) {
+        ACLSHMEM_CHECK_RET(aclshmemi_get_uniqueid_socket(uid), "aclshmemi_get_uniqueid_socket failed.");
     }
     return ACLSHMEM_SUCCESS;
 }
-
 
 int32_t aclshmemx_set_log_level(int level)
 {
@@ -387,11 +336,10 @@ int32_t aclshmemx_set_log_level(int level)
 
 int32_t aclshmemx_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len)
 {
-#ifdef BACKEND_HYBM
-    return shm::store::StoreFactory::SetTlsInfo(enable, tls_info, tls_info_len);
-#else
+    if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_DEFAULT) {
+        return shm::store::StoreFactory::SetTlsInfo(enable, tls_info, tls_info_len);
+    }
     return ACLSHMEM_SUCCESS;
-#endif
 }
 
 void aclshmem_rank_exit(int status)
@@ -403,11 +351,10 @@ void aclshmem_rank_exit(int status)
 int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk, const uint32_t tls_pk_len,
     const char *tls_pk_pw, const uint32_t tls_pk_pw_len, const aclshmem_decrypt_handler decrypt_handler)
 {
-#ifdef BACKEND_HYBM
-    return shm::store::StoreFactory::SetTlsPkInfo(tls_pk, tls_pk_len, tls_pk_pw, tls_pk_pw_len, decrypt_handler);
-#else
+    if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_DEFAULT) {
+        return shm::store::StoreFactory::SetTlsPkInfo(tls_pk, tls_pk_len, tls_pk_pw, tls_pk_pw_len, decrypt_handler);
+    }
     return ACLSHMEM_SUCCESS;
-#endif
 }
 
 int32_t aclshmemx_set_extern_logger(void (*func)(int level, const char *msg))
@@ -418,8 +365,7 @@ int32_t aclshmemx_set_extern_logger(void (*func)(int level, const char *msg))
 
 void aclshmem_global_exit(int status)
 {
-#ifdef BACKEND_HYBM
-    init_manager->aclshmemi_global_exit(status);
-#else
-#endif
+    if (g_bootstrap_flags == ACLSHMEMX_INIT_WITH_DEFAULT) {
+        init_manager->aclshmemi_global_exit(status);
+    }
 }

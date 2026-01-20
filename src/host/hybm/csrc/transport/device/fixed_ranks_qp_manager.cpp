@@ -22,10 +22,11 @@ static constexpr uint32_t RECV_CQ_DEPTH = 128;
 static constexpr uint32_t MAX_SEND_WR = 8192;
 static constexpr uint32_t MAX_RECV_WR = 128;
 static constexpr uint32_t QP_MODE = 2;
-FixedRanksQpManager::FixedRanksQpManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
+FixedRanksQpManager::FixedRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
                                          mf_sockaddr devNet) noexcept
     : DeviceQpManager(deviceId, rankId, rankCount, devNet, HYBM_ROLE_PEER)
 {
+    userDeviceId_ = userDeviceId;
 }
 
 FixedRanksQpManager::~FixedRanksQpManager() noexcept
@@ -181,7 +182,7 @@ int FixedRanksQpManager::StartServerSide() noexcept
     }
 
     serverConnectThread_ = std::make_shared<std::thread>([this]() {
-        DlAclApi::AclrtSetDevice(deviceId_);
+        DlAclApi::AclrtSetDevice(userDeviceId_);
         auto ret = WaitConnectionsReady(serverConnections_);
         if (ret != BM_OK) {
             BM_LOG_ERROR(rankId_ << " wait connection ready failed: " << ret);
@@ -203,7 +204,7 @@ int FixedRanksQpManager::StartServerSide() noexcept
 void FixedRanksQpManager::InitClientConnectThread()
 {
     clientConnectThread_ = std::make_shared<std::thread>([this]() {
-        DlAclApi::AclrtSetDevice(deviceId_);
+        DlAclApi::AclrtSetDevice(userDeviceId_);
         auto ret = WaitConnectionsReady(clientConnections_);
         if (ret != BM_OK) {
             BM_LOG_ERROR(rankId_ << " client wait connections failed: " << ret);

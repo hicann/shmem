@@ -61,11 +61,6 @@ add_compile_options(
     -fstack-protector-strong
 )
 
-option(ENABLE_HYBM_BACKEND "Enable HYBM backend" OFF)
-if(ENABLE_HYBM_BACKEND)
-    add_compile_definitions(BACKEND_HYBM)
-endif()
-
 add_link_options(
     -s
     -Wl,-z,relro
@@ -97,6 +92,8 @@ include_directories(
     ${ASCEND_HOME_PATH}/include/aclnn
     ${ASCEND_HOME_PATH}/include/experiment/runtime
     ${ASCEND_HOME_PATH}/include/experiment/msprof
+
+    ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/
 
     # adapt to CANN eco package
     ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/pkg_inc/
@@ -144,7 +141,9 @@ try_compile(HAS_ACLRT_MEM_FABRIC_HANDLE
 # Clean up the test file
 file(REMOVE ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp)
 
-if(HAS_ACLRT_MEM_FABRIC_HANDLE)
+option(ENABLE_CANN_BUILD "Enable CANN Build" OFF)
+
+if(HAS_ACLRT_MEM_FABRIC_HANDLE AND ENABLE_CANN_BUILD)
     message(STATUS "aclrtMemExportToShareableHandleV2 symbol found, enabling ACLRT_MEM_FABRIC_HANDLE support")
     add_definitions(-DHAS_ACLRT_MEM_FABRIC_HANDLE)
 else()

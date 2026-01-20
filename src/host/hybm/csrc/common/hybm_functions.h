@@ -28,6 +28,30 @@ inline uint64_t Func::MakeObjectMagic(uint64_t srcAddress)
 {
     return (srcAddress & gMagicBits) + UN40;
 }
+
+inline std::string SafeStrError(int errNum)
+{
+    locale_t loc = newlocale(LC_ALL_MASK, "", static_cast<locale_t>(nullptr));
+    if (loc == static_cast<locale_t>(nullptr)) {
+        return "Failed to create locale";
+    }
+    const char *error_msg = strerror_l(errNum, loc);
+    std::string result(error_msg ? error_msg : "Unknown error");
+    freelocale(loc);
+    return result;
+}
+
+template<typename II, typename OI>
+Result SafeCopy(II first, II last, OI result)
+{
+    try {
+        std::copy(first, last, result);
+    } catch (...) {
+        BM_LOG_ERROR("copy failed.");
+        return BM_MALLOC_FAILED;
+    }
+    return BM_OK;
+}
 }
 }
 

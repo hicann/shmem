@@ -264,8 +264,8 @@ while [[ $# -gt 0 ]]; do
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift
             ;;
-        -mf)
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DENABLE_HYBM_BACKEND=ON"
+        -cann)
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DENABLE_CANN_BUILD=ON"
             shift
             ;;
         -debug)
@@ -344,7 +344,7 @@ if [ "$PACKAGE" == "ON" ]; then
     make_package
 fi
 
-if [ ${PYEXPAND_EXAMPLE} == "ON" ]; then
+if [ "$PYEXPAND_EXAMPLE" == "ON" ]; then
     build_shared_lib
     build_torch_library
 fi

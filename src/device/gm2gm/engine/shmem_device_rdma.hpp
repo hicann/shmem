@@ -16,14 +16,8 @@
 
 ACLSHMEM_DEVICE __gm__ ACLSHMEMAIVRDMAInfo* aclshmemi_qp_info_fetch()
 {
-#ifdef BACKEND_HYBM
     __gm__ ACLSHMEMAIVRDMAInfo* RDMAInfo = (__gm__ ACLSHMEMAIVRDMAInfo*)(aclshmemi_get_qp_info_address(0));
     return RDMAInfo;
-#else
-    __gm__ aclshmem_device_host_state_t  *device_state = aclshmemi_get_state();
-    __gm__ ACLSHMEMAIVRDMAInfo* RDMAInfo = (__gm__ ACLSHMEMAIVRDMAInfo*)(device_state->qp_info);
-    return RDMAInfo;
-#endif
 }
 
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq(uint32_t remoteRankId, uint32_t qpIdx, uint32_t idx,
@@ -387,11 +381,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_roce_ptr(__gm__ void *ptr, int pe)
 
     // Back to root address
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->heap_base);
-#ifdef BACKEND_HYBM
     uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->p2p_device_heap_base[pe]) + offset;
-#else
-    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->rdma_device_heap_base[pe]) + offset;
-#endif
 
     return reinterpret_cast<__gm__ void *>(remote_ptr);
 }

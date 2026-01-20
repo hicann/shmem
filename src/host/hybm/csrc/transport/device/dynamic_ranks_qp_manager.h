@@ -27,7 +27,7 @@ namespace device {
 
 class DynamicRanksQpManager : public DeviceQpManager {
 public:
-    DynamicRanksQpManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet,
+    DynamicRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet,
                           bool server) noexcept;
     ~DynamicRanksQpManager() noexcept override;
 
@@ -97,6 +97,7 @@ private:
     ConnectionTasks connectionTasks_;
     std::unordered_map<uint32_t, ConnectionChannel> connections_;
     std::vector<ConnectionChannel *> connectionView_;
+    uint32_t userDeviceId_{0};
 };
 }
 }

@@ -18,7 +18,6 @@ namespace hybm {
 constexpr auto DEVICE_SHM_NAME_SIZE = 64U;
 class MemSlice;
 class MemSegment;
-class MemSegmentDevice;
 
 using MemSlicePtr = std::shared_ptr<MemSlice>;
 using MemSegmentPtr = std::shared_ptr<MemSegment>;
@@ -32,6 +31,7 @@ enum MemType : uint8_t {
 
 enum MemPageTblType : uint8_t {
     MEM_PT_TYPE_SVM = 0,
+    MEM_PT_TYPE_GVM,
     MEM_PT_TYPE_HYM,
 
     MEM_PT_TYPE_BUTT
@@ -46,6 +46,7 @@ enum MemAddrType : uint8_t {
 
 enum MemSegType : uint8_t {
     HYBM_MST_HBM = 0,
+    HYBM_MST_DRAM,
 
     HYBM_MST_BUTT
 };
@@ -64,9 +65,11 @@ struct MemSegmentOptions {
     hybm_data_op_type dataOpType = HYBM_DOP_TYPE_MTE;
     MemSegType segType = HYBM_MST_HBM;
     MemSegInfoExchangeType infoExType = HYBM_INFO_EXG_IN_NODE;
+    bool shared = true;
     uint64_t size = 0;
     uint32_t rankId = 0;   // must start from 0 and increase continuously
     uint32_t rankCnt = 0;  // total rank count
+    uint32_t flags = 0;
 };
 }  // namespace hybm
 }  // namespace shm

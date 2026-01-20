@@ -52,15 +52,21 @@ void RdmaTransportManager::InitializeDeviceAddress(mf_sockaddr &deviceAddr)
 
 Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
 {
-    int32_t deviceId = -1;
+    int32_t userId = -1;
+    int32_t logicId = -1;
 
     BM_LOG_DEBUG(rankId_ << " begin to open device with " << options);
-    auto ret = DlAclApi::AclrtGetDevice(&deviceId);
-    if (ret != 0 || deviceId < 0) {
-        BM_LOG_ERROR(rankId_ << " AclrtGetDevice() return=" << ret << ", output deviceId=" << deviceId);
-        return BM_DL_FUNCTION_FAILED;
-    }
-    deviceId_ = static_cast<uint32_t>(deviceId);
+    auto ret = DlAclApi::AclrtGetDevice(&userId);
+    BM_ASSERT_LOG_AND_RETURN(ret == 0 && userId >= 0,
+                             "AclrtGetDevice() return=" << ret << ", output deviceId=" << userId,
+                             BM_DL_FUNCTION_FAILED);
+
+    ret = DlAclApi::RtGetLogicDevIdByUserDevId(userId, &logicId);
+    BM_ASSERT_LOG_AND_RETURN(ret == 0 && logicId >= 0,
+                             "RtGetLogicDevIdByUserDevId() return=" << ret << ", output deviceId=" << logicId,
+                             BM_DL_FUNCTION_FAILED);
+
+    deviceId_ = static_cast<uint32_t>(logicId);
     rankId_ = options.rankId;
     rankCount_ = options.rankCount;
     role_ = options.role;
@@ -75,23 +81,23 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
     } else if (options.type == IpV6) {
         deviceIp_.type = IpV6;
     }
-    if (!PrepareOpenDevice(deviceId_, rankCount_, deviceIp_, rdmaHandle_)) {
-        BM_LOG_ERROR(rankId_ << " PrepareOpenDevice failed.");
+
+    if (!PrepareOpenDevice(userId, deviceId_, rankCount_, deviceIp_, rdmaHandle_)) {
+        BM_LOG_ERROR(deviceId_ << " PrepareOpenDevice failed.");
         return BM_ERROR;
     }
-
     nicInfo_ = GenerateDeviceNic(deviceIp_, devicePort_);
 
     mf_sockaddr deviceAddr;
     InitializeDeviceAddress(deviceAddr);
     if (role_ == HYBM_ROLE_PEER) {
-        qpManager_ = std::make_shared<FixedRanksQpManager>(deviceId_, rankId_, rankCount_, deviceAddr);
+        qpManager_ = std::make_shared<FixedRanksQpManager>(userId, deviceId_, rankId_, rankCount_, deviceAddr);
     } else {
-        qpManager_ = std::make_shared<DynamicRanksQpManager>(deviceId_, rankId_, rankCount_, deviceAddr,
+        qpManager_ = std::make_shared<DynamicRanksQpManager>(userId, deviceId_, rankId_, rankCount_, deviceAddr,
                                                              role_ == HYBM_ROLE_RECEIVER);
     }
 
-    deviceChipInfo_ = std::make_shared<DeviceChipInfo>(deviceId_);
+    deviceChipInfo_ = std::make_shared<DeviceChipInfo>(userId);
     ret = deviceChipInfo_->Init();
     if (ret != BM_OK) {
         BM_LOG_ERROR(rankId_ << " device info init failed: " << ret);
@@ -306,7 +312,7 @@ const void *RdmaTransportManager::GetQpInfo() const
     return qpManager_->GetQpInfoAddress();
 }
 
-bool RdmaTransportManager::PrepareOpenDevice(uint32_t device, uint32_t rankCount,
+bool RdmaTransportManager::PrepareOpenDevice(uint32_t userId, uint32_t device, uint32_t rankCount,
                                              net_addr_t &deviceIp, void *&rdmaHandle)
 {
     // If can get rdmaHandle, maybe the device has been opened, can try get rdmaHandle directly.
@@ -321,7 +327,7 @@ bool RdmaTransportManager::PrepareOpenDevice(uint32_t device, uint32_t rankCount
         }
         BM_LOG_INFO(device << " Had prepared device, but rdmaHandle is null, need init again.");
     }
-    if (!OpenTsd(device, rankCount)) {
+    if (!OpenTsd(userId, rankCount)) {
         BM_LOG_ERROR(device << " open tsd failed.");
         return false;
     }

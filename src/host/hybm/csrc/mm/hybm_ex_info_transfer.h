@@ -30,7 +30,7 @@ template <class DataType> class LiteralExInfoTranslater : public ExInfoTranslato
 public:
     int Serialize(const DataType &d, std::string &info) noexcept override
     {
-        if (!std::is_standard_layout<DataType>::value) {
+        if (!std::is_literal_type<DataType>::value) {
             return -1;
         }
 
@@ -41,7 +41,7 @@ public:
 
     int Deserialize(const std::string &info, DataType &d) noexcept override
     {
-        if (!std::is_standard_layout<DataType>::value) {
+        if (!std::is_literal_type<DataType>::value) {
             return -1;
         }
 
@@ -50,7 +50,7 @@ public:
             return -1;
         }
 
-        std::copy_n(info.data(), info.size(), reinterpret_cast<char*>(&d));
+        std::copy_n(info.data(), sizeof(DataType), reinterpret_cast<uint8_t *>(&d));
         return 0;
     }
 };
@@ -71,29 +71,42 @@ public:
 
     inline int Test(void *buffer, size_t length) const noexcept
     {
+        BM_ASSERT_RETURN(exchangeInfo_ != nullptr, -1);
         if (readOffset_ + length > exchangeInfo_->descLen) {
             BM_LOG_ERROR("read data size: " << length << " too long");
             return -1;
         }
 
-        std::copy_n(exchangeInfo_->desc + readOffset_, length, (uint8_t *)buffer);
+        try {
+            std::copy_n(exchangeInfo_->desc + readOffset_, length, (uint8_t *)buffer);
+        } catch (...) {
+            BM_LOG_ERROR("copy failed.");
+            return -1;
+        }
         return 0;
     }
 
     inline int Read(void *buffer, size_t length) const noexcept
     {
+        BM_ASSERT_RETURN(exchangeInfo_ != nullptr, -1);
         if (readOffset_ + length > exchangeInfo_->descLen) {
             BM_LOG_ERROR("read data size: " << length << " too long");
             return -1;
         }
 
-        std::copy_n(exchangeInfo_->desc + readOffset_, length, (uint8_t *)buffer);
+        try {
+            std::copy_n(exchangeInfo_->desc + readOffset_, length, (uint8_t *)buffer);
+        } catch (...) {
+            BM_LOG_ERROR("copy failed.");
+            return -1;
+        }
         readOffset_ += length;
         return 0;
     }
 
     inline size_t LeftBytes() const noexcept
     {
+        BM_ASSERT_RETURN(exchangeInfo_ != nullptr, 0);
         if (readOffset_ >= exchangeInfo_->descLen) {
             return 0U;
         }
@@ -103,6 +116,7 @@ public:
 
     std::string LeftToString() const noexcept
     {
+        BM_ASSERT_RETURN(exchangeInfo_ != nullptr, "");
         if (readOffset_ >= exchangeInfo_->descLen) {
             return "";
         }
@@ -115,13 +129,13 @@ public:
     template <typename DataType>
     inline int Test(DataType &data) const noexcept
     {
-        return Test(static_cast<void*>(&data), sizeof(data));
+        return Test(static_cast<void *>(&data), sizeof(data));
     }
 
     template <typename DataType>
     inline int Read(DataType &data) const noexcept
     {
-        return Read(static_cast<void*>(&data), sizeof(data));
+        return Read(static_cast<void *>(&data), sizeof(data));
     }
 
 private:
@@ -133,17 +147,25 @@ class ExchangeInfoWriter {
 public:
     explicit ExchangeInfoWriter(hybm_exchange_info *info) noexcept : exchangeInfo_{info}
     {
-        exchangeInfo_->descLen = 0;
+        if (exchangeInfo_ != nullptr) {
+            exchangeInfo_->descLen = 0;
+        }
     }
 
     inline int Append(const void *data, size_t length) noexcept
     {
+        BM_ASSERT_RETURN(exchangeInfo_ != nullptr, -1);
         if (exchangeInfo_->descLen > sizeof(exchangeInfo_->desc)) {
             BM_LOG_ERROR("write data size: " << length << " too long");
             return -1;
         }
 
-        std::copy_n((const uint8_t *)data, length, exchangeInfo_->desc + exchangeInfo_->descLen);
+        try {
+            std::copy_n(reinterpret_cast<const uint8_t *>(data), length, exchangeInfo_->desc + exchangeInfo_->descLen);
+        } catch (...) {
+            BM_LOG_ERROR("copy failed.");
+            return -1;
+        }
         exchangeInfo_->descLen += length;
         return 0;
     }
@@ -151,7 +173,7 @@ public:
     template <class DataType>
     inline int Append(const DataType &data) noexcept
     {
-        return Append(static_cast<const void*>(&data), sizeof(data));
+        return Append(reinterpret_cast<const void *>(&data), sizeof(data));
     }
 
 private:

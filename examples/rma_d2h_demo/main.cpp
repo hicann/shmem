@@ -117,9 +117,10 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
 
 int main(int argc, char *argv[])
 {
-    int n_pes = 8;
-    int arg_idx = 1;
-    int my_pe = atoi(argv[arg_idx++]);
+    int argIdx = 1;
+    int n_pes = atoi(argv[argIdx++]);
+    int my_pe = atoi(argv[argIdx++]);
+
     (void)test_aclshmem_rma_scalar_8p(my_pe, n_pes);
     INFO_LOG("[INFO] demo run end in pe %d.", my_pe);
     return 0;

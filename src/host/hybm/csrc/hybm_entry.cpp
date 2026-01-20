@@ -28,6 +28,7 @@
 using namespace shm::hybm;
 
 namespace {
+const std::string DRIVER_VER_V4 = "V100R001C23SPC005B219";
 const std::string DRIVER_VER_V3 = "V100R001C21B035";
 const std::string DRIVER_VER_V2 = "V100R001C19SPC109B220";
 const std::string DRIVER_VER_V1 = "V100R001C18B100";
@@ -93,6 +94,22 @@ static bool DriverVersionCheck(const std::string &ver)
         return true;
     }
 
+    baseVal = GetValueFromVersion(ver, "SPC");
+    readVal = GetValueFromVersion(readVer, "SPC");
+    if (baseVal != -1) {
+        if (readVal == -1 || readVal < baseVal) {
+            BM_LOG_DEBUG("Driver version mismatch, base=" << baseVal << ", read=" << readVal);
+            return false;
+        }
+        if (readVal > baseVal) {
+            return true;
+        }
+    } else {
+        if (readVal != -1) {
+            return true;
+        }
+    }
+
     baseVal = GetValueFromVersion(ver, "B");
     readVal = GetValueFromVersion(readVer, "B");
     if (baseVal == -1 || readVal == -1 || readVal < baseVal) {
@@ -105,17 +122,21 @@ static bool DriverVersionCheck(const std::string &ver)
 int32_t HalGvaPrecheck(void)
 {
     if (DriverVersionCheck(DRIVER_VER_V3)) {
+        BM_LOG_INFO("Driver version V3 found");
         checkVer = HYBM_GVA_V3;
         return BM_OK;
     }
     if (DriverVersionCheck(DRIVER_VER_V2)) {
+        BM_LOG_INFO("Driver version V2 found");
         checkVer = HYBM_GVA_V2;
         return BM_OK;
     }
     if (DriverVersionCheck(DRIVER_VER_V1)) {
+        BM_LOG_INFO("Driver version V1 found");
         checkVer = HYBM_GVA_V1;
         return BM_OK;
     }
+    BM_LOG_ERROR("Failed to determine driver version");
     return BM_ERROR;
 }
 

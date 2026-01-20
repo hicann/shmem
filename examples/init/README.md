@@ -4,19 +4,10 @@
 
 在 `shmem/` 根目录下执行编译脚本：
 
-默认后端
 ```bash
 bash scripts/build.sh
 source install/set_env.sh
 ```
-
-mf后端
-```bash
-bash scripts/build.sh -mf
-source install/set_env.sh
-```
-
-mf后端仅支持default编译
 
 ##### 2. 运行 init 用例
 
@@ -31,12 +22,12 @@ cd examples/init
 bash run.sh -mode default -pesize 2
 ```
 
-执行 mpi 流程，2 pe （依赖MPI，不支持mf后端）
+执行 mpi 流程，2 pe
 ```bash
 bash run.sh -mode mpi -pesize 2
 ```
 
-执行 uid 流程，2 pe（依赖MPI，不支持mf后端）
+执行 uid 流程，2 pe
 ```bash
 bash run.sh -mode uid -pesize 2
 ```

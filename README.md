@@ -111,7 +111,7 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
 1. 在scripts目录下编译的时候，带上build python的选项
 
    ```sh
-   bash build.sh -package -mf
+   bash build.sh -package
    ```
 1. 在install目录下，source环境变量
 

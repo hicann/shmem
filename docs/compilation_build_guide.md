@@ -23,7 +23,7 @@ bash scripts/build.sh
 SHMEM的基本编译命令是`bash build.sh`，默认构建模式下生成版本信息，并创建安装包(默认情况下不会编译RDMA能力、用例、测试、python接口)。后可跟参数，实现不同功能：
 - `-use_cxx11_abi1`：启用 `C++11 ABI`，默认
 - `-use_cxx11_abi0`：禁用 `C++11 ABI`
-- `-mf`：启用MF后端
+- `-cann`：CANN 8.5以上版本可以使用CANN开放接口编译
 - `-uttests`：构建`tests/unittest`目录下所有ut用例
 - `-examples`：构建examples目录下所有用例
 - `-enable_rdma`：构建并启用RDMA相关能力

@@ -14,7 +14,7 @@ SHMEM日志相关的几个环境变量：
 每条SHMEM的日志一般会包含如下内容：时间、日志级别、进程号、日志模块、日志文件、日志所在行号、日志信息。
 ![image](images/log/0.png)
 接下来通过一个初始化两个pe再去初始化的例子简单介绍如何看懂SHMEM日志。此样例日志都是info级别，主要关注日志信息。前面的，时间、日志级别、进程号等信息不做专门截取解释。
-初始化阶段会先报出当前使用的后端（mf或者图中的default）。然后会报出bootstrap使用的flag（如图中的ACLSHMEMX_INIT_WITH_DEFAULT）。然后会开始boostrap初始化，并检测环境变量的设置情况（如图中ACLSHMEM_UID_SESSION_ID未设置）。
+初始化阶段会先报出bootstrap使用的flag（如图中的ACLSHMEMX_INIT_WITH_DEFAULT）。然后会开始boostrap初始化，并检测环境变量的设置情况（如图中ACLSHMEM_UID_SESSION_ID未设置）。
 ![image](images/log/1.png)
 SHMEM有一个root 0节点，在单机环境该节点可以使用回环地址，但在集群环境这样设置是错误的。因此初始化过程会报出当前的root 0（即remote address）是否是回环地址。如果是root 0是回环则默认单机环境，当前pe也可使用回环地址，当前pe的ip信息也会在netifaddr报出。
 ![image](images/log/2.png)

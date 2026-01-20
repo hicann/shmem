@@ -49,7 +49,7 @@ public:
      * @param ip server ip address
      * @param port server tcp port
      */
-    static void DestroyStore(const std::string &ip, uint16_t port) noexcept;
+    static void DestroyStore() noexcept;
     static void DestroyStoreAll(bool afterFork = false) noexcept;
 
     /**

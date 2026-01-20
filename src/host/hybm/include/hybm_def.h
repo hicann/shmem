@@ -46,8 +46,8 @@ typedef enum {
 } hybm_scope;
 
 typedef enum {
-    HYBM_MEM_TYPE_DEVICE = 0,
-
+    HYBM_MEM_TYPE_DEVICE = 1U << 0,
+    HYBM_MEM_TYPE_HOST = 1U << 1,
     HYBM_MEM_TYPE_BUTT
 } hybm_mem_type;
 
@@ -71,10 +71,11 @@ typedef struct {
     uint16_t rankCount;
     uint16_t rankId;
     uint16_t devId;
-    uint64_t singleRankVASpace;
+    uint64_t deviceVASpace;
+    uint64_t hostVASpace;
     uint64_t preferredGVA;
-    bool globalUniqueAddress; // 是否使用全局统一内存地址
     hybm_role_type role;
+    uint32_t flags;
     char nic[64];
 } hybm_options;
 

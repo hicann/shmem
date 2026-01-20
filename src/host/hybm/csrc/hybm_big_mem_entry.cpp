@@ -62,13 +62,20 @@ HYBM_API int32_t hybm_unreserve_mem_space(hybm_entity_t e, uint32_t flags, void 
     return entity->UnReserveMemorySpace();
 }
 
+HYBM_API void *hybm_get_memory_ptr(hybm_entity_t e, hybm_mem_type mType)
+{
+    auto entity = static_cast<MemEntity *>(e);
+    BM_ASSERT_RETURN(entity != nullptr, nullptr);
+    return entity->GetReservedMemoryPtr(mType);
+}
+
 HYBM_API hybm_mem_slice_t hybm_alloc_local_memory(hybm_entity_t e, hybm_mem_type mType, uint64_t size, uint32_t flags)
 {
     BM_ASSERT_RETURN(e != nullptr, nullptr);
     auto entity = MemEntityFactory::Instance().FindEngineByPtr(e);
     BM_ASSERT_RETURN(entity != nullptr, nullptr);
     hybm_mem_slice_t slice;
-    auto ret = entity->AllocLocalMemory(size, flags, slice);
+    auto ret = entity->AllocLocalMemory(size, mType, flags, slice);
     if (ret != 0) {
         BM_LOG_ERROR("allocate slice with size: " << size << " failed: " << ret);
         return nullptr;

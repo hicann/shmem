@@ -11,7 +11,7 @@
 #include "hybm_networks_common.h"
 #include "hybm_device_mem_segment.h"
 #include "hybm_types.h"
-#include "hybm_mem_segment.h"
+#include "hybm_device_mem_segment.h"
 
 namespace shm {
 namespace hybm {
@@ -39,16 +39,26 @@ MemSegmentPtr MemSegment::Create(const MemSegmentOptions &options, int entityId)
 
     MemSegmentPtr tmpSeg;
     switch (options.segType) {
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+        case HYBM_MST_HBM:
+        case HYBM_MST_DRAM:
+            tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
+            break;
+#else
         case HYBM_MST_HBM:
             tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
             break;
+        case HYBM_MST_DRAM:
+            BM_LOG_ERROR("Not support HOST_SIDE malloc, please update CANN version");
+            break;
+#endif
         default:
             BM_LOG_ERROR("Invalid memory seg type " << int(options.segType));
     }
     return tmpSeg;
 }
 
-bool MemSegment::CheckSmdaReaches(uint32_t rankId) const noexcept
+bool MemSegment::CheckSdmaReaches(uint32_t rankId) const noexcept
 {
     return false;
 }
@@ -133,13 +143,13 @@ bool MemSegment::CanLocalHostReaches(uint32_t superPodId, uint32_t serverId, uin
     if (superPodId != superPodId_ || serverId != serverId_) {
         return false;
     }
-    return (socType_ != ASCEND_910B) || ((deviceId / ASC910B_CONN_RANKS) == (deviceId_ / ASC910B_CONN_RANKS));
+    return (socType_ != ASCEND_910B) || ((deviceId / ASC910B_CONN_RANKS) == (logicDeviceId_ / ASC910B_CONN_RANKS));
 }
 
 bool MemSegment::IsSdmaAccessible(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept
 {
     if (serverId == serverId_) {
-        return (socType_ != ASCEND_910B) || ((deviceId / ASC910B_CONN_RANKS) == (deviceId_ / ASC910B_CONN_RANKS));
+        return (socType_ != ASCEND_910B) || ((deviceId / ASC910B_CONN_RANKS) == (logicDeviceId_ / ASC910B_CONN_RANKS));
     }
 
     if (superPodId == invalidSuperPodId || superPodId_ == invalidSuperPodId) {

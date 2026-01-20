@@ -66,7 +66,7 @@ StorePtr StoreFactory::CreateStore(const std::string &ip, uint16_t port, bool is
     return store.Get();
 }
 
-void StoreFactory::DestroyStore(const std::string &ip, uint16_t port) noexcept
+void StoreFactory::DestroyStore() noexcept
 {
    TlsCleanUp();
    ShutDownCleanupThread();

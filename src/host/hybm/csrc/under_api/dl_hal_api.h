@@ -274,6 +274,7 @@ public:
     {
         return pHalHostUnregister(srcPtr, devid);
     }
+
 private:
     static Result LoadHybmV1V2Library();
 

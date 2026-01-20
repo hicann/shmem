@@ -107,5 +107,4 @@ typedef struct {
 } aclshmemi_host_trans_state_t;
 
 extern aclshmemi_bootstrap_handle_t g_boot_handle;
-extern aclshmemi_host_trans_state_t g_host_state;
 #endif // ACLSHMEMI_HOST_TYPES_H

@@ -19,19 +19,15 @@ namespace hybm {
 
 using raRdevGetHandleFunc = int (*)(uint32_t, void **);
 
-using raGetInterfaceVersionFunc = int (*)(uint32_t, uint32_t, uint32_t *);
 using raInitFunc = int (*)(const HccpRaInitConfig *);
 using raSocketInitFunc = int (*)(HccpNetworkMode, HccpRdev, void **);
 using raSocketDeinitFunc = int (*)(void *);
 using raRdevInitV2Func = int (*)(HccpRdevInitInfo, HccpRdev, void **);
 using raSocketBatchConnectFunc = int (*)(HccpSocketConnectInfo[], uint32_t);
 using raSocketBatchCloseFunc = int (*)(HccpSocketCloseInfo[], uint32_t);
-using raSocketBatchAbortFunc = int (*)(HccpSocketConnectInfo[], uint32_t);
 using raSocketListenStartFunc = int (*)(HccpSocketListenInfo[], uint32_t);
 using raSocketListenStopFunc = int (*)(HccpSocketListenInfo[], uint32_t);
 using raGetSocketsFunc = int (*)(uint32_t, HccpSocketInfo[], uint32_t, uint32_t *);
-using raSocketSendFunc = int (*)(const void *, const void *, uint64_t, uint64_t *);
-using raSocketRecvFunc = int (*)(const void *, void *, uint64_t, uint64_t *);
 using raGetIfNumFunc = int (*)(const HccpRaGetIfAttr *, uint32_t *);
 using raGetIfAddrsFunc = int (*)(const HccpRaGetIfAttr *, HccpInterfaceInfo[], uint32_t *);
 using raSocketWhiteListAddFunc = int (*)(void *, const HccpSocketWhiteListInfo[], uint32_t num);
@@ -44,19 +40,12 @@ using raQpConnectAsyncFunc = int (*)(void *, const void *);
 using raRegisterMrFunc = int (*)(const void *, HccpMrInfo *, void **);
 using raDeregisterMrFunc = int (*)(const void *, void *);
 using raMrRegFunc = int (*)(void *, HccpMrInfo *);
-using raMrDeregFunc = int (*)(void *, HccpMrInfo *);
 using tsdOpenFunc = uint32_t (*)(uint32_t, uint32_t);
-using raPollCqFunc = int (*)(void *, bool, uint32_t, void *);
 
 class DlHccpApi {
 public:
     static Result LoadLibrary();
     static void CleanupLibrary();
-
-    static inline int RaGetInterfaceVersion(uint32_t deviceId, uint32_t opcode, uint32_t &version)
-    {
-        return gRaGetInterfaceVersion(deviceId, opcode, &version);
-    }
 
     static inline int RaSocketInit(HccpNetworkMode mode, const HccpRdev &rdev, void *&socketHandle)
     {
@@ -93,11 +82,6 @@ public:
         return gRaSocketBatchClose(conn, num);
     }
 
-    static inline int RaSocketBatchAbort(HccpSocketConnectInfo conn[], uint32_t num)
-    {
-        return gRaSocketBatchAbort(conn, num);
-    }
-
     static inline int RaSocketListenStart(HccpSocketListenInfo conn[], uint32_t num)
     {
         return gRaSocketListenStart(conn, num);
@@ -111,16 +95,6 @@ public:
     static inline int RaGetSockets(uint32_t role, HccpSocketInfo conn[], uint32_t num, uint32_t &connectedNum)
     {
         return gRaGetSockets(role, conn, num, &connectedNum);
-    }
-
-    static inline int RaSocketSend(const void *fd, const void *data, uint64_t size, uint64_t &sent)
-    {
-        return gRaSocketSend(fd, data, size, &sent);
-    }
-
-    static inline int RaSocketRecv(const void *fd, void *data, uint64_t size, uint64_t &received)
-    {
-        return gRaSocketRecv(fd, data, size, &received);
     }
 
     static inline int RaGetIfNum(const HccpRaGetIfAttr &config, uint32_t &num)
@@ -183,16 +157,6 @@ public:
         return gRaMrReg(qpHandle, &info);
     }
 
-    static inline int RaMrDereg(void *qpHandle, HccpMrInfo &info)
-    {
-        return gRaMrDereg(qpHandle, &info);
-    }
-
-    static inline int RaPollCq(void *qp_handle, bool is_send_cq, unsigned int num_entries, void *wc)
-    {
-        return gRaPollCq(qp_handle, is_send_cq, num_entries, wc);
-    }
-
     static inline uint32_t TsdOpen(uint32_t deviceId, uint32_t rankSize)
     {
         return gTsdOpen(deviceId, rankSize);
@@ -208,19 +172,15 @@ private:
 
     static raRdevGetHandleFunc gRaRdevGetHandle;
 
-    static raGetInterfaceVersionFunc gRaGetInterfaceVersion;
     static raInitFunc gRaInit;
     static raSocketInitFunc gRaSocketInit;
     static raSocketDeinitFunc gRaSocketDeinit;
     static raRdevInitV2Func gRaRdevInitV2;
     static raSocketBatchConnectFunc gRaSocketBatchConnect;
     static raSocketBatchCloseFunc gRaSocketBatchClose;
-    static raSocketBatchAbortFunc gRaSocketBatchAbort;
     static raSocketListenStartFunc gRaSocketListenStart;
     static raSocketListenStopFunc gRaSocketListenStop;
     static raGetSocketsFunc gRaGetSockets;
-    static raSocketSendFunc gRaSocketSend;
-    static raSocketRecvFunc gRaSocketRecv;
     static raGetIfNumFunc gRaGetIfNum;
     static raGetIfAddrsFunc gRaGetIfAddrs;
     static raSocketWhiteListAddFunc gRaSocketWhiteListAdd;
@@ -233,8 +193,6 @@ private:
     static raRegisterMrFunc gRaRegisterMR;
     static raDeregisterMrFunc gRaDeregisterMR;
     static raMrRegFunc gRaMrReg;
-    static raMrDeregFunc gRaMrDereg;
-    static raPollCqFunc gRaPollCq;
 
     static tsdOpenFunc gTsdOpen;
 };

@@ -36,8 +36,6 @@ int bootstrap_loader_finalize(aclshmemi_bootstrap_handle_t *handle)
     return 0;
 }
 
-
-
 void aclshmemi_bootstrap_loader()
 {
     dlerror();
@@ -74,6 +72,9 @@ int32_t aclshmemi_bootstrap_pre_init(int flags, aclshmemi_bootstrap_handle_t *ha
         return ACLSHMEM_INVALID_PARAM;
     } else if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID) {
         plugin_name = BOOTSTRAP_MODULE_UID;
+    } else if (flags & ACLSHMEMX_INIT_WITH_DEFAULT) {
+        SHM_LOG_INFO("boost with config store, skip pre init.");
+        return ACLSHMEM_SUCCESS;
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
         status = ACLSHMEM_INVALID_PARAM;
@@ -130,8 +131,8 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
     int32_t status = ACLSHMEM_SUCCESS;
     void *arg;
     g_boot_handle.use_attr_ipport= false;
-    if (flags & ACLSHMEMX_INIT_WITH_DEFAULT){
-        SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_DEFAULT");
+    if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID){
+        SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_UNIQUEID");
         g_boot_handle.use_attr_ipport= true;
         remove_tcp_prefix_and_copy(attr->ip_port,
             g_boot_handle.ipport,
@@ -145,13 +146,9 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_MPI");
         plugin_name = BOOTSTRAP_MODULE_MPI;
         arg = (attr != NULL) ? attr->comm_args : NULL;
-    } else if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID) {
-        SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_UNIQUEID");
-        plugin_name = BOOTSTRAP_MODULE_UID;
-        arg = (attr != NULL) ? attr->comm_args : NULL;
-        aclshmemx_uniqueid_t *uid = (aclshmemx_uniqueid_t *) arg;
-        uid->my_pe = attr->my_pe;
-        uid->n_pes = attr->n_pes;
+    } else if (flags & ACLSHMEMX_INIT_WITH_DEFAULT) {
+        SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_DEFAULT");
+        return ACLSHMEM_SUCCESS;
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
         status = ACLSHMEM_INVALID_PARAM;
@@ -183,6 +180,9 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
 }
 
 void aclshmemi_bootstrap_finalize() {
+    if (!g_boot_handle.is_bootstraped) {
+        return;
+    }
     g_boot_handle.finalize(&g_boot_handle);
     g_boot_handle.is_bootstraped = false;
     dlclose(plugin_hdl);

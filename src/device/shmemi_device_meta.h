@@ -10,7 +10,6 @@
 #ifndef __MEMFABRIC_SMEM_AI_CORE_BASE_META_H__
 #define __MEMFABRIC_SMEM_AI_CORE_BASE_META_H__
 
-#ifdef BACKEND_HYBM
 
 constexpr uint64_t SMEM_SHM_DEVICE_END_ADDR = 0x180000000000ULL - (1UL << 30UL);
 constexpr uint64_t SMEM_SHM_DEVICE_PRE_META_SIZE = 128UL; // 128B
@@ -92,6 +91,4 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_get_extra_context_size(uint32_t shmemId)
     return (*(__gm__ uint32_t*)(metaAddr + SMEM_SHM_DEVICE_META_CONTEXT_OFFSET));
 }
 
-#else
-#endif
 #endif // __MEMFABRIC_SMEM_AI_CORE_BASE_META_H__

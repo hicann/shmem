@@ -12,16 +12,13 @@
 
 #include "stdint.h"
 #include "host_device/shmem_common_types.h"
-#include "init/init_backends/default/shmemi_init_default.h"
-#include "init/init_backends/hybm/shmemi_init_hybm.h"
+#include "init/backends/shmemi_init_backend.h"
 
 extern aclshmem_device_host_state_t g_state;
 extern aclshmem_host_state_t g_state_host;
-extern aclshmemi_init_base* init_manager;
+extern aclshmemi_init_backend* init_manager;
 int32_t aclshmemi_control_barrier_all();
 
 int32_t update_device_state(void);
-
-int32_t aclshmemi_get_uniqueid_static_magic(aclshmemx_uniqueid_t *uid, bool is_root);
 
 #endif  // ACLSHMEMI_INIT_H

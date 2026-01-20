@@ -56,10 +56,7 @@ inline std::string get_connect_url()
 
 int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
 {
-    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_UNIQUEID;
-#if defined(BACKEND_HYBM)
-    bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
-#endif
+    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
     auto ret = aclshmemx_init_attr(bootstrap_flags, &attributes);
     if (ret != 0) {
         std::cerr << "initialize shmem failed, ret: " << ret << std::endl;
@@ -95,10 +92,7 @@ int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, co
         std::cerr << "set attr failed " << ret << std::endl;
         return ret;
     }
-    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_UNIQUEID;
-#if defined(BACKEND_HYBM)
-    bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
-#endif
+    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
     return aclshmemx_init_attr(bootstrap_flags, &attr);
 }
 

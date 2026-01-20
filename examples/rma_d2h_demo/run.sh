@@ -16,8 +16,30 @@ export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 pids=()
 
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -ranks)
+            if [ -n "$2" ]; then
+                RANK_SIZE="$2"
+                 if [[ "$GNPU_NUM" -gt "$RANK_SIZE" ]]; then
+                    GNPU_NUM="$RANK_SIZE"
+                    echo "Because GNPU_NUM is greater than RANK_SIZE, GNPU_NUM is assigned the value of RANK_SIZE=${RANK_SIZE}."
+                fi
+                shift 2
+            else
+                echo "Error: -ranks requires a value."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown option $1."
+            exit 1
+            ;;
+    esac
+done
+
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    ${PROJECT_ROOT}/build/bin/rma_d2h_demo $idx &
+    ${PROJECT_ROOT}/build/bin/rma_d2h_demo ${GNPU_NUM} $idx &
     pid=$!
     pids+=("$pid")
     echo "$pid background process recorded"

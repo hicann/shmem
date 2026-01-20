@@ -24,6 +24,7 @@
 namespace shm {
 namespace hybm {
 namespace transport {
+constexpr uint32_t REG_MR_FLAG_DRAM = 0x1U;
 constexpr uint32_t REG_MR_FLAG_HBM = 0x2U;
 
 constexpr int32_t REG_MR_ACCESS_FLAG_LOCAL_WRITE = 0x1;

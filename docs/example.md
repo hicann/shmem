@@ -6,8 +6,6 @@ SHMEM当前提供了三种flag用于初始化：
     - ACLSHMEMX_INIT_WITH_MPI 依赖MPI的多进程管理能力的初始化流程
     - ACLSHMEMX_INIT_WITH_UNIQUEID 运行时依赖第三方库广播能力（MPI_Bcast/torch.distributed.broadcast等）的初始化流程
 
-同时SHMEM提供了两套后端，在编译时可以通过-mf控制。其中mf后端仅支持ACLSHMEMX_INIT_WITH_DEFAULT的初始化流程。
-
 在该样例中，分别实现了SHMEM提供的所有初始化流程调用方式。可以通过脚本参数编译运行不同flag对应的初始化流程。默认使用回环地址127.0.0.1，端口8666。该用例仅用以单机示范，请保证端口空闲可绑定。
 
 ## ACLSHMEMX_INIT_WITH_DEFAULT（支持双后端）
@@ -15,8 +13,7 @@ SHMEM当前提供了三种flag用于初始化：
 ### 样例运行
 在根目录调用`scripts/build.sh`控制后端。
 ```bash
-bash scripts/build.sh # 启用默认后端
-bash scripts/build.sh -mf # 启用mf后端
+bash scripts/build.sh
 ```
 
 ```bash
@@ -87,7 +84,7 @@ int run_main(int argc, char* argv[]) {
     return 0;
 }
 ```
-## ACLSHMEMX_INIT_WITH_MPI（仅支持非mf编译）
+## ACLSHMEMX_INIT_WITH_MPI
 
 ### 样例运行
 编译前需要安装并配置MPI环境变量，不配置无法编译MPI能力so。
@@ -97,9 +94,9 @@ export PATH=/usr/local/mpich/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/mpich/lib:$LD_LIBRARY_PATH
 ```
 
-在根目录调用`scripts/build.sh`控制后端。
+在根目录调用`scripts/build.sh`
 ```bash
-bash scripts/build.sh # 启用默认后端，该流程不支持-mf
+bash scripts/build.sh
 ```
 
 ```bash
@@ -140,7 +137,7 @@ int run_main() {
     return 0;
 }
 ```
-## ACLSHMEMX_INIT_WITH_UNIQUEID（仅支持非mf编译）
+## ACLSHMEMX_INIT_WITH_UNIQUEID
 ### 样例运行
 编译前需要安装并配置MPI环境变量，不配置无法编译MPI能力so。
 ```bash
@@ -151,7 +148,7 @@ export LD_LIBRARY_PATH=/usr/local/mpich/lib:$LD_LIBRARY_PATH
 
 在根目录调用`scripts/build.sh`控制后端。
 ```bash
-bash scripts/build.sh # 启用默认后端，该流程不支持-mf
+bash scripts/build.sh
 ```
 
 ```bash

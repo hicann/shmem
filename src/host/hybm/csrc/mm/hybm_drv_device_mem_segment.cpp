@@ -20,6 +20,8 @@
 #include "hybm_ex_info_transfer.h"
 #include "hybm_device_mem_segment.h"
 
+#ifndef HAS_ACLRT_MEM_FABRIC_HANDLE
+
 namespace shm {
 namespace hybm {
 std::string MemSegmentDevice::sysBoolId_;
@@ -49,7 +51,7 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
             BM_LOG_ERROR("prepare virtual memory size to (" << totalVirtualSize_ << ") failed. ret: " << ret);
             return BM_MALLOC_FAILED;
         }
-        BM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_);
+        BM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << ", size: " << options_.size << ", rankId: " << i);
         size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         totalVirtualSize_ += reserveAlignedSize;
         reservedVirtualAddresses_.emplace_back(base);
@@ -62,10 +64,15 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
     return BM_OK;
 }
 
-Result MemSegmentDevice::UnreserveMemorySpace() noexcept
+Result MemSegmentDevice::UnReserveMemorySpace() noexcept
 {
     BM_LOG_INFO("un-reserve memory space.");
     FreeMemory();
+    return BM_OK;
+}
+
+Result MemSegmentDevice::SetMemAccess() noexcept
+{
     return BM_OK;
 }
 
@@ -129,7 +136,7 @@ Result MemSegmentDevice::ReleaseSliceMemory(const std::shared_ptr<MemSlice> &sli
 Result MemSegmentDevice::Export(std::string &exInfo) noexcept
 {
     BM_LOG_INFO("MemSegmentDevice not supported export device info.");
-    return BM_NOT_SUPPORTED;
+    return BM_OK;
 }
 
 // export不可重入
@@ -509,7 +516,7 @@ void MemSegmentDevice::FillSysBootIdInfo() noexcept
 
 bool MemSegmentDevice::CanMapRemote(const HbmExportInfo &rmi) noexcept
 {
-    return IsSdmaAccessible(rmi.superPodId, rmi.serverId, rmi.deviceId);
+    return IsSdmaAccessible(rmi.superPodId, rmi.serverId, rmi.logicDeviceId);
 }
 
 void MemSegmentDevice::GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept
@@ -519,7 +526,7 @@ void MemSegmentDevice::GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_
     superPodId = superPodId_;
 }
 
-void MemSegmentDevice::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept
+bool MemSegmentDevice::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept
 {
     auto end = static_cast<const uint8_t *>(addr) + size;
     if (addr >= globalVirtualAddress_ && end < globalVirtualAddress_ + totalVirtualSize_) {
@@ -528,22 +535,25 @@ void MemSegmentDevice::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t
         auto alignOffset = offset % reserveAlignedSize;
         if (alignOffset < options_.size) {
             rankId = offset / reserveAlignedSize;
-            return;
+            return true;
         }
     }
 
     BM_LOG_ERROR("input address, size: " << size << " cannot matches rankId.");
     rankId = std::numeric_limits<uint32_t>::max();
+    return false;
 }
 
-bool MemSegmentDevice::CheckSmdaReaches(uint32_t remoteRankId) const noexcept
+bool MemSegmentDevice::CheckSdmaReaches(uint32_t remoteRankId) const noexcept
 {
     auto pos = importMap_.find(static_cast<uint16_t>(remoteRankId));
     if (pos == importMap_.end()) {
         return false;
     }
 
-    return IsSdmaAccessible(pos->second.superPodId, pos->second.serverId, pos->second.deviceId);
+    return IsSdmaAccessible(pos->second.superPodId, pos->second.serverId, pos->second.logicDeviceId);
 }
 }  // namespace hybm
 }  // namespace shm
+
+#endif

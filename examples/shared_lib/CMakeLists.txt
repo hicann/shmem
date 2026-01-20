@@ -40,9 +40,35 @@ add_compile_options(
     -DTILING_KEY_VAR
 )
 
-option(ENABLE_HYBM_BACKEND "Enable HYBM backend" OFF)
-if (ENABLE_HYBM_BACKEND)
-    add_compile_definitions(BACKEND_HYBM)
+# Try to compile a simple program that uses the symbol
+file(WRITE ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp "
+#include <acl/acl.h>
+int main() {
+    aclrtMemFabricHandle handle;
+    aclrtMemExportToShareableHandleV2(nullptr, 1, ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT, &handle);
+    aclrtMemImportFromShareableHandleV2(&handle, ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT, 0, nullptr);
+    return 0;
+}")
+
+# Check if we can link the program with the symbol
+try_compile(HAS_ACLRT_MEM_FABRIC_HANDLE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp
+    LINK_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES}
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CMAKE_REQUIRED_INCLUDES}" "-DLINK_DIRECTORIES=${ASCEND_HOME_PATH}/lib64"
+    OUTPUT_VARIABLE COMPILE_OUTPUT
+)
+
+# Clean up the test file
+file(REMOVE ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp)
+
+option(ENABLE_CANN_BUILD "Enable CANN Build" OFF)
+
+if(HAS_ACLRT_MEM_FABRIC_HANDLE AND ENABLE_CANN_BUILD)
+    message(STATUS "aclrtMemExportToShareableHandleV2 symbol found, enabling ACLRT_MEM_FABRIC_HANDLE support")
+    add_definitions(-DHAS_ACLRT_MEM_FABRIC_HANDLE)
+else()
+    message(STATUS "aclrtMemExportToShareableHandleV2 symbol not found, disabling ACLRT_MEM_FABRIC_HANDLE support")
 endif()
 
 set(CMAKE_CCE_COMPILE_OPTIONS

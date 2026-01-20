@@ -20,11 +20,12 @@ namespace transport {
 namespace device {
 const int delay = 5;
 static constexpr auto WAIT_DELAY_TIME = std::chrono::seconds(delay);
-DynamicRanksQpManager::DynamicRanksQpManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
+DynamicRanksQpManager::DynamicRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
                                              mf_sockaddr devNet, bool server) noexcept
     : DeviceQpManager{deviceId, rankId, rankCount, devNet, server ? HYBM_ROLE_RECEIVER : HYBM_ROLE_SENDER}
 {
     connectionView_.resize(rankCount);
+    userDeviceId_ = userDeviceId;
 }
 
 DynamicRanksQpManager::~DynamicRanksQpManager() noexcept
@@ -165,7 +166,7 @@ void *DynamicRanksQpManager::GetQpHandleWithRankId(uint32_t rankId) const noexce
 
 void DynamicRanksQpManager::BackgroundProcess() noexcept
 {
-    DlAclApi::AclrtSetDevice(deviceId_);
+    DlAclApi::AclrtSetDevice(userDeviceId_);
     while (managerRunning_.load()) {
         auto count = ProcessServerAddWhitelistTask();
         count += ProcessClientConnectSocketTask();

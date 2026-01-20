@@ -47,7 +47,7 @@ public:
     const void *GetQpInfo() const override;
 
 private:
-    static bool PrepareOpenDevice(uint32_t device, uint32_t rankCount, net_addr_t &deviceIp, void *&rdmaHandle);
+    static bool PrepareOpenDevice(uint32_t userId, uint32_t device, uint32_t rankCount, net_addr_t &deviceIp, void *&rdmaHandle);
     static bool OpenTsd(uint32_t deviceId, uint32_t rankCount);
     static bool RaInit(uint32_t deviceId);
     static bool HandleRetiredDeviceIp(uint32_t deviceId, net_addr_t &deviceIp, net_addr_t &retiredIp);
