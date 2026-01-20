@@ -49,33 +49,9 @@ constexpr uint32_t MAGIC_MULTIPLIER = 1024;
 constexpr uint32_t DATA_SIZE_THRESHOLD = 2097152;
 constexpr uint32_t BLOCK_NUM_SMALL_DATA = 8;
 constexpr uint32_t BLOCK_NUM_LARGE_DATA = 16;
-static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
+
 aclshmemx_uniqueid_t default_flag_uid;
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes)
-{
-    size_t ip_len = 0;
-    if (ip_port != nullptr) {
-        ip_len = std::min(strlen(ip_port), sizeof(g_ipport) - 1);
 
-        std::copy_n(ip_port, ip_len, attributes->ip_port);
-        if (attributes->ip_port[0] == '\0') {
-            return ACLSHMEM_INVALID_VALUE;
-        }
-    }
-
-    int attr_version = (1 << 16) + sizeof(aclshmemx_init_attr_t);
-    attributes->my_pe = my_pe;
-    attributes->n_pes = n_pes;
-    attributes->ip_port[ip_len] = '\0';
-    attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
-
-    return ACLSHMEM_SUCCESS;
-}
 template <class T>
 int test_aclshmem_all_gather(int rank_id, int n_ranks)
 {
@@ -204,7 +180,7 @@ int main(int argc, char *argv[])
 
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
     if (std::string(data_type) == "int") {

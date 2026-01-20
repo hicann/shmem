@@ -20,6 +20,7 @@
 #include "acl/acl.h"
 #include "shmem.h"
 #include "shmemi_host_common.h"
+#include "utils.h"
 
 int g_npus = 8;
 const char *ipport;
@@ -31,33 +32,9 @@ extern void rdma_highlevel_put_pingpong_latency_do(uint32_t block_dim, void* st,
 extern void rdma_postsend_cost_do(uint32_t block_dim, void* stream, uint64_t fftsConfig, uint8_t* gva, int len);
 extern void rdma_highlevel_put_bw_do(uint32_t block_dim, void* stream, uint64_t cfg, uint8_t* gva, int len);
 extern void rdma_mte_put_bw_do(uint32_t block_dim, void* stream, uint64_t cfg, uint8_t* gva, int len, int64_t iter);
-static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
+
 aclshmemx_uniqueid_t default_flag_uid;
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes)
-{
-    size_t ip_len = 0;
-    if (ip_port != nullptr) {
-        ip_len = std::min(strlen(ip_port), sizeof(g_ipport) - 1);
 
-        std::copy_n(ip_port, ip_len, attributes->ip_port);
-        if (attributes->ip_port[0] == '\0') {
-            return ACLSHMEM_INVALID_VALUE;
-        }
-    }
-
-    int attr_version = (1 << 16) + sizeof(aclshmemx_init_attr_t);
-    attributes->my_pe = my_pe;
-    attributes->n_pes = n_pes;
-    attributes->ip_port[ip_len] = '\0';
-    attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
-
-    return ACLSHMEM_SUCCESS;
-}
 int test_aclshmem_rdma_highlevel_put_pingpong_latency(int rank_id, int n_ranks, uint64_t local_mem_size, int message_length)
 {
     uint32_t iteration = 1;
@@ -74,7 +51,7 @@ int test_aclshmem_rdma_highlevel_put_pingpong_latency(int rank_id, int n_ranks, 
     status = aclrtCreateStream(&stream);
 
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
@@ -128,7 +105,7 @@ int test_aclshmem_rdma_postsend_cost(int rank_id, int n_ranks, uint64_t local_me
     status = aclrtCreateStream(&stream);
 
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
@@ -179,7 +156,7 @@ int test_aclshmem_rdma_highlevel_put_bw(int rank_id, int n_ranks, uint64_t local
     status = aclrtCreateStream(&stream);
 
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
@@ -227,7 +204,7 @@ int test_aclshmem_rdma_mte_put_bw(int rank_id, int n_ranks, uint64_t local_mem_s
     status = aclrtCreateStream(&stream);
 
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);

@@ -17,6 +17,7 @@
 #include "acl/acl.h"
 #include "shmem.h"
 #include "shmemi_host_common.h"
+#include "utils.h"
 
 int g_npus = 8;
 const char *ipport;
@@ -24,33 +25,9 @@ int f_rank = 0;
 int f_npu = 0;
 extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int message_length);
 void copy_demo(uint32_t block_dim, void* stream, uint8_t* src, uint8_t* dst, int elements);
-static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
+
 aclshmemx_uniqueid_t default_flag_uid;
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes)
-{
-    size_t ip_len = 0;
-    if (ip_port != nullptr) {
-        ip_len = std::min(strlen(ip_port), sizeof(g_ipport) - 1);
 
-        std::copy_n(ip_port, ip_len, attributes->ip_port);
-        if (attributes->ip_port[0] == '\0') {
-            return ACLSHMEM_INVALID_VALUE;
-        }
-    }
-
-    int attr_version = (1 << 16) + sizeof(aclshmemx_init_attr_t);
-    attributes->my_pe = my_pe;
-    attributes->n_pes = n_pes;
-    attributes->ip_port[ip_len] = '\0';
-    attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
-
-    return ACLSHMEM_SUCCESS;
-}
 int test_aclshmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     // 初始化ACL和ACLSHMEM
@@ -67,7 +44,7 @@ int test_aclshmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_s
     status = aclrtCreateStream(&stream);
 
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);

@@ -133,7 +133,6 @@ int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, con
     attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
                                DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
     attributes->comm_args = reinterpret_cast<void *>(default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
 
     return ACLSHMEM_SUCCESS;
 }

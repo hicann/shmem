@@ -96,6 +96,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/shared_lib/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/utils
 )
 
 link_directories(

@@ -22,7 +22,7 @@
 
 const char *ipport = "tcp://127.0.0.1:8998";
 
-static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
+
 aclshmemx_uniqueid_t default_flag_uid;
 
 extern "C" __global__ __aicore__ void kernel_test(__gm__ int* input, __gm__ int* output)
@@ -54,32 +54,6 @@ void run_demo_scalar(uint32_t block_dim, void* stream, int* input, int* output)
     kernel_test<<<block_dim, nullptr, stream>>>(input, output);
 }
 
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes)
-{
-    size_t ip_len = 0;
-    if (ip_port != nullptr) {
-        ip_len = std::min(strlen(ip_port), sizeof(g_ipport) - 1);
-
-        std::copy_n(ip_port, ip_len, attributes->ip_port);
-        if (attributes->ip_port[0] == '\0') {
-            return ACLSHMEM_INVALID_VALUE;
-        }
-    }
-
-    int attr_version = (1 << 16) + sizeof(aclshmemx_init_attr_t);
-    attributes->my_pe = my_pe;
-    attributes->n_pes = n_pes;
-    attributes->ip_port[ip_len] = '\0';
-    attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
-
-    return ACLSHMEM_SUCCESS;
-}
-
 int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
 {
     // 初始化ACL和ACLSHMEM
@@ -100,7 +74,7 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
 
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     aclshmemx_init_attr_t attributes;
-    test_set_attr(my_pe, n_pes, local_mem_size, ipport, &attributes);
+    test_set_attr(my_pe, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
     auto status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
     ACL_CHECK_WITH_RET(status, ERROR_LOG("aclshmemx_init_attr failed"), return -1);
 

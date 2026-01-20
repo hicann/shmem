@@ -865,8 +865,11 @@ int main(int argc, char **argv)
     ACL_CHECK(aclInit(nullptr));
     ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    
+    aclshmemx_uniqueid_t default_flag_uid;
     aclshmemx_init_attr_t attributes;
-    test_set_attr(rank_id, n_ranks, local_mem_size, ipPort, &attributes);
+    test_set_attr(rank_id, n_ranks, local_mem_size, ipPort, default_flag_uid, &attributes);
     status = aclshmemx_init_attr(&attributes);
 
     status = aclshmemx_init_status();
