@@ -66,6 +66,7 @@
  */
 ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, size_t elem_size, __gm__ int32_t *sig_addr,
                                       int32_t signal, int sig_op, int pe);
+#define shmem_putmem_signal aclshmem_putmem_signal
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                              \
     /**                                                                                                           \
@@ -84,6 +85,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, 
                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
+#define shmem_put_half_mem_signal aclshmem_half_put_signal
+#define shmem_put_float_mem_signal aclshmem_float_put_signal
+#define shmem_put_double_mem_signal aclshmem_doubl_put_signal
+#define shmem_put_int8_mem_signal aclshmem_int8_put_signal
+#define shmem_put_int16_mem_signal aclshmem_int16_put_signal
+#define shmem_put_int32_mem_signal aclshmem_int32_put_signal
+#define shmem_put_int64_mem_signal aclshmem_int64_put_signal
+#define shmem_put_uint8_mem_signal aclshmem_uint8_put_signal
+#define shmem_put_uint16_mem_signal aclshmem_uint16_put_signal
+#define shmem_put_uint32_mem_signal aclshmem_uint32_put_signal
+#define shmem_put_uint64_mem_signal aclshmem_uint64_put_signal
+#define shmem_put_char_mem_signal aclshmem_char_put_signal
+#define shmem_put_bfloat16_mem_signal aclshmem_bfloat16_put_signal
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR(NAME, TYPE)                                                                 \
     /**                                                                                                                     \
@@ -177,6 +191,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal_nbi(__gm__ void *dst, __gm__ void *s
                                                         __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
+#define shmem_put_half_mem_signal_nbi aclshmem_half_put_signal_nbi
+#define shmem_put_float_mem_signal_nbi aclshmem_float_put_signal_nbi
+#define shmem_put_double_mem_signal_nbi aclshmem_double_put_signal_nbi
+#define shmem_put_int8_mem_signal_nbi aclshmem_int8_put_signal_nbi
+#define shmem_put_int16_mem_signal_nbi aclshmem_int16_put_signal_nbi
+#define shmem_put_int32_mem_signal_nbi aclshmem_int32_put_signal_nbi
+#define shmem_put_int64_mem_signal_nbi aclshmem_int64_put_signal_nbi
+#define shmem_put_uint8_mem_signal_nbi aclshmem_uint8_put_signal_nbi
+#define shmem_put_uint16_mem_signal_nbi aclshmem_uint16_put_signal_nbi
+#define shmem_put_uint32_mem_signal_nbi aclshmem_uint32_put_signal_nbi
+#define shmem_put_uint64_mem_signal_nbi aclshmem_uint64_put_signal_nbi
+#define shmem_put_char_mem_signal_nbi aclshmem_char_put_signal_nbi
+#define shmem_put_bfloat16_mem_signal_nbi aclshmem_bfloat16_put_signal_nbi
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_NBI(NAME, TYPE)                                                       \
     /**                                                                                                               \

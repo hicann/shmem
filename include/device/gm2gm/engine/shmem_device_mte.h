@@ -24,6 +24,7 @@
  * @return A remote symmetric address on the specified PE that can be accessed using memory loads and stores.
  */
 ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
+#define shmem_ptr aclshmem_ptr
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
@@ -88,6 +89,7 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID);
+#define shmem_mte_get_mem_nbi aclshmemx_mte_get_nbi
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -151,5 +153,6 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                         AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
                                         int pe, AscendC::TEventID EVENT_ID);
+#define shmem_mte_put_mem_nbi aclshmemx_mte_put_nbi
 
 #endif

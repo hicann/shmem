@@ -34,7 +34,8 @@ ACLSHMEM_HOST_API int aclshmemx_init_status(void);
  * @param uid               [out] a ptr to uid generate by shmem
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(shmem_uniqueid_t *uid);
+ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid);
+#define shmem_get_uniqueid aclshmemx_get_uniqueid
 
 /**
  * @brief init process with unique id. This function need run with PTA.

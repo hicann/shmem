@@ -51,6 +51,7 @@ extern "C" {
  * @param config              [config] ffts config, acquired by util_get_ffts_config()
  */
 ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
+#define shmemx_set_ffts_config util_set_ffts_config
 
 /**
  * @fn ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team)
@@ -70,12 +71,14 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
  * @endcond
  */
 ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team);
+#define shmem_barrier aclshmem_barrier
 
 /**
  * @fn ACLSHMEM_DEVICE void aclshmem_barrier_all(void)
  * @brief aclshmem_barrier of all PEs.
  */
 ACLSHMEM_DEVICE void aclshmem_barrier_all(void);
+#define shmem_barrier_all aclshmem_barrier_all
 
 /**
  * @brief Similar to aclshmem_barrier except that only vector cores participate. Useful in communication-over-compute
@@ -85,6 +88,7 @@ ACLSHMEM_DEVICE void aclshmem_barrier_all(void);
  */
 [[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
+#define shmemx_barrier_vec aclshmemx_barrier_vec
 
 /**
  * @brief aclshmemx_barrier_vec of all PEs.
@@ -92,6 +96,7 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
  */
 [[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier_all instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
+#define shmemx_barrier_all_vec aclshmemx_barrier_all_vec
 
 /**
  * @brief Similar to aclshmem_barrier. In constract with the aclshmem_barrier routine, aclshmem_sync only ensures

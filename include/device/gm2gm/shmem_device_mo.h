@@ -32,6 +32,7 @@ extern "C" {
  *
  */
 ACLSHMEM_DEVICE void aclshmem_quiet(void);
+#define shmem_quiet aclshmem_quiet
 
 /**
  * @brief In OpenACLSHMEM specification, aclshmem_fence assures ordering of delivery of Put, AMOs, and memory store routines
@@ -44,6 +45,7 @@ ACLSHMEM_DEVICE void aclshmem_quiet(void);
  *
  */
 ACLSHMEM_DEVICE void aclshmem_fence(void);
+#define shmem_fence aclshmem_fence
 
 #ifdef __cplusplus
 }

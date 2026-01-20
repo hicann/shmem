@@ -32,6 +32,7 @@ extern "C" {
  * @param pe                    [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmemx_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe);
+#define shmemx_signal_op aclshmemx_signal_op
 
 /**
  * @brief This routine can be used to implement point-to-point synchronization between PEs or between threads within
@@ -45,6 +46,7 @@ ACLSHMEM_DEVICE void aclshmemx_signal_op(__gm__ int32_t *sig_addr, int32_t signa
  * @return Return the contents of the signal data object, sig_addr, at the calling PE that satisfies the wait condition.
  */
 ACLSHMEM_DEVICE int32_t aclshmem_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val);
+#define shmem_signal_wait_until aclshmem_signal_wait_until
 
 #ifdef __cplusplus
 }

@@ -92,6 +92,19 @@
     ACLSHMEM_DEVICE void aclshmem_##NAME##_p(__gm__ TYPE *dst, const TYPE value, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
+#define shmem_half_p aclshmem_half_p
+#define shmem_float_p aclshmem_float_p
+#define shmem_double_p aclshmem_double_p
+#define shmem_int8_p aclshmem_int8_p
+#define shmem_int16_p aclshmem_int16_p
+#define shmem_int32_p aclshmem_int32_p
+#define shmem_int64_p aclshmem_int64_p
+#define shmem_uint8_p aclshmem_uint8_p
+#define shmem_uint16_p aclshmem_uint16_p
+#define shmem_uint32_p aclshmem_uint32_p
+#define shmem_uint64_p aclshmem_uint64_p
+#define shmem_char_p aclshmem_char_p
+#define shmem_bfloat16_p aclshmem_bfloat16_p
 
 #define ACLSHMEM_TYPENAME_G_AICORE(NAME, TYPE)                                              \
     /**                                                                                     \
@@ -104,6 +117,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_g(__gm__ TYPE *src, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
+#define shmem_half_g aclshmem_half_g
+#define shmem_float_g aclshmem_float_g
+#define shmem_double_g aclshmem_double_g
+#define shmem_int8_g aclshmem_int8_g
+#define shmem_int16_g aclshmem_int16_g
+#define shmem_int32_g aclshmem_int32_g
+#define shmem_int64_g aclshmem_int64_g
+#define shmem_uint8_g aclshmem_uint8_g
+#define shmem_uint16_g aclshmem_uint16_g
+#define shmem_uint32_g aclshmem_uint32_g
+#define shmem_uint64_g aclshmem_uint64_g
+#define shmem_char_g aclshmem_char_g
+#define shmem_bfloat16_g aclshmem_bfloat16_g
 
 /**
  * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to
@@ -115,6 +141,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+#define shmem_getmem aclshmem_getmem
 
 #define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                    \
     /**                                                                                                          \
@@ -129,6 +156,19 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
+#define shmem_get_half_mem aclshmem_half_get
+#define shmem_get_float_mem aclshmem_float_get
+#define shmem_get_double_mem aclshmem_double_get
+#define shmem_get_int8_mem aclshmem_int8_get
+#define shmem_get_int16_mem aclshmem_int16_get
+#define shmem_get_int32_mem aclshmem_int32_get
+#define shmem_get_int64_mem aclshmem_int64_get
+#define shmem_get_uint8_mem aclshmem_uint8_get
+#define shmem_get_uint16_mem aclshmem_uint16_get
+#define shmem_get_uint32_mem aclshmem_uint32_get
+#define shmem_get_uint64_mem aclshmem_uint64_get
+#define shmem_get_char_mem aclshmem_char_get
+#define shmem_get_bfloat16_mem aclshmem_bfloat16_get
 
 /**
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -139,6 +179,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+#define shmem_putmem aclshmem_putmem
 
 #define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                     \
     /**                                                                                                           \
@@ -152,6 +193,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
+#define shmem_put_half_mem aclshmem_half_put
+#define shmem_put_float_mem aclshmem_float_put
+#define shmem_put_double_mem aclshmem_double_put
+#define shmem_put_int8_mem aclshmem_int8_put
+#define shmem_put_int16_mem aclshmem_int16_put
+#define shmem_put_int32_mem aclshmem_int32_put
+#define shmem_put_int64_mem aclshmem_int64_put
+#define shmem_put_uint8_mem aclshmem_uint8_put
+#define shmem_put_uint16_mem aclshmem_uint16_put
+#define shmem_put_uint32_mem aclshmem_uint32_put
+#define shmem_put_uint64_mem aclshmem_uint64_put
+#define shmem_put_char_mem aclshmem_char_put
+#define shmem_put_bfloat16_mem aclshmem_bfloat16_put
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to
@@ -163,6 +217,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+#define shmem_getmem_nbi aclshmem_getmem_nbi
 
 #define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
     /**                                                                                                              \
@@ -179,6 +234,19 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
+#define shmem_get_half_mem_nbi aclshmem_half_get_nbi
+#define shmem_get_float_mem_nbi aclshmem_float_get_nbi
+#define shmem_get_double_mem_nbi aclshmem_double_get_nbi
+#define shmem_get_int8_mem_nbi aclshmem_int8_get_nbi
+#define shmem_get_int16_mem_nbi aclshmem_int16_get_nbi
+#define shmem_get_int32_mem_nbi aclshmem_int32_get_nbi
+#define shmem_get_int64_mem_nbi aclshmem_int64_get_nbi
+#define shmem_get_uint8_mem_nbi aclshmem_uint8_get_nbi
+#define shmem_get_uint16_mem_nbi aclshmem_uint16_get_nbi
+#define shmem_get_uint32_mem_nbi aclshmem_uint32_get_nbi
+#define shmem_get_uint64_mem_nbi aclshmem_uint64_get_nbi
+#define shmem_get_char_mem_nbi aclshmem_char_get_nbi
+#define shmem_get_bfloat16_mem_nbi aclshmem_bfloat16_get_nbi
 
 #define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
     /**                                                                                                            \
@@ -241,6 +309,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
+#define shmem_put_half_mem_nbi aclshmem_half_put_nbi
+#define shmem_put_float_mem_nbi aclshmem_float_put_nbi
+#define shmem_put_double_mem_nbi aclshmem_double_put_nbi
+#define shmem_put_int8_mem_nbi aclshmem_int8_put_nbi
+#define shmem_put_int16_mem_nbi aclshmem_int16_put_nbi
+#define shmem_put_int32_mem_nbi aclshmem_int32_put_nbi
+#define shmem_put_int64_mem_nbi aclshmem_int64_put_nbi
+#define shmem_put_uint8_mem_nbi aclshmem_uint8_put_nbi
+#define shmem_put_uint16_mem_nbi aclshmem_uint16_put_nbi
+#define shmem_put_uint32_mem_nbi aclshmem_uint32_put_nbi
+#define shmem_put_uint64_mem_nbi aclshmem_uint64_put_nbi
+#define shmem_put_char_mem_nbi aclshmem_char_put_nbi
+#define shmem_put_bfloat16_mem_nbi aclshmem_bfloat16_put_nbi
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
     /**                                                                                                            \
@@ -297,6 +378,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+#define shmem_putmem_nbi aclshmem_putmem_nbi
 
 #define ACLSHMEM_TEST(NAME, TYPE)                                                                             \
     /**                                                                                                       \
@@ -310,6 +392,16 @@ ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivar, int cmp, TYPE cmp_value)
 
 ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
+#define shmem_float_test aclshmem_float_test
+#define shmem_int8_test aclshmem_int8_test
+#define shmem_int16_test aclshmem_int16_test
+#define shmem_int32_test aclshmem_int32_test
+#define shmem_int64_test aclshmem_int64_test
+#define shmem_uint8_test aclshmem_uint8_test
+#define shmem_uint16_test aclshmem_uint16_test
+#define shmem_uint32_test aclshmem_uint32_test
+#define shmem_uint64_test aclshmem_uint64_test
+#define shmem_char_test aclshmem_char_test
 
 /**
  * @brief Set necessary parameters for put or get.
@@ -319,6 +411,7 @@ ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
  * @param event_id              [in] Sync ID for put or get.
  */
 ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+#define shmem_mte_set_ub_params aclshmemx_set_mte_config
 
 #include "gm2gm/shmem_device_rma.hpp"
 #endif

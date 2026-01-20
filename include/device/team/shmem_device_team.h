@@ -25,6 +25,7 @@ extern "C" {
  * @return Integer between 0 and npes - 1
  */
 ACLSHMEM_DEVICE int aclshmem_my_pe(void);
+#define shmem_my_pe aclshmem_my_pe
 
 /**
  * @brief Returns the number of PEs running in the program.
@@ -32,6 +33,7 @@ ACLSHMEM_DEVICE int aclshmem_my_pe(void);
  * @return Number of PEs in the program.
  */
 ACLSHMEM_DEVICE int aclshmem_n_pes(void);
+#define shmem_n_pes aclshmem_n_pes
 
 /**
  * @brief Returns the number of the calling PE in the specified team.
@@ -42,6 +44,7 @@ ACLSHMEM_DEVICE int aclshmem_n_pes(void);
  *         If the team handle is ACLSHMEM_TEAM_INVALID, returns -1.
  */
 ACLSHMEM_DEVICE int aclshmem_team_my_pe(aclshmem_team_t team);
+#define shmem_team_my_pe aclshmem_team_my_pe
 
 /**
  * @brief Returns the number of PEs in the specified team.
@@ -52,6 +55,7 @@ ACLSHMEM_DEVICE int aclshmem_team_my_pe(aclshmem_team_t team);
  *         If the team handle is ACLSHMEM_TEAM_INVALID, returns -1.
  */
 ACLSHMEM_DEVICE int aclshmem_team_n_pes(aclshmem_team_t team);
+#define shmem_team_n_pes aclshmem_team_n_pes
 
 /**
  * @brief Translate a given PE number in one team into the corresponding PE number in another team.
@@ -64,7 +68,7 @@ ACLSHMEM_DEVICE int aclshmem_team_n_pes(aclshmem_team_t team);
  *         If the team handle is ACLSHMEM_TEAM_INVALID, returns -1.
  */
 ACLSHMEM_DEVICE int aclshmem_team_translate_pe(aclshmem_team_t src_team, int src_pe, aclshmem_team_t dest_team);
-
+#define shmem_team_translate_pe aclshmem_team_translate_pe
 
 /**
  * @brief Translate a given PE number in one team into the corresponding PE number in global team.
@@ -76,6 +80,7 @@ ACLSHMEM_DEVICE int aclshmem_team_translate_pe(aclshmem_team_t src_team, int src
  *         If the team handle is ACLSHMEM_TEAM_INVALID, returns -1.
  */
 ACLSHMEM_DEVICE int aclshmem_team_pe_mapping(aclshmem_team_t team, int pe);
+#define shmem_team_pe_mapping aclshmem_team_pe_mapping
 
 #ifdef __cplusplus
 }

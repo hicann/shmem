@@ -24,6 +24,7 @@
  * @return A remote symmetric address on the specified PE that can be accessed using memory loads and stores.
  */
 ACLSHMEM_DEVICE __gm__ void *aclshmem_roce_ptr(__gm__ void *ptr, int pe);
+#define shmem_roce_ptr aclshmem_roce_ptr
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
@@ -55,7 +56,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe);
-
+#define shmem_roce_get_mem_nbi aclshmemx_roce_get_nbi
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
@@ -85,5 +86,6 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
     AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
+#define shmem_roce_put_mem_nbi aclshmemx_roce_put_nbi
 
 #endif

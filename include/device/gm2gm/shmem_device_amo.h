@@ -53,6 +53,9 @@
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
+#define shmem_int8_atomic_add aclshmem_int8_atomic_add
+#define shmem_int16_atomic_add aclshmem_int16_atomic_add
+#define shmem_int32_atomic_add aclshmem_int32_atomic_add
 
 #define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
     /**                                                                                                            \
@@ -66,6 +69,8 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT);
+#define shmem_half_atomic_add aclshmem_half_atomic_add
+#define shmem_float_atomic_add aclshmem_float_atomic_add
 
 #include "gm2gm/shmem_device_amo.hpp"
 #endif

@@ -319,7 +319,7 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t e
  * @return Returns 0 on success or an error code on failure.
  */
 ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
-#define shmem_set_mte_config aclshmemx_set_mte_config
+#define shmem_mte_set_ub_params aclshmemx_set_mte_config
 
 #ifdef __cplusplus
 }
