@@ -123,7 +123,18 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
 
 int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
 {
-    int32_t ptr_size = host_state_->npes * sizeof(void *);
+    int32_t ptr_size = npes * sizeof(void *);
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->p2p_device_heap_base, ptr_size, host_state_->p2p_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->rdma_device_heap_base, ptr_size, host_state_->rdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->sdma_device_heap_base, ptr_size, host_state_->sdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    if (host_state_->host_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->p2p_host_heap_base, ptr_size,
+            host_state_->p2p_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->rdma_host_heap_base, ptr_size,
+            host_state_->rdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->sdma_host_heap_base, ptr_size,
+            host_state_->sdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    }
     auto backup_p2p = device_state_->p2p_device_heap_base;
     auto backup_rdma = device_state_->rdma_device_heap_base;
     auto backup_sdma = device_state_->sdma_device_heap_base;
@@ -137,20 +148,6 @@ int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
     device_state_->p2p_host_heap_base = backup_host_p2p;
     device_state_->rdma_host_heap_base = backup_host_rdma;
     device_state_->sdma_host_heap_base = backup_host_sdma;
-    SHM_LOG_DEBUG("host p2p_device_heap_base: " << host_state_->p2p_device_heap_base << ", device p2p_device_heap_base: " << device_state_->p2p_device_heap_base);
-
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->p2p_device_heap_base, ptr_size, host_state_->p2p_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->rdma_device_heap_base, ptr_size, host_state_->rdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->sdma_device_heap_base, ptr_size, host_state_->sdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    if (host_state_->host_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->p2p_host_heap_base, ptr_size,
-            host_state_->p2p_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->rdma_host_heap_base, ptr_size,
-            host_state_->rdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state_->sdma_host_heap_base, ptr_size,
-            host_state_->sdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    }
 
     auto ret = hybm_set_extra_context(hbm_entity_, device_state_, size);
     if (ret != ACLSHMEM_SUCCESS) {
@@ -338,7 +335,8 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
         return ret;
     }
     if (mem_type == HOST_SIDE) {
-        host_state_->host_heap_base = (void *)(uintptr_t)dram_gva_;
+        auto aligned = ALIGN_UP(host_state_->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
+        host_state_->host_heap_base = (void *)((uintptr_t)dram_gva_ + aligned * static_cast<uint32_t>(attributes->my_pe));
         ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->p2p_host_heap_base, host_state_->npes * sizeof(void *)));
         ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->rdma_host_heap_base, host_state_->npes * sizeof(void *)));
         ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state_->sdma_host_heap_base, host_state_->npes * sizeof(void *)));
@@ -346,6 +344,9 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
         ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->p2p_host_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
         ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->rdma_host_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
         ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state_->sdma_host_heap_base, host_state_->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
+        for (int32_t i = 0; i < host_state_->npes; i++) {
+            host_state_->p2p_host_heap_base[i] = (void *)((uintptr_t)dram_gva_ + aligned * static_cast<uint32_t>(i));
+        }
         SHM_LOG_DEBUG("host side dram heap setup successed, host_state_->host_heap_base: " << (void *)(uintptr_t)host_state_->host_heap_base);
         return ACLSHMEM_SUCCESS;
     }

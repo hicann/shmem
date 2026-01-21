@@ -36,7 +36,7 @@
 
 ```
 #执行编译
-bash scripts/build.sh -examples
+bash scripts/build.sh -examples -cann
 cd examples/rma_d2h_demo
 #运行用例
 bash run.sh

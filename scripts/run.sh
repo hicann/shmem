@@ -28,7 +28,7 @@ GNPU_NUM="8"
 FIRST_NPU="0"
 FIRST_RANK="0"
 if [ -z "${GTEST_FILTER}" ]; then
-    TEST_FILTER="*.*:-*RDMA*"
+    TEST_FILTER="*.*"
 else
     TEST_FILTER="${GTEST_FILTER}"
 fi

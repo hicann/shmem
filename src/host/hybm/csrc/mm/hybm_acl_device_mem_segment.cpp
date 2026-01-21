@@ -55,7 +55,7 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
             BM_LOG_ERROR("prepare virtual memory size(" << totalVirtualSize_ << ") failed. ret: " << ret);
             return BM_MALLOC_FAILED;
         }
-        BM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << " options_.size: " << options_.size << ", rankId: " << i);
+        BM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << " size: " << options_.size << ", rankId: " << i);
         totalVirtualSize_ += options_.size;
         reservedVirtualAddresses_.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(base)));
     }
@@ -162,7 +162,10 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
         BM_LOG_ERROR("input slice is nullptr");
         return BM_INVALID_PARAM;
     }
-
+    if (!options_.shared) {
+        BM_LOG_INFO("no need to share, skip export");
+        return BM_OK;
+    }
     auto pos = slices_.find(slice->index_);
     if (pos == slices_.end()) {
         BM_LOG_ERROR("input slice(idx:" << slice->index_ << ") not exist.");
@@ -203,6 +206,7 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     info.pageTblType = MEM_PT_TYPE_SVM;
     info.memSegType = options_.segType;
     info.exchangeType = HYBM_INFO_EXG_IN_NODE;
+    info.magic = (options_.segType == HYBM_MST_DRAM) ? DRAM_SLICE_EXPORT_INFO_MAGIC : HBM_SLICE_EXPORT_INFO_MAGIC;
     ret = LiteralExInfoTranslater<HbmExportInfo>{}.Serialize(info, exInfo);
     if (ret != BM_OK) {
         BM_LOG_ERROR("export info failed: " << ret);
@@ -221,6 +225,10 @@ Result MemSegmentDevice::GetExportSliceSize(size_t &size) noexcept
 // import可重入
 Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void *addresses[]) noexcept
 {
+    if (!options_.shared) {
+        BM_LOG_INFO("no need to share, skip import");
+        return BM_OK;
+    }
     std::map<uint16_t, HbmExportInfo> importMap;
     LiteralExInfoTranslater<HbmExportInfo> translator;
     std::vector<HbmExportInfo> desInfos{allExInfo.size()};
@@ -233,31 +241,16 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
         importMap.emplace(desInfos[i].rankId, desInfos[i]);
     }
     importMap_ = std::move(importMap);
-
-    uint32_t localIdx = UINT32_MAX;
-    for (auto i = 0U; i < desInfos.size(); i++) {
-        if (desInfos[i].magic != EXPORT_INFO_MAGIC) {
-            BM_LOG_ERROR("import info(" << i << ") magic(" << desInfos[i].magic << ") invalid.");
-            return BM_INVALID_PARAM;
-        }
-
-        if (desInfos[i].size != desInfos[0].size) {
-            BM_LOG_ERROR("local size diffs, pe0=" << desInfos[0].size << ", pe" << i << "=" << desInfos[i].size);
-            return BM_ERROR;
-        }
-
-        if (desInfos[i].rankId == options_.rankId) {
-            localIdx = i;
-        }
-    }
-    BM_ASSERT_RETURN(localIdx < desInfos.size(), BM_INVALID_PARAM);
-
     std::copy(desInfos.begin(), desInfos.end(), std::back_inserter(imports_));
     return BM_OK;
 }
 
 Result MemSegmentDevice::Mmap() noexcept
 {
+    if (!options_.shared) {
+        BM_LOG_INFO("no need to share, skip map");
+        return BM_OK;
+    }
     if (imports_.empty()) {
         return BM_OK;
     }
@@ -273,7 +266,7 @@ Result MemSegmentDevice::Mmap() noexcept
             continue;
         }
 
-        if (!CanMapRemote(im)) {  // TODO 根据TOPO信息进行判断是否可达
+        if (!CanMapRemote(im)) {
             BM_LOG_INFO("remote slice on rank(" << im.rankId << ") SDMA cannot reaches.");
             continue;
         }
@@ -281,8 +274,7 @@ Result MemSegmentDevice::Mmap() noexcept
         BM_LOG_DEBUG("remote slice on rank(" << im.rankId << ") should map to: " << (void *)remoteAddress
                                              << ", size = " << im.size);
         aclrtDrvMemHandle imported_handle;
-        auto mem_type = ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT;
-        auto handle_type = mem_type == HOST_SIDE ? ACL_MEM_SHARE_HANDLE_TYPE_FABRIC : ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT;
+        auto handle_type = (options_.segType == HYBM_MST_DRAM) ? ACL_MEM_SHARE_HANDLE_TYPE_FABRIC : ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT;
         ACLSHMEM_CHECK_RET(aclrtMemImportFromShareableHandleV2(&im.shareHandle, handle_type, 0, &imported_handle),
             "aclrtMemImportFromShareableHandleV2 failed", ACLSHMEM_SMEM_ERROR);
         auto ret = aclrtMapMem(reinterpret_cast<void *>(remoteAddress), im.size, 0, imported_handle, 0);
@@ -298,6 +290,10 @@ Result MemSegmentDevice::Mmap() noexcept
 
 Result MemSegmentDevice::Unmap() noexcept
 {
+    if (!options_.shared) {
+        BM_LOG_INFO("no need to share, skip unmap");
+        return BM_OK;
+    }
     for (auto va : mappedMem_) {
         int32_t ret = aclrtUnmapMem(reinterpret_cast<void *>(va));
         if (ret != 0) {
@@ -310,6 +306,10 @@ Result MemSegmentDevice::Unmap() noexcept
 
 Result MemSegmentDevice::RemoveImported(const std::vector<uint32_t> &ranks) noexcept
 {
+    if (!options_.shared) {
+        BM_LOG_INFO("no need to share, skip remove");
+        return BM_OK;
+    }
     for (auto &rank : ranks) {
         if (rank >= options_.rankCnt) {
             BM_LOG_ERROR("input rank is invalid! rank:" << rank << " rankSize:" << options_.rankCnt);

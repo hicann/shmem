@@ -580,14 +580,6 @@ int32_t MemEntityDefault::ExportWithoutSlice(ExchangeInfoWriter &desc, uint32_t 
 {
     std::string info;
     int32_t ret = BM_ERROR;
-    if (hbmSegment_ != nullptr) {
-        ret = hbmSegment_->Export(info);
-    }
-    if (ret != BM_OK && ret != BM_NOT_SUPPORTED) {
-        BM_LOG_ERROR("export to string failed: " << ret);
-        return ret;
-    }
-
     ret = ExportExchangeInfo(desc, flags);
     if (ret != 0) {
         BM_LOG_ERROR("ExportExchangeInfo failed: " << ret);
