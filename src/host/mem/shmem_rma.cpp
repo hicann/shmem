@@ -73,6 +73,64 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL)
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI)
 #undef ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI
 
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL(BITS)                                                                             \
+    /**                                                                                                                \
+     * @brief Synchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and    \
+     *        updating a remote signal flag on completion.                                                             \
+     *                                                                                                                 \
+     * @param dst               [in] Pointer on local device of the destination data.                                  \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                                   \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                                 \
+     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                               \
+     * @param signal            [in] The value used to update sig_addr.                                                \
+     * @param sig_op            [in] Operation used to update sig_addr with signal.                                    \
+     *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                     \
+     * @param pe                [in] PE number of the remote PE.                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal(void *dst, void *src, size_t nelems,                            \
+                                                       int32_t *sig_addr, int32_t signal, int sig_op, int pe)          \
+    {                                                                                                                  \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put" #BITS "_signal", ACLSHMEMI_OP_PUT_SIGNAL, NO_NBI,      \
+                                                 (uint8_t *)dst, (uint8_t *)src, nelems * (BITS / 8), 1, pe,           \
+                                                 (uint8_t *)sig_addr, signal, sig_op, 1, 1,                            \
+                                                 g_state_host.default_stream, g_state_host.default_block_num);         \
+        if (ret < 0) {                                                                                                 \
+            SHM_LOG_ERROR("device calling transfer failed.");                                                          \
+        }                                                                                                              \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL)
+#undef ACLSHMEM_PUT_SIZE_MEM_SIGNAL
+
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI(BITS)                                                                        \
+    /**                                                                                                               \
+     * @brief Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and  \
+     *        updating a remote signal flag on completion.                                                            \
+     *                                                                                                                \
+     * @param dst               [in] Pointer on local device of the destination data.                                 \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                                  \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                                \
+     * @param sig_addr          [in] Symmetric address of the signal word to be updated.                              \
+     * @param signal            [in] The value used to update sig_addr.                                               \
+     * @param sig_op            [in] Operation used to update sig_addr with signal.                                   \
+     *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD                    \
+     * @param pe                [in] PE number of the remote PE.                                                      \
+     */                                                                                                               \
+    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal_nbi(void *dst, void *src, size_t nelems,                       \
+                                                           int32_t *sig_addr, int32_t signal, int sig_op, int pe)     \
+    {                                                                                                                 \
+        int ret = aclshmemi_prepare_and_post_rma("aclshmem_put" #BITS "_signal_nbi", ACLSHMEMI_OP_PUT_SIGNAL, NBI,    \
+                                                 (uint8_t *)dst, (uint8_t *)src, nelems * (BITS / 8), 1, pe,          \
+                                                 (uint8_t *)sig_addr, signal, sig_op, 1, 1,                           \
+                                                 g_state_host.default_stream, g_state_host.default_block_num);        \
+        if (ret < 0) {                                                                                                \
+            SHM_LOG_ERROR("device calling transfer failed.");                                                         \
+        }                                                                                                             \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI)
+#undef ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI
+
 void aclshmemx_putmem_signal_nbi(void *dst, void *src, size_t elem_size, void *sig_addr, int32_t signal, int sig_op, int pe)
 {
     int ret = aclshmemi_prepare_and_post_rma("aclshmemx_putmem_signal_nbi", ACLSHMEMI_OP_PUT_SIGNAL, NBI, (uint8_t *)dst,
@@ -95,5 +153,5 @@ void aclshmemx_putmem_signal(void *dst, void *src, size_t elem_size, void *sig_a
 
 void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
 {
-    call_aclshmemi_signal_op_on_stream_kernel(sig_addr, signal, sig_op, pe, stream);                            
+    call_aclshmemi_signal_op_on_stream_kernel(sig_addr, signal, sig_op, pe, stream);
 }

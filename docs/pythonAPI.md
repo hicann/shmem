@@ -336,6 +336,38 @@
     |sig_op|用于signal更新sig_addr的操作|
     |pe|远程PE的编号|
 
+1. 异步接口,从指定的PE复制对称内存中的连续数据到本地PE的地址
+    ```python
+    def aclshmemx_put{BITS}_signal_nbi(dst, src, elem_size, sig, signal, sig_op, pe)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |BITS|数据位宽，可选8/16/32/64/128|
+    |dst|指向本地处理单元（PE）对称地址的指针|
+    |src|指向源数据本地内存的指针|
+    |elem_size|目标地址和源地址中元素的大小|
+    |sig|要更新的信号字的对称地址|
+    |signal|用于更新sig_addr的值|
+    |sig_op|用于signal更新sig_addr的操作|
+    |pe|远程PE的编号|
+
+1. 同步接口,从指定的PE复制对称内存中的连续数据到本地PE的地址
+    ```python
+    def aclshmemx_put{BITS}_signal(dst, src, elem_size, sig, signal, sig_op, pe)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |BITS|数据位宽，可选8/16/32/64/128|
+    |dst|指向本地处理单元（PE）对称地址的指针|
+    |src|指向源数据本地内存的指针|
+    |elem_size|目标地址和源地址中元素的大小|
+    |sig|要更新的信号字的对称地址|
+    |signal|用于更新sig_addr的值|
+    |sig_op|用于signal更新sig_addr的操作|
+    |pe|远程PE的编号|
+
 1. 所有进程通过广播调用exit()函数退出
     ```python
     def aclshmem_global_exit(status)

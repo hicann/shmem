@@ -87,11 +87,13 @@ constexpr bool operator!=(const uint128_t &lhs, const uint128_t &rhs) {
     return !(lhs == rhs);
 }
 
-#define ACLSHMEM_PUT_GET_SIZE_FUNC(FUNC)             \
- 	     FUNC(8, uint8_t);                           \
- 	     FUNC(16, uint16_t);                         \
- 	     FUNC(32, uint32_t);                         \
- 	     FUNC(64, uint64_t);                         \
-         FUNC(128, uint128_t)
+#define ACLSHMEM_PUT_SIZE_FUNC(FUNC)            \
+    FUNC(8, uint8_t);                           \
+    FUNC(16, uint16_t);                         \
+    FUNC(32, uint32_t);                         \
+    FUNC(64, uint64_t);                         \
+    FUNC(128, uint128_t)
+
+#define ACLSHMEM_PUT_GET_SIZE_FUNC  ACLSHMEM_PUT_SIZE_FUNC
 
 #endif  // UT_FUNC_TYPE_H

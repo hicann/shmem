@@ -49,6 +49,7 @@
     FUNC(char, char);            \
     FUNC(bfloat16, bfloat16_t)
 
+
 ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, size_t elem_size, __gm__ int32_t *sig_addr,
                                       int32_t signal, int sig_op, int pe)
 {
@@ -140,7 +141,14 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED);
         aclshmemi_signal_op(sig_addr, signal, sig_op, pe);                                                                  \
     }
 
-ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED);
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAIL(BITS)                                                                               \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_signal(__gm__ void *dest, __gm__ void *src, size_t nelems,                        \
+                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)              \
+    {                                                                                                                           \
+        aclshmem_putmem_signal(dest, src, nelems * (BITS / 8), sig_addr, signal, sig_op, pe);                                   \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAIL);
 
 ACLSHMEM_DEVICE void aclshmem_putmem_signal_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size,
                                           __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
@@ -235,6 +243,15 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
 
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAILED_NBI(BITS)                                                               \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_signal_nbi(__gm__ void *dst, __gm__ void *src, size_t nelems,           \
+                                                       __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)  \
+    {                                                                                                                 \
+        aclshmem_putmem_signal_nbi(dst, src, nelems * (BITS / 8), sig_addr, signal, sig_op, pe);                      \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAILED_NBI);
+
 ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int32_t val)
 {
     aclshmemi_store(addr, val);
@@ -271,7 +288,7 @@ ACLSHMEM_DEVICE void aclshmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t 
         if (ptr == nullptr) return;
         AscendC::SetAtomicNone();
         __gm__ int32_t* remote_ptr = reinterpret_cast<__gm__ int32_t*>(ptr);
-        
+
         __ubuf__ int32_t* buf =(__ubuf__ int32_t*)(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);
         *buf = val;
 

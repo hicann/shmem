@@ -49,6 +49,7 @@ extern "C" {
     FUNC(uint64, uint64_t);      \
     FUNC(char, char)
 
+
 /**
  * @addtogroup group_enums
  * @{
@@ -84,6 +85,8 @@ ACLSHMEM_HOST_API void* aclshmem_ptr(void *ptr, int pe);
     */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
+
+
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
 #define shmem_put_float_mem aclshmem_float_put
 #define shmem_put_double_mem aclshmem_double_put
@@ -108,6 +111,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
 #define shmem_put_float_mem_nbi aclshmem_float_put_nbi
@@ -163,6 +167,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_NBI);
     */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
+
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
 #define shmem_get_float_mem aclshmem_float_get
 #define shmem_get_double_mem aclshmem_double_get
@@ -188,6 +193,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
     * @param pe                 [in] PE number of the remote PE.                                                      \
     */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 #define shmem_get_float_mem_nbi aclshmem_float_get_nbi
@@ -243,6 +249,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_NBI);
     */                                                                                      \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_p(TYPE* dst, const TYPE value, int pe)
 
+
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
 #define shmem_float_p aclshmem_float_p
 #define shmem_double_p aclshmem_double_p
@@ -266,6 +273,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
     * @return A single element of type specified in the input pointer.                      \
     */                                                                                      \
     ACLSHMEM_HOST_API TYPE aclshmem_##NAME##_g(TYPE* src, int32_t pe)
+
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G);
 #define shmem_float_g aclshmem_float_g

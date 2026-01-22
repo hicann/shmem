@@ -776,6 +776,68 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         pe                 [in] PE number of the remote PE.
         )");
 
+#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL(BITS)                                                                         \
+    {                                                                                                                 \
+        std::string funcName = "aclshmemx_put" #BITS "_signal";                                                       \
+        m.def(                                                                                                        \
+            funcName.c_str(),                                                                                         \
+            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) {         \
+                auto dst_addr = (void *)dst;                                                                          \
+                auto src_addr = (void *)src;                                                                          \
+                auto sig_addr = (int32_t *)sig;                                                                       \
+                aclshmem_put##BITS##_signal(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);                \
+            },                                                                                                        \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),              \
+            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"), R"(                                  \
+        Synchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
+        updating a remote signal flag on completion.
+                                                                                                                      \
+        Arguments:                                                                                                    \
+            dst               [in] Pointer on local device of the destination data.
+            src               [in] Pointer on Symmetric memory of the source data.
+            elem_size         [in] Number of elements in the dest and source arrays.
+            sig_addr          [in] Symmetric address of the signal word to be updated.
+            signal            [in] The value used to update sig_addr.
+            sig_op            [in] Operation used to update sig_addr with signal.
+                                   Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+            pe                [in] PE number of the remote PE.
+            )");                                                                                                      \
+    }
+
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL)
+#undef PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL
+
+#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI(BITS)                                                                     \
+    {                                                                                                                 \
+        std::string funcName = "aclshmemx_put" #BITS "_signal_nbi";                                                   \
+        m.def(                                                                                                        \
+            funcName.c_str(),                                                                                         \
+            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) {         \
+                auto dst_addr = (void *)dst;                                                                          \
+                auto src_addr = (void *)src;                                                                          \
+                auto sig_addr = (int32_t *)sig;                                                                       \
+                aclshmem_put##BITS##_signal_nbi(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);            \
+            },                                                                                                        \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),              \
+            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"), R"(                                  \
+        Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
+        updating a remote signal flag on completion.
+                                                                                                                      \
+        Arguments:                                                                                                    \
+            dst               [in] Pointer on local device of the destination data.
+            src               [in] Pointer on Symmetric memory of the source data.
+            elem_size         [in] Number of elements in the dest and source arrays.
+            sig_addr          [in] Symmetric address of the signal word to be updated.
+            signal            [in] The value used to update sig_addr.
+            sig_op            [in] Operation used to update sig_addr with signal.
+                                   Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+            pe                [in] PE number of the remote PE.
+            )");                                                                                                      \
+    }
+
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI)
+#undef PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI
+
     m.def("aclshmem_global_exit", &aclshmem_global_exit, py::call_guard<py::gil_scoped_release>(), py::arg("status"), R"(
 Exit all ranks process by broadcast all ranks to exit();
 

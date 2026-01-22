@@ -344,7 +344,7 @@ if [ "$PACKAGE" == "ON" ]; then
     make_package
 fi
 
-if [ "$PYEXPAND_EXAMPLE" == "ON" ]; then
+if [ "${PYEXPAND_EXAMPLE}" == "ON" ]; then
     build_shared_lib
     build_torch_library
 fi
