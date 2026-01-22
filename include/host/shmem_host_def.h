@@ -16,6 +16,7 @@
 
 
 #include "host_device/shmem_common_types.h"
+#include "host_device/shmem_common_macros.h"
 
 #ifdef __cplusplus
 extern "C" {

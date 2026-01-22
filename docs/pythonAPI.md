@@ -186,6 +186,32 @@
     |elem_size|目标地址和源地址中元素的大小|
     |pe|远程PE的编号|
 
+1. 同步接口,将对称内存中连续的数据从本地处理单元（PE）复制到指定PE的地址上
+    ```python
+    def aclshmem_put{BITS}(dst, src, elem_size, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dst|本地PE对称地址上的指针|
+   |src|源数据本地内存中的指针|
+   |elem_size|目标地址和源地址中元素的大小|
+   |pe|远程PE的编号|
+
+1. 同步接口,将对称内存中指定处理单元（PE）上的连续数据复制到本地PE的地址上。
+    ```python
+    def aclshmem_get{BITS}(dst, src, elem_size, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dst|指向本地处理单元（PE）对称地址的指针|
+   |src|指向源数据本地内存的指针|
+   |elem_size|目标地址和源地址中元素的大小|
+   |pe|远程PE的编号|
+
 1. 返回主版本号和次版本号
     ```python
     def aclshmem_info_get_version()
@@ -253,6 +279,32 @@
     |src|指向源数据本地内存的指针|
     |elem_size|目标地址和源地址中元素的大小|
     |pe|远程PE的编号|
+
+1. 异步接口,将本地处理单元（PE）上的连续数据复制到指定处理单元（PE）上的对称地址
+    ```python
+    def aclshmem_put{BITS}_nbi(dst, src, elem_size, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dst|本地PE对称地址上的指针|
+   |src|源数据本地内存中的指针|
+   |elem_size|目标地址和源地址中元素的大小|
+   |pe|远程PE的编号|
+
+1. 异步接口,将对称内存中指定处理单元（PE）上的连续数据复制到本地PE的地址上
+    ```python
+    def aclshmem_get{BITS}_nbi(dst, src, elem_size, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dst|指向本地处理单元（PE）对称地址的指针|
+   |src|指向源数据本地内存的指针|
+   |elem_size|目标地址和源地址中元素的大小|
+   |pe|远程PE的编号|
 
 1. 异步接口,从指定的PE复制对称内存中的连续数据到本地PE的地址
     ```python

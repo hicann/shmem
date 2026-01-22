@@ -110,6 +110,18 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 
+#define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                                     \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)         \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+        aclshmem_getmem(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                             \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
+#undef ACLSHMEM_GET_SIZE_MEM
+
 ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
 {
     /* ROCE */
@@ -144,6 +156,18 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
+
+#define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                                     \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)         \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+        aclshmem_putmem(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                             \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
+#undef ACLSHMEM_PUT_SIZE_MEM
 
 ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
 {
@@ -193,6 +217,18 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
+
+#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                                                                 \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)   \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+        aclshmem_getmem_nbi(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                         \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
+#undef ACLSHMEM_GET_SIZE_MEM_NBI
 
 #define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                              \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                                  \
@@ -306,6 +342,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
     }
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
+
+#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                                                                 \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)   \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+        aclshmem_putmem_nbi(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                         \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
+#undef ACLSHMEM_PUT_SIZE_MEM_NBI
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                            \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                                \

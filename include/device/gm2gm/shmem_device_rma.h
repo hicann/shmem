@@ -170,6 +170,21 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 #define shmem_get_char_mem aclshmem_char_get
 #define shmem_get_bfloat16_mem aclshmem_bfloat16_get
 
+#define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                              \
+    /**                                                                                                          \
+     * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to           \
+     *                               address on the local PE.                                                    \
+     *                                                                                                           \
+     * @param dst               [in] Pointer on local device of the destination data.                            \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                             \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                           \
+     * @param pe                [in] PE number of the remote PE.                                                 \
+     */                                                                                                          \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
+#undef ACLSHMEM_GET_SIZE_MEM
+
 /**
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *
@@ -206,6 +221,20 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 #define shmem_put_uint64_mem aclshmem_uint64_put
 #define shmem_put_char_mem aclshmem_char_put
 #define shmem_put_bfloat16_mem aclshmem_bfloat16_put
+
+#define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                               \
+    /**                                                                                                           \
+     * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE. \
+     *                                                                                                            \
+     * @param dst               [in] Pointer on Symmetric memory of the destination data.                         \
+     * @param src               [in] Pointer on local device of the source data.                                  \
+     * @param elem_size         [in] Number of elements in the destination and source arrays.                     \
+     * @param pe                [in] PE number of the remote PE.                                                  \
+     */                                                                                                           \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
+#undef ACLSHMEM_PUT_SIZE_MEM
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to
@@ -247,6 +276,23 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
 #define shmem_get_uint64_mem_nbi aclshmem_uint64_get_nbi
 #define shmem_get_char_mem_nbi aclshmem_char_get_nbi
 #define shmem_get_bfloat16_mem_nbi aclshmem_bfloat16_get_nbi
+
+#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                                                              \
+    /**                                                                                                              \
+     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to              \
+     *                                                   address on the local PE.                                    \
+     *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the             \
+     *                 same PE are not supported.                                                                    \
+     *                                                                                                               \
+     * @param dst               [in] Pointer on local device of the destination data.                                \
+     * @param src               [in] Pointer on Symmetric memory of the source data.                                 \
+     * @param elem_size         [in] Number of elements in the dest and source arrays.                               \
+     * @param pe                [in] PE number of the remote PE.                                                     \
+     */                                                                                                              \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
+#undef ACLSHMEM_GET_SIZE_MEM_NBI
 
 #define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
     /**                                                                                                            \
@@ -322,6 +368,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
 #define shmem_put_uint64_mem_nbi aclshmem_uint64_put_nbi
 #define shmem_put_char_mem_nbi aclshmem_char_put_nbi
 #define shmem_put_bfloat16_mem_nbi aclshmem_bfloat16_put_nbi
+
+#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                                                              \
+    /**                                                                                                              \
+     * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.     \
+     *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the             \
+     *                 same PE are not supported.                                                                    \
+     *                                                                                                               \
+     * @param dst               [in] Pointer on Symmetric memory of the destination data.                            \
+     * @param src               [in] Pointer on local device of the source data.                                     \
+     * @param elem_size         [in] Number of elements in the destination and source arrays.                        \
+     * @param pe                [in] PE number of the remote PE.                                                     \
+     */                                                                                                              \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
+#undef ACLSHMEM_PUT_SIZE_MEM_NBI
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
     /**                                                                                                            \

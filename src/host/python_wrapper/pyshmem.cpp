@@ -472,6 +472,31 @@ Arguments:
     pe                 [in] PE number of the remote PE.
     )");
 
+#define PYBIND_ACLSHMEM_PUT_SIZE(BITS)                                                                         		  		\
+    {                                                                                                                 		\
+        std::string funcName = "aclshmem_put" #BITS "";                                                        		  		\
+        m.def(                                                                                                        		\
+            funcName.c_str(),                                                                                         		\
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
+                auto dst_addr = (void *)dst;                                                                          		\
+                auto src_addr = (void *)src;                                                                          		\
+                aclshmem_put##BITS(dst_addr, src_addr, elem_size, pe);                								  		\
+            },                                                                                                        		\
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+            R"(                                  																		    \
+        Synchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
+                                                                                                                            \
+        Arguments:                                                                                                    		\
+            dst                [in] Pointer on Symmetric addr of local PE.
+            src                [in] Pointer on local memory of the source data.
+            elem_size          [in] size of elements in the destination and source addr.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                      		\
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
+#undef PYBIND_ACLSHMEM_PUT_SIZE
+
     m.def(
         "aclshmem_getmem",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
@@ -489,6 +514,31 @@ Arguments:
     elem_size          [in] size of elements in the destination and source addr.
     pe                 [in] PE number of the remote PE.
     )");
+
+#define PYBIND_ACLSHMEM_GET_SIZE(BITS)                                                                         		  		\
+    {                                                                                                                 		\
+        std::string funcName = "aclshmem_get" #BITS "";                                                        		  		\
+        m.def(                                                                                                        		\
+            funcName.c_str(),                                                                                         		\
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
+                auto dst_addr = (void *)dst;                                                                          		\
+                auto src_addr = (void *)src;                                                                          		\
+                aclshmem_get##BITS(dst_addr, src_addr, elem_size, pe);                								  		\
+            },                                                                                                        		\
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+            R"(                                  																		    \
+        Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+																															\
+        Arguments:                                                                                                    		\
+			dst                [in] Pointer on local memory of the source data.
+			src                [in] Pointer on Symmetric addr of local PE.
+			elem_size          [in] size of elements in the destination and source addr.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                      		\
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
+#undef PYBIND_ACLSHMEM_GET_SIZE
 
     m.def(
         "aclshmem_info_get_version",
@@ -612,6 +662,31 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
         pe                 [in] PE number of the remote PE.
         )");
 
+#define PYBIND_ACLSHMEM_PUT_SIZE_NBI(BITS)                                                                         		    \
+    {                                                                                                                 		\
+        std::string funcName = "aclshmem_put" #BITS "_nbi";                                                        		    \
+        m.def(                                                                                                        		\
+            funcName.c_str(),                                                                                         		\
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
+                auto dst_addr = (void *)dst;                                                                          		\
+                auto src_addr = (void *)src;                                                                          		\
+                aclshmem_put##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                								\
+            },                                                                                                        		\
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+            R"(                                  																		    \
+        Asynchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
+																															\
+        Arguments:                                                                                                    		\
+			dst                [in] Pointer on Symmetric addr of local PE.
+			src                [in] Pointer on local memory of the source data.
+			elem_size          [in] size of elements in the destination and source addr.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                      		\
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
+#undef PYBIND_ACLSHMEM_PUT_SIZE_NBI
+
     m.def(
         "aclshmem_getmem_nbi",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
@@ -629,6 +704,31 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
         elem_size          [in] size of elements in the destination and source addr.
         pe                 [in] PE number of the remote PE.
         )");
+
+#define PYBIND_ACLSHMEM_GET_SIZE_NBI(BITS)                                                                         		    \
+    {                                                                                                                 		\
+        std::string funcName = "aclshmem_get" #BITS "_nbi";                                                        		    \
+        m.def(                                                                                                        		\
+            funcName.c_str(),                                                                                         		\
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
+                auto dst_addr = (void *)dst;                                                                          		\
+                auto src_addr = (void *)src;                                                                          		\
+                aclshmem_get##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                								\
+            },                                                                                                        		\
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+            R"(                                  																		    \
+        Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+																															\
+        Arguments:                                                                                                    		\
+			dst                [in] Pointer on local memory of the source data.
+			src                [in] Pointer on Symmetric addr of local PE.
+			elem_size          [in] size of elements in the destination and source addr.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                      		\
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
+#undef PYBIND_ACLSHMEM_GET_SIZE_NBI
 
     m.def(
         "aclshmemx_putmem_signal_nbi",

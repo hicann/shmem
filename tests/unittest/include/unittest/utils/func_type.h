@@ -67,4 +67,31 @@
     FUNC(int16, int16_t);                       \
     FUNC(int32, int32_t)
 
+struct uint128_t {
+    uint64_t x;
+    uint64_t y;
+    uint128_t(uint64_t x, uint64_t y) : x(x), y(y) {}
+    uint128_t(uint64_t x) : x(x), y(0) {}
+    uint128_t &operator=(uint64_t value) {
+        x = value;
+        y = 0;
+        return *this;
+    }
+};
+
+constexpr bool operator==(const uint128_t &lhs, const uint128_t &rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+constexpr bool operator!=(const uint128_t &lhs, const uint128_t &rhs) {
+    return !(lhs == rhs);
+}
+
+#define ACLSHMEM_PUT_GET_SIZE_FUNC(FUNC)             \
+ 	     FUNC(8, uint8_t);                           \
+ 	     FUNC(16, uint16_t);                         \
+ 	     FUNC(32, uint32_t);                         \
+ 	     FUNC(64, uint64_t);                         \
+         FUNC(128, uint128_t)
+
 #endif  // UT_FUNC_TYPE_H
