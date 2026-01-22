@@ -176,12 +176,13 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
 
   c. Optimize spatial complexity to O(logN).
 */
-
+template<bool IS_AIV_ONLY = true>
 ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v1(aclshmem_team_t team_idx)
 {
-    if (AscendC::GetBlockIdx() != 0)
+    if (AscendC::GetBlockIdx() != 0) {
+        aclshmemi_barrier_core<IS_AIV_ONLY>();
         return;
-
+    }
     aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[team_idx];
     int my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
     int start = team->start;
@@ -193,30 +194,34 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v1(aclshmem_team_t team_idx)
     int shift = 1;
     int my_pe_in_team = (my_pe - start) / stride;
     int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+    if ASCEND_IS_AIV {
+        int32_t offset = 0;
+        const int multiplier = 2;
+        while (shift < size) {
+            int next_pe_in_team = (my_pe_in_team + shift) % size;
+            int next_pe = start + next_pe_in_team * stride;
 
-    int32_t offset = 0;
-    const int multiplier = 2;
-    while (shift < size) {
-        int next_pe_in_team = (my_pe_in_team + shift) % size;
-        int next_pe = start + next_pe_in_team * stride;
+            // signal next pe
+            aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + offset), next_pe, count);
 
-        // signal next pe
-        aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + offset), next_pe, count);
+            // wait pre pe
+            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + offset), count);
 
-        // wait pre pe
-        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + offset), count);
+            shift *= multiplier;
+            offset++;
+        }
 
-        shift *= multiplier;
-        offset++;
+        aclshmemi_store((__gm__ int32_t *)sync_counter, count);
     }
 
-    aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
 }
 
 /** Group Dissemination Barrier.
  *
  *  An optimized version of aclshmemi_barrier_npu_v1, with temporal complexity reduced to O(log_{k}^{N}).
  */
+template<bool IS_AIV_ONLY = true>
 ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
 {
     int32_t block_idx = AscendC::GetBlockIdx();
@@ -224,50 +229,54 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
     auto my_pe = aclshmem_team_my_pe(team);
     auto team_size = aclshmem_team_n_pes(team);
 
-    auto sync_pool = aclshmemi_get_team_sync_pool(team);
-    auto sync_counter = aclshmemi_get_team_sync_counter(team);
-    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
-
     int32_t k = BARRIER_DISSEM_KVAL < team_size ? BARRIER_DISSEM_KVAL : team_size;
     k = BARRIER_DISSEM_KVAL_MIN < k ? k : BARRIER_DISSEM_KVAL_MIN;
     int32_t temp = team_size - 1;
     int32_t phase_num = 0;
     int32_t pow_k = 1;
 
-    while (temp) {
-        // notify neighbors
-        for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
-            int32_t shift = i * pow_k;
-            if (shift >= team_size) {
-                break;
+    auto sync_pool = aclshmemi_get_team_sync_pool(team);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team);
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
+
+    if ASCEND_IS_AIV {
+        while (temp) {
+            // notify neighbors
+            for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+                int32_t shift = i * pow_k;
+                if (shift >= team_size) {
+                    break;
+                }
+                int32_t to_nbr_idx = (my_pe + shift) % team_size;
+                int32_t to_nbr = aclshmemi_get_state()->team_pools[team]->pe_mapping[to_nbr_idx];
+                aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + my_pe), to_nbr, count);
             }
-            int32_t to_nbr_idx = (my_pe + shift) % team_size;
-            int32_t to_nbr = aclshmemi_get_state()->team_pools[team]->pe_mapping[to_nbr_idx];
-            aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + my_pe), to_nbr, count);
+
+            // wait for neighbors notification
+            for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+                int32_t shift = i * pow_k;
+                if (shift >= team_size) {
+                    break;
+                }
+                int32_t from_nbr_idx = my_pe - shift;
+                if (from_nbr_idx < 0) {
+                    from_nbr_idx += team_size;
+                }
+                aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + from_nbr_idx), count);
+            }
+
+            // update params
+            temp /= k;
+            phase_num++;
+            pow_k *= k;
         }
 
-        // wait for neighbors notification
-        for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
-            int32_t shift = i * pow_k;
-            if (shift >= team_size) {
-                break;
-            }
-            int32_t from_nbr_idx = my_pe - shift;
-            if (from_nbr_idx < 0) {
-                from_nbr_idx += team_size;
-            }
-            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + from_nbr_idx), count);
+        if (!block_idx) {
+            aclshmemi_store((__gm__ int32_t *)sync_counter, count);
         }
-
-        // update params
-        temp /= k;
-        phase_num++;
-        pow_k *= k;
     }
-
-    if (!block_idx) {
-        aclshmemi_store((__gm__ int32_t *)sync_counter, count);
-    }
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
 }
 
 /** Centralized Barrier (pull mode).
@@ -275,6 +284,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
  *  The temporal and spatial complexity of this implementation are O(N/K) and O(1), respectively.
  *  Performs better than Group Dissemination Barrier at small scale (eg. 8 ranks).
  */
+template<bool IS_AIV_ONLY = true>
 ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v3(aclshmem_team_t team_idx)
 {
     aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[team_idx];
@@ -294,18 +304,22 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v3(aclshmem_team_t team_idx)
     int32_t my_pe_in_team = (my_pe - start) / stride;
     int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
 
-    for (int32_t i = vec_id; i < size; i += k) {
-        if (i == my_pe_in_team) {
-            // write local
-            aclshmemi_signal_set((__gm__ int32_t *)sync_pool, count);
-        } else {
-            // read remote
-            int32_t remote_pe = start + i * stride;
-            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)aclshmem_ptr(sync_pool, remote_pe), count);
-        }
-    }
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
 
-    aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    if ASCEND_IS_AIV {
+        for (int32_t i = vec_id; i < size; i += k) {
+            if (i == my_pe_in_team) {
+                // write local
+                aclshmemi_signal_set((__gm__ int32_t *)sync_pool, count);
+            } else {
+                // read remote
+                int32_t remote_pe = start + i * stride;
+                aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)aclshmem_ptr(sync_pool, remote_pe), count);
+            }
+        }
+        aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    }
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
 }
 
 template<bool IS_AIV_ONLY = true>
@@ -314,14 +328,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier(aclshmem_team_t team)
     if (team == -1) {
         return; // not in team
     }
-
-    aclshmemi_barrier_core<IS_AIV_ONLY>();
-
-    if ASCEND_IS_AIV {
-        aclshmemi_barrier_npu_v3(team);
-    }
-
-    aclshmemi_barrier_core<IS_AIV_ONLY>();
+    aclshmemi_barrier_npu_v3<IS_AIV_ONLY>(team);
 }
 
 ACLSHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t * addr)
