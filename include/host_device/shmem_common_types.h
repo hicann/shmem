@@ -35,6 +35,34 @@ extern "C" {
 */
 
 /**
+ * @brief Standard test Types and Names
+ *
+ * |NAME       | TYPE      |
+ * |-----------|-----------|
+ * |float      | float     |
+ * |int8       | int8      |
+ * |int16      | int16     |
+ * |int32      | int32     |
+ * |int64      | int64     |
+ * |uint8      | uint8     |
+ * |uint16     | uint16    |
+ * |uint32     | uint32    |
+ * |uint64     | uint64    |
+ * |char       | char      |
+ */
+#define ACLSHMEM_P2P_SYNC_TYPE_FUNC(FUNC) \
+    FUNC(float, float);               \
+    FUNC(int8, int8_t);               \
+    FUNC(int16, int16_t);             \
+    FUNC(int32, int32_t);             \
+    FUNC(int64, int64_t);             \
+    FUNC(uint8, uint8_t);             \
+    FUNC(uint16, uint16_t);           \
+    FUNC(uint32, uint32_t);           \
+    FUNC(uint64, uint64_t);           \
+    FUNC(char, char)
+
+/**
 * @brief The state of the ACLSHMEM host OP type.
 */
 enum aclshmemi_op_t {

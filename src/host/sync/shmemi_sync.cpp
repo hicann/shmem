@@ -17,6 +17,7 @@
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
 #include "gm2gm/shmemi_device_cc_kernel.h"
+#include "gm2gm/shmemi_device_p2p_sync_kernel.h"
 
 extern "C" int rtGetC2cCtrlAddr(uint64_t *config, uint32_t *len);
 
@@ -42,3 +43,243 @@ void aclshmemx_signal_wait_until_on_stream(int32_t *sig_addr, int cmp, int32_t c
 {
     call_aclshmemi_signal_wait_until_on_stream_kernel(sig_addr, cmp, cmp_value, stream);                            
 }
+
+ACLSHMEM_HOST_API void aclshmem_signal_wait_until(int32_t *sig_addr, int cmp, int32_t cmp_val)
+{
+    if (cmp < 0 || cmp > 5) {
+        SHM_LOG_ERROR("compare op is invalid.");
+        return;
+    }
+    aclshmem_do_signal_wait_until(sig_addr, cmp, cmp_val, g_state_host.default_stream,
+        g_state_host.default_block_num);
+
+    aclrtSynchronizeStream(g_state_host.default_stream);
+}
+
+#define ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until(TYPE *ivar, int cmp, TYPE cmp_value)                           \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until(ivar, cmp, cmp_value, g_state_host.default_stream,                             \
+            g_state_host.default_block_num);                                                                           \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL);
+
+#define ACLSHMEM_WAIT(NAME, TYPE)                                                                                      \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait(TYPE *ivar, TYPE cmp_value)                                          \
+    {                                                                                                                  \
+        aclshmem_##NAME##_do_wait(ivar, cmp_value, g_state_host.default_stream,                                        \
+            g_state_host.default_block_num);                                                                           \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT);
+
+#define ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                                            \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_all(TYPE *ivars, size_t nelems, const int *status,             \
+        int cmp, TYPE cmp_value)                                                                                       \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_all(ivars, nelems, status, cmp, cmp_value,                                     \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL);
+
+#define ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                                            \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any(TYPE *ivars, size_t nelems, const int *status,             \
+        int cmp, TYPE cmp_value, size_t *res_out)                                                                      \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = SIZE_MAX;                                                                                       \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_any(ivars, nelems, status, cmp, cmp_value, res_out,                            \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY);
+
+#define ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                           \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some(TYPE *ivars, size_t nelems, size_t *indices,              \
+        const int *status, int cmp, TYPE cmp_value, size_t *res_out)                                                   \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_some(ivars, nelems, indices, status, cmp, cmp_value, res_out,                  \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME);
+
+#define ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                                     \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_all_vector(TYPE *ivars, size_t nelems, const int *status,      \
+        int cmp, TYPE *cmp_values)                                                                                     \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_all_vector(ivars, nelems, status, cmp, cmp_values,                             \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
+
+#define ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                                     \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any_vector(TYPE *ivars, size_t nelems, const int *status,      \
+        int cmp, TYPE *cmp_values, size_t *res_out)                                                                    \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = SIZE_MAX;                                                                                       \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_any_vector(ivars, nelems, status, cmp, cmp_values, res_out,                    \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
+
+#define ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                                    \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some_vector(TYPE *ivars, size_t nelems, size_t *indices,       \
+        const int *status, int cmp, TYPE *cmp_values, size_t *res_out)                                                 \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_wait_until_some_vector(ivars, nelems, indices, status, cmp, cmp_values, res_out,          \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
+
+#define ACLSHMEM_TEST(NAME, TYPE)                                                                                      \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test(TYPE *ivars, int cmp, TYPE cmp_value, int *res_out)                  \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test(ivars, cmp, cmp_value, res_out,                                                      \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
+
+#define ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                                  \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any(                                                                 \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
+    )                                                                                                                  \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = SIZE_MAX;                                                                                       \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test_any(ivars, nelems, status, cmp, cmp_value, res_out,                                  \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY);
+
+#define ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                                 \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some(TYPE *ivars, size_t nelems, size_t *indices, const int *status, \
+        int cmp, TYPE cmp_value, size_t *res_out)                                                                      \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test_some(ivars, nelems, indices, status, cmp, cmp_value, res_out,                        \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME);
+
+#define ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                                           \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_all_vector(TYPE *ivars, size_t nelems, const int *status, int cmp,   \
+        TYPE *cmp_values, int *res_out)                                                                                \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test_all_vector(ivars, nelems, status, cmp, cmp_values, res_out,                          \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ALL_VECTOR);
+
+#define ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                                           \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any_vector(TYPE *ivars, size_t nelems, const int *status, int cmp,   \
+        TYPE *cmp_values, size_t *res_out)                                                                             \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = SIZE_MAX;                                                                                       \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test_any_vector(ivars, nelems, status, cmp, cmp_values, res_out,                          \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY_VECTOR);
+
+#define ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                                          \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some_vector(TYPE *ivars, size_t nelems, size_t *indices,             \
+        const int *status, int cmp, TYPE *cmp_values, size_t *res_out)                                                 \
+    {                                                                                                                  \
+        if (cmp < 0 || cmp > 5) {                                                                                      \
+            SHM_LOG_ERROR("compare op is invalid.");                                                                   \
+            *res_out = 0;                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
+        aclshmem_##NAME##_do_test_some_vector(ivars, nelems, indices, status, cmp, cmp_values, res_out,                \
+            g_state_host.default_stream, g_state_host.default_block_num);                                              \
+                                                                                                                       \
+        aclrtSynchronizeStream(g_state_host.default_stream);                                                           \
+    }
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME_VECTOR);

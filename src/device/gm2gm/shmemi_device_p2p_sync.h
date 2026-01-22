@@ -24,33 +24,78 @@ ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_eq_for_barrier(__gm__ int32_
 // Atomicity of ACLSHMEM_SIGNAL_SET not guaranteed
 ACLSHMEM_DEVICE void aclshmemi_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_eq(__gm__ int32_t *sig_addr, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_eq(__gm__ volatile T *sig_addr, T cmp_val);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_ne(__gm__ int32_t *sig_addr, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ne(__gm__ volatile T *sig_addr, T cmp_val);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_gt(__gm__ int32_t *sig_addr, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_gt(__gm__ volatile T *sig_addr, T cmp_val);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_ge(__gm__ int32_t *sig_addr, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ge(__gm__ volatile T *sig_addr, T cmp_val);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_lt(__gm__ int32_t *sig_addr, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_lt(__gm__ volatile T *sig_addr, T cmp_val);
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_le(__gm__ int32_t *sig_addr, int32_t cmp_val);
-
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val);
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_le(__gm__ volatile T *sig_addr, T cmp_val);
 
 ACLSHMEM_DEVICE int32_t aclshmemi_signal_fetch(__gm__ int32_t *sig_addr);
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_wait_until(__gm__ T *sig_addr, int cmp, T cmp_val);
+ACLSHMEM_DEVICE void aclshmemi_wait_until(__gm__ volatile T *ivar, int cmp, T cmp_value);
 
 template <typename T>
-ACLSHMEM_DEVICE int aclshmemi_test(__gm__ T *sig_addr, int cmp, T cmp_val);
+ACLSHMEM_DEVICE int aclshmemi_test(__gm__ volatile T *ivar, int cmp, T cmp_value);
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_wait_until_all(__gm__ T *sig_addr, size_t nelems, const int *status, int cmp, T cmp_val,
-                                        int stride = ACLSHMEMI_SYNCBIT_SIZE / sizeof(T));
+ACLSHMEM_DEVICE void aclshmemi_wait_until_all(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
+    int cmp, T cmp_value);
+
 template <typename T>
-ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, const int *status, int cmp, T cmp_val,
-                                 int stride = ACLSHMEMI_SYNCBIT_SIZE / sizeof(T));
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
+    int cmp, T cmp_value);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
+    __gm__ const int *status, int cmp, T cmp_value);
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_wait_until_all_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
+    int cmp, __gm__ T *cmp_values);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any_vector(__gm__ volatile T *ivars, size_t nelems,
+    __gm__ const int *status, int cmp, __gm__ T *cmp_values);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
+    __gm__ const int *status, int cmp, __gm__ T *cmp_values);
+
+template <typename T>
+ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, __gm__ const int *status, int cmp,
+    T cmp_value, int stride = ACLSHMEMI_SYNCBIT_SIZE / sizeof(T));
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_test_any(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status, int cmp,
+    T cmp_value);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_test_some(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
+    __gm__ const int *status, int cmp, T cmp_value);
+
+template <typename T>
+ACLSHMEM_DEVICE int aclshmemi_test_all_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
+    int cmp, __gm__ T *cmp_values);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_test_any_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
+    int cmp, __gm__ T *cmp_values);
+
+template <typename T>
+ACLSHMEM_DEVICE size_t aclshmemi_test_some_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
+    __gm__ const int *status, int cmp, __gm__ T *cmp_values);
 
 #endif

@@ -28,7 +28,7 @@ from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_usin
                        aclshmemx_putmem_signal_nbi, \
                        aclshmem_info_get_version, aclshmem_info_get_name, \
                        aclshmem_team_get_config, OptionalAttr, aclshmem_global_exit, set_conf_store_tls, set_log_level,
-                       set_extern_logger)
+                       set_extern_logger, aclshmem_signal_wait_until)
 
 current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
@@ -79,7 +79,8 @@ __all__ = [
     'set_log_level',
     'set_extern_logger',
     'aclshmem_create_tensor',
-    'aclshmem_free_tensor'
+    'aclshmem_free_tensor',
+    'aclshmem_signal_wait_until'
 ]
 
 def aclshmem_create_tensor(shape, dtype: torch.dtype=torch.float32, device_id=0) -> torch.Tensor:

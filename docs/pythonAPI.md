@@ -365,6 +365,220 @@
     |team|team id|
     |返回值|返回指定团队中PE的数目，出错时，返回-1|
 
+1. 阻塞式同步原语，用于等待指定 PE 上的信号变量（sig_addr）满足指定比较条件（如等于、大于等）时返回
+    ```python
+    def aclshmem_signal_wait_until(sig_addr, cmp, cmp_val)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |sig_addr|指向对称内存中一个信号变量的指针|
+    |cmp|比较类型|
+    |cmp_val|比较值|
+    |返回值|返回满足比较条件时sig_addr的值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上的信号变量（ivar）满足指定比较条件（如等于、大于等）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until(ivar, cmp, cmp_val)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivar|指向对称内存中一个信号变量的指针|
+    |cmp|比较类型|
+    |cmp_val|比较值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上的信号变量（ivar）不等于给定比较值cmp_value时返回
+    ```python
+    def aclshmem_{TYPE}_wait(ivar, cmp_val)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |ivar|指向对称内存中一个信号变量的指针|
+    |cmp_val|比较值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）均满足给定的比较条件（ivars[i] cmp cmp_value）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_all(ivars_ptr, nelems, status_ptr, cmp, cmp_val)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_val|比较值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）中至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_value）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_any(ivars_ptr, nelems, status_ptr, cmp, cmp_val, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_val|比较值|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素索引值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）中至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_value）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_some(ivars_ptr, nelems, indices_ptr, status_ptr, cmp, cmp_val, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |indices_ptr|对应 ivars_ptr 中所有满足条件元素的索引值|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_val|比较值|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素个数|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）均满足给定的比较条件（ivars[i] cmp cmp_values[i]）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_all_vector(ivars_ptr, nelems, status_ptr, cmp, cmp_values_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）中至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_values[i]）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_any_vector(ivars_ptr, nelems, status_ptr, cmp, cmp_val, cmp_values_ptr, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素索引值|
+
+1. 阻塞式同步原语，用于等待指定 PE 上一组变量（ivars）中至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_values[i]）时返回
+    ```python
+    def aclshmem_{TYPE}_wait_until_some_vector(ivars_ptr, nelems, indices_ptr, status_ptr, cmp, cmp_values_ptr, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |indices_ptr|对应 ivars_ptr 中所有满足条件元素的索引值|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素个数|
+
+1. 同步原语，用于检查指定 PE 上变量（ivar）是否满足给定的比较条件（ivar cmp cmp_value）
+    ```python
+    def aclshmem_{TYPE}_test(ivar, cmp, cmp_value, res_out_ptr)
+    ```
+
+    |参数/返回值| 含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivar|指向对称内存中一个信号变量的指针|
+    |cmp|比较类型|
+    |cmp_value|比较值|
+    |res_out_ptr|接收device侧接口返回值。满足比较条件返回1，否则返回0|
+
+1. 同步原语，用于检查指定 PE 上一组变量（ivars）中是否至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_value）
+    ```python
+    def aclshmem_{TYPE}_test_any(ivars_ptr, nelems, status_ptr, cmp, cmp_value, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_value|比较值|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素索引值|
+
+1. 同步原语，用于检查指定 PE 上一组变量（ivars）中是否至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_value）
+    ```python
+    def aclshmem_{TYPE}_test_some(ivars_ptr, nelems, indices_ptr, status_ptr, cmp, cmp_value, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |indices_ptr|对应 ivars_ptr 中所有满足条件元素的索引值|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_value|比较值|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素个数|
+
+1. 同步原语，用于检查指定 PE 上一组变量（ivars）是否均满足给定的比较条件（ivars[i] cmp cmp_values[i]）
+    ```python
+    def aclshmem_{TYPE}_test_all_vector(ivars_ptr, nelems, status_ptr, cmp, cmp_values_ptr, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+    |res_out_ptr|接收device侧接口返回值。满足比较条件返回1，否则返回0|
+
+1. 同步原语，用于检查指定 PE 上一组变量（ivars）中是否至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_values[i]）
+    ```python
+    def aclshmem_{TYPE}_test_any_vector(ivars_ptr, nelems, status_ptr, cmp, cmp_val, cmp_values_ptr, res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素索引值|
+
+1. 同步原语，用于检查指定 PE 上一组变量（ivars）中是否至少有一个变量满足给定的比较条件（ivars[i] cmp cmp_values[i]）
+    ```python
+    def aclshmem_{TYPE}_wait_until_some_vector(ivars_ptr, nelems, indices_ptr, status_ptr, cmp, cmp_values_ptr,res_out_ptr)
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |TYPE|数据类型，可选float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+    |ivars_ptr|指向对称内存中长度为 nelems 的数组|
+    |nelems|数组元素个数|
+    |indices_ptr|对应 ivars_ptr 中所有满足条件元素的索引值|
+    |status_ptr|可选本地掩码数组|
+    |cmp|比较类型|
+    |cmp_values_ptr|比较值数组|
+    |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素个数|
+
 ##### SHMEM类
 1. OpEngineType枚举类
     ```python

@@ -57,12 +57,396 @@ ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStre
  *
  * @param sig_addr              [in] Local address of the source signal variable.
  * @param cmp                   [in] The comparison operator that compares sig_addr with cmp_val. Supported operators:
- *                                   ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
+ *                                   ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/
+ *                                   ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
  * @param cmp_val               [in] The value against which the object pointed to by sig_addr will be compared.
  * @param stream                [in] Used stream(use default stream if stream == NULL).
  */
 ACLSHMEM_HOST_API void aclshmemx_signal_wait_until_on_stream(int32_t *sig_addr, int cmp, int32_t cmp_val, aclrtStream stream);
 #define shmem_signal_wait_until_on_stream aclshmemx_signal_wait_until_on_stream
+
+/**
+ * @brief Implements point-to-point synchronization by blocking until the value of sig_addr at the calling PE
+ *        satisfies the condition defined by the comparison operator, cmp, and comparison value, cmp_value.
+ *
+ * @param sig_addr              [in] Local address of the source signal variable.
+ * @param cmp                   [in] The comparison operator that compares sig_addr with cmp_val. Supported operators:
+ *                                   ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/
+ *                                   ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
+ * @param cmp_val               [in] The value against which the object pointed to by sig_addr will be compared.
+ * @return Return the contents of the signal data object, sig_addr, at the calling PE that satisfies the wait condition.
+ */
+ACLSHMEM_HOST_API void aclshmem_signal_wait_until(int32_t *sig_addr, int cmp, int32_t cmp_val);
+
+#define ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                                                \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until the value at ivar                            \
+     *        satisfies the condition defined by the comparison operator, cmp, and comparison value, cmp_value.        \
+     *                                                                                                                 \
+     * @param ivar              [in] Symmetric address of a remotely accessible data object.                           \
+     *                               The type of ivar should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.    \
+     * @param cmp               [in] The comparison operator that compares ivar with cmp_val.                          \
+     *                                 Supported operators:                                                            \
+     *                                 ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                \
+     *                                 ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                \
+     * @param cmp_value         [in] The value to be compared with ivar. The type of cmp_value should match that       \
+     *                               implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until(TYPE *ivar, int cmp, TYPE cmp_value)
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL);
+
+#define ACLSHMEM_WAIT(NAME, TYPE)                                                                                      \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until the value of ivar is not equal to            \
+     *        comparison value, cmp_value.                                                                             \
+     *                                                                                                                 \
+     * @param ivar              [in] Symmetric address of a remotely accessible data object.                           \
+     *                               The type of ivar should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.    \
+     * @param cmp_value         [in] The value to be compared with ivar. The type of cmp_value should match that       \
+     *                               implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait(TYPE *ivar, TYPE cmp_value)
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT);
+
+#define ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                                            \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until all entries in the wait set specified        \
+     *        by ivars and status satisfy the condition defined by the comparison operator, cmp,                       \
+     *        and comparison value, cmp_value.                                                                         \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_value.                      \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
+     *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_all(                                                           \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value                                         \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL);
+
+#define ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                                            \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until any one entry in the wait set specified      \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_value.                                                                         \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_value.                      \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
+     *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
+     * @return Return the index of an element in the ivars array that satisfies the wait condition.                    \
+     *         If the wait set is empty, this routine returns SIZE_MAX.                                                \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any(                                                           \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY);
+
+#define ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                           \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until at least one entry in the wait set specified \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_value.                                                                         \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param indices            [out] Local address of an array of indices of length at least nelems into ivars       \
+     *                                 that satisfied the wait condition.                                              \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_value.                      \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
+     *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
+     * @return Return the number of indices returned in the indices array.                                             \
+     *         If the wait set is empty, this routine returns 0.                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some(                                                          \
+        TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE cmp_value, size_t *res_out       \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME);
+
+#define ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                                     \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until all entries in the wait set specified        \
+     *        by ivars and status satisfy the condition defined by the comparison operator, cmp,                       \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_all_vector(                                                    \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values                                       \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
+
+#define ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                                     \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until any one entry in the wait set specified      \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     * @return Return the index of an element in the ivars array that satisfies the wait condition.                    \
+     *         If the wait set is empty, this routine returns SIZE_MAX.                                                \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any_vector(                                                    \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, size_t *res_out                      \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
+
+#define ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                                    \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by blocking until at least one entry in the wait set specified \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param indices            [out] Local address of an array of indices of length at least nelems into ivars       \
+     *                                 that satisfied the wait condition.                                              \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the wait set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the wait set;                  \
+     *                                If status is NULL, all elements of ivars are included in the wait set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     * @return Return the number of indices returned in the indices array.                                             \
+     *         If the wait set is empty, this routine returns 0.                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some_vector(                                                   \
+        TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE *cmp_values, size_t *res_out     \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
+
+#define ACLSHMEM_TEST(NAME, TYPE)                                                                                      \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether the value of ivar satisfies the condition   \
+     *        defined by the comparison operator, cmp, and comparison value, cmp_value.                                \
+     *                                                                                                                 \
+     * @param ivar              [in] Symmetric address of a remotely accessible data object.                           \
+     *                               The type of ivar should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.    \
+     * @param cmp               [in] The comparison operator that compares ivar with cmp_value.                        \
+     *                               Supported operators:                                                              \
+     *                               ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                  \
+     *                               ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                  \
+     * @param cmp_value         [in] The value against which the object pointed to by ivar will be compared.           \
+     *                               The type of cmp_value should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC\
+     * @return Return 1 if the comparison (via the operator cmp) between the ivar and cmp_value results in true;       \
+     *         otherwise, return 0.                                                                                    \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test(TYPE *ivars, int cmp, TYPE cmp_value, int *res_out)
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
+
+#define ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                                  \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether any one entry in the test set specified     \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_value.                                                                         \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the test set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the test set;                  \
+     *                                If status is NULL, all elements of ivars are included in the test set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_value.                      \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
+     *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
+     * @return Return the index of an element in the ivars array that satisfies the test condition.                    \
+     *         If the test set is empty or no conditions in the test set are satisfied, this routine returns SIZE_MAX. \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any(                                                                 \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY);
+
+#define ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                                 \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether at least one entry in the test set          \
+     *        specified by ivars and status satisfies the condition defined by the comparison operator, cmp,           \
+     *        and comparison value, cmp_value.                                                                         \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param indices            [out] Local address of an array of indices of length at least nelems into ivars       \
+     *                                 that satisfied the test condition.                                              \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the test set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the test set;                  \
+     *                                If status is NULL, all elements of ivars are included in the test set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_value.                      \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
+     *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
+     * @return Return the number of indices returned in the indices array.                                             \
+     *         If the test set is empty, this routine returns 0.                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some(                                                                \
+        TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE cmp_value, size_t *res_out       \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME);
+
+#define ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                                           \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether all entries in the test set specified       \
+     *        by ivars and status satisfy the condition defined by the comparison operator, cmp,                       \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the test set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the test set;                  \
+     *                                If status is NULL, all elements of ivars are included in the test set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     * @return Return 1 if all elements in ivars satisfy the test conditions or if nelems is 0,                        \
+     *         otherwise this routine returns 0.                                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_all_vector(                                                          \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, int *res_out                         \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ALL_VECTOR);
+
+#define ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                                           \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether any one entry in the test set specified     \
+     *        by ivars and status satisfies the condition defined by the comparison operator, cmp,                     \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the test set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the test set;                  \
+     *                                If status is NULL, all elements of ivars are included in the test set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     * @return Return the index of an element in the ivars array that satisfies the test condition.                    \
+     *         If the test set is empty or no conditions in the test set are satisfied, this routine returns SIZE_MAX. \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any_vector(                                                          \
+        TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, size_t *res_out                      \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY_VECTOR);
+
+#define ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                                          \
+    /**                                                                                                                \
+     * @brief Implements point-to-point synchronization by testing whether at least one entry in the test set          \
+     *        specified by ivars and status satisfies the condition defined by the comparison operator, cmp,           \
+     *        and comparison value, cmp_values.                                                                        \
+     *                                                                                                                 \
+     * @param ivars              [in] Symmetric address of an array of remotely accessible data objects.               \
+     *                                The type of ivars should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.  \
+     * @param nelems             [in] The number of elements in the ivars array.                                       \
+     * @param indices            [out] Local address of an array of indices of length at least nelems into ivars       \
+     *                                 that satisfied the test condition.                                              \
+     * @param status             [in] Local address of an optional mask array of length nelems.                        \
+     *                                If status[i] == 0, then ivars[i] is included in the test set;                    \
+     *                                If status[i] != 0, then ivars[i] is excluded from the test set;                  \
+     *                                If status is NULL, all elements of ivars are included in the test set.           \
+     * @param cmp                [in] The comparison operator that compares ivars with cmp_values.                     \
+     *                                Supported operators:                                                             \
+     *                                ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/                                 \
+     *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
+     * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
+     *                                compared with the respective value in ivars. The type of cmp_values should       \
+     *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
+     * @return Return the number of indices returned in the indices array.                                             \
+     *         If the test set is empty, this routine returns 0.                                                       \
+     */                                                                                                                \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some_vector(                                                         \
+        TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE *cmp_values, size_t *res_out     \
+    )
+
+ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME_VECTOR);
 
 #ifdef __cplusplus
 }

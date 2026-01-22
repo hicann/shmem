@@ -447,15 +447,6 @@ ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uin
                           reinterpret_cast<__ubuf__ char *>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id);
 }
 
-#define ACLSHMEM_TEST(NAME, TYPE)                                                                                \
-    ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivar, int cmp, TYPE cmp_value)                       \
-    {                                                                                                            \
-        aclshmem_fence();                                                                                        \
-        return aclshmemi_test(ivar, cmp, cmp_value);                                                             \
-    }
-
-ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
-
 // Set Memcpy Interfaces necessary UB Buffer.
 ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
 {

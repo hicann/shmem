@@ -442,29 +442,6 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
 ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
 #define shmem_putmem_nbi aclshmem_putmem_nbi
 
-#define ACLSHMEM_TEST(NAME, TYPE)                                                                             \
-    /**                                                                                                       \
-     * @brief Synchronous interface. Provide a high-performance way to compare data                           \
-     *        on local UB to symmetric address on the specified PE.                                           \
-     *                                                                                                        \
-     * @param ivar               [in] Pointer on local device of the destination data.                        \
-     * @param cmp                [in] Compare type i.e. SHMEM_CMP_EQ, SHMEM_CMP_GT, etc.                      \
-     * @param cmp_value          [in] Expected data for comparation                                           \
-     */                                                                                                       \
-    ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivar, int cmp, TYPE cmp_value)
-
-ACLSHMEM_TEST_TYPE_FUNC(ACLSHMEM_TEST);
-#define shmem_float_test aclshmem_float_test
-#define shmem_int8_test aclshmem_int8_test
-#define shmem_int16_test aclshmem_int16_test
-#define shmem_int32_test aclshmem_int32_test
-#define shmem_int64_test aclshmem_int64_test
-#define shmem_uint8_test aclshmem_uint8_test
-#define shmem_uint16_test aclshmem_uint16_test
-#define shmem_uint32_test aclshmem_uint32_test
-#define shmem_uint64_test aclshmem_uint64_test
-#define shmem_char_test aclshmem_char_test
-
 /**
  * @brief Set necessary parameters for put or get.
  *

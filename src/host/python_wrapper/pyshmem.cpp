@@ -815,4 +815,539 @@ set log function of all module;
 Arguments:
     func(void (*func)(int level, const char *msg)): function of log;
     )");
+
+m.def("aclshmem_signal_wait_until",
+    [](intptr_t sig_addr, int cmp, int cmp_val) {
+        aclshmem_signal_wait_until(
+            reinterpret_cast<int32_t*>(sig_addr),
+            cmp,
+            static_cast<int32_t>(cmp_val)
+        );
+    },
+    py::call_guard<py::gil_scoped_release>(),
+    py::arg("sig_addr"),
+    py::arg("cmp"),
+    py::arg("cmp_val"),
+    R"(
+Wait until the value at signal address satisfies a comparison condition.
+
+This function blocks the calling thread until:
+    *sig_addr cmp cmp_val  is true,
+where OP is determined by 'cmp' (e.g., CMP_EQ, CMP_NE, etc.).
+
+Arguments:
+    sig_addr(int): Local address of the source signal variable.
+    cmp(int): Comparison op.
+    cmp_val(int): Value to compare against.
+Returns:
+    The value of sig_addr when condition is met.
+    )");
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                                         \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until";                                                        \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivar, int cmp, TYPE cmp_value) {                                                               \
+                auto ivar_addr = (TYPE *)ivar;                                                                         \
+                aclshmem_##NAME##_wait_until(ivar_addr, cmp, cmp_value);                                               \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp"), py::arg("cmp_value"),           \
+            R"(                                                                                                        \
+    Wait until the element at the symmetric address satisfies a comparison condition.                                  \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivar            [in] Symmetric address of a remotely accessible data object.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL
+
+#define PYBIND_ACLSHMEM_WAIT(NAME, TYPE)                                                                               \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait";                                                              \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivar, TYPE cmp_value) {                                                                        \
+                auto ivar_addr = (TYPE *)ivar;                                                                         \
+                aclshmem_##NAME##_wait(ivar_addr, cmp_value);                                                          \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp_value"),                           \
+            R"(                                                                                                        \
+    Wait until the element at the symmetric address is not equal to cmp_value.                                         \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivar            [in] Symmetric address of a remotely accessible data object.
+        cmp_value       [in] Value to compare against.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT);
+#undef PYBIND_ACLSHMEM_WAIT
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                                     \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_all";                                                    \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value) {                      \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                aclshmem_##NAME##_wait_until_all(ivar_addrs, nelems, status, cmp, cmp_value);                          \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            R"(                                                                                                        \
+    Wait until all elements in the symmetric array satisfy the condition.                                              \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ALL);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_ALL
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                                     \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_any";                                                    \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {\
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_wait_until_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);                 \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Wait until at least one element in the symmetric array satisfy the condition.                                      \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        res_out         [out] Return value.
+    Returns:
+        The index of an element in the ivars array that satisfies the wait condition.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ANY);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_ANY
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                    \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_some";                                                   \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value,  \
+                intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_wait_until_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);       \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("indices"),                                                                                        \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Wait until at least one element in the symmetric array satisfy the condition.                                      \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        indices         [out] Local address of an array of indices of length at least nelems into ivars that
+                             satisfied the wait condition.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        res_out         [out] Return value.
+    Returns:
+        The number of indices returned in the indices array.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_SOME);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_SOME
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                              \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_all_vector";                                             \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr) {             \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                aclshmem_##NAME##_wait_until_all_vector(ivar_addrs, nelems, status, cmp, cmp_values);                  \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            R"(                                                                                                        \
+    Wait until all elements in the symmetric array satisfy the condition.                                              \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values       [in] Value to compare against which is an array.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                              \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_any_vector";                                             \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
+                intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_wait_until_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);         \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Wait until at least one element in the symmetric array satisfy the condition.                                      \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values      [in] Value to compare against which is an array.
+        res_out         [out] Return value.
+    Returns:
+        The index of an element in the ivars array that satisfies the wait condition.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR
+
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                             \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_some_vector";                                            \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,                  \
+                intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                       \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_wait_until_some_vector(                                                              \
+                    ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out                                      \
+                );                                                                                                     \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("indices"),                                                                                        \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Wait until at least one element in the symmetric array satisfy the condition.                                      \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        indices         [out] Local address of an array of indices of length at least nelems into ivars that
+                             satisfied the wait condition.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values      [in] Value to compare against which is an array.
+        res_out         [out] Return value.
+    Returns:
+        The number of indices returned in the indices array.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
+#undef PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR
+
+#define PYBIND_ACLSHMEM_TEST(NAME, TYPE)                                                                               \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test";                                                              \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivar, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {                                         \
+                auto ivar_addr = (TYPE *)ivar;                                                                         \
+                auto res_out = reinterpret_cast<int *>(res_out_ptr);                                                   \
+                aclshmem_##NAME##_test(ivar_addr, cmp, cmp_value, res_out);                                            \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivar"),                                                                                           \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether the element at the symmetric address satisfies a comparison condition.                               \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivar            [in] Symmetric address of a remotely accessible data object.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        res_out         [out] Return value.
+    Returns:
+        Returns 1 when the comparison of the symmetric object pointed to by ivar with the value cmp_value according to
+        the comparison op cmp; otherwise, it returns 0.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST);
+#undef PYBIND_ACLSHMEM_TEST
+
+#define PYBIND_ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                           \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test_any";                                                          \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {\
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_test_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);                       \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether at least one element in the symmetric array satisfy the condition.                                   \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        res_out         [out] Return value.
+    Returns:
+        Returns the index of an element in the ivars array that satisfies the test condition.
+        If the test set is empty or no conditions in the test set are satisfied, it returns SIZE_MAX.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ANY);
+#undef PYBIND_ACLSHMEM_TEST_ANY
+
+#define PYBIND_ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                          \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test_some";                                                         \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value,  \
+                intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_test_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);             \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("indices"),                                                                                        \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_value"),                                                                                      \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether at least one element in the symmetric array satisfy the condition.                                   \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        indices         [out] Local address of an array of indices of length at least nelems into ivars that
+                             satisfied the wait condition.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_value       [in] Value to compare against.
+        res_out         [out] Return value.
+    Returns:
+        Returns the number of indices returned in the indices array. If the test set is empty, it returns 0.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_SOME);
+#undef PYBIND_ACLSHMEM_TEST_SOME
+
+#define PYBIND_ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                                    \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test_all_vector";                                                   \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
+                intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                auto res_out = reinterpret_cast<int *>(res_out_ptr);                                                   \
+                aclshmem_##NAME##_test_all_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);               \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether all elements in the symmetric array satisfy the condition.                                           \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values      [in] Value to compare against which is an array.
+        res_out         [out] Return value.
+    Returns:
+        Returns 1 when all variables in ivars satisfy the test conditions or nelems is 0, otherwise it returns 0.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ALL_VECTOR);
+#undef PYBIND_ACLSHMEM_TEST_ALL_VECTOR
+
+#define PYBIND_ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                                    \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test_any_vector";                                                   \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
+                intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_test_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);               \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether at least one element in the symmetric array satisfy the condition.                                   \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values      [in] Value to compare against which is an array.
+        res_out         [out] Return value.
+    Returns:
+        Returns the index of an element in the ivars array that satisfies the test condition.
+        If the test set is empty or no conditions in the test set are satisfied, it returns SIZE_MAX.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ANY_VECTOR);
+#undef PYBIND_ACLSHMEM_TEST_ANY_VECTOR
+
+#define PYBIND_ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                                   \
+    {                                                                                                                  \
+        std::string funcName = "aclshmem_" #NAME "_test_some_vector";                                                  \
+        m.def(                                                                                                         \
+            funcName.c_str(),                                                                                          \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,                  \
+                intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                       \
+                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
+                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
+                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
+                aclshmem_##NAME##_test_some_vector(ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out);     \
+            },                                                                                                         \
+            py::call_guard<py::gil_scoped_release>(),                                                                  \
+            py::arg("ivars"),                                                                                          \
+            py::arg("nelems"),                                                                                         \
+            py::arg("indices"),                                                                                        \
+            py::arg("status"),                                                                                         \
+            py::arg("cmp"),                                                                                            \
+            py::arg("cmp_values"),                                                                                     \
+            py::arg("res_out"),                                                                                        \
+            R"(                                                                                                        \
+    Check whether at least one element in the symmetric array satisfy the condition.                                   \
+                                                                                                                       \
+    Arguments:                                                                                                         \
+        ivars           [in] Symmetric address of an array of remotely accessible data objects.
+        nelems          [in] The number of elements in the ivars array.
+        indices         [out] Local address of an array of indices of length at least nelems into ivars that
+                             satisfied the wait condition.
+        status          [in] Local address of an optional mask array of length nelems that indicates which
+                             elements in ivars are excluded from the wait set.
+        cmp             [in] Comparison op.
+        cmp_values      [in] Value to compare against which is an array.
+        res_out         [out] Return value.
+    Returns:
+        Returns the number of indices returned in the indices array. If the test set is empty, it returns 0.
+        )");                                                                                                           \
+    }
+
+    ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_SOME_VECTOR);
+#undef PYBIND_ACLSHMEM_TEST_SOME_VECTOR
+
 }
