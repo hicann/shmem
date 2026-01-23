@@ -48,7 +48,7 @@ int aclshmemi_init_backend::init_device_state()
 {
     int32_t status = ACLSHMEM_SUCCESS;
     // init group engine
-    if (bootstrap_flags_ & ACLSHMEMX_INIT_WITH_DEFAULT) {
+    if (bootstrap_flags_ == ACLSHMEMX_INIT_WITH_DEFAULT) {
         status = init_config_store();
         if (status != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("shmem init config store failed, error: " << status);
@@ -159,8 +159,12 @@ int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
 
 int aclshmemi_init_backend::finalize_device_state()
 {
+    if (store_ != nullptr) {
+        shm::store::StoreFactory::DestroyStore();
+    }
     if (!inited_) {
         SHM_LOG_WARN("shm hybm backend not initialized yet, skip finalize device state.");
+        store_ = nullptr;
         return ACLSHMEM_SUCCESS;
     }
     if (device_state_ != nullptr) {
@@ -380,59 +384,58 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
 int aclshmemi_init_backend::remove_heap(aclshmem_mem_type_t mem_type)
 {
     auto entity = mem_type == HOST_SIDE ? dram_entity_ : hbm_entity_;
+    if (entity == nullptr) {
+        SHM_LOG_DEBUG("entity not create, skip unmap.");
+        return ACLSHMEM_SUCCESS;
+    }
     hybm_unmap(entity, 0);
     return ACLSHMEM_SUCCESS;
 }
 
 int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
 {
-    auto safe_free_host = [](void**& ptr) -> int {
-        if (ptr == nullptr) {
-            return ACLSHMEM_SUCCESS;
-        }
-        int ret = aclrtFreeHost(ptr);
-        if (ret == 0) {
-            ptr = nullptr;
-        }
-        return ret;
-    };
-    auto safe_free_device = [](void**& ptr) -> int {
-        if (ptr == nullptr) {
-            return ACLSHMEM_SUCCESS;
-        }
-        int ret = aclrtFree(ptr);
-        if (ret == 0) {
-            ptr = nullptr;
-        }
-        return ret;
-    };
-
-    if (mem_type == HOST_SIDE) {
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->p2p_host_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->rdma_host_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->sdma_host_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->p2p_host_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->rdma_host_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->sdma_host_heap_base));
-    } else {
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->p2p_device_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->rdma_device_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_host(host_state_->sdma_device_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->p2p_device_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->rdma_device_heap_base));
-        ACLSHMEM_CHECK_RET(safe_free_device(device_state_->sdma_device_heap_base));
+    if (host_state_->p2p_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->p2p_device_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->p2p_device_heap_base));
+        host_state_->p2p_device_heap_base = nullptr;
+    }
+    if (host_state_->rdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->rdma_device_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->rdma_device_heap_base));
+        host_state_->rdma_device_heap_base = nullptr;
+    }
+    if (host_state_->sdma_device_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->sdma_device_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->sdma_device_heap_base));
+        host_state_->sdma_device_heap_base = nullptr;
+    }
+    if (host_state_->p2p_host_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->p2p_host_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->p2p_host_heap_base));
+        host_state_->p2p_host_heap_base = nullptr;
+    }
+    if (host_state_->rdma_host_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->rdma_host_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->rdma_host_heap_base));
+        host_state_->rdma_host_heap_base = nullptr;
+    }
+    if (host_state_->sdma_host_heap_base != nullptr) {
+        ACLSHMEM_CHECK_RET(aclrtFreeHost(host_state_->sdma_host_heap_base));
+        ACLSHMEM_CHECK_RET(aclrtFree(device_state_->sdma_host_heap_base));
+        host_state_->sdma_host_heap_base = nullptr;
     }
 
-    uint32_t flags = 0;
     auto entity = mem_type == HOST_SIDE ? dram_entity_ : hbm_entity_;
     auto reserved_mem = mem_type == HOST_SIDE ? dram_gva_ : hbm_gva_;
+    if (entity == nullptr) {
+        SHM_LOG_DEBUG("entity not create, skip release.");
+        return ACLSHMEM_SUCCESS;
+    }
     auto ret = hybm_unreserve_mem_space(entity, 0, reserved_mem);
     if (ret != 0) {
         SHM_LOG_WARN("unreserve mem space failed: " << ret);
     }
-    if (entity != nullptr) {
-        hybm_destroy_entity(entity, 0);
-    }
+    hybm_destroy_entity(entity, 0);
     if (mem_type == HOST_SIDE) {
         dram_slice_ = nullptr;
         dram_gva_ = nullptr;
@@ -486,7 +489,7 @@ void aclshmemi_init_backend::aclshmemi_global_exit(int status)
 
 int aclshmemi_init_backend::aclshmemi_control_barrier_all()
 {
-    if (bootstrap_flags_ & ACLSHMEMX_INIT_WITH_DEFAULT) {
+    if (bootstrap_flags_ == ACLSHMEMX_INIT_WITH_DEFAULT) {
         if (group_engine_ == nullptr) {
             SHM_LOG_ERROR("Group is NULL");
             return ACLSHMEM_INNER_ERROR;
