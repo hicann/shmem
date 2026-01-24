@@ -23,4 +23,4 @@ set_target_properties(aclshmem_unittest PROPERTIES
     LINK_FLAGS "-rdynamic"
 )
 
-target_link_libraries(aclshmem_unittest PRIVATE aclshmem_unittest_device gtest gcov aclshmem_unittest_include)
+target_link_libraries(aclshmem_unittest PRIVATE aclshmem_unittest_device gtest gcov aclshmem_unittest_include shmem_utils)

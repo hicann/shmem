@@ -40,6 +40,7 @@ list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/hybm")
+list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
 
 add_library(aclshmem_host OBJECT ${ACLSHMEM_HOST_FILES})
 target_compile_options(aclshmem_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
@@ -54,8 +55,21 @@ target_include_directories(aclshmem_host
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
 )
 
+file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/log/*.cpp)
+add_library(shmem_utils SHARED ${ACLSHMEM_UTILS_FILES})
+target_compile_options(shmem_utils PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
+target_include_directories(shmem_utils
+        PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/host
+)
+install(TARGETS shmem_utils
+        LIBRARY DESTINATION lib
+)
+
 add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
 target_link_options(shmem PRIVATE --cce-fatobj-link)
+target_link_libraries(shmem PRIVATE shmem_utils)
 
 if(NOT USE_UNIT_TEST)
         target_link_libraries(shmem PRIVATE hybmm_shared config_store_shared)
@@ -68,11 +82,9 @@ if(ACLSHMEM_MPI_SUPPORT)
     target_compile_definitions(shmem INTERFACE ${MPI_CXX_COMPILE_DEFINITIONS})
     target_compile_options(shmem INTERFACE ${MPI_CXX_COMPILE_OPTIONS})
     
-    add_library(
-    aclshmem_bootstrap_mpi SHARED
-    )
+    add_library(aclshmem_bootstrap_mpi SHARED)
     target_sources(aclshmem_bootstrap_mpi PRIVATE host/bootstrap/shmemi_bootstrap_mpi.cpp)
-    target_link_libraries(aclshmem_bootstrap_mpi PRIVATE MPI::MPI_CXX)
+    target_link_libraries(aclshmem_bootstrap_mpi PRIVATE MPI::MPI_CXX shmem_utils)
     target_include_directories(aclshmem_bootstrap_mpi
                                 PRIVATE
                                 ${PROJECT_SOURCE_DIR}/include
@@ -101,6 +113,7 @@ target_include_directories(aclshmem_bootstrap_uid
                         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
 )
 set_target_properties(aclshmem_bootstrap_uid PROPERTIES PREFIX "")
+target_link_libraries(aclshmem_bootstrap_uid PRIVATE shmem_utils)
 install(TARGETS aclshmem_bootstrap_uid
         LIBRARY DESTINATION lib)
 

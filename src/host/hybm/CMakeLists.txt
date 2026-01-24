@@ -42,14 +42,13 @@ target_include_directories(hybmm_objects INTERFACE ${HYBM_INCLUDE_DIR})
 
 add_library(hybmm_static STATIC $<TARGET_OBJECTS:hybmm_objects>)
 set_target_properties(hybmm_static PROPERTIES OUTPUT_NAME "hybm_core")
-target_link_libraries(hybmm_static PUBLIC pthread dl)
+target_link_libraries(hybmm_static PUBLIC pthread dl shmem_utils)
 target_include_directories(hybmm_static INTERFACE ${HYBM_INCLUDE_DIR})
 
 add_library(hybmm_shared SHARED $<TARGET_OBJECTS:hybmm_objects>)
 set_target_properties(hybmm_shared PROPERTIES OUTPUT_NAME "hybm_core")
-target_link_libraries(hybmm_shared PUBLIC pthread dl)
+target_link_libraries(hybmm_shared PUBLIC pthread dl shmem_utils)
 target_include_directories(hybmm_shared INTERFACE ${HYBM_INCLUDE_DIR})
-
 ## install header files
 file(GLOB HEADER_FILES ${PROJECT_HYBM_SRC_BASE}/include/*.h)
 

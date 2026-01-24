@@ -37,7 +37,7 @@ set_target_properties(config_store_shared PROPERTIES OUTPUT_NAME "config_store")
 set_target_properties(config_store_shared PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 target_link_libraries(config_store_shared
         -Wl,--start-group
-        pthread dl rt
+        pthread dl rt shmem_utils
         -Wl,--end-group
         )
 
