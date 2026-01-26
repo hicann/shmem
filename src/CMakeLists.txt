@@ -8,7 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-add_subdirectory(host/hybm)
 add_subdirectory(host/bootstrap/config_store)
 
 if (BUILD_PYTHON STREQUAL "ON")
@@ -38,9 +37,8 @@ target_include_directories(aclshmem_device
 file(GLOB_RECURSE ACLSHMEM_HOST_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/*.cpp)
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
-list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport")
-list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/hybm")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
+list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/under_api")
 
 add_library(aclshmem_host OBJECT ${ACLSHMEM_HOST_FILES})
 target_compile_options(aclshmem_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
@@ -50,18 +48,25 @@ target_include_directories(aclshmem_host
         ${PROJECT_SOURCE_DIR}/src/host
         ${PROJECT_SOURCE_DIR}/src/device
         ${PROJECT_SOURCE_DIR}/src/host/utils
-        ${PROJECT_SOURCE_DIR}/src/host/hybm/include
+        ${PROJECT_SOURCE_DIR}/src/host/utils/under_api
+        ${PROJECT_SOURCE_DIR}/src/host/entity
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap
+        ${PROJECT_SOURCE_DIR}/src/host/transport
+        ${PROJECT_SOURCE_DIR}/src/host/transport/device_rdma
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )
 
-file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/log/*.cpp)
+file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/*.cpp)
 add_library(shmem_utils SHARED ${ACLSHMEM_UTILS_FILES})
 target_compile_options(shmem_utils PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
 target_include_directories(shmem_utils
         PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src/host
+        ${PROJECT_SOURCE_DIR}/src/host/utils
 )
 install(TARGETS shmem_utils
         LIBRARY DESTINATION lib
@@ -72,7 +77,7 @@ target_link_options(shmem PRIVATE --cce-fatobj-link)
 target_link_libraries(shmem PRIVATE shmem_utils)
 
 if(NOT USE_UNIT_TEST)
-        target_link_libraries(shmem PRIVATE hybmm_shared config_store_shared)
+        target_link_libraries(shmem PRIVATE config_store_shared)
 endif()
 
 # MPI
@@ -89,7 +94,6 @@ if(ACLSHMEM_MPI_SUPPORT)
                                 PRIVATE
                                 ${PROJECT_SOURCE_DIR}/include
                                 ${PROJECT_SOURCE_DIR}/src/host
-                                ${PROJECT_SOURCE_DIR}/src/host/hybm/include
                                 ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
                                 ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
     )
@@ -108,7 +112,6 @@ target_include_directories(aclshmem_bootstrap_uid
                         PRIVATE
                         ${PROJECT_SOURCE_DIR}/include
                         ${PROJECT_SOURCE_DIR}/src/host
-                        ${PROJECT_SOURCE_DIR}/src/host/hybm/include
                         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
                         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
 )

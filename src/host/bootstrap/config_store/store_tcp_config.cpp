@@ -156,7 +156,7 @@ Result TcpConfigStore::Startup(const AcclinkTlsOption &tlsOption, int reconnectR
 
     std::lock_guard<std::mutex> guard(mutex_);
     if (accClient_ != nullptr) {
-        SHM_LOG_WARN("TcpConfigStore already startup");
+        SHM_LOG_INFO("TcpConfigStore already startup");
         return SM_OK;
     }
 
@@ -473,7 +473,7 @@ Result TcpConfigStore::Unwatch(uint32_t wid) noexcept
     msgCtxLocker.unlock();
 
     if (watchContext == nullptr) {
-        SHM_LOG_WARN("unwatch for id: " << wid << ", not exist.");
+        SHM_LOG_INFO("unwatch for id: " << wid << ", not exist.");
         return NOT_EXIST;
     }
 

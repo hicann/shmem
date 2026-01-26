@@ -95,6 +95,14 @@ private:
         }                                           \
     } while (0)
 
+#define SHM_ASSERT_LOG_AND_RETURN(ARGS, msg, RET)   \
+    do {                                            \
+        if (__builtin_expect(!(ARGS), 0) != 0) {    \
+            SHM_LOG_ERROR(msg);                     \
+            return RET;                             \
+        }                                           \
+    } while (0)
+
 #define SHM_ASSERT_RETURN(ARGS, RET)             \
     do {                                         \
         if (__builtin_expect(!(ARGS), 0) != 0) { \
@@ -109,6 +117,15 @@ private:
             SHM_LOG_ERROR("Assert " << #ARGS);   \
             return;                              \
         }                                        \
+    } while (0)
+
+#define SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(result, msg) \
+    do {                                              \
+        auto innerResult = (result);                  \
+        if (UNLIKELY(innerResult != 0)) {             \
+            SHM_LOG_ERROR(msg);                        \
+            return innerResult;                       \
+        }                                             \
     } while (0)
 
 #define SHM_ASSERT_RETURN_NOLOG(ARGS, RET)       \

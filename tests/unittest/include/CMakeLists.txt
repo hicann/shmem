@@ -31,4 +31,5 @@ target_include_directories(aclshmem_unittest_include PRIVATE
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/security
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api
         ${PROJECT_SOURCE_DIR}/src/host/utils
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap
 )

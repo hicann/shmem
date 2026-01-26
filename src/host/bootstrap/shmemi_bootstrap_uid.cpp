@@ -281,7 +281,7 @@ int32_t aclshmemi_get_ip_from_env(aclshmemi_bootstrap_uid_state_t *uid_args, con
             if_name = ip_with_scope.substr(scope_sep + 1);
             uid_args->addr.addr.addr6.sin6_scope_id = if_nametoindex(if_name.c_str());
             if (uid_args->addr.addr.addr6.sin6_scope_id == 0) {
-                SHM_LOG_WARN("Interface " << if_name.c_str() << "not found, scope_id set to 0");
+                SHM_LOG_INFO("Interface " << if_name.c_str() << "not found, scope_id set to 0");
             }
         } else {
             ipStr = ip_with_scope;
@@ -369,7 +369,7 @@ int32_t aclshmemi_get_ip_from_ifa(aclshmemi_bootstrap_uid_state_t *uid_args, con
         foundValidIp = (aclshmemi_traverse_ifa(ifaddr, sockType, flag, ethPrefixes, false, uid_args, false, allow_local) == ACLSHMEM_SUCCESS);
 
         if (!foundValidIp) {
-            SHM_LOG_WARN("Step 3: Search interfaces exclude 'docker' and 'lo/fe80'");
+            SHM_LOG_INFO("Step 3: Search interfaces exclude 'docker' and 'lo/fe80'");
             foundValidIp = (aclshmemi_traverse_ifa(ifaddr, sockType, flag, excludePrefixes, true, uid_args, false, allow_local) == ACLSHMEM_SUCCESS);
         }
     }

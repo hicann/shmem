@@ -113,7 +113,7 @@ Result ParseStr2Array(const std::string &token, char splitter, std::set<std::str
     }
 
     if (parts.empty()) {
-        SHM_LOG_WARN("parse token to array failed");
+        SHM_LOG_INFO("parse token to array failed");
         return StoreErrorCode::ERROR;
     }
     return StoreErrorCode::SUCCESS;
@@ -134,7 +134,7 @@ Result ParseStr2KV(const std::string &token, char splitter, std::pair<std::strin
         }
     }
 
-    SHM_LOG_WARN("parse token to kv failed");
+    SHM_LOG_INFO("parse token to kv failed");
     return StoreErrorCode::ERROR;
 }
 
@@ -200,7 +200,7 @@ Result ParseTlsInfo(const std::string &inputStr, AcclinkTlsOption &tlsOption)
         }
 
         if (!res) {
-            SHM_LOG_WARN("un-match tls info key " << pair.first);
+            SHM_LOG_INFO("un-match tls info key " << pair.first);
         }
     }
 
@@ -257,7 +257,7 @@ int32_t StoreFactory::SetTlsPkInfo(const char *tlsPk, const uint32_t tlsPkLen, c
     const uint32_t tlsPkPwLen, const smem_decrypt_handler &h) noexcept
 {
     if (timerRunning_.exchange(true)) {
-        SHM_LOG_WARN("TLS private key has been set multiple times");
+        SHM_LOG_INFO("TLS private key has been set multiple times");
         return StoreErrorCode::SUCCESS;
     }
     if (tlsPk == nullptr || tlsPkLen > MAX_TLS_INFO_LEN) {

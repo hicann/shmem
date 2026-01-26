@@ -79,15 +79,47 @@ inline bool funci::get_library_real_path(const std::string &lib_dir_path, const 
     return true;
 }
 
-#define DL_LOAD_SYM(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME)           \
-    do {                                                                                   \
-        (TARGET_FUNC_VAR) = (TARGET_FUNC_TYPE)dlsym((FILE_HANDLE), (SYMBOL_NAME));         \
-        if ((TARGET_FUNC_VAR) == nullptr) {                                                \
-            SHM_LOG_ERROR("Failed to call dlsym to load SYMBOL_NAME, error" << dlerror()); \
-            dlclose((FILE_HANDLE));                                                        \
-            return false;                                                                  \
-        }                                                                                  \
+// macro for gcc optimization for prediction of if/else
+#ifndef LIKELY
+#define LIKELY(x) (__builtin_expect(!!(x), 1) != 0)
+#endif
+
+#ifndef UNLIKELY
+#define UNLIKELY(x) (__builtin_expect(!!(x), 0) != 0)
+#endif
+
+#define HYBM_API __attribute__((visibility("default")))
+
+#define DL_LOAD_SYM(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME)                      \
+    do {                                                                                              \
+        TARGET_FUNC_VAR = (TARGET_FUNC_TYPE)dlsym(FILE_HANDLE, SYMBOL_NAME);                          \
+        if ((TARGET_FUNC_VAR) == nullptr) {                                                           \
+            SHM_LOG_ERROR("Failed to call dlsym to load " << (SYMBOL_NAME) << ", error" << dlerror()); \
+            dlclose(FILE_HANDLE);                                                                     \
+            return ACLSHMEM_DL_FUNC_FAILED;                                                             \
+        }                                                                                             \
     } while (0)
-}  // namespace shm
+
+
+#define DL_LOAD_SYM_ALT(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME, SYMBOL_NAME_ALT) \
+    do {                                                                                              \
+        TARGET_FUNC_VAR = (TARGET_FUNC_TYPE)dlsym(FILE_HANDLE, SYMBOL_NAME);                          \
+        if ((TARGET_FUNC_VAR) != nullptr) {                                                           \
+            SHM_LOG_DEBUG("Loaded symbol " << (SYMBOL_NAME) << " successfully");                       \
+            break;                                                                                    \
+        }                                                                                             \
+        TARGET_FUNC_VAR = (TARGET_FUNC_TYPE)dlsym(FILE_HANDLE, SYMBOL_NAME_ALT);                      \
+        if ((TARGET_FUNC_VAR) != nullptr) {                                                           \
+            SHM_LOG_DEBUG("Loaded symbol " << (SYMBOL_NAME_ALT) << " successfully");                   \
+            break;                                                                                    \
+        }                                                                                             \
+        SHM_LOG_ERROR("Failed to call dlsym to load " << (SYMBOL_NAME) << " or " << (SYMBOL_NAME_ALT)  \
+                                                     << ", error" << dlerror());                      \
+        dlclose(FILE_HANDLE);                                                                         \
+        FILE_HANDLE = nullptr;                                                                        \
+        return ACLSHMEM_DL_FUNC_FAILED;                                                                 \
+    } while (0)
+
+} // namespace shm
 
 #endif  // ACLSHMEM_SHM_FUNCTION_H

@@ -70,7 +70,7 @@ Result AccStoreServer::Startup(const AcclinkTlsOption &tlsOption) noexcept
 {
     std::lock_guard<std::mutex> guard(mutex_);
     if (accTcpServer_ != nullptr) {
-        SHM_LOG_WARN("tcp store server already startup");
+        SHM_LOG_INFO("tcp store server already startup");
         return ACLSHMEM_SUCCESS;
     }
 

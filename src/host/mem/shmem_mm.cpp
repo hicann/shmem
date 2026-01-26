@@ -13,17 +13,17 @@
 #include "shmemi_mm.h"
 
 namespace {
-std::shared_ptr<memory_heap> aclshmemi_memory_manager;
-std::shared_ptr<memory_heap> aclshmemi_host_memory_manager = nullptr;
+std::shared_ptr<memory_manager> aclshmemi_memory_manager;
+std::shared_ptr<memory_manager> aclshmemi_host_memory_manager = nullptr;
 }
 
 int32_t memory_manager_initialize(void *base, uint64_t size, aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {
-        aclshmemi_host_memory_manager = std::make_shared<memory_heap>(base, size);
+        aclshmemi_host_memory_manager = std::make_shared<memory_manager>(base, size);
         return ACLSHMEM_SUCCESS;
     }
-    aclshmemi_memory_manager = std::make_shared<memory_heap>(base, size);
+    aclshmemi_memory_manager = std::make_shared<memory_manager>(base, size);
     if (aclshmemi_memory_manager == nullptr) {
         SHM_LOG_ERROR("Failed to initialize shared memory heap");
         return ACLSHMEM_INNER_ERROR;
@@ -139,7 +139,7 @@ bool support_host_mem_type(aclshmem_mem_type_t mem_type)
     return true;
 }
 
-std::shared_ptr<memory_heap> getory_manager(aclshmem_mem_type_t mem_type)
+std::shared_ptr<memory_manager> getory_manager(aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {
         if (aclshmemi_host_memory_manager != nullptr) {

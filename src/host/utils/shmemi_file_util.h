@@ -47,19 +47,9 @@ public:
     static bool Writable(const std::string &path);
 
     /**
-     * @brief Check if the file or dir readable and writable
-     */
-    static bool ReadAndWritable(const std::string &path);
-
-    /**
      * @brief Create dir
      */
     static bool MakeDir(const std::string &path, uint32_t mode);
-
-    /**
-     * @brief Create dir recursively if parent doesn't exist
-     */
-    static bool MakeDirRecursive(const std::string &path, uint32_t mode);
 
     /**
      * @brief Remove the dir without sub dirs
@@ -147,11 +137,6 @@ inline bool FileUtil::Writable(const std::string &path)
     return access(path.c_str(), F_OK | W_OK) != -1;
 }
 
-inline bool FileUtil::ReadAndWritable(const std::string &path)
-{
-    return access(path.c_str(), F_OK | R_OK | W_OK) != -1;
-}
-
 inline bool FileUtil::MakeDir(const std::string &path, uint32_t mode)
 {
     if (path.empty()) {
@@ -163,33 +148,6 @@ inline bool FileUtil::MakeDir(const std::string &path, uint32_t mode)
     }
 
     return ::mkdir(path.c_str(), mode) == 0;
-}
-
-inline bool FileUtil::MakeDirRecursive(const std::string &path, uint32_t mode)
-{
-    if (path.empty()) {
-        return false;
-    }
-
-    if (Exist(path)) {
-        return true;
-    }
-
-    const char* chPath = path.c_str();
-    std::string mutablePath(chPath);
-    char* p = strchr(&mutablePath[1], '/');
-    for (; p != nullptr; (p = strchr(p + 1, '/'))) {
-        *p = '\0';
-        if (mkdir(chPath, mode) == -1) {
-            if (errno != EEXIST) {
-                *p = '/';
-                return false;
-            }
-        }
-        *p = '/';
-    }
-
-    return ::mkdir(chPath, mode) == 0;
 }
 
 inline bool FileUtil::Remove(const std::string &path, bool canonicalPath)
@@ -204,43 +162,6 @@ inline bool FileUtil::Remove(const std::string &path, bool canonicalPath)
     }
 
     return ::remove(realPath.c_str()) == 0;
-}
-
-inline bool FileUtil::RemoveDirRecursive(const std::string &path)
-{
-    if (path.empty() || path.size() > PATH_MAX_LIMIT) {
-        return false;
-    }
-
-    std::string realPath = path;
-    if (!Realpath(realPath)) {
-        return false;
-    }
-
-    DIR* dir = opendir(realPath.c_str());
-    if (dir == nullptr) {
-        return false;
-    }
-
-    struct dirent* entry = nullptr;
-    while ((entry = readdir(dir))) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-
-        struct stat statBuf {};
-        std::string absPath = realPath + "/" + entry->d_name;
-        if (!stat(absPath.c_str(), &statBuf) && S_ISDIR(statBuf.st_mode)) {
-            RemoveDirRecursive(absPath);
-        }
-
-        ::remove(absPath.c_str());
-    }
-
-    ::closedir(dir);
-
-    ::remove(realPath.c_str());
-    return true;
 }
 
 inline bool FileUtil::Realpath(std::string &path)
@@ -292,7 +213,7 @@ inline void FileUtil::CloseFile(FILE* fp)
 
     auto ret = fclose(fp);
     if (ret != 0) {
-        SHM_LOG_WARN("util fclose failed, ret = " << ret);
+        SHM_LOG_INFO("util fclose failed, ret = " << ret);
     }
 }
 

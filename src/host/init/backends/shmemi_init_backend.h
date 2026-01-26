@@ -15,13 +15,13 @@
 #include "host/shmem_host_def.h"
 #include "host_device/shmem_common_types.h"
 
-#include "mem/shmemi_heap.h"
+#include "mem/shmemi_mgr.h"
 
 #include "init/bootstrap/shmemi_bootstrap.h"
 
 #include "store_op.h"
 #include "store_net_group_engine.h"
-#include "hybm/include/hybm_def.h"
+#include "hybm_def.h"
 
 class aclshmemi_init_backend {
 public:

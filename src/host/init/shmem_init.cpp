@@ -21,6 +21,7 @@
 #include "acl/acl.h"
 #include "acl/acl_rt.h"
 #include "shmemi_host_common.h"
+#include "shmemi_init.h"
 #include "host/shmem_host_def.h"
 
 #include "store_factory.h"
@@ -193,11 +194,11 @@ bool check_support_d2h()
     int32_t minor_version = -1;
     int32_t patch_version = -1;
     if (aclrtGetVersion(&major_version, &minor_version, &patch_version) != 0) {
-        SHM_LOG_WARN("aclrtGetVersion failed, disable d2h feature");
+        SHM_LOG_INFO("aclrtGetVersion failed, disable d2h feature");
         return false;
     }
     if (major_version <= 1 && minor_version < 15) {
-        SHM_LOG_WARN("The current AscendCL version is "
+        SHM_LOG_INFO("The current AscendCL version is "
             << major_version << "." << minor_version << "." << patch_version << ", which does not support d2h.");
         return false;
     }
@@ -298,6 +299,46 @@ void aclshmem_info_get_name(char *name)
         name[i] = version_str[i];
     }
     name[i] = '\0';
+}
+
+int32_t aclshmemi_get_uniqueid_acclink(aclshmemx_uniqueid_t *uid)
+{
+    char pta_env_ip[MAX_IP];
+    uint16_t pta_env_port;
+    sa_family_t sockType;
+    const char *ipPort = std::getenv("SHMEM_UID_SESSION_ID");
+    const char *ipInfo = std::getenv("SHMEM_UID_SOCK_IFNAM");
+    bool is_from_ifa = false;
+    if (ipPort != nullptr) {
+        if (aclshmemi_get_ip_from_env(pta_env_ip, pta_env_port, sockType, ipPort) != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("cant get pta master addr.");
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    } else {
+        is_from_ifa = true;
+        if (aclshmemi_get_ip_from_ifa(pta_env_ip, sockType, ipInfo) != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("cant get available ip port.");
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    }
+    SHM_LOG_INFO("get master IP value:" << pta_env_ip);
+    return aclshmemi_set_ip_info(uid, sockType, pta_env_ip, pta_env_port, is_from_ifa);
+}
+
+int32_t aclshmemi_get_uniqueid_socket(aclshmemx_uniqueid_t *uid)
+{
+    int status = 0;
+    ACLSHMEM_CHECK_RET(aclshmemi_options_init(), "Bootstrap failed during the preloading step.");
+    ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_pre_init(ACLSHMEMX_INIT_WITH_UNIQUEID, &g_boot_handle), "Get uniqueid failed during the bootstrap preloading step.");
+
+    if (g_boot_handle.pre_init_ops) {
+        ACLSHMEM_CHECK_RET(g_boot_handle.pre_init_ops->get_unique_id((void *)uid), "Get uniqueid failed during the get uniqueid step.");
+    } else {
+        SHM_LOG_ERROR("Pre_init_ops is empty, unique_id cannot be obtained.");
+        status = ACLSHMEM_INVALID_PARAM;
+    }
+
+    return (status);
 }
 
 int32_t aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid) {

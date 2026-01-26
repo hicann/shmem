@@ -12,8 +12,6 @@
 file(GLOB_RECURSE ACLSHMEM_HOST_FILES ${PROJECT_SOURCE_DIR}/src/host/*.cpp)
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
-list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport")
-list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
 
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
 file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)
@@ -34,15 +32,8 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/tests/unittest/
     ${PROJECT_SOURCE_DIR}/tests/unittest/team/team/
     ${PROJECT_SOURCE_DIR}/tests/unittest/team/team_allgather/
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/include
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/common
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/driver
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/driver/userspace
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/entity
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/mm
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/transport
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/transport/device
-    ${PROJECT_SOURCE_DIR}/src/host/hybm/csrc/under_api
+    ${PROJECT_SOURCE_DIR}/src/host/entity
+    ${PROJECT_SOURCE_DIR}/src/host/mem/heap
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc
@@ -51,4 +42,9 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api/openssl
     ${PROJECT_SOURCE_DIR}/src/host/utils
+    ${PROJECT_SOURCE_DIR}/src/host/utils/under_api
+    ${PROJECT_SOURCE_DIR}/src/host/transport
+    ${PROJECT_SOURCE_DIR}/src/host/transport/device_rdma
+    ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
+    ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )

@@ -170,7 +170,7 @@ Result SmemNetGroupEngine::GroupBroadcastExit(int status)
 Result SmemNetGroupEngine::RegisterExit(const std::function<void(int)> &exit)
 {
     if (globalExitHandler_ != nullptr) {
-        SHM_LOG_WARN("the exit function is not null");
+        SHM_LOG_INFO("the exit function is not null");
         return SM_INVALID_PARAM;
     }
     SHM_ASSERT_RETURN(exit != nullptr, SM_INVALID_PARAM);
@@ -181,7 +181,7 @@ Result SmemNetGroupEngine::RegisterExit(const std::function<void(int)> &exit)
                                                             std::placeholders::_1, std::placeholders::_2,
                                                             std::placeholders::_3), wid);
     if (ret != SM_OK) {
-        SHM_LOG_WARN("group watch failed, maybe link down, ret: " << ret);
+        SHM_LOG_INFO("group watch failed, maybe link down, ret: " << ret);
         globalExitHandler_ = nullptr;
         return ret;
     }
@@ -195,12 +195,12 @@ void SmemNetGroupEngine::RankExit(int result, const std::string &key, const std:
         try {
             val = std::stoi(value);
         } catch (...) {
-            SHM_LOG_WARN("convert string to int failed:" << value);
+            SHM_LOG_INFO("convert string to int failed:" << value);
             return;
         }
         globalExitHandler_(val);
     } else {
-        SHM_LOG_WARN("global exit failed:" << value);
+        SHM_LOG_INFO("global exit failed:" << value);
     }
 }
 
@@ -283,7 +283,7 @@ bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& p
 {
     char opt = getVal[0];
     if (!NumUtil::IsDigit(getVal.substr(1))) {
-        SHM_LOG_WARN("value is not digit");
+        SHM_LOG_INFO("value is not digit");
         return false;
     }
 
@@ -304,7 +304,7 @@ bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& p
         return false;
     }
     if (!NumUtil::IsDigit(getVal)) {
-        SHM_LOG_WARN("value is not digit");
+        SHM_LOG_INFO("value is not digit");
         return false;
     }
     tmpValue = 0;
@@ -326,7 +326,7 @@ bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& p
             option_.leaveCb(rk);
         }
     } else {
-        SHM_LOG_WARN("group listen event, unknown operation:" << opt);
+        SHM_LOG_INFO("group listen event, unknown operation:" << opt);
     }
     return true;
 }
@@ -348,7 +348,7 @@ void SmemNetGroupEngine::GroupListenEvent()
             auto ret = store_->Watch(SMEM_GROUP_LISTEN_EVENT_KEY, std::bind(&SmemNetGroupEngine::GroupWatchCb, this,
                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), wid);
             if (ret != SM_OK) {
-                SHM_LOG_WARN("group watch failed, maybe link down, ret: " << ret);
+                SHM_LOG_INFO("group watch failed, maybe link down, ret: " << ret);
                 usleep(SMEM_GROUP_SLEEP_5S);
                 continue;
             }

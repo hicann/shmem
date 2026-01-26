@@ -77,6 +77,8 @@ constexpr int DEFAULT_TIMEOUT = 120;
  * @{
 */
 
+using Result = int32_t;
+
 /**
  * @brief Error code for the ACLSHMEM library.
 */
@@ -90,6 +92,10 @@ enum aclshmem_error_code_t : int {
     ACLSHMEM_BOOTSTRAP_ERROR = -6,///< This is a problem with BOOTSTRAP.
     ACLSHMEM_TIMEOUT_ERROR = -7,  ///< This is a problem caused by TIMEOUT.
     ACLSHMEM_MALLOC_FAILED = -8,   ///< This is a problem when malloc.
+    ACLSHMEM_DL_FUNC_FAILED = -9,  ///< This is a problem when dll func failed.
+    ACLSHMEM_INNER_TIMEOUT = -10,  ///< This is a problem when inner timeout.
+    ACLSHMEM_UNDER_API_UNLOAD = -11,  ///< This is a problem when under api lib load failed.
+    ACLSHMEM_NOT_SUPPORTED = -100,    ///< This is a problem when function not supported.
 };
 #define shmem_error_code_t aclshmem_error_code_t
 

@@ -10,11 +10,11 @@
 #ifndef SHMEM_SOCKET_H
 #define SHMEM_SOCKET_H
 
-#include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 #include "utils/shmemi_logger.h"
 #include "utils/shmemi_host_types.h"
 #include "init/bootstrap/shmemi_bootstrap.h"
+#include "shmemi_host_def.h"
 
 #ifdef __cplusplus
 extern "C" {

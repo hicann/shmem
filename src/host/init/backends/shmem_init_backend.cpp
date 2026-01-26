@@ -17,7 +17,7 @@
 #include "host/shmem_host_def.h"
 #include "utils/shmemi_logger.h"
 #include "store_factory.h"
-#include "hybm_big_mem.h"
+#include "mem_entity_entry.h"
 #include "sotre_net.h"
 #include "store_net_common.h"
 
@@ -163,7 +163,7 @@ int aclshmemi_init_backend::finalize_device_state()
         shm::store::StoreFactory::DestroyStore();
     }
     if (!inited_) {
-        SHM_LOG_WARN("shm hybm backend not initialized yet, skip finalize device state.");
+        SHM_LOG_INFO("shm hybm backend not initialized yet, skip finalize device state.");
         store_ = nullptr;
         return ACLSHMEM_SUCCESS;
     }
@@ -374,7 +374,7 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
         g_ipport[0] = '\0';
         bzero(attributes->ip_port, sizeof(attributes->ip_port));
     } else {
-        SHM_LOG_WARN("my_rank:" << attributes->my_pe << " g_ipport is released in advance!");
+        SHM_LOG_INFO("my_rank:" << attributes->my_pe << " g_ipport is released in advance!");
         bzero(attributes->ip_port, sizeof(attributes->ip_port));
     }
     host_state_->is_aclshmem_created = true;
@@ -433,7 +433,7 @@ int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
     }
     auto ret = hybm_unreserve_mem_space(entity, 0, reserved_mem);
     if (ret != 0) {
-        SHM_LOG_WARN("unreserve mem space failed: " << ret);
+        SHM_LOG_INFO("unreserve mem space failed: " << ret);
     }
     hybm_destroy_entity(entity, 0);
     if (mem_type == HOST_SIDE) {

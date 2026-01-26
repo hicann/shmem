@@ -30,7 +30,7 @@ href=https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/API/appdev
 ![image](picture/4.png)
 
 ### 共享内存管理初始化
-<p style="text-indent: 2em;">基于heap_base和heap_size初始化一个memory_heap用于后续共享内存管理。heap_base为当前rank的共内存首地址，heap_size为用户申请的当前rank的共享内存大小。</p>
+<p style="text-indent: 2em;">基于heap_base和heap_size初始化一个memory_manager用于后续共享内存管理。heap_base为当前rank的共内存首地址，heap_size为用户申请的当前rank的共享内存大小。</p>
 
 
 * `aclshmem_malloc`内部采用first fit找到第一个满足要求的chunk，从该chunk中分离出对应大小的chunk，剩余空间（如果有）则作为新的空闲chunk。
