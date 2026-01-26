@@ -273,16 +273,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
     ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivars, int cmp, TYPE cmp_value)
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
-#define shmem_float_test aclshmem_float_test
-#define shmem_int8_test aclshmem_int8_test
-#define shmem_int16_test aclshmem_int16_test
-#define shmem_int32_test aclshmem_int32_test
-#define shmem_int64_test aclshmem_int64_test
-#define shmem_uint8_test aclshmem_uint8_test
-#define shmem_uint16_test aclshmem_uint16_test
-#define shmem_uint32_test aclshmem_uint32_test
-#define shmem_uint64_test aclshmem_uint64_test
-#define shmem_char_test aclshmem_char_test
 
 #define ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                                  \
     /**                                                                                                                \
