@@ -23,6 +23,8 @@
 #include "store_net_group_engine.h"
 #include "hybm_def.h"
 
+#include "utils/mstx/mstx_mem_register.h"
+
 class aclshmemi_init_backend {
 public:
     aclshmemi_init_backend(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *global_state, aclshmemx_bootstrap_t bootstrap_flags,
@@ -71,6 +73,8 @@ private:
     void *dram_gva_ = nullptr;
     hybm_mem_slice_t hbm_slice_ = nullptr;
     hybm_mem_slice_t dram_slice_ = nullptr;
+
+    shm::mstx_mem_register_base* mstx_reg_ptr_ = nullptr;
 };
 
 #endif // SHMEMI_INIT_BACKEND_H

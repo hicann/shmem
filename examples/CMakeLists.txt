@@ -18,7 +18,7 @@ function(aclshmem_add_fusion_example NAME)
         target_compile_definitions(${NAME} PRIVATE ENABLE_ASCENDC_DUMP ASCENDC_DUMP=1 ASCENDC_DEBUG)
     endif()
     
-    target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
+    target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220 ${SANITIZER_FLAGS})
     target_include_directories(${NAME} PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
@@ -29,7 +29,7 @@ function(aclshmem_add_fusion_example NAME)
         ${PROJECT_SOURCE_DIR}/src/device/
         ${MPI_INCLUDE_PATH}
     )
-    target_link_options(${NAME} PRIVATE --cce-fatobj-link)
+    target_link_options(${NAME} PRIVATE --cce-fatobj-link --cce-aicore-arch=dav-c220 ${SANITIZER_FLAGS})
 
     if(DEFINED ENABLE_ASCENDC_DUMP AND ENABLE_ASCENDC_DUMP)
         target_link_libraries(${NAME} PRIVATE ascend_dump)
@@ -41,7 +41,7 @@ endfunction()
 
 function(aclshmem_add_collective_example NAME)
     add_library(${NAME}_kernel SHARED ${NAME}_kernel.cpp)
-    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220-vec)
+    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220-vec ${SANITIZER_FLAGS})
     target_include_directories(${NAME}_kernel PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
@@ -50,7 +50,7 @@ function(aclshmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/utils
         ${PROJECT_SOURCE_DIR}/src/device/
     )
-    target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link)
+    target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link --cce-aicore-arch=dav-c220-vec ${SANITIZER_FLAGS})
 
     add_executable(${NAME} main.cpp)
     target_compile_options(${NAME} PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})

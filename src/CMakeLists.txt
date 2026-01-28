@@ -39,6 +39,7 @@ list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/under_api")
+list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx")
 
 add_library(aclshmem_host OBJECT ${ACLSHMEM_HOST_FILES})
 target_compile_options(aclshmem_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
@@ -60,6 +61,13 @@ target_include_directories(aclshmem_host
 )
 
 file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/*.cpp)
+if(USE_MSSANITIZER)
+    list(FILTER ACLSHMEM_UTILS_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
+    message(STATUS "USE_MSSANITIZER=ON")
+else()
+    list(FILTER ACLSHMEM_UTILS_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register.cpp")
+    message(STATUS "USE_MSSANITIZER=OFF")
+endif()
 add_library(shmem_utils SHARED ${ACLSHMEM_UTILS_FILES})
 target_compile_options(shmem_utils PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
 target_include_directories(shmem_utils

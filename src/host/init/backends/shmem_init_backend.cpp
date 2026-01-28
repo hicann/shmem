@@ -20,6 +20,7 @@
 #include "mem_entity_entry.h"
 #include "sotre_net.h"
 #include "store_net_common.h"
+#include "mem_entity_def.h"
 
 constexpr int DEFAULT_ID = 0;
 
@@ -39,10 +40,19 @@ aclshmemi_init_backend::aclshmemi_init_backend(aclshmemx_init_attr_t *attr, acls
     g_ipport[ACLSHMEM_MAX_IP_PORT_LEN - 1] = '\0';
     host_state_ = global_state;
     bootstrap_flags_ = bootstrap_flags;
+    mstx_reg_ptr_ = shm::create_mstx_mem_register_instance();
+    if (mstx_reg_ptr_ == nullptr) {
+        SHM_LOG_ERROR("create mstx_reg_ptr_ returned nullptr!");
+    }
 }
 
 aclshmemi_init_backend::~aclshmemi_init_backend()
-{}
+{
+    if (mstx_reg_ptr_ != nullptr) {
+        delete mstx_reg_ptr_;
+        mstx_reg_ptr_ = nullptr;
+    }
+}
 
 int aclshmemi_init_backend::init_device_state()
 {
@@ -66,6 +76,8 @@ int aclshmemi_init_backend::init_device_state()
         SHM_LOG_ERROR("init hybm failed, result: " << ret);
         return ACLSHMEM_SMEM_ERROR;
     }
+    mstx_reg_ptr_->add_mem_regions((void *)shm::HYBM_DEVICE_META_ADDR, shm::HYBM_DEVICE_INFO_SIZE, MSTX_GROUP_FOR_STATE);
+    mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_STATE);
     ret = aclshmemi_control_barrier_all();  // 保证所有rank都初始化了
     if (ret != 0) {
         SHM_LOG_ERROR("aclshmemi_control_barrier_allfailed, result: " << ret);
@@ -189,14 +201,19 @@ int aclshmemi_init_backend::reserve_heap(aclshmem_mem_type_t mem_type)
     auto entity = mem_type == HOST_SIDE ? dram_entity_ : hbm_entity_;
     void *gva = nullptr;
     ret = hybm_reserve_mem_space(entity, 0, &gva);
+    auto aligned = ALIGN_UP(host_state_->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
     if (ret != 0 || gva == nullptr) {
         SHM_LOG_ERROR("reserve mem failed, result: " << ret << ", mem_type: " << mem_type << ".");
         return ACLSHMEM_SMEM_ERROR;
     }
     if (mem_type == HOST_SIDE) {
         dram_gva_ = gva;
+        mstx_reg_ptr_->add_mem_regions_multi_pe_align(dram_gva_, host_state_->heap_size, aligned, host_state_->npes, MSTX_GROUP_FOR_HOST_HEAP);
+        mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_HOST_HEAP);
     } else {
         hbm_gva_ = gva;
+        mstx_reg_ptr_->add_mem_regions_multi_pe_align(hbm_gva_, host_state_->heap_size, aligned, host_state_->npes, MSTX_GROUP_FOR_DEVICE_HEAP);
+        mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_DEVICE_HEAP);
     }
     SHM_LOG_INFO("reserve_heap success, mem_type: " << mem_type << ".");
     return ACLSHMEM_SUCCESS;

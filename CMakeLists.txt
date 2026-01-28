@@ -34,11 +34,21 @@ endif()
 
 option(USE_UNIT_TEST "USE_UNIT_TEST" OFF)
 option(USE_CXX11_ABI "USE_CXX11_ABI" ON)
+option(USE_MSSANITIZER "USE_MSSANITIZER" OFF)
 if(USE_CXX11_ABI)
     add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)
 else()
     add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
 endif()
+
+if(USE_MSSANITIZER)
+    set(SANITIZER_FLAGS
+        -g --cce-enable-sanitizer
+    )
+else()
+    set(SANITIZER_FLAGS)
+endif()
+
 option(USE_EXAMPLES "USE_EXAMPLES" OFF)
 option(ENABLE_ASCENDC_DUMP "ENABLE_ASCENDC_DUMP" OFF)
 message(STATUS "USE_UNIT_TEST:${USE_UNIT_TEST}")

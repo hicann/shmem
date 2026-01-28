@@ -321,32 +321,35 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "Before calling MM_RS kernel " << std::endl;
+    uint64_t fftsAddr;
+    uint32_t len;
+    ACL_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &len));
     for (int i = 0; i < 1; i++) {
         if (isNeedPaddingA && isNeedPaddingB) {
             ShmemMatmulReduceScatterPadding<true, true>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, dDevice, waDevice, wbDevice, symmetricPtr,
                 m, n, k
             );
         } else if (!isNeedPaddingA && isNeedPaddingB) {
             ShmemMatmulReduceScatterPadding<false, true>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, dDevice, waDevice, wbDevice, symmetricPtr,
                 m, n, k
             );
         } else if (isNeedPaddingA && !isNeedPaddingB) {
             ShmemMatmulReduceScatterPadding<true, false>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, dDevice, waDevice, wbDevice, symmetricPtr,
                 m, n, k
             );
         } else {
             ShmemMatmulReduceScatterPadding<false, false>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, dDevice, waDevice, wbDevice, symmetricPtr,
                 m, n, k
             );

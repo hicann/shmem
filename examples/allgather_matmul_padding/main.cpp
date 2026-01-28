@@ -303,18 +303,21 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "Before calling AG_MM kernel " << std::endl;
+    uint64_t fftsAddr;
+    uint32_t len;
+    ACL_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &len));
     for (int i = 0; i < 1; i++) {
         if (isNeedPaddingB) {
             ShmemAllGatherMatmulPadding<true>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, cDevice, workspaceDevice, gmSymmetric,
                 m, n, k
             );
         } else {
             ShmemAllGatherMatmulPadding<false>
                 <<<BLOCK_NUM, nullptr, stream>>>(
-                util_get_ffts_config(),
+                fftsAddr,
                 aDevice, bDevice, cDevice, workspaceDevice, gmSymmetric,
                 m, n, k
             );

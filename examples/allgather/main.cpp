@@ -41,6 +41,7 @@ const char *ipport = "tcp://127.0.0.1:8998";
 int f_rank = 0;
 int f_npu = 0;
 const char *data_type = "int";
+int perf_times = 50;
 
 constexpr int64_t SYNC_FLAG_INTERVAL = 16;
 constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
@@ -62,8 +63,6 @@ int test_aclshmem_all_gather(int rank_id, int n_ranks)
 
     // Prepare FFTS address
     uint64_t fftsAddr = util_get_ffts_config();
-
-    int PERF_TIMES = 50;
 
     int case_num = 24;
     std::vector<uint32_t> test_cases = {};
@@ -114,7 +113,7 @@ int test_aclshmem_all_gather(int rank_id, int n_ranks)
         void *ptr = aclshmem_malloc(aiv_num * SYNC_FLAG_INTERVAL * sizeof(T) + GVA_BUFF_MAX_SIZE / sizeof(T));
 
         // AllGather
-        for (int zz = 0; zz < PERF_TIMES; zz++) {
+        for (int zz = 0; zz < perf_times; zz++) {
             magic++;
             allgather_demo<T>(BLOCK_NUM, stream, fftsAddr, (uint8_t *)input_ptr,
                               (uint8_t *)output_ptr, (uint8_t *)ptr, trans_size, magic * MAGIC_MULTIPLIER);
@@ -172,6 +171,7 @@ int main(int argc, char *argv[])
     f_rank = atoi(argv[INDEX5]);
     f_npu = atoi(argv[INDEX6]);
     data_type = argv[INDEX7];
+    perf_times = atoi(argv[INDEX8]);
 
     // Acl && Shmem init
     int32_t device_id = rank_id % g_npus + f_npu;

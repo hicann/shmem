@@ -20,6 +20,7 @@ GNPU_NUM="8"
 FIRST_NPU="0"
 FIRST_RANK="0"
 TEST_TYPE="int"
+TOOL="msprof"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -81,6 +82,19 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -tool)
+            if [ -n "$2" ]; then
+                if [[ "$2" != "msprof" && "$2" != "mssanitizer" ]]; then
+                    echo "Error: -tool only supports 'msprof' or 'mssanitizer'."
+                    exit 1
+                fi
+                TOOL="$2"
+                shift 2
+            else
+                echo "Error: -tool requires a value (msprof/mssanitizer)."
+                exit 1
+            fi
+            ;;
         *)
             echo "Error: Unknown option $1."
             exit 1
@@ -99,7 +113,13 @@ export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 pids=()
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    msprof --application="${PROJECT_ROOT}/build/bin/allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU $TEST_TYPE" --output=${PROJECT_ROOT}/examples/allgather/output/ &
+    if [[ "$TOOL" == "msprof" ]]; then
+        PERF_TIME=50
+        msprof --application="${PROJECT_ROOT}/build/bin/allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU $TEST_TYPE $PERF_TIME" --output=${PROJECT_ROOT}/examples/allgather/output/ &
+    elif [[ "$TOOL" == "mssanitizer" ]]; then
+        PERF_TIME=1
+        mssanitizer --log-level=error ${PROJECT_ROOT}/build/bin/allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU $TEST_TYPE $PERF_TIME &
+    fi
     pid=$!
     pids+=("$pid")
     echo "$pid background process recorded"

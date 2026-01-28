@@ -32,7 +32,7 @@ SHMEM的基本编译命令是`bash build.sh`，默认构建模式下生成版本
 - `-gendoc`：生成文档
 - `-onlygendoc`: 生成文档，不构建源码
 - `-debug`：设置构建类型为 `Debug` 模式
-
+- `-mssanitizer`：example启用mssanitizer内存检测工具，脚本执行需用mssanitizer拉起任务才能实际生效，当前暂不支持，allgather样例运行脚本提供了tool选项使用工具。工具使用方法参见[异常检测工具（msSanitizer，MindStudio Sanitizer）](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/optool/atlasopdev_16_0039.html)
 ### SHMEM关键文件介绍
 1. `scripts`目录：
    - `install.sh`: 安装脚本

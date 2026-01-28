@@ -12,6 +12,13 @@
 file(GLOB_RECURSE ACLSHMEM_HOST_FILES ${PROJECT_SOURCE_DIR}/src/host/*.cpp)
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
+if(USE_MSSANITIZER)
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
+    message(STATUS "USE_MSSANITIZER=ON")
+else()
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register.cpp")
+    message(STATUS "USE_MSSANITIZER=OFF")
+endif()
 
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
 file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)

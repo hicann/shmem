@@ -33,6 +33,7 @@ BUILD_TYPE=RELEASE
 PYEXPAND_TYPE=OFF
 PACKAGE=OFF
 USE_CXX11_ABI=ON
+USE_MSSANITIZER=OFF
 
 COMPILE_OPTIONS=""
 
@@ -49,7 +50,7 @@ function fn_build()
     mkdir -p build
 
     cd build
-    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI ..
+    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER ..
     make install -j17
     cd -
 }
@@ -320,6 +321,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -use_cxx11_abi0)
             USE_CXX11_ABI=OFF
+            shift
+            ;;
+        -mssanitizer)
+            USE_MSSANITIZER=ON
             shift
             ;;
         *)
