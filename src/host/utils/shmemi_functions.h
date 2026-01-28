@@ -79,15 +79,6 @@ inline bool funci::get_library_real_path(const std::string &lib_dir_path, const 
     return true;
 }
 
-// macro for gcc optimization for prediction of if/else
-#ifndef LIKELY
-#define LIKELY(x) (__builtin_expect(!!(x), 1) != 0)
-#endif
-
-#ifndef UNLIKELY
-#define UNLIKELY(x) (__builtin_expect(!!(x), 0) != 0)
-#endif
-
 #define HYBM_API __attribute__((visibility("default")))
 
 #define DL_LOAD_SYM(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME)                      \

@@ -21,6 +21,8 @@
 #include "runtime/dev.h"
 #include "runtime/rt_ffts.h"
 
+#include "dl_comm_def.h"
+#include "mem_entity_def.h"
 #include "devmm_svm_gva.h"
 #include "shmemi_logger.h"
 #include "shmemi_net_util.h"

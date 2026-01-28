@@ -64,6 +64,15 @@ private:
 };
 }  // namespace shm
 
+// macro for gcc optimization for prediction of if/else
+#ifndef LIKELY
+#define LIKELY(x) (__builtin_expect(!!(x), 1) != 0)
+#endif
+
+#ifndef UNLIKELY
+#define UNLIKELY(x) (__builtin_expect(!!(x), 0) != 0)
+#endif
+
 #ifndef SHM_LOG_FILENAME_SHORT
 #define SHM_LOG_FILENAME_SHORT (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif

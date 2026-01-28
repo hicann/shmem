@@ -136,8 +136,8 @@ static bool DriverVersionCheck(const std::string &ver)
 
     std::string readVer = CastDriverVersion(libPath);
     if (readVer.empty()) {
-        SHM_LOG_ERROR("check driver version failed, read version is empty.");
-        return false;
+        SHM_LOG_WARN("Read version is empty; inner package skipped, defaulting to the latest version.");
+        return true;
     }
 
     int32_t baseVal = GetValueFromVersion(ver, "V");
