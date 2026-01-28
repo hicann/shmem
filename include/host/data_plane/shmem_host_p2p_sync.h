@@ -74,7 +74,6 @@ ACLSHMEM_HOST_API void aclshmemx_signal_wait_until_on_stream(int32_t *sig_addr, 
  *                                   ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/
  *                                   ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
  * @param cmp_val               [in] The value against which the object pointed to by sig_addr will be compared.
- * @return Return the contents of the signal data object, sig_addr, at the calling PE that satisfies the wait condition.
  */
 ACLSHMEM_HOST_API void aclshmem_signal_wait_until(int32_t *sig_addr, int cmp, int32_t cmp_val);
 
@@ -155,8 +154,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL);
      *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
      * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
      *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
-     * @return Return the index of an element in the ivars array that satisfies the wait condition.                    \
-     *         If the wait set is empty, this routine returns SIZE_MAX.                                                \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any(                                                           \
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
@@ -185,8 +182,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY);
      *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
      * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
      *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
-     * @return Return the number of indices returned in the indices array.                                             \
-     *         If the wait set is empty, this routine returns 0.                                                       \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some(                                                          \
         TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE cmp_value, size_t *res_out       \
@@ -241,8 +236,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
      * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
      *                                compared with the respective value in ivars. The type of cmp_values should       \
      *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
-     * @return Return the index of an element in the ivars array that satisfies the wait condition.                    \
-     *         If the wait set is empty, this routine returns SIZE_MAX.                                                \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_any_vector(                                                    \
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, size_t *res_out                      \
@@ -272,8 +265,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
      * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
      *                                compared with the respective value in ivars. The type of cmp_values should       \
      *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
-     * @return Return the number of indices returned in the indices array.                                             \
-     *         If the wait set is empty, this routine returns 0.                                                       \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some_vector(                                                   \
         TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE *cmp_values, size_t *res_out     \
@@ -294,8 +285,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
      *                               ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                  \
      * @param cmp_value         [in] The value against which the object pointed to by ivar will be compared.           \
      *                               The type of cmp_value should match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC\
-     * @return Return 1 if the comparison (via the operator cmp) between the ivar and cmp_value results in true;       \
-     *         otherwise, return 0.                                                                                    \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test(TYPE *ivars, int cmp, TYPE cmp_value, int *res_out)
 
@@ -320,8 +309,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
      *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
      * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
      *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
-     * @return Return the index of an element in the ivars array that satisfies the test condition.                    \
-     *         If the test set is empty or no conditions in the test set are satisfied, this routine returns SIZE_MAX. \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any(                                                                 \
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
@@ -350,8 +337,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY);
      *                                ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.                                 \
      * @param cmp_value          [in] The value to be compared with ivars. The type of cmp_value should match that     \
      *                                implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                                      \
-     * @return Return the number of indices returned in the indices array.                                             \
-     *         If the test set is empty, this routine returns 0.                                                       \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some(                                                                \
         TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE cmp_value, size_t *res_out       \
@@ -379,8 +364,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME);
      * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
      *                                compared with the respective value in ivars. The type of cmp_values should       \
      *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
-     * @return Return 1 if all elements in ivars satisfy the test conditions or if nelems is 0,                        \
-     *         otherwise this routine returns 0.                                                                       \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test_all_vector(                                                          \
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, int *res_out                         \
@@ -408,8 +391,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ALL_VECTOR);
      * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
      *                                compared with the respective value in ivars. The type of cmp_values should       \
      *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
-     * @return Return the index of an element in the ivars array that satisfies the test condition.                    \
-     *         If the test set is empty or no conditions in the test set are satisfied, this routine returns SIZE_MAX. \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test_any_vector(                                                          \
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE *cmp_values, size_t *res_out                      \
@@ -439,8 +420,6 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY_VECTOR);
      * @param cmp_values         [in] Local address of an array of length nelems containing values to be               \
      *                                compared with the respective value in ivars. The type of cmp_values should       \
      *                                match that implied in the ACLSHMEM_P2P_SYNC_TYPE_FUNC.                           \
-     * @return Return the number of indices returned in the indices array.                                             \
-     *         If the test set is empty, this routine returns 0.                                                       \
      */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test_some_vector(                                                         \
         TYPE *ivars, size_t nelems, size_t *indices, const int *status, int cmp, TYPE *cmp_values, size_t *res_out     \
