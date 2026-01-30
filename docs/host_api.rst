@@ -36,6 +36,12 @@ shmem_host_p2p_sync.h
 
 .. doxygenfile:: shmem_host_p2p_sync.h
     :project: ACLSHMEM_CPP_API
+
+shmem_host_so.h
+---------------------------------
+
+.. doxygenfile:: shmem_host_so.h
+    :project: ACLSHMEM_CPP_API
     
 shmem_host_team.h
 ---------------------------------

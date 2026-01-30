@@ -10,6 +10,10 @@
 import subprocess
 import warnings
 import os
+import sphinx.locale
+from sphinx.locale import admonitionlabels
+
+admonitionlabels['remark'] = ('', '')
 
 GIT_COMMAND = """\
 git symbolic-ref -q --short HEAD \
@@ -54,7 +58,6 @@ source_suffix = {
     '.md': 'markdown',
 }
 
-
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
     'sticky_navigation': True,
@@ -71,3 +74,34 @@ html_css_files = [
 
 breathe_projects = {"ACLSHMEM_CPP_API": f"./{branch}/xml"}
 breathe_default_project = "ACLSHMEM_CPP_API"
+
+if not os.path.exists('_static/css'):
+    os.makedirs('_static/css', exist_ok=True)
+
+css_content = """
+.rst-content .admonition.remark .admonition-title {
+    display: none !important;
+}
+
+.rst-content .admonition.remark {
+    font-weight: bold !important;
+}
+
+.rst-content .admonition.remark code,
+.rst-content .admonition.remark pre {
+    font-weight: normal !important;
+}
+
+.rst-content .admonition.remark {
+    background: #f0f9ff !important;
+    border-left: 5px solid #3b82f6 !important;
+    border-radius: 8px;
+    margin: 20px 0;
+    padding: 20px !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+"""
+
+css_path = '_static/css/custom.css'
+with open(css_path, 'w', encoding='utf-8') as f:
+    f.write(css_content)

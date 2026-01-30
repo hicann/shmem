@@ -54,7 +54,6 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
 #define shmemx_set_ffts_config util_set_ffts_config
 
 /**
- * @fn ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team)
  * @brief aclshmem_barrier is a collective synchronization routine over a team. Control returns from aclshmem_barrier
  *        after all PEs in the team have called aclshmem_barrier.
  *        aclshmem_barrier ensures that all previously issued stores and remote memory updates, including AMOs and
@@ -66,15 +65,12 @@ ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config);
  *        from the CPU and the NPU, respectively. To ensure completion of GPU-side operations from the CPU, using
  *        aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
- * @cond
  * @param team              [in] team to do barrier
- * @endcond
  */
 ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t team);
 #define shmem_barrier aclshmem_barrier
 
 /**
- * @fn ACLSHMEM_DEVICE void aclshmem_barrier_all(void)
  * @brief aclshmem_barrier of all PEs.
  */
 ACLSHMEM_DEVICE void aclshmem_barrier_all(void);

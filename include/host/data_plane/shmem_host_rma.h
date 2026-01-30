@@ -74,20 +74,27 @@ enum aclshmem_block_mode_t{
 ACLSHMEM_HOST_API void* aclshmem_ptr(void *ptr, int pe);
 #define shmem_ptr aclshmem_ptr
 
+/**
+ * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put(TYPE *dest, TYPE *source, size_t nelems, int pe)
+ *
+ * @par Function Description
+ *      Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_TYPE_PUT(NAME, TYPE)                                                                                 \
-    /**                                                                                                               \
-    * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.      \
-    *                                                                                                                 \
-    * @param dest               [in] Pointer on Symmetric memory of the destination data.                             \
-    * @param source             [in] Pointer on local device of the source data.                                      \
-    * @param nelems             [in] Number of elements in the destination and source arrays.                         \
-    * @param pe                 [in] PE number of the remote PE.                                                      \
-    */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
-
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
+/** \endcond */
 #define shmem_put_float_mem aclshmem_float_put
 #define shmem_put_double_mem aclshmem_double_put
 #define shmem_put_int8_mem aclshmem_int8_put
@@ -101,19 +108,27 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
 #define shmem_put_char_mem aclshmem_char_put
 #undef ACLSHMEM_TYPE_PUT
 
+/**
+ * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE)                                                                             \
-    /**                                                                                                               \
-    * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.     \
-    *                                                                                                                 \
-    * @param dest               [in] Pointer on Symmetric memory of the destination data.                             \
-    * @param source             [in] Pointer on local device of the source data.                                      \
-    * @param nelems             [in] Number of elements in the destination and source arrays.                         \
-    * @param pe                 [in] PE number of the remote PE.                                                      \
-    */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
+/** \endcond */
 #define shmem_put_float_mem_nbi aclshmem_float_put_nbi
 #define shmem_put_double_mem_nbi aclshmem_double_put_nbi
 #define shmem_put_int8_mem_nbi aclshmem_int8_put_nbi
@@ -127,48 +142,73 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
 #define shmem_put_char_mem_nbi aclshmem_char_put_nbi
 #undef ACLSHMEM_TYPE_PUT_NBI
 
+/**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_putBITS(void *dst, void *src, uint32_t elem_size, int32_t pe)
+ *
+ * @par Function Description
+ *    Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
+ * - **elem_size**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_PUT_SIZE(BITS)                                                                                   \
-    /**                                                                                                           \
-     * @brief Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE. \
-     *                                                                                                            \
-     * @param dst               [in] Pointer on Symmetric memory of the destination data.                         \
-     * @param src               [in] Pointer on local device of the source data.                                  \
-     * @param elem_size         [in] Number of elements in the destination and source arrays.                     \
-     * @param pe                [in] PE number of the remote PE.                                                  \
-     */                                                                                                           \
     ACLSHMEM_HOST_API void aclshmem_put##BITS(void *dst, void *src, uint32_t elem_size, int32_t pe)
 
+/** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE);
+/** \endcond */
 #undef ACLSHMEM_PUT_SIZE
 
+/**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_nbi(void *dst, void *src, uint32_t elem_size, int32_t pe)
+ *
+ * @par Function Description
+ *    Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
+ * - **elem_size**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_PUT_SIZE_NBI(BITS)                                                                                  \
-    /**                                                                                                              \
-     * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.   \
-     *                                                                                                               \
-     * @param dst               [in] Pointer on Symmetric memory of the destination data.                            \
-     * @param src               [in] Pointer on local device of the source data.                                     \
-     * @param elem_size         [in] Number of elements in the destination and source arrays.                        \
-     * @param pe                [in] PE number of the remote PE.                                                     \
-     */                                                                                                              \
     ACLSHMEM_HOST_API void aclshmem_put##BITS##_nbi(void *dst, void *src, uint32_t elem_size, int32_t pe)
 
+/** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_NBI);
+/** \endcond */
 #undef ACLSHMEM_PUT_SIZE_NBI
 
+/**
+ * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_get(TYPE *dest, TYPE *source, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+ *
+ * @par Parameters
+ * - **dest**        - [in] Pointer on local device of the destination data.
+ * - **source**      - [in] Pointer on Symmetric memory of the source data.
+ * - **nelems**      - [in] Number of elements in the dest and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_TYPE_GET(NAME, TYPE)                                                                                 \
-    /**                                                                                                               \
-    * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the  \
-    *   local PE.                                                                                                     \
-    *                                                                                                                 \
-    * @param dest               [in] Pointer on local device of the destination data.                                 \
-    * @param source             [in] Pointer on Symmetric memory of the source data.                                  \
-    * @param nelems             [in] Number of elements in the destination and source arrays.                         \
-    * @param pe                 [in] PE number of the remote PE.                                                      \
-    */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
+/** \endcond */
 #define shmem_get_float_mem aclshmem_float_get
 #define shmem_get_double_mem aclshmem_double_get
 #define shmem_get_int8_mem aclshmem_int8_get
@@ -182,20 +222,27 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
 #define shmem_get_char_mem aclshmem_char_get
 #undef ACLSHMEM_TYPE_GET
 
+/**
+ * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_get_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE. 
+ *
+ * @par Parameters
+ * - **dest**        - [in] Pointer on local device of the destination data.
+ * - **source**      - [in] Pointer on Symmetric memory of the source data.
+ * - **nelems**      - [in] Number of elements in the dest and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE)                                                                             \
-    /**                                                                                                               \
-    * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the \
-    * local PE.                                                                                                       \
-    *                                                                                                                 \
-    * @param dest               [in] Pointer on local device of the destination data.                                 \
-    * @param source             [in] Pointer on Symmetric memory of the source data.                                  \
-    * @param nelems             [in] Number of elements in the destination and source arrays.                         \
-    * @param pe                 [in] PE number of the remote PE.                                                      \
-    */                                                                                                                \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get_nbi(TYPE *dest, TYPE *source, size_t nelems, int pe)
 
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
+/** \endcond */
 #define shmem_get_float_mem_nbi aclshmem_float_get_nbi
 #define shmem_get_double_mem_nbi aclshmem_double_get_nbi
 #define shmem_get_int8_mem_nbi aclshmem_int8_get_nbi
@@ -209,48 +256,72 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 #define shmem_get_char_mem_nbi aclshmem_char_get_nbi
 #undef ACLSHMEM_TYPE_GET_NBI
 
+/**
+ * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_getBITS(void *dst, void *src, uint32_t elem_size, int32_t pe)
+ *
+ * @par Function Description
+ *    Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on local device of the destination data.
+ * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **elem_size**   - [in] Number of elements in the dest and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_GET_SIZE(BITS)                                                                                  \
-    /**                                                                                                          \
-     * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to           \
-     *                               address on the local PE.                                                    \
-     *                                                                                                           \
-     * @param dst               [in] Pointer on local device of the destination data.                            \
-     * @param src               [in] Pointer on Symmetric memory of the source data.                             \
-     * @param elem_size         [in] Number of elements in the dest and source arrays.                           \
-     * @param pe                [in] PE number of the remote PE.                                                 \
-     */                                                                                                          \
     ACLSHMEM_HOST_API void aclshmem_get##BITS(void *dst, void *src, uint32_t elem_size, int32_t pe)
 
+/** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE);
+/** \endcond */
 #undef ACLSHMEM_GET_SIZE
 
+/**
+ * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_getBITS_nbi(void *dst, void *src, uint32_t elem_size, int32_t pe)
+ *
+ * @par Function Description
+ *   Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on local device of the destination data.
+ * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **elem_size**   - [in] Number of elements in the dest and source arrays.
+ * - **pe**          - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_GET_SIZE_NBI(BITS)                                                                                  \
-    /**                                                                                                              \
-     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to              \
-     *                               address on the local PE.                                                        \
-     *                                                                                                               \
-     * @param dst               [in] Pointer on local device of the destination data.                                \
-     * @param src               [in] Pointer on Symmetric memory of the source data.                                 \
-     * @param elem_size         [in] Number of elements in the dest and source arrays.                               \
-     * @param pe                [in] PE number of the remote PE.                                                     \
-     */                                                                                                              \
     ACLSHMEM_HOST_API void aclshmem_get##BITS##_nbi(void *dst, void *src, uint32_t elem_size, int32_t pe)
 
+/** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_NBI);
+/** \endcond */
 #undef ACLSHMEM_GET_SIZE_NBI
 
+/**
+ * @brief  Automatically generates aclshmem p functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_p(TYPE* dst, const TYPE value, int pe)
+ *
+ * @par Function Description
+ * Provide a low latency put capability for single element of most basic types.
+ *
+ * @par Parameters
+ * - **dst**    - [in] Symmetric address of the destination data on local PE.
+ * - **value**  - [in] The element to be put.
+ * - **pe**     - [in] The number of the remote PE.
+ */
 #define ACLSHMEM_TYPENAME_P(NAME, TYPE)                                                     \
-    /**                                                                                     \
-    * @brief Provide a low latency put capability for single element of most basic types.   \
-    *                                                                                       \
-    * @param dst               [in] Symmetric address of the destination data on local PE.  \
-    * @param value             [in] The element to be put.                                  \
-    * @param pe                [in] The number of the remote PE.                            \
-    */                                                                                      \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_p(TYPE* dst, const TYPE value, int pe)
 
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
+/** \endcond */
 #define shmem_float_p aclshmem_float_p
 #define shmem_double_p aclshmem_double_p
 #define shmem_int8_p aclshmem_int8_p
@@ -264,18 +335,28 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
 #define shmem_char_p aclshmem_char_p
 #undef ACLSHMEM_TYPENAME_P
 
+/**
+ * @brief  Automatically generates aclshmem g functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_g(TYPE* src, int32_t pe)
+ *
+ * @par Function Description
+ * Provide a low latency get capability for single element of most basic types.
+ *
+ * @par Parameters
+ * - **src**    - [in] Symmetric address of the destination data on local PE.
+ * - **pe**     - [in] The number of the remote PE.
+ *
+ * @par Returns
+ *      A single element of type specified in the input pointer.
+ */
 #define ACLSHMEM_TYPENAME_G(NAME, TYPE)                                                     \
-    /**                                                                                     \
-    * @brief Provide a low latency get single element of most basic types.                  \
-    *                                                                                       \
-    * @param src               [in] Symmetric address of the destination data on local PE.  \
-    * @param pe                [in] The number of the remote PE.                            \
-    * @return A single element of type specified in the input pointer.                      \
-    */                                                                                      \
     ACLSHMEM_HOST_API TYPE aclshmem_##NAME##_g(TYPE* src, int32_t pe)
 
-
+/** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G);
+/** \endcond */
 #define shmem_float_g aclshmem_float_g
 #define shmem_double_g aclshmem_double_g
 #define shmem_int8_g aclshmem_int8_g

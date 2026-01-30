@@ -39,36 +39,52 @@
     FUNC(half, half, ATOMIC_F16);             \
     FUNC(float, float, ATOMIC_F32)
 
+/**
+ * @brief  Automatically generates aclshmem atomic add functions for different data types (e.g., int8, int16, int32).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_add(\_\_gm\_\_ TYPE *dst, TYPE value, int32_t pe)
+ *
+ * @par Function Description
+ * Asynchronous interface. Perform contiguous data atomic add operation on
+ * symmetric memory from the specified PE to address on the local PE.
+ *
+ * @par Parameters
+ * - **dst**    - [in] Pointer on local device of the destination data.
+ * - **value**  - [in] Value atomic add to destination.
+ * - **pe**     - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                      \
-    /**                                                                                                            \
-     * @brief Asynchronous interface. Perform contiguous data atomic add opeartion                                 \
-              on symmetric memory from the specified PE to address on the local PE.                                \
-              We use scalar instructions to implement single element atomic add. Therefore, both                   \
-     *        vector and cube cores can execute atomic add operation.                                              \
-     *                                                                                                             \
-     * @param dst               [in] Pointer on local device of the destination data.                              \
-     * @param value             [in] Value atomic add to destination.                                              \
-     * @param pe                [in] PE number of the remote PE.                                                   \
-     */                                                                                                            \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
 
+/** \cond */
 ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
+/** \endcond */
 #define shmem_int8_atomic_add aclshmem_int8_atomic_add
 #define shmem_int16_atomic_add aclshmem_int16_atomic_add
 #define shmem_int32_atomic_add aclshmem_int32_atomic_add
 
+/**
+ * @brief  Automatically generates aclshmem atomic add functions for different data types (e.g., float, half).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_add(\_\_gm\_\_ TYPE *dst, TYPE value, int32_t pe)
+ *
+ * @par Function Description
+ * Asynchronous interface. Perform contiguous data atomic add operation on
+ * symmetric memory from the specified PE to address on the local PE.
+ *
+ * @par Parameters
+ * - **dst**    - [in] Pointer on local device of the destination data.
+ * - **value**  - [in] Value atomic add to destination.
+ * - **pe**     - [in] PE number of the remote PE.
+ */
 #define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
-    /**                                                                                                            \
-     * @brief Asynchronous interface. Perform contiguous data atomic add opeartion on                              \
-              symmetric memory from the specified PE to address on the local PE.                                   \
-     *                                                                                                             \
-     * @param dst               [in] Pointer on local device of the destination data.                              \
-     * @param value             [in] Value atomic add to destination.                                              \
-     * @param pe                [in] PE number of the remote PE.                                                   \
-     */                                                                                                            \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
 
+/** \cond */
 ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT);
+/** \endcond */
 #define shmem_half_atomic_add aclshmem_half_atomic_add
 #define shmem_float_atomic_add aclshmem_float_atomic_add
 

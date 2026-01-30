@@ -11,8 +11,8 @@ Welcome to Shmem's Documentation!
 
 .. toctree::
     :maxdepth: 2
-    :caption: Using ACLSHMEM
-    :name: Using ACLSHMEM
+    :caption: Using SHMEM
+    :name: Using SHMEM
     
     api_demo.md
     compilation_build_guide.md
