@@ -5,7 +5,7 @@
 在 `shmem/` 根目录下执行编译脚本：
 
 ```bash
-bash scripts/build.sh
+bash scripts/build.sh -examples
 ```
 
 #### 2. 运行 Dynamic-Tiling 示例程序

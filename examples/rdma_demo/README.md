@@ -1,7 +1,7 @@
 使用方式:
 1.在shmem/目录编译:
 ```bash
-bash scripts/build.sh
+bash scripts/build.sh -enable_rdma -examples
 ```
 2.在shmem/目录运行:
 ```bash

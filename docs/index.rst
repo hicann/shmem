@@ -17,6 +17,7 @@ Welcome to Shmem's Documentation!
     api_demo.md
     compilation_build_guide.md
     log_debug.md
+    tools_debug.md
 
 .. toctree::
     :maxdepth: 2
@@ -27,6 +28,7 @@ Welcome to Shmem's Documentation!
     host_api.rst
     device_api.rst
     pythonAPI.md
+    env_vars_intro.md
 
 .. toctree::
     :maxdepth: 2
