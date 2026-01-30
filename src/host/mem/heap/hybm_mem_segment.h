@@ -127,6 +127,8 @@ public:
 protected:
     static Result InitDeviceInfo();
 
+    static void FillSysBootIdInfo() noexcept;
+
     /**
      * check whether in the same node
      */
@@ -149,6 +151,8 @@ protected:
     static uint32_t serverId_;
     static uint32_t superPodId_;
     static AscendSocType socType_;
+    static std::string sysBoolId_;
+    static uint32_t bootIdHead_;
 };
 }
 

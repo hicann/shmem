@@ -30,9 +30,6 @@
 #include "hybm_device_mem_segment.h"
 
 namespace shm {
-std::string MemSegmentDevice::sysBoolId_;
-uint32_t MemSegmentDevice::bootIdHead_{0};
-
 Result MemSegmentDevice::ValidateOptions() noexcept
 {
     if (options_.size == 0 || options_.devId < 0 ||
@@ -191,7 +188,6 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
         SHM_LOG_ERROR("aclrtMemExportToShareableHandleV2 failed, ret: " << ret);
         return ACLSHMEM_INNER_ERROR;
     }
-    SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(SetDeviceInfo(options_.devId), "get device info failed.");
     auto localVirtualBase = reservedVirtualAddresses_[options_.rankId];
     info.mappingOffset = slice->vAddress_ - (uint64_t)(ptrdiff_t)localVirtualBase;
     info.sliceIndex = static_cast<uint32_t>(slice->index_);
@@ -385,119 +381,6 @@ void MemSegmentDevice::FreeMemory() noexcept
         totalVirtualSize_ = 0;
         globalVirtualAddress_ = nullptr;
     }
-}
-
-Result MemSegmentDevice::GetDeviceInfo() noexcept
-{
-    if (options_.devId < 0) {
-        return ACLSHMEM_INVALID_PARAM;
-    }
-
-    if (InitDeviceInfo() != ACLSHMEM_SUCCESS) {
-        return ACLSHMEM_INNER_ERROR;
-    }
-    return ACLSHMEM_SUCCESS;
-}
-
-int MemSegmentDevice::SetDeviceInfo(int deviceId) noexcept
-{
-    if (deviceId < 0) {
-        return ACLSHMEM_INVALID_PARAM;
-    }
-
-    if (deviceId_ >= 0) {
-        if (deviceId == deviceId_) {
-            return 0;
-        }
-
-        return ACLSHMEM_INVALID_PARAM;
-    }
-
-    int32_t tgid = 0;
-    auto ret = aclrtDeviceGetBareTgid(&tgid);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("get bare tgid failed: " << ret);
-        return ACLSHMEM_DL_FUNC_FAILED;
-    }
-
-    deviceId_ = deviceId;
-    pid_ = static_cast<uint32_t>(tgid);
-    FillSysBootIdInfo();
-    ret = FillDeviceSuperPodInfo();
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("FillDeviceSuperPodInfo() failed: " << ret);
-        return ret;
-    }
-
-    return ACLSHMEM_SUCCESS;
-}
-
-int MemSegmentDevice::FillDeviceSuperPodInfo() noexcept
-{
-    int64_t value = 0;
-    auto ret = rtGetDeviceInfo(deviceId_, 0, INFO_TYPE_SDID, &value);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("get sdid failed: " << ret);
-        return ACLSHMEM_DL_FUNC_FAILED;
-    }
-    sdid_ = static_cast<uint32_t>(value);
-
-    ret = rtGetDeviceInfo(deviceId_, 0, INFO_TYPE_SERVER_ID, &value);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("get server id failed: " << ret);
-        return ACLSHMEM_DL_FUNC_FAILED;
-    }
-    serverId_ = static_cast<uint32_t>(value);
-    SHM_LOG_DEBUG("local server=0x" << std::hex << serverId_);
-
-    ret = rtGetDeviceInfo(deviceId_, 0, INFO_TYPE_SUPER_POD_ID, &value);
-    if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("get super pod id failed: " << ret);
-        return ACLSHMEM_DL_FUNC_FAILED;
-    }
-    superPodId_ = static_cast<uint32_t>(value);
-
-    if (superPodId_ == invalidSuperPodId && serverId_ == invalidServerId) {
-        if (bootIdHead_ != 0) {
-            serverId_ = bootIdHead_;
-        } else {
-            auto networks = utils::NetworkGetIpAddresses();
-            if (networks.empty()) {
-                SHM_LOG_ERROR("get local host ip address empty.");
-                return ACLSHMEM_INNER_ERROR;
-            }
-            serverId_ = networks[0];
-        }
-    }
-
-    auto name = aclrtGetSocName();
-    if (name == nullptr) {
-        SHM_LOG_ERROR("aclrtGetSocName() failed.");
-        return ACLSHMEM_INNER_ERROR;
-    }
-
-    std::string socName{name};
-    if (socName.find("Ascend910B") != std::string::npos) {
-        socType_ = AscendSocType::ASCEND_910B;
-    } else if (socName.find("Ascend910_93") != std::string::npos) {
-        socType_ = AscendSocType::ASCEND_910C;
-    }
-
-    SHM_LOG_DEBUG("local sdid=0x" << std::hex << sdid_ << ", local server=0x" << std::hex << serverId_
-        << ", spid=" << superPodId_ << ", socType=" << socType_ << ", devid=" << deviceId_);
-
-    return ACLSHMEM_SUCCESS;
-}
-
-void MemSegmentDevice::FillSysBootIdInfo() noexcept
-{
-    std::string bootIdPath("/proc/sys/kernel/random/boot_id");
-    std::ifstream input(bootIdPath);
-    input >> sysBoolId_;
-
-    std::stringstream ss(sysBoolId_);
-    ss >> std::hex >> bootIdHead_;
-    SHM_LOG_DEBUG("os-boot-id: " << sysBoolId_ << ", head u32: " << std::hex << bootIdHead_);
 }
 
 bool MemSegmentDevice::CanMapRemote(const HbmExportInfo &rmi) noexcept

@@ -80,14 +80,10 @@ public:
     bool CheckSdmaReaches(uint32_t rankId) const noexcept override;
 
 public:
-    static int SetDeviceInfo(int deviceId) noexcept;
-    static int FillDeviceSuperPodInfo() noexcept;
-    static void FillSysBootIdInfo() noexcept;
     static bool CanMapRemote(const HbmExportInfo &rmi) noexcept;
     static void GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept;
 
 protected:
-    Result GetDeviceInfo() noexcept;
     void FreeMemory() noexcept;
     Result SetMemAccess() noexcept;
 
@@ -106,9 +102,6 @@ protected:
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     aclrtDrvMemHandle local_handle_{nullptr};
 #endif
-protected:
-    static std::string sysBoolId_;
-    static uint32_t bootIdHead_;
 };
 }
 

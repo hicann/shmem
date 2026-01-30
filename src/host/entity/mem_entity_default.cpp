@@ -719,7 +719,7 @@ Result MemEntityDefault::InitHbmSegment()
     segmentOptions.rankCnt = options_.rankCount;
     hbmSegment_ = MemSegment::Create(segmentOptions, id_);
     SHM_VALIDATE_RETURN(hbmSegment_ != nullptr, "create segment failed", ACLSHMEM_INVALID_PARAM);
-    return MemSegmentDevice::SetDeviceInfo(HybmGetInitDeviceId());
+    return ACLSHMEM_SUCCESS;
 }
 
 Result MemEntityDefault::InitDramSegment()

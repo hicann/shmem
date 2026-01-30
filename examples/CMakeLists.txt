@@ -64,6 +64,7 @@ function(aclshmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/src/host
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
         ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap
         ${MPI_INCLUDE_PATH}
     )
     target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)

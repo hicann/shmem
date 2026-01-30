@@ -23,6 +23,8 @@ uint32_t MemSegment::sdid_{0};
 uint32_t MemSegment::serverId_{0};
 uint32_t MemSegment::superPodId_{0};
 AscendSocType MemSegment::socType_{AscendSocType::ASCEND_UNKNOWN};
+std::string MemSegment::sysBoolId_{};
+uint32_t MemSegment::bootIdHead_{0};
 
 MemSegmentPtr MemSegment::Create(const MemSegmentOptions &options, int entityId)
 {
@@ -108,13 +110,17 @@ Result MemSegment::InitDeviceInfo()
         SHM_LOG_ERROR("get super pod id failed: " << ret);
         return ACLSHMEM_DL_FUNC_FAILED;
     }
-
+    FillSysBootIdInfo();
     superPodId_ = static_cast<uint32_t>(value);
     if (superPodId_ == invalidSuperPodId && serverId_ == invalidServerId) {
-        auto networks = utils::NetworkGetIpAddresses();
-        if (networks.empty()) {
-            SHM_LOG_WARN("get local host ip address empty.");
+        if (bootIdHead_ != 0) {
+            serverId_ = bootIdHead_;
         } else {
+            auto networks = utils::NetworkGetIpAddresses();
+            if (networks.empty()) {
+                SHM_LOG_ERROR("get local host ip address empty.");
+                return ACLSHMEM_INNER_ERROR;
+            }
             serverId_ = networks[0];
         }
     }
@@ -136,6 +142,17 @@ Result MemSegment::InitDeviceInfo()
                                  << ", spid=" << superPodId_ << ", socName=" << socName);
     deviceInfoReady = true;
     return ACLSHMEM_SUCCESS;
+}
+
+void MemSegment::FillSysBootIdInfo() noexcept
+{
+    std::string bootIdPath("/proc/sys/kernel/random/boot_id");
+    std::ifstream input(bootIdPath);
+    input >> sysBoolId_;
+
+    std::stringstream ss(sysBoolId_);
+    ss >> std::hex >> bootIdHead_;
+    SHM_LOG_DEBUG("os-boot-id: " << sysBoolId_ << ", head u32: " << std::hex << bootIdHead_);
 }
 
 bool MemSegment::CanLocalHostReaches(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept
