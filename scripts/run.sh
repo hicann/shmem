@@ -70,7 +70,7 @@ while [[ $# -gt 0 ]]; do
                 if [[ "$2" =~ ^[a-zA-z0-9.:/_-]+$ ]]; then
                     IPPORT="tcp://${2}"
                     SESSION_ID="${2}"
-                    export ACLSHMEM_UID_SESSION_ID=$SESSION_ID
+                    export SHMEM_UID_SESSION_ID=$SESSION_ID
                     shift 2
                 else
                     echo "Error: Invalid -ipport format, only alphanumeric and :/_- allowed"

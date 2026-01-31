@@ -7,7 +7,7 @@ bash scripts/build.sh -enable_rdma -examples
 ```bash
 export PROJECT_ROOT=<shmem-root-directory>
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 ./build/bin/unuse_handlewait 2 0 tcp://127.0.0.1:8899 2 0 0 # rank 0
 ./build/bin/unuse_handlewait 2 1 tcp://127.0.0.1:8899 2 0 0 # rank 1
 ```
@@ -17,7 +17,7 @@ export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
 
 - n_ranks: 全局Rank数量，只支持2个Rank。
 - rank_id: 当前进程的Rank号。
-- ipport: ACLSHMEM初始化需要的IP及端口号，格式为tcp://<IP>:<端口号>。如果执行跨机测试，需要讲IP设为rank0所在Host的IP。
+- ipport: SHMEM初始化需要的IP及端口号，格式为tcp://<IP>:<端口号>。如果执行跨机测试，需要讲IP设为rank0所在Host的IP。
 - g_npus: 当前卡上启动的NPU数量。
 - f_rank: 当前卡上使用的第一个Rank号。
 - f_npu: 当前卡上使用的第一个NPU卡号。

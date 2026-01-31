@@ -79,7 +79,7 @@ fi
 cd ..
 
 echo "=== Launch executable (mode: ${MODE}, pesize: ${NUM_PROCESSES}) ==="
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8666
+export SHMEM_UID_SESSION_ID=127.0.0.1:8666
 IPPORT="tcp://127.0.0.1:8666"
 
 case "$MODE" in

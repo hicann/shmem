@@ -29,7 +29,7 @@
 namespace aclshmem_log {
 static bool get_log_to_stdout_from_env_cfg()
 {
-    const char *env_log_to_stdout = std::getenv("ACLSHMEM_LOG_TO_STDOUT");
+    const char *env_log_to_stdout = std::getenv("SHMEM_LOG_TO_STDOUT");
     return env_log_to_stdout != nullptr && strlen(env_log_to_stdout) <= MAX_ENV_STRING_LEN &&
            strcmp(env_log_to_stdout, "1") == 0;
 }
@@ -74,7 +74,7 @@ private:
         log_root = log_root.empty() ? "/tmp" : log_root;
         log_root += "/shmem/log";
 
-        const char* env_log_path = getenv("ACLSHMEM_LOG_PATH");
+        const char* env_log_path = getenv("SHMEM_LOG_PATH");
         if (env_log_path != nullptr && strlen(env_log_path) <= MAX_ENV_STRING_LEN && !is_invalid_path(env_log_path)) {
             log_root = env_log_path;
         }

@@ -91,7 +91,7 @@ if [ "$TEST_TYPE" = "0" ]; then
         IPPORT="tcp://127.0.0.1:8899"
 
         # Start Process
-        export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+        export SHMEM_UID_SESSION_ID=127.0.0.1:8899
         for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
             APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $PARENT_PATH $CSV_FILE $DEVICE_ID_STR $DATA_PATH"
             ${APP}&
@@ -130,7 +130,7 @@ else
         OUTPUT_PATH="./output/msprof/start_line${IDX}_run_rows${TEST_COLLECT_ROWS}/"
 
         # Start Process
-        export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+        export SHMEM_UID_SESSION_ID=127.0.0.1:8899
         for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
             APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $PARENT_PATH $CSV_FILE $DEVICE_ID_STR"
             msprof --application="${APP}" --output="${OUTPUT_PATH}"&

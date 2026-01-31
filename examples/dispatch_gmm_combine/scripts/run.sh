@@ -139,7 +139,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Test Case, M: ${M}, K: ${K}, N: ${N}, expertPerRank: ${expertPerRank}"
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     export INPUT_PATH=${EXAMPLE_DIR}/utils/test_data/

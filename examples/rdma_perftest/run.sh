@@ -14,7 +14,7 @@ project_root="$(cd ${script_dir}/../../ && pwd)"
 export PROJECT_ROOT=${project_root}
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
 
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 cd $PROJECT_ROOT
 pids=()
 ./build/bin/rdma_perftest 2 0 tcp://127.0.0.1:8899 2 0 0 highlevel_put_pingpong_latency 64 & # rank 0

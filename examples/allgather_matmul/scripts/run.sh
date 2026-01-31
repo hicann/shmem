@@ -40,7 +40,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
     IPPORT="tcp://127.0.0.1:8899"
 
     # Start Process
-    export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+    export SHMEM_UID_SESSION_ID=127.0.0.1:8899
     for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
         ${EXEC_BIN} "$RANK_SIZE" "$idx" "$IPPORT" "$M" "$N" "$K" "${DATA_DIR}" "$1" &
     done

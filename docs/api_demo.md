@@ -201,7 +201,7 @@ void get_device_state(uint32_t block_dim, void* stream, uint8_t* gva, aclshmem_t
 }
 ```
 ## Mem API
-ACLSHMEM的内存管理接口样例
+SHMEM的内存管理接口样例
 
 ```c++
 // ################### 调用初始化相关接口 ###########################
@@ -216,7 +216,7 @@ aclshmem_free(ptr);
 ```
 
 ## RMA API
-ACLSHMEM的远端内存访问接口样例
+SHMEM的远端内存访问接口样例
 
 ```c++
 class kernel_p {
@@ -257,7 +257,7 @@ void put_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, float val)
 ```
 
 ## Sync API
-ACLSHMEM的同步管理接口样例
+SHMEM的同步管理接口样例
 
 ```c++
 // 任务1

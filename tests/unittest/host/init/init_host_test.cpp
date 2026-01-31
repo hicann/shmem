@@ -295,29 +295,29 @@ TEST(TestInitAPI, TestShmemSetLogLevel)
     EXPECT_EQ(ret, 0);
 
     char* original_log_level = NULL;
-    const char* env_val = getenv("ACLSHMEM_LOG_LEVEL");
+    const char* env_val = getenv("SHMEM_LOG_LEVEL");
     if (env_val != NULL) {
         original_log_level = strdup(env_val);
     }
 
-    setenv("ACLSHMEM_LOG_LEVEL", "DEBUG", 1);
+    setenv("SHMEM_LOG_LEVEL", "DEBUG", 1);
     EXPECT_EQ(aclshmemx_set_log_level(-1), 0);
 
-    setenv("ACLSHMEM_LOG_LEVEL", "INFO", 1);
+    setenv("SHMEM_LOG_LEVEL", "INFO", 1);
     EXPECT_EQ(aclshmemx_set_log_level(-1), 0);
 
-    setenv("ACLSHMEM_LOG_LEVEL", "WARN", 1);
+    setenv("SHMEM_LOG_LEVEL", "WARN", 1);
     EXPECT_EQ(aclshmemx_set_log_level(-1), 0);
 
-    setenv("ACLSHMEM_LOG_LEVEL", "ERROR", 1);
+    setenv("SHMEM_LOG_LEVEL", "ERROR", 1);
     EXPECT_EQ(aclshmemx_set_log_level(-1), 0);
 
-    setenv("ACLSHMEM_LOG_LEVEL", "FATAL", 1);
+    setenv("SHMEM_LOG_LEVEL", "FATAL", 1);
     EXPECT_EQ(aclshmemx_set_log_level(-1), 0);
 
-    unsetenv("ACLSHMEM_LOG_LEVEL");
+    unsetenv("SHMEM_LOG_LEVEL");
     if (original_log_level != NULL) {
-        setenv("ACLSHMEM_LOG_LEVEL", original_log_level, 1);
+        setenv("SHMEM_LOG_LEVEL", original_log_level, 1);
         free(original_log_level);
         original_log_level = NULL;
     }

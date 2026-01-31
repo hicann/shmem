@@ -8,7 +8,7 @@ SHMEM当前提供了三种flag用于初始化：
 
 在该样例中，分别实现了SHMEM提供的所有初始化流程调用方式。可以通过脚本参数编译运行不同flag对应的初始化流程。默认使用回环地址127.0.0.1，端口8666。该用例仅用以单机示范，请保证端口空闲可绑定。
 
-## ACLSHMEMX_INIT_WITH_DEFAULT（支持双后端）
+## ACLSHMEMX_INIT_WITH_DEFAULT
 
 ### 样例运行
 在根目录调用`scripts/build.sh`控制后端。

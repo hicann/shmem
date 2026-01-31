@@ -356,7 +356,7 @@ int32_t aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid) {
 int32_t aclshmemx_set_log_level(int level)
 {
     // use env first, input level secondly, user may change level from env instead call func
-    const char *in_level = std::getenv("ACLSHMEM_LOG_LEVEL");
+    const char *in_level = std::getenv("SHMEM_LOG_LEVEL");
     if (in_level != nullptr) {
         auto tmp_level = std::string(in_level);
         if (tmp_level == "DEBUG") {

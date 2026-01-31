@@ -38,7 +38,7 @@ href=https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/API/appdev
 
 ![image](picture/5.png)
 
-<p style="text-indent: 2em;"><strong>aclshmem_malloc和aclshmem_free接口使用时需要在所有进程同步调用，且需要分配或释放相同大小的内存。</strong>ACLSHMEM内部默认aclshmem_malloc分配的内存在虚拟地址空间对称，即<strong>当前rank malloc的地址+heap_size=下一个rank malloc的地址</strong>。如果进程间分配内存不同会导致后续分配的内存首地址不对称，无法通过地址偏移访问到正确的数据。</p>
+<p style="text-indent: 2em;"><strong>aclshmem_malloc和aclshmem_free接口使用时需要在所有进程同步调用，且需要分配或释放相同大小的内存。</strong>SHMEM内部默认aclshmem_malloc分配的内存在虚拟地址空间对称，即<strong>当前rank malloc的地址+heap_size=下一个rank malloc的地址</strong>。如果进程间分配内存不同会导致后续分配的内存首地址不对称，无法通过地址偏移访问到正确的数据。</p>
 
 ![image](picture/malloc.png)
 

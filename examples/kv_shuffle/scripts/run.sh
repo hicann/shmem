@@ -23,7 +23,7 @@ rm -rf scripts/output/*.bin
 python3 scripts/golden.py $RANK_SIZE
 
 # Start Process
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     APP="$EXEC_BIN $RANK_SIZE $idx $IPPORT"

@@ -257,7 +257,7 @@ int32_t aclshmemi_get_ip_from_env(aclshmemi_bootstrap_uid_state_t *uid_args, con
     }
 
     aclshmemi_get_uid_magic(uid_args);
-    SHM_LOG_DEBUG("get env ACLSHMEM_UID_SESSION_ID value: " << ipPort);
+    SHM_LOG_DEBUG("get env SHMEM_UID_SESSION_ID value: " << ipPort);
     std::string ipPortStr = ipPort;
     
     if (ipPort[0] == '[') {
@@ -844,11 +844,11 @@ static int aclshmemi_bootstrap_net_init(aclshmemi_bootstrap_uid_state_t* uid_arg
         bool is_from_ifa = false;
 
         if (env_ip_port != nullptr) {
-            SHM_LOG_INFO("Environment variable ACLSHMEM_UID_SESSION_ID has been set.");
+            SHM_LOG_INFO("Environment variable SHMEM_UID_SESSION_ID has been set.");
             ACLSHMEM_CHECK_RET(aclshmemi_get_ip_from_env(uid_args, env_ip_port), 
                         "No available addresses were found with env_ip_port.");
         } else {
-            SHM_LOG_INFO("Environment variable ACLSHMEM_UID_SESSION_ID is not set, automatically obtaining ipPort.");
+            SHM_LOG_INFO("Environment variable SHMEM_UID_SESSION_ID is not set, automatically obtaining ipPort.");
             is_from_ifa = true;
             ACLSHMEM_CHECK_RET(aclshmemi_get_ip_from_ifa(uid_args, env_ifname), 
                         "No available addresses were found with auto.");
@@ -1135,22 +1135,22 @@ int aclshmemi_bootstrap_get_unique_id(void* uid) {
     aclshmemi_bootstrap_uid_state_t* uid_args = (aclshmemi_bootstrap_uid_state_t*)uid;
 
     if (env_ip_port == nullptr) {
-        const char* envip = std::getenv("ACLSHMEM_UID_SESSION_ID");
+        const char* envip = std::getenv("SHMEM_UID_SESSION_ID");
         if (envip != nullptr) {
             env_ip_port = envip;
-            SHM_LOG_DEBUG("ACLSHMEM_UID_SESSION_ID is: " << env_ip_port);
+            SHM_LOG_DEBUG("SHMEM_UID_SESSION_ID is: " << env_ip_port);
         } else {
-            SHM_LOG_DEBUG("The environment variable ACLSHMEM_UID_SESSION_ID is not set.");
+            SHM_LOG_DEBUG("The environment variable SHMEM_UID_SESSION_ID is not set.");
         }
     }
 
     if (env_ifname == nullptr) {
-        const char* envinfo = std::getenv("ACLSHMEM_UID_SOCK_IFNAME");
+        const char* envinfo = std::getenv("SHMEM_UID_SOCK_IFNAME");
         if (envinfo != nullptr) {
             env_ifname = envinfo;
-            SHM_LOG_DEBUG("ACLSHMEM_UID_SOCK_IFNAME is: " << env_ifname);
+            SHM_LOG_DEBUG("SHMEM_UID_SOCK_IFNAME is: " << env_ifname);
         } else {
-            SHM_LOG_DEBUG("The environment variable ACLSHMEM_UID_SOCK_IFNAME is not set.");
+            SHM_LOG_DEBUG("The environment variable SHMEM_UID_SOCK_IFNAME is not set.");
         }
     }
     
@@ -1163,16 +1163,16 @@ int aclshmemi_bootstrap_get_unique_id_static_magic(void* uid, bool is_root) {
     aclshmemi_bootstrap_uid_state_t* uid_args = (aclshmemi_bootstrap_uid_state_t*)uid;
 
     if (env_ip_port == nullptr) {
-        const char* envip = std::getenv("ACLSHMEM_UID_SESSION_ID");
+        const char* envip = std::getenv("SHMEM_UID_SESSION_ID");
         if (envip != nullptr) {
             env_ip_port = envip;
-            SHM_LOG_DEBUG("ACLSHMEM_UID_SESSION_ID is: " << env_ip_port);
+            SHM_LOG_DEBUG("SHMEM_UID_SESSION_ID is: " << env_ip_port);
         } else {
-            SHM_LOG_DEBUG("The environment variable ACLSHMEM_UID_SESSION_ID is not set.");
+            SHM_LOG_DEBUG("The environment variable SHMEM_UID_SESSION_ID is not set.");
         }
     } 
     if (env_ip_port == nullptr) {
-        SHM_LOG_ERROR("Using method get_unique_id_static_magic requires setting ACLSHMEM_UID_SESSION_ID.");
+        SHM_LOG_ERROR("Using method get_unique_id_static_magic requires setting SHMEM_UID_SESSION_ID.");
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }
     
@@ -1193,17 +1193,17 @@ int aclshmemi_bootstrap_get_unique_id_by_ipport(void* uid, const char *ipport) {
         SHM_LOG_DEBUG("The ipport param is: " << env_ip_port);
      } else {
         
-        SHM_LOG_DEBUG("The ipport param is not set. Try to use ACLSHMEM_UID_SESSION_ID.");
-        const char* envip = std::getenv("ACLSHMEM_UID_SESSION_ID");
+        SHM_LOG_DEBUG("The ipport param is not set. Try to use SHMEM_UID_SESSION_ID.");
+        const char* envip = std::getenv("SHMEM_UID_SESSION_ID");
         if (envip != nullptr) {
             env_ip_port = envip;
-            SHM_LOG_DEBUG("ACLSHMEM_UID_SESSION_ID is: " << env_ip_port);
+            SHM_LOG_DEBUG("SHMEM_UID_SESSION_ID is: " << env_ip_port);
         } else {
-            SHM_LOG_DEBUG("The environment variable ACLSHMEM_UID_SESSION_ID is not set.");
+            SHM_LOG_DEBUG("The environment variable SHMEM_UID_SESSION_ID is not set.");
         }
     }
     if (env_ip_port == nullptr) {
-        SHM_LOG_ERROR("Using method get_unique_id_by_ipport requires setting ipport or ACLSHMEM_UID_SESSION_ID.");
+        SHM_LOG_ERROR("Using method get_unique_id_by_ipport requires setting ipport or SHMEM_UID_SESSION_ID.");
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }
     
