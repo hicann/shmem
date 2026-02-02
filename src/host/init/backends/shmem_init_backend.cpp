@@ -521,3 +521,57 @@ int aclshmemi_init_backend::aclshmemi_control_barrier_all()
         return boot_handle_->barrier(boot_handle_);
     }
 }
+
+int aclshmemi_init_backend::is_alloc_size_symmetric(size_t size)
+{
+    std::vector<size_t> all_size(host_state_->npes, 0);
+
+    int ret = 0;
+    if (bootstrap_flags_ & ACLSHMEMX_INIT_WITH_DEFAULT) {
+        if (group_engine_ == nullptr) {
+            SHM_LOG_ERROR("Group is NULL");
+            return ACLSHMEM_INNER_ERROR;
+        }
+        ret = group_engine_->GroupAllGather(
+            reinterpret_cast<const char *>(&size), 
+            static_cast<uint32_t>(sizeof(size_t)), 
+            reinterpret_cast<char *>(all_size.data()), 
+            static_cast<uint32_t>(sizeof(size_t) * host_state_->npes)
+        );
+        if (ret != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("Group allgather failed");
+            return ACLSHMEM_SMEM_ERROR;
+        }
+    } else {
+        ret = boot_handle_->allgather(
+            &size, 
+            all_size.data(), 
+            static_cast<int>(sizeof(size_t)), 
+            boot_handle_
+        );
+        if (ret != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("bootstrap allgather failed, ret: " <<ret);
+            return ret;
+        }
+    }
+
+    for (int i = 0; i < host_state_->npes; ++i) {
+        SHM_LOG_INFO("alloc_size[pe " << i << "]=" << all_size[i]);
+    }
+
+    size_t ref = all_size[0];
+
+    auto it = std::find_if(all_size.begin() + 1, all_size.end(), [ref](size_t alloc_size) {
+        return alloc_size != ref;
+    });
+
+    if (it != all_size.end()) {
+        int bad_pe = std::distance(all_size.begin(), it);
+        size_t bad_val = *it;
+
+        SHM_LOG_ERROR("Asymmetric alloc size detected, ref(pe0) = " << ref << ", first detected bad(pe" << bad_pe << ")= "  
+                                        << bad_val << ", cur(pe" << host_state_->mype << ")= " << all_size[host_state_->mype]);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    return ACLSHMEM_SUCCESS;
+}

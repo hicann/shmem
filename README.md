@@ -105,6 +105,14 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
    bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
    ```
    注意：example及其他样例代码仅供参考，在生产环境中请谨慎使用。
+### debug模式使用
+1. 在源码shmem/目录编译:
+
+   ```sh
+   bash scripts/build.sh -examples -debug
+   ```
+   注意: 此处`-example`参数非必选项，仅提供[使用参考](./docs/Troubleshooting_FAQs.md#SHMEM-常见问题)。
+
 ### Python接口使用
 注意：python接口API列表可参考：[python接口API列表](./docs/pythonAPI.md)。
 

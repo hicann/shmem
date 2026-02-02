@@ -18,6 +18,7 @@ extern aclshmem_device_host_state_t g_state;
 extern aclshmem_host_state_t g_state_host;
 extern aclshmemi_init_backend* init_manager;
 int32_t aclshmemi_control_barrier_all();
+int32_t is_alloc_size_symmetric(size_t size);
 
 int32_t update_device_state(void);
 

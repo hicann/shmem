@@ -56,6 +56,13 @@ void *aclshmem_malloc(size_t size)
             ptr = nullptr;
         }
     }
+#ifdef DEBUG_MODE
+    ret = is_alloc_size_symmetric(size);
+    if (ret != 0) {
+        SHM_LOG_ERROR("asymmetric alloc detected");
+        return nullptr;
+    }
+#endif
     return ptr;
 }
 

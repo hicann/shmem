@@ -267,8 +267,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -debug)
             BUILD_TYPE=Debug
-            fn_build_googletest
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS}"
             shift
             ;;
         -examples)

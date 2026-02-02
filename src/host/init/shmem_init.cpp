@@ -127,6 +127,11 @@ int32_t aclshmemi_control_barrier_all()
     return init_manager->aclshmemi_control_barrier_all();
 }
 
+int32_t is_alloc_size_symmetric(size_t size)
+{
+    return init_manager->is_alloc_size_symmetric(size);
+}
+
 int32_t update_device_state()
 {
     return init_manager->update_device_state((void *)&g_state, sizeof(aclshmem_device_host_state_t));

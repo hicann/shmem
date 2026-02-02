@@ -42,6 +42,7 @@ public:
 
     void aclshmemi_global_exit(int status);
     int aclshmemi_control_barrier_all();
+    int is_alloc_size_symmetric(size_t size);
 
 private:
     int reach_info_init(void *&gva);
