@@ -71,7 +71,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, 
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size,\
  * \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -111,7 +111,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE>\
  * src, size_t elem_size, __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -140,7 +140,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR);
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const\
  * non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -170,7 +170,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED);
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE>\
  * src，const non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -198,6 +198,34 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED);
 /** \endcond */
 
 /**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_putBITS_signal(void *dst, void *src, size_t nelems, int32_t *sig_addr,\
+ * int32_t signal, int sig_op, int pe)
+ *
+ * @par Function Description
+ *    Synchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
+ *    updating a remote signal flag on completion.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on local device of the destination data.
+ * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **nelems**      - [in] Number of elements in the dest and source arrays.
+ * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
+ * - **signal**      - [in] The value used to update sig_addr.
+ * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
+ *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+ * - **pe**          - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAIL(BITS)                                                                               \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_signal(__gm__ void *dst, __gm__ void *src, size_t nelems,                         \
+                                                     __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAIL);
+/** \endcond */
+
+/**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE then update
  * sig_addr
  *
@@ -216,7 +244,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal_nbi(__gm__ void *dst, __gm__ void *s
 /**
  * @brief  Automatically generates aclshmem put signal nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t\
  * elem_size, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -257,7 +285,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
 /**
  * @brief  Automatically generates aclshmem put signal nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal_nbi(AscendC::GlobalTensor<TYPE> dst,\
  * AscendC::GlobalTensor<TYPE> src, size_t elem_size, size_t elem_size, \_\_gm\_\_ int32_t *sig_addr, int32_t signal,\
  * int sig_op, int pe)
@@ -287,7 +315,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_NBI);
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const\
  * non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -317,7 +345,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE>\
  * src，const non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
@@ -342,6 +370,35 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
+/** \endcond */
+
+/**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ *
+ * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal_nbi(void *dst, void *src, size_t nelems, int32_t \
+ * *sig_addr, int32_t signal, int sig_op, int pe)
+ *
+ * @par Function Description
+ *    Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
+ *    updating a remote signal flag on completion.
+ *
+ * @par Parameters
+ * - **dst**         - [in] Pointer on local device of the destination data.
+ * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **nelems**      - [in] Number of elements in the dest and source arrays.
+ * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
+ * - **signal**      - [in] The value used to update sig_addr.
+ * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
+ *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+ * - **pe**          - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAILED_NBI(BITS)                                                               \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_signal_nbi(__gm__ void *dst, __gm__ void *src, size_t nelems,           \
+                                                       __gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAILED_NBI);
 /** \endcond */
 
 #endif
