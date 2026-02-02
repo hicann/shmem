@@ -146,7 +146,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_TENSOR_DETAILED_NBI);
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.  
@@ -168,7 +168,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI);
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::LocalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int32_t pe)
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::LocalTensor<TYPE> src, uint32_t elem_size, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.  
@@ -191,7 +191,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_TENSOR_NBI);
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const non_contiguous_copy_param &copy_params, int32_t pe)
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, const non_contiguous_copy_param &copy_params, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -214,7 +214,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_DETAILED_NBI);
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::LocalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param &copy_params, int32_t pe)
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::LocalTensor<TYPE> src, const non_contiguous_copy_param &copy_params, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Provide a high-performance way to copy non-contiguous data
