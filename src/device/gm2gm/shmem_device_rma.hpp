@@ -110,17 +110,155 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 
+#define ACLSHMEM_IGET_TYPENAME_MEM(NAME, TYPE)                                                                            \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iget(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,     \
+                                                size_t nelems, int pe)                                                    \
+    {                                                                                                                     \
+        __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
+        uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
+        uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+                                                                                                                          \
+        auto ptr = aclshmem_ptr(source, pe);                                                                              \
+        __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                   \
+                                                                                                                          \
+        non_contiguous_copy_param copy_params {static_cast<uint32_t>(nelems), 1,                                          \
+                                               static_cast<uint32_t>(sst), static_cast<uint32_t>(dst)};                   \
+                                                                                                                          \
+        uint32_t ascendc_block_count_limit = 4095;                                                                        \
+        uint32_t block_size = ub_size / sizeof(TYPE) / copy_params.length;                                                \
+        block_size = block_size > ascendc_block_count_limit ? ascendc_block_count_limit : block_size;                     \
+                                                                                                                          \
+        uint32_t repeat_times = copy_params.repeat / block_size;                                                          \
+        uint32_t remain = copy_params.repeat % block_size;                                                                \
+                                                                                                                          \
+        uint32_t src_offset_unit = block_size * copy_params.src_ld;                                                       \
+        uint32_t dst_offset_unit = block_size * copy_params.dst_ld;                                                       \
+        uint32_t ascendc_block_len_bytes = copy_params.length * sizeof(TYPE);                                             \
+        uint32_t ascendc_src_stride_bytes = (copy_params.src_ld - copy_params.length) * sizeof(TYPE);                     \
+        uint32_t ascendc_dst_stride_bytes = (copy_params.dst_ld - copy_params.length) * sizeof(TYPE);                     \
+                                                                                                                          \
+        AscendC::GlobalTensor<TYPE> src_tensor;                                                                           \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                             \
+        AscendC::GlobalTensor<TYPE> dst_tensor;                                                                           \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+                                                                                                                          \
+        for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(remote_ptr + i * src_offset_unit));                \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(dest + i * dst_offset_unit));                      \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(block_size, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0); \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(block_size, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes , 0);\
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+                                                                                                                          \
+        if (remain > 0) {                                                                                                 \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(remote_ptr + repeat_times * src_offset_unit));     \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(dest + repeat_times * dst_offset_unit));           \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(remain, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0);     \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(remain, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes, 0);     \
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+    }
+
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
+#undef ACLSHMEM_IGET_TYPENAME_MEM
+
 #define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                                     \
     ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)         \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-        aclshmem_getmem(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                             \
+        aclshmem_getmem(dst, src, elem_size * ((BITS) / 8), pe);                                                        \
     }
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
 #undef ACLSHMEM_GET_SIZE_MEM
+
+#define ACLSHMEM_IGET_SIZE_MEM(BITS)                                                                                      \
+    ACLSHMEM_DEVICE void aclshmem_iget##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,        \
+                                             size_t nelems, int pe)                                                       \
+    {                                                                                                                     \
+        __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
+        uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
+        uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+                                                                                                                          \
+        auto ptr = aclshmem_ptr(source, pe);                                                                              \
+        __gm__ uint8_t *remote_ptr = reinterpret_cast<__gm__ uint8_t *>(ptr);                                             \
+        __gm__ uint8_t *dest_ptr = reinterpret_cast<__gm__ uint8_t *>(dest);                                              \
+                                                                                                                          \
+        uint32_t bytes = (BITS) / 8;                                                                                      \
+        non_contiguous_copy_param copy_params {static_cast<uint32_t>(nelems), bytes,                                      \
+                                               static_cast<uint32_t>(sst) * bytes, static_cast<uint32_t>(dst) * bytes};   \
+                                                                                                                          \
+        uint32_t ascendc_block_count_limit = 4095;                                                                        \
+        uint32_t block_size = ub_size / sizeof(uint8_t) / copy_params.length;                                             \
+        block_size = block_size > ascendc_block_count_limit ? ascendc_block_count_limit : block_size;                     \
+                                                                                                                          \
+        uint32_t repeat_times = copy_params.repeat / block_size;                                                          \
+        uint32_t remain = copy_params.repeat % block_size;                                                                \
+                                                                                                                          \
+        uint32_t src_offset_unit = block_size * copy_params.src_ld;                                                       \
+        uint32_t dst_offset_unit = block_size * copy_params.dst_ld;                                                       \
+        uint32_t ascendc_block_len_bytes = copy_params.length * sizeof(uint8_t);                                          \
+        uint32_t ascendc_src_stride_bytes = (copy_params.src_ld - copy_params.length) * sizeof(uint8_t);                  \
+        uint32_t ascendc_dst_stride_bytes = (copy_params.dst_ld - copy_params.length) * sizeof(uint8_t);                  \
+                                                                                                                          \
+        AscendC::GlobalTensor<uint8_t> src_tensor;                                                                        \
+        AscendC::LocalTensor<uint8_t> ub_tensor;                                                                          \
+        AscendC::GlobalTensor<uint8_t> dst_tensor;                                                                        \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+                                                                                                                          \
+        for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(remote_ptr + i * src_offset_unit));             \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(dest_ptr + i * dst_offset_unit));               \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(block_size, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0); \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(block_size, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes , 0);\
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+                                                                                                                          \
+        if (remain > 0) {                                                                                                 \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(remote_ptr + repeat_times * src_offset_unit));  \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(dest_ptr + repeat_times * dst_offset_unit));    \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(remain, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0);     \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(remain, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes, 0);     \
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
+#undef ACLSHMEM_IGET_SIZE_MEM
 
 ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
 {
@@ -157,17 +295,155 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 
+#define ACLSHMEM_IPUT_TYPENAME_MEM(NAME, TYPE)                                                                            \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iput(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,     \
+                                                size_t nelems, int pe)                                                    \
+    {                                                                                                                     \
+        __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
+        uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
+        uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+                                                                                                                          \
+        auto ptr = aclshmem_ptr(dest, pe);                                                                                \
+        __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                   \
+                                                                                                                          \
+        non_contiguous_copy_param copy_params {static_cast<uint32_t>(nelems), 1,                                          \
+                                               static_cast<uint32_t>(sst), static_cast<uint32_t>(dst)};                   \
+                                                                                                                          \
+        uint32_t ascendc_block_count_limit = 4095;                                                                        \
+        uint32_t block_size = ub_size / sizeof(TYPE) / copy_params.length;                                                \
+        block_size = block_size > ascendc_block_count_limit ? ascendc_block_count_limit : block_size;                     \
+                                                                                                                          \
+        uint32_t repeat_times = copy_params.repeat / block_size;                                                          \
+        uint32_t remain = copy_params.repeat % block_size;                                                                \
+                                                                                                                          \
+        uint32_t src_offset_unit = block_size * copy_params.src_ld;                                                       \
+        uint32_t dst_offset_unit = block_size * copy_params.dst_ld;                                                       \
+        uint32_t ascendc_block_len_bytes = copy_params.length * sizeof(TYPE);                                             \
+        uint32_t ascendc_src_stride_bytes = (copy_params.src_ld - copy_params.length) * sizeof(TYPE);                     \
+        uint32_t ascendc_dst_stride_bytes = (copy_params.dst_ld - copy_params.length) * sizeof(TYPE);                     \
+                                                                                                                          \
+        AscendC::GlobalTensor<TYPE> src_tensor;                                                                           \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                             \
+        AscendC::GlobalTensor<TYPE> dst_tensor;                                                                           \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+                                                                                                                          \
+        for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(source + i * src_offset_unit));                    \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(remote_ptr + i * dst_offset_unit));                \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(block_size, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0); \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(block_size, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes , 0);\
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+                                                                                                                          \
+        if (remain > 0) {                                                                                                 \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(source + repeat_times * src_offset_unit));         \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(remote_ptr + repeat_times * dst_offset_unit));     \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(remain, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0);     \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(remain, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes, 0);     \
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+    }
+
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
+#undef ACLSHMEM_IPUT_TYPENAME_MEM
+
 #define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                                     \
     ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)         \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-        aclshmem_putmem(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                             \
+        aclshmem_putmem(dst, src, elem_size * ((BITS) / 8), pe);                                                        \
     }
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
 #undef ACLSHMEM_PUT_SIZE_MEM
+
+#define ACLSHMEM_IPUT_SIZE_MEM(BITS)                                                                                      \
+    ACLSHMEM_DEVICE void aclshmem_iput##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,        \
+                                             size_t nelems, int pe)                                                       \
+    {                                                                                                                     \
+        __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
+        uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
+        uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+                                                                                                                          \
+        auto ptr = aclshmem_ptr(dest, pe);                                                                                \
+        __gm__ uint8_t *remote_ptr = reinterpret_cast<__gm__ uint8_t *>(ptr);                                             \
+        __gm__ uint8_t *source_ptr = reinterpret_cast<__gm__ uint8_t *>(source);                                          \
+                                                                                                                          \
+        uint32_t bytes = (BITS) / 8;                                                                                      \
+        non_contiguous_copy_param copy_params {static_cast<uint32_t>(nelems), bytes,                                      \
+                                               static_cast<uint32_t>(sst) * bytes, static_cast<uint32_t>(dst) * bytes};   \
+                                                                                                                          \
+        uint32_t ascendc_block_count_limit = 4095;                                                                        \
+        uint32_t block_size = ub_size / sizeof(uint8_t) / copy_params.length;                                             \
+        block_size = block_size > ascendc_block_count_limit ? ascendc_block_count_limit : block_size;                     \
+                                                                                                                          \
+        uint32_t repeat_times = copy_params.repeat / block_size;                                                          \
+        uint32_t remain = copy_params.repeat % block_size;                                                                \
+                                                                                                                          \
+        uint32_t src_offset_unit = block_size * copy_params.src_ld;                                                       \
+        uint32_t dst_offset_unit = block_size * copy_params.dst_ld;                                                       \
+        uint32_t ascendc_block_len_bytes = copy_params.length * sizeof(uint8_t);                                          \
+        uint32_t ascendc_src_stride_bytes = (copy_params.src_ld - copy_params.length) * sizeof(uint8_t);                  \
+        uint32_t ascendc_dst_stride_bytes = (copy_params.dst_ld - copy_params.length) * sizeof(uint8_t);                  \
+                                                                                                                          \
+        AscendC::GlobalTensor<uint8_t> src_tensor;                                                                        \
+        AscendC::LocalTensor<uint8_t> ub_tensor;                                                                          \
+        AscendC::GlobalTensor<uint8_t> dst_tensor;                                                                        \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+                                                                                                                          \
+        for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(source_ptr + i * src_offset_unit));             \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(remote_ptr + i * dst_offset_unit));             \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(block_size, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0); \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(block_size, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes , 0);\
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+                                                                                                                          \
+        if (remain > 0) {                                                                                                 \
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(source_ptr + repeat_times * src_offset_unit));  \
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(remote_ptr + repeat_times * dst_offset_unit));  \
+                                                                                                                          \
+            AscendC::DataCopyExtParams gm2ub_params(remain, ascendc_block_len_bytes, ascendc_src_stride_bytes, 0, 0);     \
+            aclshmemi_copy_gm2ub(ub_tensor, src_tensor, gm2ub_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);                                                   \
+                                                                                                                          \
+            AscendC::DataCopyExtParams ub2gm_params(remain, ascendc_block_len_bytes, 0, ascendc_dst_stride_bytes, 0);     \
+            aclshmemi_copy_ub2gm(dst_tensor, ub_tensor, ub2gm_params);                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                    \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);                                                   \
+        }                                                                                                                 \
+    }
+
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE_MEM);
+#undef ACLSHMEM_IPUT_SIZE_MEM
 
 ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
 {
@@ -224,7 +500,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-        aclshmem_getmem_nbi(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                         \
+        aclshmem_getmem_nbi(dst, src, elem_size * ((BITS) / 8), pe);                                                    \
     }
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
@@ -349,7 +625,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-        aclshmem_putmem_nbi(dst, src, elem_size * ((BITS) / sizeof(char)), pe);                                         \
+        aclshmem_putmem_nbi(dst, src, elem_size * ((BITS) / 8), pe);                                                    \
     }
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);

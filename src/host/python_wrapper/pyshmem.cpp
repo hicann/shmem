@@ -472,6 +472,33 @@ Arguments:
     pe                 [in] PE number of the remote PE.
     )");
 
+#define PYBIND_ACLSHMEM_TYPE_IPUT(NAME, TYPE)                                                                               \
+    {                                                                                                                       \
+        std::string funcName = "aclshmem_" #NAME "_iput";                                                                   \
+        m.def(                                                                                                              \
+            funcName.c_str(),                                                                                               \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
+                auto dst_addr = (TYPE *)dest;                                                                               \
+                auto src_addr = (TYPE *)source;                                                                             \
+                aclshmem_##NAME##_iput(dst_addr, src_addr, dst, sst, nelems, pe);                                           \
+            },                                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
+            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+        Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
+        local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
+        Arguments:                                                                                                          \
+            dest               [in] Pointer on Symmetric memory of the destination data.
+            source             [in] Pointer on local device of the source data.
+            dst                [in] The stride between consecutive elements of the dest array.
+            sst                [in] The stride between consecutive elements of the source array.
+            nelems             [in] Number of elements in the destination and source arrays.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                            \
+    }
+
+ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IPUT)
+#undef PYBIND_ACLSHMEM_TYPE_IPUT
+
 #define PYBIND_ACLSHMEM_PUT_SIZE(BITS)                                                                         		  		\
     {                                                                                                                 		\
         std::string funcName = "aclshmem_put" #BITS "";                                                        		  		\
@@ -497,6 +524,33 @@ Arguments:
 ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
 #undef PYBIND_ACLSHMEM_PUT_SIZE
 
+#define PYBIND_ACLSHMEM_IPUT_SIZE(BITS)                                                                                     \
+    {                                                                                                                       \
+        std::string funcName = "aclshmem_iput" #BITS "";                                                                    \
+        m.def(                                                                                                              \
+            funcName.c_str(),                                                                                               \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
+                auto dst_addr = (void *)dest;                                                                               \
+                auto src_addr = (void *)source;                                                                             \
+                aclshmem_iput##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                                              \
+            },                                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
+            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+        Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
+        local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
+        Arguments:                                                                                                          \
+            dest               [in] Pointer on Symmetric memory of the destination data.
+            source             [in] Pointer on local device of the source data.
+            dst                [in] The stride between consecutive elements of the dest array.
+            sst                [in] The stride between consecutive elements of the source array.
+            nelems             [in] Number of elements in the destination and source arrays.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                            \
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IPUT_SIZE)
+#undef PYBIND_ACLSHMEM_IPUT_SIZE
+
     m.def(
         "aclshmem_getmem",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
@@ -514,6 +568,33 @@ Arguments:
     elem_size          [in] size of elements in the destination and source addr.
     pe                 [in] PE number of the remote PE.
     )");
+
+#define PYBIND_ACLSHMEM_TYPE_IGET(NAME, TYPE)                                                                               \
+    {                                                                                                                       \
+        std::string funcName = "aclshmem_" #NAME "_iget";                                                                   \
+        m.def(                                                                                                              \
+            funcName.c_str(),                                                                                               \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
+                auto dst_addr = (TYPE *)dest;                                                                               \
+                auto src_addr = (TYPE *)source;                                                                             \
+                aclshmem_##NAME##_iget(dst_addr, src_addr, dst, sst, nelems, pe);                                           \
+            },                                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
+            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+        Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
+        strided locations on a local array.                                                                                 \
+        Arguments:                                                                                                          \
+            dest               [in] Pointer on local device of the destination data.
+            source             [in] Pointer on Symmetric memory of the source data.
+            dst                [in] The stride between consecutive elements of the dest array.
+            sst                [in] The stride between consecutive elements of the source array.
+            nelems             [in] Number of elements in the destination and source arrays.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                            \
+    }
+
+ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IGET)
+#undef PYBIND_ACLSHMEM_TYPE_IGET
 
 #define PYBIND_ACLSHMEM_GET_SIZE(BITS)                                                                         		  		\
     {                                                                                                                 		\
@@ -539,6 +620,33 @@ Arguments:
 
 ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
 #undef PYBIND_ACLSHMEM_GET_SIZE
+
+#define PYBIND_ACLSHMEM_IGET_SIZE(BITS)                                                                                     \
+    {                                                                                                                       \
+        std::string funcName = "aclshmem_iget" #BITS "";                                                                    \
+        m.def(                                                                                                              \
+            funcName.c_str(),                                                                                               \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
+                auto dst_addr = (void *)dest;                                                                               \
+                auto src_addr = (void *)source;                                                                             \
+                aclshmem_iget##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                                              \
+            },                                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
+            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+        Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
+        strided locations on a local array.                                                                                 \
+        Arguments:                                                                                                          \
+            dest               [in] Pointer on local device of the destination data.
+            source             [in] Pointer on Symmetric memory of the source data.
+            dst                [in] The stride between consecutive elements of the dest array.
+            sst                [in] The stride between consecutive elements of the source array.
+            nelems             [in] Number of elements in the destination and source arrays.
+            pe                 [in] PE number of the remote PE.
+            )");                                                                                                            \
+    }
+
+ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IGET_SIZE)
+#undef PYBIND_ACLSHMEM_IGET_SIZE
 
     m.def(
         "aclshmem_info_get_version",

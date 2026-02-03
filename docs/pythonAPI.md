@@ -186,6 +186,36 @@
     |elem_size|目标地址和源地址中元素的大小|
     |pe|远程PE的编号|
 
+1. 同步接口,将对称内存中的数据按照sst的步距从本地处理单元（PE）复制到指定PE的地址上（按照dst的步距）
+    ```python
+    def aclshmem_{TYPE}_iput(dest, source, dst, sst, nelems, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |TYPE|数据类型，可选float/double/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+   |dest|指向目标数据的对称内存的指针|
+   |source|源数据所在本地设备的指针|
+   |dst|目标地址中连续元素之间的步长|
+   |sst|源地址中连续元素之间的步长|
+   |nelems|连续元素块的个数|
+   |pe|远程PE的编号|
+
+1. 同步接口,将对称内存中指定处理单元（PE）上的数据按照sst的步距复制到本地PE的地址上（按照dst的步距）
+    ```python
+    def aclshmem_{TYPE}_iget(dest, source, dst, sst, nelems, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |TYPE|数据类型，可选float/double/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char|
+   |dest|目的数据所在本地设备的指针|
+   |source|源数据的对称内存的指针|
+   |dst|目标地址中连续元素之间的步长|
+   |sst|源地址中连续元素之间的步长|
+   |nelems|连续元素块的个数|
+   |pe|远程PE的编号|
+
 1. 同步接口,将对称内存中连续的数据从本地处理单元（PE）复制到指定PE的地址上
     ```python
     def aclshmem_put{BITS}(dst, src, elem_size, pe)
@@ -210,6 +240,36 @@
    |dst|指向本地处理单元（PE）对称地址的指针|
    |src|指向源数据本地内存的指针|
    |elem_size|目标地址和源地址中元素的大小|
+   |pe|远程PE的编号|
+
+1. 同步接口,将对称内存中的数据按照sst的步距从本地处理单元（PE）复制到指定PE的地址上（按照dst的步距）
+    ```python
+    def aclshmem_iput{BITS}(dest, source, dst, sst, nelems, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dest|指向目标数据的对称内存的指针|
+   |source|源数据所在本地设备的指针|
+   |dst|目标地址中连续元素之间的步长|
+   |sst|源地址中连续元素之间的步长|
+   |nelems|连续元素块的个数|
+   |pe|远程PE的编号|
+
+1. 同步接口,将对称内存中指定处理单元（PE）上的数据按照sst的步距复制到本地PE的地址上（按照dst的步距）
+    ```python
+    def aclshmem_iget{BITS}(dest, source, dst, sst, nelems, pe)
+    ```
+
+   |参数/返回值|含义|
+   |-|-|
+   |BITS|数据位宽，可选8/16/32/64/128|
+   |dest|目的数据所在本地设备的指针|
+   |source|源数据的对称内存的指针|
+   |dst|目标地址中连续元素之间的步长|
+   |sst|源地址中连续元素之间的步长|
+   |nelems|连续元素块的个数|
    |pe|远程PE的编号|
 
 1. 返回主版本号和次版本号

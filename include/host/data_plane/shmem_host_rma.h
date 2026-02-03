@@ -143,6 +143,32 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT_NBI);
 #undef ACLSHMEM_TYPE_PUT_NBI
 
 /**
+ * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_iput(TYPE *dest, TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
+ *      local PE to locations specified by stride dst on a dest array on specified remote PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_TYPE_IPUT(NAME, TYPE)                                                                             \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_iput(TYPE *dest, TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_IPUT);
+/** \endcond */
+#undef ACLSHMEM_TYPE_IPUT
+
+/**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  * 
@@ -187,6 +213,32 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE);
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_NBI);
 /** \endcond */
 #undef ACLSHMEM_PUT_SIZE_NBI
+
+/**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_iputBITS(void *dest, void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
+ *      local PE to locations specified by stride dst on a dest array on specified remote PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IPUT_SIZE(BITS)                                                                             \
+    ACLSHMEM_HOST_API void aclshmem_iput##BITS(void *dest, void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE);
+/** \endcond */
+#undef ACLSHMEM_IPUT_SIZE
 
 /**
  * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
@@ -257,6 +309,31 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET_NBI);
 #undef ACLSHMEM_TYPE_GET_NBI
 
 /**
+ * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_iget(TYPE *dest, TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on local device of the destination data.
+ * - **source**   - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_TYPE_IGET(NAME, TYPE)                                                                                 \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_iget(TYPE *dest, TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_IGET);
+/** \endcond */
+#undef ACLSHMEM_TYPE_IGET
+
+/**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  * 
@@ -301,6 +378,31 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE);
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_NBI);
 /** \endcond */
 #undef ACLSHMEM_GET_SIZE_NBI
+
+/**
+ * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_igetBITS(void *dest, void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on local device of the destination data.
+ * - **source**   - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IGET_SIZE(BITS)                                                                                 \
+    ACLSHMEM_HOST_API void aclshmem_iget##BITS(void *dest, void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE);
+/** \endcond */
+#undef ACLSHMEM_IGET_SIZE
 
 /**
  * @brief  Automatically generates aclshmem p functions for different data types (e.g., float, int8_t).

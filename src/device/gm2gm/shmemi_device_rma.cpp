@@ -41,6 +41,29 @@ ACLSHMEM_GLOBAL void aclshmemi_putmem(GM_ADDR dst, GM_ADDR src, uint32_t elem_si
     aclshmem_uint8_put(dst, src, elem_size, pe);
 }
 
+ACLSHMEM_GLOBAL void aclshmemi_putbits(GM_ADDR dst, GM_ADDR src, non_contiguous_copy_param copy_params, int32_t pe)
+{
+    switch (copy_params.length) {
+        case 1:
+            aclshmem_iput8(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 2:
+            aclshmem_iput16(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 4:
+            aclshmem_iput32(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 8:
+            aclshmem_iput64(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 16:
+            aclshmem_iput128(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        default:
+            break;
+    }
+}
+
 ACLSHMEM_GLOBAL void aclshmemi_getmem_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
     aclshmem_uint8_get_nbi(dst, src, elem_size, pe);
@@ -49,6 +72,29 @@ ACLSHMEM_GLOBAL void aclshmemi_getmem_nbi(GM_ADDR dst, GM_ADDR src, uint32_t ele
 ACLSHMEM_GLOBAL void aclshmemi_getmem(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, int32_t pe)
 {
     aclshmem_uint8_get(dst, src, elem_size, pe);
+}
+
+ACLSHMEM_GLOBAL void aclshmemi_getbits(GM_ADDR dst, GM_ADDR src, non_contiguous_copy_param copy_params, int32_t pe)
+{
+    switch (copy_params.length) {
+        case 1:
+            aclshmem_iget8(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 2:
+            aclshmem_iget16(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 4:
+            aclshmem_iget32(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 8:
+            aclshmem_iget64(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        case 16:
+            aclshmem_iget128(dst, src, copy_params.dst_ld, copy_params.src_ld, copy_params.repeat, pe);
+            break;
+        default:
+            break;
+    }
 }
 
 ACLSHMEM_GLOBAL void aclshmemi_putmem_signal(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
@@ -76,10 +122,6 @@ int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc
                                     int sig_op, ptrdiff_t lstride, ptrdiff_t rstride, aclrtStream acl_strm,
                                     size_t block_size)
 {
-    if ((lstride > 1) || (rstride > 1)) {
-        return -1;
-    }
-
     if (is_nbi) {
         switch (desc) {
             case ACLSHMEMI_OP_PUT:
@@ -95,18 +137,36 @@ int32_t aclshmemi_prepare_and_post_rma(const char *api_name, aclshmemi_op_t desc
                 break;
         }
     } else {
-        switch (desc) {
-            case ACLSHMEMI_OP_PUT:
-                aclshmemi_putmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
-                break;
-            case ACLSHMEMI_OP_GET:
-                aclshmemi_getmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
-                break;
-            case ACLSHMEMI_OP_PUT_SIGNAL:
-                aclshmemi_putmem_signal<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, sig_addr, signal,
-                                                                  sig_op, pe);
-            default:
-                break;
+        bool contiguous = lstride == 1 && rstride == 1;
+        if (contiguous) {
+            switch (desc) {
+                case ACLSHMEMI_OP_PUT:
+                    aclshmemi_putmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
+                    break;
+                case ACLSHMEMI_OP_GET:
+                    aclshmemi_getmem<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, pe);
+                    break;
+                case ACLSHMEMI_OP_PUT_SIGNAL:
+                    aclshmemi_putmem_signal<<<block_size, 0, acl_strm>>>(dst, src, n_elems * elem_bytes, sig_addr, signal,
+                                                                    sig_op, pe);
+                default:
+                    break;
+            }
+        } else {
+            non_contiguous_copy_param copy_params {static_cast<uint32_t>(n_elems),
+                                                   static_cast<uint32_t>(elem_bytes),
+                                                   static_cast<uint32_t>(rstride),
+                                                   static_cast<uint32_t>(lstride)};
+            switch (desc) {
+                case ACLSHMEMI_OP_PUT:
+                    aclshmemi_putbits<<<block_size, 0, acl_strm>>>(dst, src, copy_params, pe);
+                    break;
+                case ACLSHMEMI_OP_GET:
+                    aclshmemi_getbits<<<block_size, 0, acl_strm>>>(dst, src, copy_params, pe);
+                    break;
+                default:
+                    break;
+            }
         }
     }
     return 0;

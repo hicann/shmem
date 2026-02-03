@@ -199,6 +199,32 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 #define shmem_get_bfloat16_mem aclshmem_bfloat16_get
 
 /**
+ * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iget(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on local device of the destination data.
+ * - **source**   - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IGET_TYPENAME_MEM(NAME, TYPE)                                                                         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iget(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,  \
+                                                size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
+/** \cond */
+#undef ACLSHMEM_IGET_TYPENAME_MEM
+
+/**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  * 
@@ -220,6 +246,32 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
 /** \endcond */
 #undef ACLSHMEM_GET_SIZE_MEM
+
+/**
+ * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_DEVICE void aclshmem_igetBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on local device of the destination data.
+ * - **source**   - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IGET_SIZE_MEM(BITS)                                                                                   \
+    ACLSHMEM_DEVICE void aclshmem_iget##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,     \
+                                             size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
+/** \endcond */
+#undef ACLSHMEM_IGET_SIZE_MEM
 
 /**
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -268,6 +320,33 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 #define shmem_put_bfloat16_mem aclshmem_bfloat16_put
 
 /**
+ * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
+ *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
+ * 
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iput(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
+ *      local PE to locations specified by stride dst on a dest array on specified remote PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IPUT_TYPENAME_MEM(NAME, TYPE)                                                                           \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iput(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,    \
+                                                size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
+/** \endcond */
+#undef ACLSHMEM_IPUT_TYPENAME_MEM
+
+/**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  * 
@@ -289,6 +368,33 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
 /** \endcond */
 #undef ACLSHMEM_PUT_SIZE_MEM
+
+/**
+ * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
+ *         The macro parameters: BITS is the bits.
+ * 
+ * \remark ACLSHMEM_HOST_API void aclshmem_iputBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * @par Function Description
+ *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
+ *      local PE to locations specified by stride dst on a dest array on specified remote PE.
+ *
+ * @par Parameters
+ * - **dest**     - [in] Pointer on Symmetric memory of the destination data.
+ * - **source**   - [in] Pointer on local device of the source data.
+ * - **dst**      - [in] The stride between consecutive elements of the dest array.
+ * - **sst**      - [in] The stride between consecutive elements of the source array.
+ * - **nelems**   - [in] Number of elements in the destination and source arrays.
+ * - **pe**       - [in] PE number of the remote PE.
+ */
+#define ACLSHMEM_IPUT_SIZE_MEM(BITS)                                                                                     \
+    ACLSHMEM_DEVICE void aclshmem_iput##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,       \
+                                             size_t nelems, int pe)
+
+/** \cond */
+ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE_MEM);
+/** \endcond */
+#undef ACLSHMEM_IPUT_SIZE_MEM
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to
