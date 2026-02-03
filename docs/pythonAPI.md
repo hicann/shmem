@@ -1,5 +1,230 @@
-## SHMEM Python API
-##### SHMEM对外接口
+## SHMEM Python API Reference
+### shmem.core API
+##### 对外接口
+1. 获取当前库版本函数
+    ```python
+    def get_version() -> str
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |返回值|version信息组成的字符串|
+
+1. 初始化共享内存模块
+    ```python
+    def get_unique_id(empty: bool=False) -> UniqueID
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |empty|预留参数，无实际意义|
+    |返回值|代表一个唯一 ID 的句柄|
+
+1. 初始化共享内存模块
+    ```python
+    def init(device: int=None, uid: UniqueID=None, rank: int=None, nranks: int=None, mpi_comm=None, initializer_method: str="", mem_size: int=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |device|预留参数，无实际意义|
+    |uid|用于初始化的唯一标识符|
+    |rank|当前进程在 ACLSHMEM 作业中的排名|
+    |nranks|参与 ACLSHMEM 作业的总进程数（|
+    |mpi_comm|预留参数，无实际意义|
+    |initializer_method|指定初始化方法，必须为 "uid"|
+    |mem_size|个处理单元（PE）分配的对称内存大小|
+
+1. 销毁共享内存模块
+    ```python
+    def finalize() -> None
+    ```
+   
+1. 分配一个由 ACLSHMEM 支持的 NPU 缓冲区
+    ```python
+    def buffer(size, release=False, except_on_del=True) -> Buffer
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |size|要分配的缓冲区大小|
+    |release|预留参数，无实际意义|
+    |except_on_del|预留参数，无实际意义|
+    |返回值|一个原始内存缓冲区，通过其地址和字节长度表示|
+
+1. 释放缓冲区
+    ```python
+    def free(buf: Buffer) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |buf|需要释放的缓冲区|
+
+1. 获取可用于在指定PE上直接引用目标地址的地址
+    ```python
+    def get_peer_buffer(buf: Buffer, pe: int) -> Buffer
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |buf|远程可访问数据的对称地址|
+    |pe|PE编号|
+    |返回值|一个原始内存缓冲区，通过其地址和字节长度表示|
+
+1. 同步接口，从指定的PE复制对称内存中的连续数据到本地PE的地址
+    ```python
+    def put_signal(dst: Buffer, src: Buffer, signal_var: Buffer, signal_val: int, signal_operation: SignalOp, remote_pe: int=-1, stream=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |dst|本地 PE 上的对称内存缓冲区（目标地址）|
+    |src|包含源数据的对称内存缓冲区。|
+    |signal_var|用作信号变量的对称内存缓冲区|
+    |signal_operation|用于更新信号变量的原子操作|
+    |remote_pe|远程处理单元（PE）的编号|
+    |stream|预留参数，无实际意义|
+
+1. 同步接口，在指定流上将对称内存中连续的数据从本地处理单元（PE）复制到指定PE的地址上
+    ```python
+    def put(dst: Buffer, src: Buffer, remote_pe: int=-1, stream: int=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |dst|远程 PE 上的对称目标缓冲区|
+    |src|包含待发送数据的本地源缓冲区|
+    |remote_pe|要目标处理单元（PE）的编号|
+    |stream|ACL 流对象|
+
+1. 同步接口，在指定流上将对称内存中指定处理单元（PE）上的连续数据复制到本地PE的地址上
+    ```python
+    def get(dst: Buffer, src: Buffer, remote_pe: int=-1, stream: int=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |dst|用于写入数据的本地目标缓冲区|
+    |src|远程 PE 上的对称源缓冲区|
+    |remote_pe|要目标处理单元（PE）的编号|
+    |stream|ACL 流对象|
+
+1. 同步接口，在指定的 PE 上对远程信号变量执行原子操作，该操作在给定的流上执行
+    ```python
+    def signal_op(signal_var: Buffer, signal_val: int, signal_operation: SignalOp, remote_pe: int=-1, stream: int=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |signal_var |包含信号变量的对称内存缓冲区|
+    |signal_val |用于远程原子信号操作的值|
+    |signal_operation |要应用于远程信号变量的原子操作|
+    |remote_pe|远程处理单元（PE）的编号|
+    |stream|ACL 流对象|
+
+1. 同步接口，在指定的 PE 上对远程信号变量执行原子比较操作，该操作在给定的流上执行
+    ```python
+    def signal_wait(signal_var: Buffer, signal_val: int, signal_operation: ComparisonType, stream: int=None) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |signal_var|包含信号变量的对称内存缓冲区|
+    |signal_val|用于比较 sig 所指向值与 cmp_val 的比较操作符|
+    |signal_operation|用于与 sig 所指向的值进行比较的数值|
+    |stream|ACL 流对象|
+
+1. 获取PE值
+    ```python
+    def my_pe() -> int
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |返回值|PE值|
+
+1. 获取在特定team中的PE号码
+    ```python
+    def team_my_pe(team) -> int
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |team|目标team的id|
+    |返回值|PE值|
+
+1. 程序中运行的PE数量
+    ```python
+    def n_pes() -> int
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |返回值|PE数量|
+
+1. 获取特定team中的PE数量
+    ```python
+    def team_n_pes(team) -> int
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |team|目标team的id|
+    |返回值|PE数量|
+
+1. 查询共享内存模块的当前初始化状态
+    ```python
+    def init_status() -> InitStatus
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |返回值|返回初始化状态|
+
+##### 类
+1. UniqueId类
+    ```python
+    class UniqueId:
+        def __init__(self):
+    ```
+
+    |属性|含义|
+    |-|-|
+    |version| 版本信息|
+    |my_rank| 当前进程的pe编号|
+    |n_pes| 所有进程的pe总数|
+    |internal| uid的内部信息|
+
+1. InitStatus枚举类
+    ```python
+    class InitStatus(Enum):
+        NOT_INITIALIZED
+        SHM_CREATED
+        INITIALIZED
+        INVALID
+    ```
+   
+1. SignalOp枚举类
+    ```python
+    class SignalOp(Enum):
+        SIGNAL_SET
+        SIGNAL_ADD
+    ```
+   
+1. ComparisonType枚举类
+    ```python
+    class ComparisonType(Enum):
+        CMP_EQ
+        CMP_NE
+        CMP_GT
+        CMP_GE
+        CMP_LT
+        CMP_LE
+    ```
+
+### shmem._pyshmem API
+##### 对外接口
 1. 初始化共享内存模块
     ```python
     def aclshmem_init(mype, npes, mem_size) -> int
@@ -671,7 +896,58 @@
     |cmp_values_ptr|比较值数组|
     |res_out_ptr|接收device侧接口返回值。即满足比较条件的元素个数|
 
-##### SHMEM类
+1. 同步接口，在指定流上将对称内存中连续的数据从本地处理单元（PE）复制到指定PE的地址上
+    ```python
+    def aclshmemx_putmem_on_stream(dst, src, elem_size, pe, stream) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |dst|本地PE对称地址上的指针|
+    |src|源数据本地内存中的指针|
+    |elem_size|目标地址和源地址中元素的大小|
+    |pe|远程PE的编号|
+    |stream|使用指定的流进行拷贝（如果 stream 为 NULL，则使用默认流）|
+
+1. 同步接口，在指定流上将对称内存中指定处理单元（PE）上的连续数据复制到本地PE的地址上
+    ```python
+    def aclshmemx_getmem_on_stream(dst, src, elem_size, pe, stream) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |dst|指向本地处理单元（PE）对称地址的指针|
+    |src|指向源数据本地内存的指针|
+    |elem_size|目标地址和源地址中元素的大小|
+    |pe|远程PE的编号|
+    |stream|使用指定的流进行拷贝（如果 stream 为 NULL，则使用默认流）|
+
+1. 同步接口，在指定的 PE 上对远程信号变量执行原子操作，该操作在给定的流上执行
+    ```python
+    def aclshmemx_signal_op_on_stream(sig, signal, sig_op, pe, stream) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |sig|本地地址，指向源信号变量，该变量在目标 PE 上可访问|
+    |signal|用于原子操作的值|
+    |sig_op|在远程信号变量上执行的操作|
+    |pe|远程PE的编号|
+    |stream|使用指定的流进行拷贝（如果 stream 为 NULL，则使用默认流）|
+
+1. 同步接口，在指定的 PE 上对远程信号变量执行原子比较操作，该操作在给定的流上执行
+    ```python
+    def aclshmemx_signal_wait_until_on_stream(sig, cmp, cmp_val, stream) -> None
+    ```
+
+    |参数/返回值|含义|
+    |-|-|
+    |sig|源信号变量的本地地址|
+    |cmp|用于比较 sig 所指向值与 cmp_val 的比较操作符|
+    |cmp_val|用于与 sig 所指向的值进行比较的数值|
+    |stream|使用指定的流进行拷贝（如果 stream 为 NULL，则使用默认流）|
+
+##### 类
 1. OpEngineType枚举类
     ```python
     class OpEngineType(Enum):
@@ -717,6 +993,19 @@
     |-|-|
     |num_contexts|一个团队（team）中可以同时运行的上下文数量|
 
+1. UniqueId类
+    ```python
+    class UniqueId:
+        def __init__(self):
+    ```
+
+    |属性|含义|
+    |-|-|
+    |version| 版本信息|
+    |my_rank| 当前进程的pe编号|
+    |n_pes| 所有进程的pe总数|
+    |internal| uid的内部信息|
+
 1. InitStatus枚举类
     ```python
     class InitStatus(Enum):
@@ -724,4 +1013,22 @@
         SHM_CREATED
         INITIALIZED
         INVALID
+    ```
+   
+1. SignalOp枚举类
+    ```python
+    class SignalOp(Enum):
+        SIGNAL_SET
+        SIGNAL_ADD
+    ```
+   
+1. CmpOp枚举类
+    ```python
+    class CmpOp(Enum):
+        CMP_EQ
+        CMP_NE
+        CMP_GT
+        CMP_GE
+        CMP_LT
+        CMP_LE
     ```

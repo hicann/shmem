@@ -22,22 +22,18 @@ function pre_check()
     fi
 
     echo "begin install shmem whl package"
-    whl_file=`ls package/*/*.whl`
-    if [[ $? -ne 0 ]]; then
-        echo "execute 'bash script/build.sh -package' to build the whl package"
-        exit 1
-    fi
-    pip install $whl_file
-    [[ $? -eq 0 ]] || exit 1
 
-    run_file=`ls package/*/*.run`
-    $run_file --install
-    if [[ $? -ne 0 ]]; then
-        echo "execute 'bash script/build.sh -package' to build the run package"
+    whl_file=$(find . -name "*.whl" -type f | head -n 1)
+
+    if [[ -z "$whl_file" ]]; then
+        echo "No .whl file found in current directory and subdirectories."
+        echo "Execute 'pip wheel .' in the project root directory."
         exit 1
     fi
-    source /usr/local/Ascend/shmem/latest/set_env.sh
-    [[ $? -eq 0 ]] || exit 2
+
+    echo "Found wheel: $whl_file"
+    pip install "$whl_file"
+    [[ $? -eq 0 ]] || exit 1
 }
 
 function run_py_test()
@@ -48,6 +44,25 @@ function run_py_test()
 
     torchrun --nproc-per-node 2 tls_test.py
     [[ $? -eq 0 ]] || return 1
+
+    torchrun --nproc-per-node 2 unique_id_test.py
+    [[ $? -eq 0 ]] || return 1
+}
+
+function run_core_py_test()
+{
+    cd $SCRIPT_DIR/test/core
+    torchrun --nproc-per-node 2 test_init_final.py
+    [[ $? -eq 0 ]] || return 1
+
+    torchrun --nproc-per-node 2 test_memory.py
+    [[ $? -eq 0 ]] || return 1
+
+    torchrun --nproc-per-node 2 test_rma.py
+    [[ $? -eq 0 ]] || return 1
+
+    torchrun --nproc-per-node 2 test_direct.py
+    [[ $? -eq 0 ]] || return 1
 }
 
 function main()
@@ -56,6 +71,11 @@ function main()
 
     run_py_test
     [[ $? -eq 0 ]] || return 1
+
+    run_core_py_test
+    [[ $? -eq 0 ]] || return 1
+
+    echo "All Python tests passed!"
 }
 
 main

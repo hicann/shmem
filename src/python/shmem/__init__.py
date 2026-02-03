@@ -10,36 +10,28 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 #
+
 import os
 import sys
 import ctypes
 import logging
 import torch
 import torch_npu
+from . import core
 from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
 from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_using_unique_id, \
                        aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
-                       aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, team_split_strided,
+                       aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, team_split_strided, \
                        team_split_2d, team_translate_pe, \
                        team_destroy, InitAttr, OpEngineType, \
-                       InitStatus, aclshmem_calloc, aclshmem_align, aclshmemx_init_status, get_ffts_config, team_my_pe,
-                       team_n_pes, \
-                       aclshmem_putmem_nbi, aclshmem_getmem_nbi, aclshmem_putmem, aclshmem_getmem, aclshmemx_putmem_signal,
+                       InitStatus, aclshmem_calloc, aclshmem_align, aclshmemx_init_status, get_ffts_config, \
+                       team_my_pe, team_n_pes, \
+                       aclshmem_putmem_nbi, aclshmem_getmem_nbi, aclshmem_putmem, aclshmem_getmem, \
+                       aclshmemx_putmem_signal, \
                        aclshmemx_putmem_signal_nbi, \
                        aclshmem_info_get_version, aclshmem_info_get_name, \
-                       aclshmem_team_get_config, OptionalAttr, aclshmem_global_exit, set_conf_store_tls, set_log_level,
-                       set_extern_logger, aclshmem_signal_wait_until)
-
-current_path = os.path.abspath(__file__)
-current_dir = os.path.dirname(current_path)
-sys.path.append(current_dir)
-libs_path = os.path.join(os.getenv('SHMEM_HOME_PATH', current_dir), 'shmem/lib')
-for lib in ["libshmem.so"]:
-    lib_path = os.path.join(libs_path, lib)
-    try:
-        ctypes.CDLL(lib_path)
-    except OSError as e:
-        logging.error(f"Failed to load shared library: {lib_path}, {e}")
+                       aclshmem_team_get_config, OptionalAttr, aclshmem_global_exit, set_conf_store_tls, \
+                       set_log_level, set_extern_logger, aclshmem_signal_wait_until)
 
 __all__ = [
     'aclshmem_init',

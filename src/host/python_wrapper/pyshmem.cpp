@@ -16,6 +16,7 @@
 #include <iostream>
 
 #include "shmem.h"
+#include "host_device/shmem_common_types.h"
 
 namespace py = pybind11;
 
@@ -71,7 +72,7 @@ py::bytes aclshmem_get_unique_id()
     aclshmemx_uniqueid_t uid;
     auto ret = aclshmemx_get_uniqueid(&uid);
     if (ret != 0) {
-        std::cerr << "get unique id failed " << ret << std::endl;
+        throw std::runtime_error("get unique id failed");
     }
     return py::bytes(reinterpret_cast<const char*>(&uid), sizeof(uid));
 }
@@ -214,10 +215,70 @@ void DefineShmemInitStatus(py::module_ &m)
         .value("INVALID", ACLSHMEM_STATUS_INVALID);
 }
 
+void DefineShmemUniqueId(py::module_ &m)
+{
+    constexpr int32_t MAGIC = (1 << 16) + sizeof(aclshmemx_uniqueid_t);
+
+    py::class_<aclshmemx_uniqueid_t>(m, "UniqueId")
+        .def(py::init([]() {
+            aclshmemx_uniqueid_t obj{};
+            obj.version = MAGIC;
+            return obj;
+        }))
+        .def_readwrite("version", &aclshmemx_uniqueid_t::version)
+        .def_readwrite("my_pe",   &aclshmemx_uniqueid_t::my_pe)
+        .def_readwrite("n_pes",   &aclshmemx_uniqueid_t::n_pes)
+        .def_property("internal",
+            // getter: return bytes
+            [](const aclshmemx_uniqueid_t& self) {
+                return py::bytes(self.internal, ACLSHMEM_UNIQUE_ID_INNER_LEN);
+            },
+            // setter: accept bytes or bytearray
+            [MAGIC](aclshmemx_uniqueid_t& self, const py::bytes& value) {
+                if (self.version != MAGIC) {
+                    throw std::invalid_argument(
+                        "Cannot set 'internal': UniqueId is not initialized or has invalid magic number. "
+                    );
+                }
+                auto buffer = value;
+                char* ptr = nullptr;
+                ssize_t size = 0;
+                if (PYBIND11_BYTES_AS_STRING_AND_SIZE(buffer.ptr(), &ptr, &size)) {
+                    throw std::runtime_error("Failed to extract bytes");
+                }
+                if (size != ACLSHMEM_UNIQUE_ID_INNER_LEN) {
+                    throw std::invalid_argument(
+                        "internal must be exactly " + std::to_string(ACLSHMEM_UNIQUE_ID_INNER_LEN) + " bytes");
+                }
+                std::memcpy(self.internal, ptr, ACLSHMEM_UNIQUE_ID_INNER_LEN);
+            });
+}
+
+void DefineShmemSignalOp(py::module_ &m)
+{
+    py::enum_<aclshmem_signal_op_type_t>(m, "SignalOp")
+        .value("SIGNAL_SET", ACLSHMEM_SIGNAL_SET)
+        .value("SIGNAL_ADD", ACLSHMEM_SIGNAL_ADD);
+}
+
+void DefineShmemCmpOp(py::module_ &m)
+{
+    py::enum_<aclshmem_cmp_op_type_t>(m, "CmpOp")
+        .value("CMP_EQ", ACLSHMEM_CMP_EQ)
+        .value("CMP_NE", ACLSHMEM_CMP_NE)
+        .value("CMP_GT", ACLSHMEM_CMP_GT)
+        .value("CMP_GE", ACLSHMEM_CMP_GE)
+        .value("CMP_LT", ACLSHMEM_CMP_LT)
+        .value("CMP_LE", ACLSHMEM_CMP_LE);
+}
+
 PYBIND11_MODULE(_pyshmem, m)
 {
     DefineShmemAttr(m);
     DefineShmemInitStatus(m);
+    DefineShmemUniqueId(m);
+    DefineShmemSignalOp(m);
+    DefineShmemCmpOp(m);
 
     m.def("aclshmem_init", &shm::aclshmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("attributes"), R"(
 Initialize share memory module.
@@ -242,7 +303,7 @@ Arguments:
     mype(int): local processing element index, range in [0, npes).
     npes(int): total count of processing elements.
     mem_size(int): memory size for each processing element in bytes.
-    uid(aclshmem_uid): shmem uid
+    uid(aclshmem_uid): shmem uid.
 Returns:
     returns zero on success. On error, -1 is returned.
     )");
@@ -251,7 +312,7 @@ Returns:
 Get the unique id. This function need run with PTA.
 
 Returns:
-    returns unique id on success. On error, None is returned.
+    returns unique id on success. On error, raise error.
     )");
 
     m.def(
@@ -429,10 +490,8 @@ Collective Interface. Split team from an existing parent team based on a 2D Cart
 Arguments:
     parent_team       [in] A team handle.
     x_range           [in] represents the number of elements in the first dimensions
-    x_team            [in] A new x-axis team after team split.
-    y_team            [in] A new y-axis team after team split.
 Returns:
-    On success, returns new x team id and new y team id. On error, (-1, -1) is returned.
+    On success, returns new x team id and new y team id. On error, raise error.
     )");
 
     m.def(
@@ -882,6 +941,98 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         sig_op             [in] Operation used to update sig_addr with signal.
                                 Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
         pe                 [in] PE number of the remote PE.
+        )");
+
+    m.def(
+        "aclshmemx_putmem_on_stream",
+        [](intptr_t dst, intptr_t src, size_t elem_size, int pe, intptr_t stream) {
+            auto dst_addr = (void *)dst;
+            auto src_addr = (void *)src;
+            aclrtStream acl_stream = nullptr;
+            if (stream != 0) {
+                acl_stream = reinterpret_cast<aclrtStream>(stream);
+            }
+            aclshmemx_putmem_on_stream(dst_addr, src_addr, elem_size, pe, acl_stream);
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
+        py::arg("stream"), R"(
+    Copy contiguous data from the local PE to a symmetric memory address on a remote PE.
+
+    Arguments:
+        dst                [in] Pointer on local device of the destination data.
+        src                [in] Pointer on Symmetric memory of the source data.
+        elem_size          [in] Number of elements in the dest and source arrays.
+        pe                 [in] PE number of the remote PE.
+        stream             [in] copy used stream(use default stream if stream == NULL).
+        )");
+
+    m.def(
+        "aclshmemx_getmem_on_stream",
+        [](intptr_t dst, intptr_t src, size_t elem_size, int pe, intptr_t stream) {
+            auto dst_addr = (void *)dst;
+            auto src_addr = (void *)src;
+            aclrtStream acl_stream = nullptr;
+            if (stream != 0) {
+                acl_stream = reinterpret_cast<aclrtStream>(stream);
+            }
+            aclshmemx_getmem_on_stream(dst_addr, src_addr, elem_size, pe, acl_stream);
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
+        py::arg("stream"), R"(
+    Copy contiguous data from symmetric memory on a remote PE to a local buffer.
+
+    Arguments:
+        dst                [in] Pointer on local device of the destination data.
+        src                [in] Pointer on Symmetric memory of the source data.
+        elem_size          [in] Number of elements in the dest and source arrays.
+        pe                 [in] PE number of the remote PE.
+        stream             [in] copy used stream(use default stream if stream == NULL).
+    )");
+
+    m.def(
+        "aclshmemx_signal_op_on_stream",
+        [](intptr_t sig, int32_t signal, int sig_op, int pe, intptr_t stream) {
+            auto sig_addr = (int32_t *)sig;
+            aclrtStream acl_stream = nullptr;
+            if (stream != 0) {
+                acl_stream = reinterpret_cast<aclrtStream>(stream);
+            }
+            aclshmemx_signal_op_on_stream(sig_addr, signal, sig_op, pe, acl_stream);
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("sig_addr"), py::arg("signal"), py::arg("sig_op"),
+        py::arg("pe"), py::arg("stream"), R"(
+    Performs an atomic operation on a remote signal variable at the specified PE, with the operation executed on the given stream.
+
+    Arguments:
+        sig_addr             [in] Local address of the source signal variable that is accessible at the target PE.
+        signal               [in] The value to be used in the atomic operation.
+        sig_op               [in] The operation to perform on the remote signal. Supported operations:
+                                   ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD.
+        pe                   [in] The PE number on which the remote signal variable is to be updated.
+        stream               [in] Used stream(use default stream if stream == NULL).
+        )");
+
+    m.def(
+        "aclshmemx_signal_wait_until_on_stream",
+        [](intptr_t sig, int cmp, int32_t cmp_val, intptr_t stream) {
+            auto sig_addr = (int32_t *)sig;
+            aclrtStream acl_stream = nullptr;
+            if (stream != 0) {
+                acl_stream = reinterpret_cast<aclrtStream>(stream);
+            }
+            aclshmemx_signal_wait_until_on_stream(sig_addr, cmp, cmp_val, acl_stream);
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("sig_addr"), py::arg("cmp"), py::arg("cmp_val"),
+        py::arg("stream"), R"(
+    Wait until a symmetric signal variable meets a specified condition.
+
+    Arguments:
+        sig_addr             [in] Local address of the source signal variable.
+        cmp                  [in] The comparison op that compares sig_addr with cmp_val. Supported operators:
+                                  ACLSHMEM_CMP_EQ/ACLSHMEM_CMP_NE/ACLSHMEM_CMP_GT/
+                                  ACLSHMEM_CMP_GE/ACLSHMEM_CMP_LT/ACLSHMEM_CMP_LE.
+        cmp_val              [in] The value against which the object pointed to by sig_addr will be compared.
+        stream               [in] Used stream(use default stream if stream == NULL).
         )");
 
 #define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL(BITS)                                                                         \

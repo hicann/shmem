@@ -376,7 +376,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  *
- * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal_nbi(void *dst, void *src, size_t nelems, int32_t \
+ * \remark ACLSHMEM_DEVICE void aclshmem_putBITS_signal_nbi(void *dst, void *src, size_t nelems, int32_t \
  * *sig_addr, int32_t signal, int sig_op, int pe)
  *
  * @par Function Description

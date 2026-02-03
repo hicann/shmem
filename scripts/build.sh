@@ -50,7 +50,7 @@ function fn_build()
     mkdir -p build
 
     cd build
-    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER ..
+    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER ..
     make install -j17
     cd -
 }
@@ -59,18 +59,15 @@ function fn_whl_build()
 {
   echo "Python extension enabled. Copying and packaging Python wheel..."
 
-  cd "${PROJECT_ROOT}/scripts"
-  source set_env.sh
-
   cd "${PROJECT_ROOT}/src/python"
-  rm -rf build shmem.egg-info build dist
+  rm -rf build shmem.egg-info dist
 GIT_COMMIT=`git rev-parse HEAD` || true
   {
   echo "commit_id: ${GIT_COMMIT}"
   } > "${PROJECT_ROOT}/src/python/shmem/VERSION"
-  python3 setup.py bdist_wheel
 
   cd "${PROJECT_ROOT}"
+  pip wheel . --no-deps -v
 }
 
 function make_package()
@@ -86,7 +83,7 @@ function make_package()
 
     mkdir -p "${PROJECT_ROOT}"/package/$ARCH/
     if [ "$PYEXPAND_TYPE" = "ON" ]; then
-         cp "${PROJECT_ROOT}"/src/python/dist/*.whl "${PROJECT_ROOT}"/package/$ARCH/
+         cp "${PROJECT_ROOT}"/*.whl "${PROJECT_ROOT}"/package/$ARCH/
          whl_name=`basename ${PROJECT_ROOT}/src/python/dist/*.whl`
          echo "${whl_name} is copy to ${PROJECT_ROOT}/package"
     fi
@@ -329,10 +326,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-fn_build
-
 if [ "$PYEXPAND_TYPE" = "ON" ]; then
     fn_whl_build
+else
+    fn_build
 fi
 
 fn_make_run_package

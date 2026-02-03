@@ -41,6 +41,9 @@ void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStream stream)
 
 void aclshmemx_signal_wait_until_on_stream(int32_t *sig_addr, int cmp, int32_t cmp_value, aclrtStream stream)
 {
+    if (stream == nullptr) {
+        stream = g_state_host.default_stream;
+    }
     call_aclshmemi_signal_wait_until_on_stream_kernel(sig_addr, cmp, cmp_value, stream);                            
 }
 

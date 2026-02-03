@@ -312,7 +312,7 @@ int32_t aclshmemi_get_uniqueid_acclink(aclshmemx_uniqueid_t *uid)
     uint16_t pta_env_port;
     sa_family_t sockType;
     const char *ipPort = std::getenv("SHMEM_UID_SESSION_ID");
-    const char *ipInfo = std::getenv("SHMEM_UID_SOCK_IFNAM");
+    const char *ipInfo = std::getenv("SHMEM_UID_SOCK_IFNAME");
     bool is_from_ifa = false;
     if (ipPort != nullptr) {
         if (aclshmemi_get_ip_from_env(pta_env_ip, pta_env_port, sockType, ipPort) != ACLSHMEM_SUCCESS) {

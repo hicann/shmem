@@ -105,7 +105,7 @@ enum aclshmem_mem_type_t {
 /**
  * @brief Signal operations, used by the signaler in peer-to-peer synchronization
  */
-enum {
+enum aclshmem_signal_op_type_t {
     ACLSHMEM_SIGNAL_SET,
     ACLSHMEM_SIGNAL_ADD
 };
@@ -113,7 +113,7 @@ enum {
 /**
  * @brief Signal comparison operations, used by the signalee in peer-to-peer synchronization
  */
-enum {
+enum aclshmem_cmp_op_type_t {
     ACLSHMEM_CMP_EQ = 0,
     ACLSHMEM_CMP_NE,
     ACLSHMEM_CMP_GT,

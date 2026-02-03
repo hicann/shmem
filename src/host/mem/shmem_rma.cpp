@@ -153,5 +153,8 @@ void aclshmemx_putmem_signal(void *dst, void *src, size_t elem_size, void *sig_a
 
 void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
 {
+    if (stream == nullptr) {
+        stream = g_state_host.default_stream;
+    }
     call_aclshmemi_signal_op_on_stream_kernel(sig_addr, signal, sig_op, pe, stream);
 }

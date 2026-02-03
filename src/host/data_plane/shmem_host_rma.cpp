@@ -305,6 +305,9 @@ void aclshmem_getmem_nbi(void *dst, void *src, size_t elem_size, int32_t pe)
 
 void aclshmemx_getmem_on_stream(void* dst, void* src, size_t elem_size, int32_t pe, aclrtStream stream)
 {
+    if (stream == nullptr) {
+        stream = g_state_host.default_stream;
+    }
     int ret = aclshmemi_prepare_and_post_rma("aclshmemx_getmem_on_stream", ACLSHMEMI_OP_GET, NO_NBI, (uint8_t *)dst, (uint8_t *)src,
                                           elem_size, 1, pe, nullptr, 0, 0, 1, 1, stream,
                                           g_state_host.default_block_num);
@@ -315,6 +318,9 @@ void aclshmemx_getmem_on_stream(void* dst, void* src, size_t elem_size, int32_t 
 
 void aclshmemx_putmem_on_stream(void* dst, void* src, size_t elem_size, int32_t pe, aclrtStream stream)
 {
+    if (stream == nullptr) {
+        stream = g_state_host.default_stream;
+    }
     int ret = aclshmemi_prepare_and_post_rma("aclshmemx_putmem_on_stream", ACLSHMEMI_OP_PUT, NO_NBI, (uint8_t *)dst, (uint8_t *)src,
                                           elem_size, 1, pe, nullptr, 0, 0, 1, 1, stream,
                                           g_state_host.default_block_num);

@@ -31,6 +31,9 @@ list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_DIR})
 find_package(pybind11 REQUIRED)
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(CMAKE_BUILD_RPATH "$ORIGIN")
+set(CMAKE_INSTALL_RPATH "$ORIGIN")
+set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 
 pybind11_add_module(_pyshmem pyshmem.cpp)
 set_target_properties(_pyshmem PROPERTIES CXX_STANDARD 17)
@@ -39,6 +42,7 @@ target_include_directories(_pyshmem PRIVATE
 )
 target_link_libraries(_pyshmem PRIVATE
         shmem
+        config_store_shared
 )
 
 set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/shmem)
