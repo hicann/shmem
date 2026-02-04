@@ -60,7 +60,7 @@ function fn_whl_build()
   echo "Python extension enabled. Copying and packaging Python wheel..."
 
   cd "${PROJECT_ROOT}/src/python"
-  rm -rf build shmem.egg-info dist
+  rm -rf build shmem.egg-info ${PROJECT_ROOT}/dist
 GIT_COMMIT=`git rev-parse HEAD` || true
   {
   echo "commit_id: ${GIT_COMMIT}"
@@ -83,7 +83,7 @@ function make_package()
 
     mkdir -p "${PROJECT_ROOT}"/package/$ARCH/
     if [ "$PYEXPAND_TYPE" = "ON" ]; then
-         cp "${PROJECT_ROOT}"/*.whl "${PROJECT_ROOT}"/package/$ARCH/
+         cp "${PROJECT_ROOT}"/dist/*.whl "${PROJECT_ROOT}"/package/$ARCH/
          whl_name=`basename ${PROJECT_ROOT}/src/python/dist/*.whl`
          echo "${whl_name} is copy to ${PROJECT_ROOT}/package"
     fi
