@@ -67,7 +67,7 @@ GIT_COMMIT=`git rev-parse HEAD` || true
   } > "${PROJECT_ROOT}/src/python/shmem/VERSION"
 
   cd "${PROJECT_ROOT}"
-  pip wheel . --no-deps -v
+  python3 setup.py bdist_wheel
 }
 
 function make_package()
