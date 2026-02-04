@@ -11,10 +11,9 @@
 #
 from .init_final import *
 from .rma import *
-from .teams import *
 from .memory import *
 
 import os
 
 # Define public exports
-__all__ = init_final.__all__ + rma.__all__ + teams.__all__ + memory.__all__
+__all__ = init_final.__all__ + rma.__all__ + memory.__all__
