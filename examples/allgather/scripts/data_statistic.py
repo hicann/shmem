@@ -63,7 +63,7 @@ def get_pref_path(path):
 
 
 def process_kernel_data():
-    tiling_df = open_input_file(os.path.join(os.getcwd(), "../../build/bin/results.csv"))
+    tiling_df = open_input_file(os.path.join(os.getcwd(), "./results.csv"))
     print(tiling_df)
 
     pref_file_list = get_pref_path("./output")
