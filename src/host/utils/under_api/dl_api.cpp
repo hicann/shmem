@@ -11,6 +11,8 @@
 #include "dl_acl_api.h"
 #include "dl_hal_api.h"
 #include "dl_hccp_api.h"
+#include "dl_rt_api.h"
+#include "dl_opapi_api.h"
 #include "utils/shmemi_logger.h"
 
 namespace shm {
@@ -42,6 +44,17 @@ Result DlApi::LoadExtendLibrary(DlApiExtendLibraryType libraryType)
 {
     if (libraryType == DL_EXT_LIB_DEVICE_RDMA) {
         return DlHccpApi::LoadLibrary();
+    }
+    if (libraryType == DL_EXT_LIB_DEVICE_SDMA) {
+        auto result = DlRtApi::LoadLibrary();
+        if (result != ACLSHMEM_SUCCESS) {
+            return result;
+        }
+        result = DlOpapiApi::LoadLibrary();
+        if (result != ACLSHMEM_SUCCESS) {
+            DlRtApi::CleanupLibrary();
+            return result;
+        }
     }
 
     return ACLSHMEM_SUCCESS;

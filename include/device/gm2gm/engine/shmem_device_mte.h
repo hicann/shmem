@@ -39,7 +39,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
+                                           uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -55,8 +55,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID);
+                                           const non_contiguous_copy_param &copy_params, int pe,
+                                           AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
@@ -71,8 +71,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+                                           AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -87,8 +87,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
+                                           int pe, AscendC::TEventID EVENT_ID);
 #define shmem_mte_get_mem_nbi aclshmemx_mte_get_nbi
 
 /**
@@ -104,7 +104,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
+                                           uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -120,8 +120,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID);
+                                           const non_contiguous_copy_param &copy_params, int pe,
+                                           AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -135,8 +135,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+                                           AscendC::TEventID EVENT_ID);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -151,8 +151,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
+                                           int pe, AscendC::TEventID EVENT_ID);
 #define shmem_mte_put_mem_nbi aclshmemx_mte_put_nbi
 
 #endif

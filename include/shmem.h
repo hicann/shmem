@@ -21,6 +21,7 @@
 #include "device/gm2gm/shmem_device_so.h"
 #include "device/gm2gm/engine/shmem_device_mte.h"
 #include "device/gm2gm/engine/shmem_device_rdma.h"
+#include "device/gm2gm/engine/shmem_device_sdma.h"
 #include "device/ub2gm/shmem_device_rma.h"
 #include "device/ub2gm/engine/shmem_device_mte.h"
 #include "device/shmem_def.h"

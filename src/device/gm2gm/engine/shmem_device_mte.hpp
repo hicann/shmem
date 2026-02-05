@@ -32,7 +32,8 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe)
     // Get Global State
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
     if (is_host_mem_heap(ptr)) {
-        uint64_t host_heap_offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->host_heap_base);
+        uint64_t host_heap_offset =
+            reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->host_heap_base);
         uint64_t remote_host_ptr = reinterpret_cast<uint64_t>(device_state->p2p_host_heap_base[pe]) + host_heap_offset;
         return reinterpret_cast<__gm__ void *>(remote_host_ptr);
     }

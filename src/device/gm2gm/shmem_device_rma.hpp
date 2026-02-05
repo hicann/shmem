@@ -12,6 +12,7 @@
 
 #include "kernel_operator.h"
 #include "device/gm2gm/engine/shmem_device_rdma.h"
+#include "device/gm2gm/engine/shmem_device_sdma.h"
 #include "device/shmem_def.h"
 #include "gm2gm/engine/shmemi_device_rdma.h"
 #include "host/shmem_host_def.h"
@@ -465,14 +466,22 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     {                                                                                                                       \
         /* Global State Get */                                                                                              \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                          \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                         \
+        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                        \
+            /* SDMA */                                                                                                      \
+            /* CopyUB Config Set */                                                                                         \
+            uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                       \
+            uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                                      \
+            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                    \
+            aclshmemx_sdma_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,       \
+                                   copy_event_id);                                                                          \
+        } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                  \
             /* MTE  */                                                                                                      \
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
             uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
             AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
             aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,        \
-                                    copy_event_id);                                                                         \
+                                  copy_event_id);                                                                           \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {                                                 \
             /* RoCE */                                                                                                      \
             auto ptr = aclshmem_roce_ptr(src, pe);                                                                          \
@@ -508,7 +517,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
 
 #define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                              \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                                  \
-                                                 const non_contiguous_copy_param &copy_params, int32_t pe)              \
+                                                   const non_contiguous_copy_param &copy_params, int32_t pe)            \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
@@ -527,11 +536,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
 
 #define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 uint32_t elem_size, int pe)                                             \
+                                                   uint32_t elem_size, int pe)                                           \
     {                                                                                                                    \
         /* Global State Get */                                                                                           \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                       \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                      \
+        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                     \
+            /* SDMA */                                                                                                   \
+            /* CopyUB Config Set */                                                                                      \
+            uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                    \
+            /* Create LocalTensor */                                                                                     \
+            AscendC::LocalTensor<TYPE> ub_tensor;                                                                        \
+            ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
+            ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
+            ub_tensor.address_.dataLen = device_state->sdma_config.ub_size;                                              \
+            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                 \
+            aclshmemx_sdma_get_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                   \
+        } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                               \
             /* MTE  */                                                                                                   \
             /* CopyUB Config Set */                                                                                      \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                     \
@@ -565,7 +585,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
 
 #define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)                                                        \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 const non_contiguous_copy_param &copy_params, int pe)                   \
+                                                   const non_contiguous_copy_param &copy_params, int pe)                 \
     {                                                                                                                    \
         /* ROCE */                                                                                                       \
         /* RDMA */                                                                                                       \
@@ -590,7 +610,15 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
     {                                                                                                                       \
         /* Global State Get */                                                                                              \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                          \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                         \
+        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                        \
+            /* SDMA */                                                                                                      \
+            /* CopyUB Config Set */                                                                                         \
+            uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                       \
+            uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                                      \
+            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                    \
+            aclshmemx_sdma_put_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,       \
+                                   copy_event_id);                                                                          \
+        } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                  \
             /* MTE  */                                                                                                      \
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
@@ -633,7 +661,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                            \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                                \
-                                                 const non_contiguous_copy_param &copy_params, int32_t pe)            \
+                                                   const non_contiguous_copy_param &copy_params, int32_t pe)          \
     {                                                                                                                 \
         /* ROCE */                                                                                                    \
         /* RDMA */                                                                                                    \
@@ -652,11 +680,22 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 uint32_t elem_size, int pe)                                             \
+                                                   uint32_t elem_size, int pe)                                           \
     {                                                                                                                    \
         /* Global State Get */                                                                                           \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                       \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                      \
+        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                     \
+            /* SDMA */                                                                                                   \
+            /* CopyUB Config Set */                                                                                      \
+            uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                    \
+            /* Create LocalTensor */                                                                                     \
+            AscendC::LocalTensor<TYPE> ub_tensor;                                                                        \
+            ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
+            ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
+            ub_tensor.address_.dataLen = device_state->sdma_config.ub_size;                                              \
+            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                 \
+            aclshmemx_sdma_put_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                   \
+        } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                               \
             /* MTE  */                                                                                                   \
             /* CopyUB Config Set */                                                                                      \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                     \
@@ -690,7 +729,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)                                                        \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 const non_contiguous_copy_param &copy_params, int pe)                   \
+                                                   const non_contiguous_copy_param &copy_params, int pe)                 \
     {                                                                                                                    \
         /* ROCE */                                                                                                       \
         /* RDMA */                                                                                                       \

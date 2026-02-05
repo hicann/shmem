@@ -52,6 +52,7 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/utils/under_api
     ${PROJECT_SOURCE_DIR}/src/host/transport
     ${PROJECT_SOURCE_DIR}/src/host/transport/device_rdma
+    ${PROJECT_SOURCE_DIR}/src/host/transport/device_sdma
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )

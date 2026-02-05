@@ -129,6 +129,7 @@ enum aclshmemx_init_status_t {
 enum aclshmem_transport_t : uint8_t {
     ACLSHMEM_TRANSPORT_MTE = 1 << 0,    ///< MTE Transport.
     ACLSHMEM_TRANSPORT_ROCE = 1 << 1,   ///< RDMA Transport (RoCE).
+    ACLSHMEM_TRANSPORT_SDMA = 1 << 2,   ///< SDMA Transport.
 };
 #define shmem_transport_t aclshmem_transport_t
 

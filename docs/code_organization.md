@@ -30,6 +30,7 @@ include/
 │   │   ├── shmem_device_mo.h               // aicore high-level 内存保序接口
 │   │   └── engine/                         // aicore 直驱gm2gm 低阶接口，扩展接口+x
 │   │       ├── shmem_device_rdma.h         // aicore 直驱 rdma 接口
+│   │       ├── shmem_device_sdma.h         // aicore 直驱 sdma 接口
 │   │       └── shmem_device_mte.h          // aicore 直驱 mte接口
 │   └── team/                               // device侧通信域管理接口
 │       └── shmem_device_team.h             // device侧通信域管理接口
@@ -53,55 +54,56 @@ include/
 ```
 ## src
 ```
-|── src
-|    |── device             // device侧接口实现
-|    |── host
-│    │    ├─bootstrap       // bootstrap接口实现
-│    │    ├─hybm            // hybrid memory
-│    │    ├─init            // host侧初始化接口实现
-│    │    ├─mem             // host侧内存管理接口实现
-│    │    ├─python_wrapper  // Py接口封装
-│    │    ├─sync            // 同步接口实现
-│    │    ├─team            // host侧通信域管理接口实现
-|    │    └─transport       // 建链相关内容
+└── src
+    ├── device             // device侧接口实现
+    └── host
+        ├─bootstrap       // bootstrap接口实现
+        ├─hybm            // hybrid memory
+        ├─init            // host侧初始化接口实现
+        ├─mem             // host侧内存管理接口实现
+        ├─python_wrapper  // Py接口封装
+        ├─sync            // 同步接口实现
+        ├─team            // host侧通信域管理接口实现
+        └─transport       // 建链相关内容
 ```
 ## examples
 ```
-├─examples
-│  ├─allgather                              // allgather通信算子样例
-│  ├─allgather_matmul                       // allgather+matmul融合算子样例
-│  ├─allgather_matmul_padding               // 含padding的allgather+matmul融合算子样例
-│  ├─allgather_matmul_with_gather_result    // 融合allgather并保留gather的matmul样例
-│  ├─dispatch_gmm_combine                   // GMM分派与结果合并样例
-│  ├─dynamic_tiling                         // 动态分块实现样例
-│  ├─kv_shuffle                             // kv cache shuffle样例
-│  ├─matmul_allreduce                       // matmul+allreduce融合算子样例
-│  ├─matmul_reduce_scatter                  // matmul+reduce_scatter融合算子样例
-│  ├─matmul_reduce_scatter_padding          // 含padding的matmul+reduce_scatter融合算子样例
-│  ├─rdma_demo                              // rdma实现样例
-│  ├─rdma_handlewait_test                   // rdma handle wait测试样例
-│  └─rdma_perftest                          // rdma性能测试样例
+└── examples
+    ├── allgather                              // allgather通信算子样例
+    ├── allgather_matmul                       // allgather+matmul融合算子样例
+    ├── allgather_matmul_padding               // 含padding的allgather+matmul融合算子样例
+    ├── allgather_matmul_with_gather_result    // 融合allgather并保留gather的matmul样例
+    ├── dispatch_gmm_combine                   // GMM分派与结果合并样例
+    ├── dynamic_tiling                         // 动态分块实现样例
+    ├── kv_shuffle                             // kv cache shuffle样例
+    ├── matmul_allreduce                       // matmul+allreduce融合算子样例
+    ├── matmul_reduce_scatter                  // matmul+reduce_scatter融合算子样例
+    ├── matmul_reduce_scatter_padding          // 含padding的matmul+reduce_scatter融合算子样例
+    ├── rdma_demo                              // rdma实现样例
+    ├── rdma_handlewait_test                   // rdma handle wait测试样例
+    ├── rdma_perftest                          // rdma性能测试样例
+    └── sdma                                   // sdma实现样例
 ```
 ## tests
 ```
-└─tests
-    ├─examples
-    └─unittest
-        ├─init  // 初始化接口单元测试
-        ├─mem   // 内存管理接口单元测试
-        ├─sync  // 同步管理接口单元测试
-        └─team  // 通信域管理接口单元测试
+└── tests
+    ├── examples
+    └── unittest
+        ├── init  // 初始化接口单元测试
+        ├── mem   // 内存管理接口单元测试
+        ├── sync  // 同步管理接口单元测试
+        └── team  // 通信域管理接口单元测试
 ```
 ## docs
 ```
-├─docs
-│    ├─api_demo.md              // shmem api调用demo
-│    ├─code_organization.md     // 工程组织架构（本文件）
-│    ├─example.md               // 使用样例
-│    ├─quickstart.md            // 快速开始
-│    ├─related_scripts.md       // 相关脚本介绍
-|    ├─pythonAPI.md             // shmem python api列表
-│    └─Troubleshooting_FAQs.md  // QA
+└── docs
+    ├── api_demo.md              // shmem api调用demo
+    ├── code_organization.md     // 工程组织架构（本文件）
+    ├── example.md               // 使用样例
+    ├── quickstart.md            // 快速开始
+    ├── related_scripts.md       // 相关脚本介绍
+    ├── pythonAPI.md             // shmem python api列表
+    └── Troubleshooting_FAQs.md  // QA
 ```
 
 ## scripts

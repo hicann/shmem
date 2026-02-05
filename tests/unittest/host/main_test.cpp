@@ -110,6 +110,33 @@ int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtS
     return status;
 }
 
+int32_t test_sdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+{
+    *st = nullptr;
+    int status = 0;
+    if (n_ranks != (n_ranks & (~(n_ranks - 1)))) {
+        std::cout << "[TEST] input rank_size: "<< n_ranks << " is not the power of 2" << std::endl;
+        status = -1;
+    }
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(aclInit(nullptr), 0);
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    aclrtStream stream = nullptr;
+    EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
+    EXPECT_EQ(status = aclshmemx_set_conf_store_tls(false, nullptr, 0), 0);
+    aclshmemx_init_attr_t attributes;
+
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+
+    attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA;
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+
+    EXPECT_EQ(status, 0);
+    *st = stream;
+    return status;
+}
+
 void test_finalize(aclrtStream stream, int device_id)
 {
     int status = aclshmem_finalize();

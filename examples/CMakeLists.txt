@@ -84,6 +84,7 @@ foreach(EXAMPLE
     matmul_reduce_scatter_padding
     dynamic_tiling
     rma_d2h_demo
+    sdma
 )
     add_subdirectory(${EXAMPLE})
 endforeach()

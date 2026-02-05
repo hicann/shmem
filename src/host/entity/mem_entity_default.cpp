@@ -492,6 +492,13 @@ int MemEntityDefault::LoadExtendLibrary() noexcept
             return ret;
         }
     }
+    if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) {
+        auto ret = DlApi::LoadExtendLibrary(DL_EXT_LIB_DEVICE_SDMA);
+        if (ret != 0) {
+            SHM_LOG_ERROR("LoadExtendLibrary for DEVICE SDMA failed: " << ret);
+            return ret;
+        }
+    }
 
     return ACLSHMEM_SUCCESS;
 }
@@ -754,13 +761,16 @@ Result MemEntityDefault::InitTransManager()
         SHM_LOG_INFO("rank total count : " << options_.rankCount << ", no transport.");
         return ACLSHMEM_SUCCESS;
     }
-    if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) == 0) {
-        SHM_LOG_DEBUG("NO RDMA Data Operator transport skip init.");
+    if (((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) == 0) &&
+        ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) == 0)) {
+        SHM_LOG_DEBUG("NO RDMA or SDMA Data Operator transport skip init.");
         return ACLSHMEM_SUCCESS;
     }
 
     if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) {
         transportManager_ = transport::TransportManager::Create(TransportType::TT_HCCP);
+    } else if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) {
+        transportManager_ = transport::TransportManager::Create(TransportType::TT_SDMA);
     }
 
     transport::TransportOptions options;
@@ -797,7 +807,9 @@ hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) c
     if (sdmaReach) {
         supportDataOp |= HYBM_DOP_TYPE_MTE;
     }
-
+    if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) != 0) {
+        supportDataOp |= HYBM_DOP_TYPE_DEVICE_SDMA;
+    }
     if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
         supportDataOp |= HYBM_DOP_TYPE_DEVICE_RDMA;
     }

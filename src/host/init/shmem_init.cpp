@@ -61,8 +61,10 @@ constexpr int DEFAULT_BLOCK_NUM = 1;
             0,                                          /* core_sync_counter */         \
             false,                                      /* aclshmem_is_aclshmem_initialized */\
             false,                                      /* aclshmem_is_aclshmem_created */    \
-            {0, 16 * 1024, 0},                          /* aclshmem_mte_config */          \
+            {0, 16 * 1024, 0},                          /* aclshmem_mte_config */       \
+            {0, 64, 0},                                 /* aclshmem_sdma_config */      \
             0,                                          /* qp_info */                   \
+            0,                                          /* sdma_workspace_addr */       \
     }
 
 aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
@@ -99,7 +101,7 @@ bool is_valid_data_op_engine_type(data_op_engine_type_t value)
         ACLSHMEM_DATA_OP_SDMA,
         ACLSHMEM_DATA_OP_ROCE
     };
-    
+
     return valid_values.find(static_cast<int>(value)) != valid_values.end();
 }
 

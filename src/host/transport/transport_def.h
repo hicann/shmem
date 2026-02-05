@@ -33,6 +33,7 @@ constexpr int32_t REG_MR_ACCESS_FLAG_BOTH_READ_WRITE = 0x7;
 
 enum TransportType {
     TT_HCCP = 0,
+    TT_SDMA = 1,
     TT_BUTT,
 };
 

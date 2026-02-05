@@ -12,6 +12,7 @@
 #include "shmemi_logger.h"
 #include "transport_def.h"
 #include "device_rdma_transport_manager.h"
+#include "device_sdma_transport_manager.h"
 
 using namespace shm;
 using namespace shm::transport;
@@ -21,6 +22,8 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
     switch (type) {
         case TT_HCCP:
             return std::make_shared<device::RdmaTransportManager>();
+        case TT_SDMA:
+            return std::make_shared<device::SdmaTransportManager>();
         default:
             SHM_LOG_ERROR("Invalid trans type: " << type);
             return nullptr;

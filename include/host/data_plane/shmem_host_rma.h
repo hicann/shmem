@@ -557,6 +557,16 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t e
 ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
 #define shmem_mte_set_ub_params aclshmemx_set_mte_config
 
+/**
+ * @brief Set necessary parameters for SDMA operations.
+ *
+ * @param offset                [in] The start address on UB.
+ * @param ub_size               [in] The Size of Temp UB Buffer.
+ * @param event_id              [in] Sync ID for put or get.
+ * @return Returns 0 on success or an error code on failure.
+ */
+ACLSHMEM_HOST_API int aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+
 #ifdef __cplusplus
 }
 #endif

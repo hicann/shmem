@@ -175,6 +175,14 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 /// \brief ACLSHMEM memory page size (2MB), complying with system memory paging specifications
 #define ACLSHMEM_PAGE_SIZE (1024UL * 1024UL * 2)
 
+/// \def ACLSHMEM_SDMA_MAX_CHAN
+/// \brief Max number of SDMA channels
+#define ACLSHMEM_SDMA_MAX_CHAN 40
+
+/// \def ACLSHMEM_SDMA_FLAG_LENGTH
+/// \brief SDMA flag data length
+#define ACLSHMEM_SDMA_FLAG_LENGTH 64
+
 /// \def ALIGH_TO
 /// \brief Memory address/size alignment macro
 /// \param size Original size/address to be aligned
@@ -319,17 +327,21 @@ typedef struct {
     int32_t pe_mapping[2 * ACLSHMEM_MAX_PES];  ///< PE mapping table, storing the correspondence between team and global PEs
 } aclshmemx_team_t;
 
-// mte_config
+// ub_config
 /**
- * @struct aclshmem_mte_config_t
- * @brief Memory Transfer Engine (MTE) configuration structure
- * @details Stores buffer address, size and synchronization event ID related to memory transfer
+ * @struct aclshmem_ub_config_t
+ * @brief Universal UB buffer configuration structure
+ * @details Stores buffer address, size and optional synchronization event ID for memory transfer operations
  */
 typedef struct {
-    int64_t aclshmem_ub;        ///< __ubuf__ buffer pointer, used as source/destination address for Shmem memory copy
+    int64_t aclshmem_ub;     ///< __ubuf__ buffer pointer, used as temporary buffer for memory copy operations
     uint32_t ub_size;        ///< Size of the UB buffer in bytes (Bytes)
-    uint32_t event_id;       ///< TEventID for memory copy synchronization, used for asynchronous transfer event synchronization
-} aclshmem_mte_config_t;
+    uint32_t event_id;       ///< TEventID for memory copy synchronization (used by MTE, unused by SDMA)
+} aclshmem_ub_config_t;
+
+// Legacy type aliases for backward compatibility
+typedef aclshmem_ub_config_t aclshmem_mte_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
+typedef aclshmem_ub_config_t aclshmem_sdma_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
 
 // state
 /**
@@ -371,8 +383,11 @@ typedef struct {
     bool is_aclshmem_initialized; ///< Flag indicating whether ACLSHMEM has completed initialization
     bool is_aclshmem_created;     ///< Flag indicating whether ACLSHMEM has been created
 
-    aclshmem_mte_config_t mte_config; ///< Configuration information of the MTE memory transfer engine
+    aclshmem_mte_config_t mte_config;   ///< Configuration information of the MTE memory transfer engine
+    aclshmem_sdma_config_t sdma_config; ///< Configuration information of the SDMA memory transfer engine
     uint64_t qp_info;                 ///< Queue Pair (QP) information, used for communication mechanisms such as RDMA
+
+    uint64_t sdma_workspace_addr;  /// sdma aicpu和aiv的共享内存
 } aclshmem_device_host_state_t;
 
 // host only state

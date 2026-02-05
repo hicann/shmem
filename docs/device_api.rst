@@ -43,6 +43,9 @@ shmem_device_rma.h
 .. doxygenfile:: gm2gm/engine/shmem_device_rdma.h
     :project: ACLSHMEM_CPP_API
 
+.. doxygenfile:: gm2gm/engine/shmem_device_sdma.h
+    :project: ACLSHMEM_CPP_API
+
 shmem_device_so.h
 ---------------------------------
 
