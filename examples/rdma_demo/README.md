@@ -9,7 +9,7 @@ export PROJECT_ROOT=<shmem-root-directory>
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
 export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 ./build/bin/rdma_demo 2 0 tcp://127.0.0.1:8765 2 0 0 & # rank 0
-./build/bin/rdma_demo 2 1 tcp://127.0.0.1:8765 2 0 0 & # rank 1
+./build/bin/rdma_demo 2 1 tcp://127.0.0.1:8765 2 1 1 & # rank 1
 ```
 
 3.命令行参数说明

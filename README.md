@@ -49,6 +49,9 @@ int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
 - CANN版本（根据功能选择其一）：
     - 8.2.RC1.alpha003 及以上（社区版）支持 D2D 功能。下载链接：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann)
     - 8.5.0 及以上（尝鲜版）支持 D2D、D2H、H2D 功能。下载链接：[尝鲜版链接](https://ascend.devcloud.huaweicloud.com/cann/run/software/)
+- 安装PyTorch框架和torch_npu插件
+编译运行torch输入输出tensor的算子时必须安装本包。
+根据实际环境，选择对应的版本进行安装，具体可以查看[Ascend Extension for PyTorch](https://www.hiascend.com/document/detail/zh/Pytorch/720/configandinstg/instg/insg_0004.html)文档。
 - 工具链：
     - cmake ≥ 3.19
     - GLIBC ≥ 2.28
@@ -64,9 +67,16 @@ int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
 
 ## 四、快速开始
 ### 环境准备
+CANN包安装：
+参考[快速安装CANN](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha002/softwareinst/instg/instg_quick.html?Mode=PmIns&OS=openEuler&Software=cannToolKit)
+
 配置CANN环境变量（默认安装路径）：
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
+```
+配置CANN环境变量（自定义安装路径）：
+```bash
+source ${install_path}/ascend-toolkit/set_env.sh
 ```
 ### 安装方式
 #### 方式一：源码编译
@@ -251,13 +261,19 @@ A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8
 A：确认已安装 wheel 包，且 ```source``` 了 install 目录下的 ```set_env.sh```，环境变量 ```PYTHONPATH``` 包含 shmem 路径。
 ### Q4：关闭 TLS 后仍提示加密失败？
 A：需在 ```aclshmemx_init_attr``` 前调用 ```aclshmemx_set_conf_store_tls```，初始化后无法修改 TLS 配置。
+
 > 更多故障排查见：[Troubleshooting](docs/Troubleshooting_FAQs.md)
+### Q5：googletest、catlass、这两个插件执行huild.sh时提示git失败？
+A:确认git配置与是否可以访问网站，如果环境不能连接网站可以尝试手动下载文件到3rdparty目录下
+### Q6：CANN包安装失败？可访问常见问题地址，查看是否有解决的方案
+[常见问题]（https://www.hiascend.com/document/detail/zh/AscendFAQ/CommuFunc/resdl/rdl_011.html）
 ## 九、测试框架
 - **单元测试：** 覆盖核心接口（初始化、内存操作、同步等），位于tests/unittest/
 - **算子泛化性测试：** 针对matmul_allreduce等样例，支持动态生成测试数据与精度校验
 ### 1. 运行单元测试
 ```bash
 # 编译并运行单元测试
+1. 编译ut用例与执行
 bash scripts/build.sh -uttests
 bash scripts/run.sh
 ```
@@ -267,6 +283,20 @@ run.sh脚本提供-ranks -test_filter等参数自定义执行用例的卡数、g
 bash scripts/run.sh -ranks 8 -test_filter Init
 ```
 具体参数请见[相关脚本-run.sh](docs/related_scripts.md#runsh)
+### 1. 运行样例测试
+```bash
+# 编译并运样例测试
+```
+### 样例编译与执行
+1. 编译样例与执行
+   ```bash
+   bash scripts/build.sh -examples
+   bash scripts/run_examples.sh
+   ```
+### 样例单独执行
+   ```bash
+可查看examples目录下对应的样例目录下的README.md
+   ```
 ### 2. 运行 Python 测试用例
 ```bash
 # 编译 Python 扩展
