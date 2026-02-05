@@ -173,10 +173,10 @@ typedef struct {
  * - aclshmem_init_optional_attr_t option_attr: Optional Parameters.
  * - void *comm_args: Parameters required for communication during the bootstrap phase when initializing different flags.
 */
-typedef struct {
+typedef struct aclshmemx_init_attr_t {
     int my_pe;
     int n_pes;
-    char ip_port[ACLSHMEM_MAX_IP_PORT_LEN];
+    char ip_port[ACLSHMEM_MAX_IP_PORT_LEN] = {};
     uint64_t local_mem_size;
     aclshmem_init_optional_attr_t option_attr = {(1 << 16) + sizeof(aclshmem_init_optional_attr_t), ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
     void *comm_args;

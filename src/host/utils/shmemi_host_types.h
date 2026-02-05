@@ -30,18 +30,33 @@ typedef struct aclshmemi_bootstrap_init_ops {
 } aclshmemi_bootstrap_init_ops_t;
 
 typedef struct aclshmemi_bootstrap_handle {
-    int32_t     mype, npes;
     void        *bootstrap_state;
-
+    aclshmemi_bootstrap_init_ops_t *pre_init_ops;
+    const char  *tls_info = nullptr;
+    const char  *tls_pk;
+    const char  *tls_pk_pw;
+    
     int (*finalize)(aclshmemi_bootstrap_handle *boot_handle);
     int (*allgather)(const void *sendbuf, void *recvbuf, int size, aclshmemi_bootstrap_handle *boot_handle);
     int (*barrier)(aclshmemi_bootstrap_handle *boot_handle);
     int (*alltoall)(const void *sendbuf, void *recvbuf, int size, aclshmemi_bootstrap_handle *boot_handle);
     void (*global_exit)(int status);
-    aclshmemi_bootstrap_init_ops_t *pre_init_ops;
+    aclshmem_decrypt_handler decrypt_handler;
+
+    int32_t     mype;
+    int32_t     npes;
+    int32_t     sockFd;
+    int32_t     timeOut;
+    int32_t     timeControlOut;
+    uint32_t    tls_info_len;
+    uint32_t    tls_pk_len;
+    uint32_t    tls_pk_pw_len;
+
     bool is_bootstraped = false;
-    char ipport[ACLSHMEM_MAX_HANDLE_IP_PORT_LEN];
     bool use_attr_ipport = false;
+    bool tls_enable = false;
+
+    char ipport[ACLSHMEM_MAX_HANDLE_IP_PORT_LEN];
 } aclshmemi_bootstrap_handle_t;
 
 typedef struct aclshmemi_bootstrap_mpi_options {

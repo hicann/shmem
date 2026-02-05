@@ -8,8 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-add_subdirectory(host/bootstrap/config_store)
-
 if (BUILD_PYTHON STREQUAL "ON")
     add_subdirectory(host/python_wrapper)
 endif ()
@@ -92,10 +90,6 @@ add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:acls
 target_link_options(shmem PRIVATE --cce-fatobj-link)
 target_link_libraries(shmem PRIVATE shmem_utils)
 
-if(NOT USE_UNIT_TEST)
-    target_link_libraries(shmem PRIVATE config_store_shared)
-endif()
-
 # MPI
 if(ACLSHMEM_MPI_SUPPORT)
     separate_arguments(ACLSHMEM_CXX_LINK_FLAGS NATIVE_COMMAND "${MPI_CXX_LINK_FLAGS}")
@@ -107,11 +101,9 @@ if(ACLSHMEM_MPI_SUPPORT)
     target_sources(aclshmem_bootstrap_mpi PRIVATE host/bootstrap/shmemi_bootstrap_mpi.cpp)
     target_link_libraries(aclshmem_bootstrap_mpi PRIVATE MPI::MPI_CXX shmem_utils)
     target_include_directories(aclshmem_bootstrap_mpi
-        PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/src/host
-        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
-        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+                                PRIVATE
+                                ${PROJECT_SOURCE_DIR}/include
+                                ${PROJECT_SOURCE_DIR}/src/host
     )
     set_target_properties(aclshmem_bootstrap_mpi PROPERTIES PREFIX "")
     install(TARGETS aclshmem_bootstrap_mpi
@@ -128,17 +120,41 @@ target_sources(aclshmem_bootstrap_uid
     host/bootstrap/shmemi_bootstrap_uid.cpp
 )
 target_include_directories(aclshmem_bootstrap_uid
-    PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src/host
-    ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
-    ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+                        PRIVATE
+                        ${PROJECT_SOURCE_DIR}/include
+                        ${PROJECT_SOURCE_DIR}/src/host
 )
 set_target_properties(aclshmem_bootstrap_uid PROPERTIES PREFIX "")
 target_link_libraries(aclshmem_bootstrap_uid PRIVATE shmem_utils)
 install(TARGETS aclshmem_bootstrap_uid
     LIBRARY DESTINATION lib
 )
+
+# CONFIG_STORE
+add_library(aclshmem_bootstrap_config_store SHARED)
+
+file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)
+
+target_sources(aclshmem_bootstrap_config_store PRIVATE 
+        ${CONFIG_STORE_FILES}
+        host/bootstrap/shmemi_bootstrap_config_store.cpp
+)
+
+target_include_directories(aclshmem_bootstrap_config_store PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/host
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/common
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/security
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api/openssl
+)
+
+set_target_properties(aclshmem_bootstrap_config_store PROPERTIES PREFIX "")
+target_link_libraries(aclshmem_bootstrap_config_store PRIVATE shmem_utils)
+install(TARGETS aclshmem_bootstrap_config_store
+        LIBRARY DESTINATION lib)
 
 # 安装配置
 install(TARGETS shmem

@@ -12,6 +12,7 @@
 
 #define BOOTSTRAP_MODULE_MPI "aclshmem_bootstrap_mpi.so"
 #define BOOTSTRAP_MODULE_UID "aclshmem_bootstrap_uid.so"
+#define BOOTSTRAP_MODULE_CONFIG_STORE "aclshmem_bootstrap_config_store.so"
 
 #define BOOTSTRAP_PLUGIN_INIT_FUNC "aclshmemi_bootstrap_plugin_init"
 #define BOOTSTRAP_PLUGIN_PREINIT_FUNC "aclshmemi_bootstrap_plugin_pre_init"
@@ -71,10 +72,9 @@ int32_t aclshmemi_bootstrap_pre_init(int flags, aclshmemi_bootstrap_handle_t *ha
         SHM_LOG_ERROR("Unsupport Type for bootstrap preinit.");
         return ACLSHMEM_INVALID_PARAM;
     } else if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID) {
-        plugin_name = BOOTSTRAP_MODULE_UID;
+        plugin_name = BOOTSTRAP_MODULE_CONFIG_STORE;
     } else if (flags & ACLSHMEMX_INIT_WITH_DEFAULT) {
-        SHM_LOG_INFO("boost with config store, skip pre init.");
-        return ACLSHMEM_SUCCESS;
+        plugin_name = BOOTSTRAP_MODULE_CONFIG_STORE;
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
         status = ACLSHMEM_INVALID_PARAM;
@@ -133,22 +133,40 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
     g_boot_handle.use_attr_ipport= false;
     if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID){
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_UNIQUEID");
-        g_boot_handle.use_attr_ipport= true;
-        remove_tcp_prefix_and_copy(attr->ip_port,
-            g_boot_handle.ipport,
-            sizeof(g_boot_handle.ipport));
-        plugin_name = BOOTSTRAP_MODULE_UID;
+        plugin_name = BOOTSTRAP_MODULE_CONFIG_STORE;
         arg = (attr != NULL) ? attr->comm_args : NULL;
-        aclshmemx_uniqueid_t *uid = (aclshmemx_uniqueid_t *) arg;
-        uid->my_pe = attr->my_pe;
-        uid->n_pes = attr->n_pes;
+
+        /* Set bootstrap necessary params. */
+        g_boot_handle.mype = attr->my_pe;
+        g_boot_handle.npes = attr->n_pes;
     } else if (flags & ACLSHMEMX_INIT_WITH_MPI) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_MPI");
         plugin_name = BOOTSTRAP_MODULE_MPI;
         arg = (attr != NULL) ? attr->comm_args : NULL;
     } else if (flags & ACLSHMEMX_INIT_WITH_DEFAULT) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_DEFAULT");
-        return ACLSHMEM_SUCCESS;
+        plugin_name = BOOTSTRAP_MODULE_CONFIG_STORE;
+        arg = (attr != NULL) ? attr->comm_args : NULL;
+
+        /* Set bootstrap necessary params. */
+        g_boot_handle.use_attr_ipport = true;
+        g_boot_handle.mype = attr->my_pe;
+        g_boot_handle.npes = attr->n_pes;
+
+        if (attr->ip_port[0] == '\0') {
+            SHM_LOG_ERROR("BootStrap Default Mode Must Set Ipport !");
+            status = ACLSHMEM_INVALID_PARAM;
+        } else {
+            // Mode 2: Use explicit ip_port provided in attr.
+            g_boot_handle.sockFd = attr->option_attr.sockFd;
+            g_boot_handle.timeOut = attr->option_attr.shm_init_timeout;
+            g_boot_handle.timeControlOut = attr->option_attr.control_operation_timeout;
+
+            strncpy(g_boot_handle.ipport, attr->ip_port, sizeof(g_boot_handle.ipport) - 1);
+            g_boot_handle.ipport[sizeof(g_boot_handle.ipport) - 1] = '\0';
+
+            g_boot_handle.use_attr_ipport = true;
+        }
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
         status = ACLSHMEM_INVALID_PARAM;

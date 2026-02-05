@@ -19,16 +19,13 @@
 
 #include "init/bootstrap/shmemi_bootstrap.h"
 
-#include "store_op.h"
-#include "store_net_group_engine.h"
 #include "hybm_def.h"
 
 #include "utils/mstx/mstx_mem_register.h"
 
 class aclshmemi_init_backend {
 public:
-    aclshmemi_init_backend(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *global_state, aclshmemx_bootstrap_t bootstrap_flags,
-                           aclshmemi_bootstrap_handle_t *handle);
+    aclshmemi_init_backend(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *global_state, aclshmemi_bootstrap_handle_t *handle);
     ~aclshmemi_init_backend();
 
     int init_device_state();
@@ -40,7 +37,6 @@ public:
     int remove_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int release_heap(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
-    void aclshmemi_global_exit(int status);
     int aclshmemi_control_barrier_all();
     int is_alloc_size_symmetric(size_t size);
 
@@ -49,8 +45,6 @@ private:
     int create_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int exchange_slice(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int exchange_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
-    int32_t init_config_store();
-    int32_t init_group_engine();
 
 private:
     shmem_init_attr_t *attributes;
@@ -62,13 +56,11 @@ private:
     hybm_options options_{};
     aclshmem_device_host_state_t *host_state_ = nullptr;
     aclshmem_device_host_state_t *device_state_ = nullptr;
-    aclshmemx_bootstrap_t bootstrap_flags_;
 
     hybm_entity_t hbm_entity_ = nullptr;
     hybm_entity_t dram_entity_ = nullptr;
-    shm::store::SmemGroupEnginePtr group_engine_ = nullptr;
+
     aclshmemi_bootstrap_handle_t *boot_handle_ = nullptr;
-    shm::store::StorePtr store_ = nullptr;
     
     void *hbm_gva_ = nullptr;
     void *dram_gva_ = nullptr;

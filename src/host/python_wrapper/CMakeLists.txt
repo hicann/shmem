@@ -42,7 +42,6 @@ target_include_directories(_pyshmem PRIVATE
 )
 target_link_libraries(_pyshmem PRIVATE
         shmem
-        config_store_shared
 )
 
 set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/shmem)
