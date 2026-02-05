@@ -20,7 +20,7 @@
 using namespace AscendC;
 
 using fp16_t = op::fp16_t;
-using bfloat16 = op::bfloat16;
+using bf16_t = op::bfloat16;
 
 constexpr int64_t SYNC_FLAG_INTERVAL = 16;
 constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
@@ -309,7 +309,7 @@ void allgather_demo(uint32_t block_dim, void *stream, uint64_t fftsAddr, uint8_t
         ShmemAllGather_int32_t<<<block_dim, nullptr, stream>>>(fftsAddr, input, output, gva, elements, magic);
     } else if (std::is_same<T, fp16_t>::value) {
         ShmemAllGather_float16_t<<<block_dim, nullptr, stream>>>(fftsAddr, input, output, gva, elements, magic);
-    } else if (std::is_same<T, bfloat16>::value) {
+    } else if (std::is_same<T, bf16_t>::value) {
         ShmemAllGather_bfloat16_t<<<block_dim, nullptr, stream>>>(fftsAddr, input, output, gva, elements, magic);
     }
 }
@@ -318,5 +318,5 @@ template void allgather_demo<int>(uint32_t block_dim, void *stream, uint64_t fft
                                   uint8_t *gva, int elements, int magic);
 template void allgather_demo<fp16_t>(uint32_t block_dim, void *stream, uint64_t fftsAddr, uint8_t *input,
                                      uint8_t *output, uint8_t *gva, int elements, int magic);
-template void allgather_demo<bfloat16>(uint32_t block_dim, void *stream, uint64_t fftsAddr, uint8_t *input,
+template void allgather_demo<bf16_t>(uint32_t block_dim, void *stream, uint64_t fftsAddr, uint8_t *input,
                                        uint8_t *output, uint8_t *gva, int elements, int magic);

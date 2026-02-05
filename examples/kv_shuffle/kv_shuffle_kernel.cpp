@@ -19,7 +19,7 @@
 
 using namespace AscendC;
 using fp16_t = op::fp16_t;
-using bfloat16 = op::bfloat16;
+using bf16_t = op::bfloat16;
 
 constexpr int64_t SYNC_FLAG_INTERVAL = 16;
 
