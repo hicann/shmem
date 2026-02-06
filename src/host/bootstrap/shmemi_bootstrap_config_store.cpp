@@ -191,7 +191,7 @@ int32_t init_group_engine(aclshmemi_bootstrap_handle_t* handle)
 int aclshmemi_bootstrap_plugin_init(void* comm, aclshmemi_bootstrap_handle_t* handle)
 {
     int status = ACLSHMEM_SUCCESS;
-    if (comm == nullptr || handle == nullptr) {
+    if (handle == nullptr) {
         SHM_LOG_ERROR(" aclshmemi_bootstrap_plugin_init: invalid arguments (nullptr)");
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }

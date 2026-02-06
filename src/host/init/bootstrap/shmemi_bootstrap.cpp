@@ -139,6 +139,12 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
         /* Set bootstrap necessary params. */
         g_boot_handle.mype = attr->my_pe;
         g_boot_handle.npes = attr->n_pes;
+
+        // Check UID Exist
+        if (arg == nullptr) {
+            SHM_LOG_ERROR("BootStrap UID Mode Must Have UID !");
+            return ACLSHMEM_INVALID_PARAM;
+        }
     } else if (flags & ACLSHMEMX_INIT_WITH_MPI) {
         SHM_LOG_INFO("ACLSHMEMX_INIT_WITH_MPI");
         plugin_name = BOOTSTRAP_MODULE_MPI;
@@ -155,21 +161,19 @@ int32_t aclshmemi_bootstrap_init(int flags, aclshmemx_init_attr_t *attr) {
 
         if (attr->ip_port[0] == '\0') {
             SHM_LOG_ERROR("BootStrap Default Mode Must Set Ipport !");
-            status = ACLSHMEM_INVALID_PARAM;
+            return ACLSHMEM_INVALID_PARAM;
         } else {
-            // Mode 2: Use explicit ip_port provided in attr.
+            // Use explicit ip_port provided in attr.
             g_boot_handle.sockFd = attr->option_attr.sockFd;
             g_boot_handle.timeOut = attr->option_attr.shm_init_timeout;
             g_boot_handle.timeControlOut = attr->option_attr.control_operation_timeout;
 
             strncpy(g_boot_handle.ipport, attr->ip_port, sizeof(g_boot_handle.ipport) - 1);
             g_boot_handle.ipport[sizeof(g_boot_handle.ipport) - 1] = '\0';
-
-            g_boot_handle.use_attr_ipport = true;
         }
     } else {
         SHM_LOG_ERROR("Unknown Type for bootstrap");
-        status = ACLSHMEM_INVALID_PARAM;
+        return ACLSHMEM_INVALID_PARAM;
     }
     aclshmemi_bootstrap_loader();
    

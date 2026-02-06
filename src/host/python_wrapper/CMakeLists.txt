@@ -42,6 +42,8 @@ target_include_directories(_pyshmem PRIVATE
 )
 target_link_libraries(_pyshmem PRIVATE
         shmem
+        shmem_utils
+        aclshmem_bootstrap_config_store
 )
 
 set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/shmem)

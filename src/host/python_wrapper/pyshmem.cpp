@@ -93,7 +93,7 @@ int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, co
         std::cerr << "set attr failed " << ret << std::endl;
         return ret;
     }
-    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
+    aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_UNIQUEID;
     return aclshmemx_init_attr(bootstrap_flags, &attr);
 }
 
