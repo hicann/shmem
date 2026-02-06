@@ -693,9 +693,9 @@ ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uin
  *
  * @param offset                [in] The start address on UB.
  * @param ub_size               [in] The Size of Temp UB Buffer.
- * @param event_id              [in] Sync ID for put or get.
+ * @param sync_id               [in] Sync ID for put or get.
  */
-ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id);
 #define shmem_mte_set_ub_params aclshmemx_set_mte_config
 
 #include "gm2gm/shmem_device_rma.hpp"

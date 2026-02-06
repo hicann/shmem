@@ -206,7 +206,7 @@ extern "C" __global__ __aicore__ void rdma_mte_put_bw(uint64_t fftsConfig, GM_AD
         /* CopyUB Config Set */
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->mte_config.ub_size;
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
         if (rank == 0) {
             peer = 1;
             int64_t start = AscendC::GetSystemCycle();

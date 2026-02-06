@@ -57,21 +57,21 @@ void *aclshmem_ptr(void *ptr, int32_t pe)
 }
 
 // Set Memcpy Interfaces necessary UB Buffer.
-int32_t aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
+int32_t aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id)
 {
     g_state.mte_config.aclshmem_ub = offset;
     g_state.mte_config.ub_size = ub_size;
-    g_state.mte_config.event_id = event_id;
+    g_state.mte_config.sync_id = sync_id;
     ACLSHMEM_CHECK_RET(update_device_state());
     return ACLSHMEM_SUCCESS;
 }
 
 // Set SDMA Interfaces necessary UB Buffer.
-int32_t aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
+int32_t aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id)
 {
     g_state.sdma_config.aclshmem_ub = offset;
     g_state.sdma_config.ub_size = ub_size;
-    g_state.sdma_config.event_id = event_id;
+    g_state.sdma_config.sync_id = sync_id;
     ACLSHMEM_CHECK_RET(update_device_state());
     return ACLSHMEM_SUCCESS;
 }

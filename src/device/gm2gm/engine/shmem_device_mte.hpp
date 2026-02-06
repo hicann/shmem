@@ -364,7 +364,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* sr
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
         elem_size, pe, copy_event_id, enable_L2);
 }
@@ -377,7 +377,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* sr
         /* CopyUB Config Set */
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->mte_config.ub_size;
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
         aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
             elem_size, pe, copy_event_id, enable_L2);
 }

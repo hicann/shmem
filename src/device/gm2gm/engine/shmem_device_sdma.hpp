@@ -254,7 +254,7 @@ ACLSHMEM_DEVICE void aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size
     }
     device_state->sdma_config.aclshmem_ub = offset;
     device_state->sdma_config.ub_size = ub_size;
-    device_state->sdma_config.event_id = sync_id;
+    device_state->sdma_config.sync_id = sync_id;
 }
 
 template <typename T>

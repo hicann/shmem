@@ -30,33 +30,37 @@ using namespace std;
 constexpr int DEFAULT_TEVENT = 0;
 constexpr int DEFAULT_BLOCK_NUM = 1;
 
+constexpr uint32_t DEFAULT_MTE_UB_SIZE = 16 * 1024;
+constexpr uint32_t DEFAULT_SDMA_UB_SIZE = 64;
+constexpr int64_t DEFAULT_SDMA_UB_OFFSET = 191 * 1024;
+
 // initializer
-#define ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER                                             \
-    {                                                                                   \
-        (1 << 16) + sizeof(aclshmem_device_host_state_t), /* version */                   \
-            (DEFAULT_MY_PE),                            /* mype */                      \
-            (DEFAULT_N_PES),                            /* npes */                      \
-            NULL,                                       /* heap_base */                 \
-            NULL,                                       /* host_heap_base */            \
-            NULL,                                       /* p2p_device_heap_base */      \
-            NULL,                                       /* rdma_device_heap_base */     \
-            NULL,                                       /* sdma_device_heap_base */     \
-            NULL,                                       /* p2p_heap_host_base */        \
-            NULL,                                       /* rdma_heap_host_base */       \
-            NULL,                                       /* sdma_heap_host_base */       \
-            {},                                         /* topo_list */                 \
-            SIZE_MAX,                                   /* heap_size */                 \
-            {NULL},                                     /* team_pools */                \
-            0,                                          /* sync_pool */                 \
-            0,                                          /* sync_counter */              \
-            0,                                          /* core_sync_pool */            \
-            0,                                          /* core_sync_counter */         \
-            false,                                      /* aclshmem_is_aclshmem_initialized */\
-            false,                                      /* aclshmem_is_aclshmem_created */    \
-            {0, 16 * 1024, 0},                          /* aclshmem_mte_config */       \
-            {0, 64, 0},                                 /* aclshmem_sdma_config */      \
-            0,                                          /* qp_info */                   \
-            0,                                          /* sdma_workspace_addr */       \
+#define ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER                                                         \
+    {                                                                                                  \
+        (1 << 16) + sizeof(aclshmem_device_host_state_t),       /* version */                          \
+            (DEFAULT_MY_PE),                                    /* mype */                             \
+            (DEFAULT_N_PES),                                    /* npes */                             \
+            NULL,                                               /* heap_base */                        \
+            NULL,                                               /* host_heap_base */                   \
+            NULL,                                               /* p2p_device_heap_base */             \
+            NULL,                                               /* rdma_device_heap_base */            \
+            NULL,                                               /* sdma_device_heap_base */            \
+            NULL,                                               /* p2p_heap_host_base */               \
+            NULL,                                               /* rdma_heap_host_base */              \
+            NULL,                                               /* sdma_heap_host_base */              \
+            {},                                                 /* topo_list */                        \
+            SIZE_MAX,                                           /* heap_size */                        \
+            {NULL},                                             /* team_pools */                       \
+            0,                                                  /* sync_pool */                        \
+            0,                                                  /* sync_counter */                     \
+            0,                                                  /* core_sync_pool */                   \
+            0,                                                  /* core_sync_counter */                \
+            false,                                              /* aclshmem_is_aclshmem_initialized */ \
+            false,                                              /* aclshmem_is_aclshmem_created */     \
+            {0, DEFAULT_MTE_UB_SIZE, 0},                        /* aclshmem_mte_config */              \
+            {DEFAULT_SDMA_UB_OFFSET, DEFAULT_SDMA_UB_SIZE, 0},  /* aclshmem_sdma_config */             \
+            0,                                                  /* qp_info */                          \
+            0,                                                  /* sdma_workspace_addr */              \
     }
 
 aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;

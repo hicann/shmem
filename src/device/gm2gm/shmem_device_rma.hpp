@@ -86,7 +86,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_get_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id);
     aclshmem_quiet();
@@ -103,7 +103,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
         /* CopyUB Config Set */                                                                                         \
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
         uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,        \
                               copy_event_id);                                                                           \
         aclshmem_quiet();                                                                                               \
@@ -118,7 +118,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
         uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
         uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
-        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                                 \
                                                                                                                           \
         auto ptr = aclshmem_ptr(source, pe);                                                                              \
         __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                   \
@@ -198,7 +198,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
         uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
         uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
-        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                                 \
                                                                                                                           \
         auto ptr = aclshmem_ptr(source, pe);                                                                              \
         __gm__ uint8_t *remote_ptr = reinterpret_cast<__gm__ uint8_t *>(ptr);                                             \
@@ -271,7 +271,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_put_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id);
     aclshmem_quiet();
@@ -288,7 +288,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
         /* CopyUB Config Set */                                                                                         \
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
         uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,        \
                               copy_event_id);                                                                           \
         aclshmem_quiet();                                                                                               \
@@ -303,7 +303,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
         uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
         uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
-        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                                 \
                                                                                                                           \
         auto ptr = aclshmem_ptr(dest, pe);                                                                                \
         __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                   \
@@ -383,7 +383,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                        \
         uint64_t buf = device_state->mte_config.aclshmem_ub;                                                              \
         uint32_t ub_size = device_state->mte_config.ub_size;                                                              \
-        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                \
+        AscendC::TEventID event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                                 \
                                                                                                                           \
         auto ptr = aclshmem_ptr(dest, pe);                                                                                \
         __gm__ uint8_t *remote_ptr = reinterpret_cast<__gm__ uint8_t *>(ptr);                                             \
@@ -456,7 +456,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_get_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id);
 }
@@ -471,7 +471,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                       \
             uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                                      \
-            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                    \
+            uint32_t copy_event_id = device_state->sdma_config.sync_id;                                                     \
             aclshmemx_sdma_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,       \
                                    copy_event_id);                                                                          \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                  \
@@ -479,7 +479,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
             uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
-            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
             aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,        \
                                   copy_event_id);                                                                           \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {                                                 \
@@ -527,7 +527,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
         /* CopyUB Config Set */                                                                                         \
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
         uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, copy_params, pe,      \
                               copy_event_id);                                                                           \
     }
@@ -549,7 +549,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
             ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
             ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor.address_.dataLen = device_state->sdma_config.ub_size;                                              \
-            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                 \
+            uint32_t copy_event_id = device_state->sdma_config.sync_id;                                                  \
             aclshmemx_sdma_get_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                   \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                               \
             /* MTE  */                                                                                                   \
@@ -560,7 +560,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
             ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
             ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                               \
-            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                      \
+            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                       \
             aclshmemx_mte_get_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                    \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {                                              \
             /* RoCE */                                                                                                   \
@@ -599,7 +599,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                             \
         ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                   \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                           \
         aclshmemx_mte_get_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                      \
     }
 
@@ -615,7 +615,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                       \
             uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                                      \
-            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                    \
+            uint32_t copy_event_id = device_state->sdma_config.sync_id;                                                     \
             aclshmemx_sdma_put_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,       \
                                    copy_event_id);                                                                          \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                                  \
@@ -623,7 +623,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
             /* CopyUB Config Set */                                                                                         \
             uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                        \
             uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                       \
-            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
             aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, elem_size, pe,        \
                                     copy_event_id);                                                                         \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {                                                 \
@@ -671,7 +671,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
         /* CopyUB Config Set */                                                                                       \
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;                                                      \
         uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                     \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                       \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                        \
         aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE *>(copy_ub), copy_ub_size, copy_params, pe,    \
                               copy_event_id);                                                                         \
     }
@@ -693,7 +693,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
             ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
             ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor.address_.dataLen = device_state->sdma_config.ub_size;                                              \
-            uint32_t copy_event_id = device_state->sdma_config.event_id;                                                 \
+            uint32_t copy_event_id = device_state->sdma_config.sync_id;                                                  \
             aclshmemx_sdma_put_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                   \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_MTE) {                                               \
             /* MTE  */                                                                                                   \
@@ -704,7 +704,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
             ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                               \
             ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                               \
-            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                      \
+            AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                       \
             aclshmemx_mte_put_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                    \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {                                              \
             /* RoCE */                                                                                                   \
@@ -743,7 +743,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                             \
         ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                   \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                           \
         aclshmemx_mte_put_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                      \
     }
 
@@ -757,19 +757,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uin
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_put_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id);
 }
 
 // Set Memcpy Interfaces necessary UB Buffer.
-ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id)
+ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id)
 {
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
     
     device_state->mte_config.aclshmem_ub = offset;
     device_state->mte_config.ub_size = ub_size;
-    device_state->mte_config.event_id = event_id;
+    device_state->mte_config.sync_id = sync_id;
 }
 
 #endif

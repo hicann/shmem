@@ -42,7 +42,7 @@ extern "C" __global__ __aicore__ void device_copy(GM_ADDR src, GM_ADDR dst, int 
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
     int64_t my_rank = aclshmem_my_pe();
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
     aclshmemx_mte_put_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
                           reinterpret_cast<__ubuf__ char *>(copy_ub),
                           copy_ub_size, message_length, my_rank, copy_event_id);

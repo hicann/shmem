@@ -19,7 +19,7 @@
         /* MTE  */                                                                                                       \
         /* Global State Get */                                                                                           \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                       \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                           \
         aclshmemx_mte_get_nbi(dst, src, elem_size, pe, copy_event_id);                                                   \
     }
 
@@ -32,7 +32,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_NBI);
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                      \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_get_nbi(dst, src, elem_size, pe, copy_event_id);                                                  \
     }
 
@@ -45,7 +45,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_TENSOR_NBI);
         /* MTE  */                                                                                         \
         /* Global State Get */                                                                             \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                         \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;            \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;             \
         aclshmemx_mte_get_nbi(dst, src, copy_params, pe, copy_event_id);                                   \
     }
 
@@ -58,7 +58,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_DETAILED_NBI);
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                      \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_get_nbi(dst, src, copy_params, pe, copy_event_id);                                                \
     }
 
@@ -70,7 +70,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_TENSOR_DETAILED_NBI);
         /* MTE  */                                                                                                           \
         /* Global State Get */                                                                                               \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                           \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                              \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                               \
         aclshmemx_mte_put_nbi(dst, src, elem_size, pe, copy_event_id);                                                       \
     }
 
@@ -83,7 +83,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI);
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                      \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_put_nbi(dst, src, elem_size, pe, copy_event_id);                                                  \
     }
 
@@ -96,7 +96,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_TENSOR_NBI);
         /* MTE  */                                                                                           \
         /* Global State Get */                                                                               \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                           \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;              \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;               \
         aclshmemx_mte_put_nbi(dst, src, copy_params, pe, copy_event_id);                                     \
     }
 
@@ -109,7 +109,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_DETAILED_NBI);
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                      \
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                         \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;                          \
         aclshmemx_mte_put_nbi(dst, src, copy_params, pe, copy_event_id);                                                \
     }
 

@@ -551,10 +551,10 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t e
  *
  * @param offset                [in] The start address on UB.
  * @param ub_size               [in] The Size of Temp UB Buffer.
- * @param event_id              [in] Sync ID for put or get.
+ * @param sync_id               [in] Sync ID for put or get.
  * @return Returns 0 on success or an error code on failure.
  */
-ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id);
 #define shmem_mte_set_ub_params aclshmemx_set_mte_config
 
 /**
@@ -562,10 +562,10 @@ ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size
  *
  * @param offset                [in] The start address on UB.
  * @param ub_size               [in] The Size of Temp UB Buffer.
- * @param event_id              [in] Sync ID for put or get.
+ * @param sync_id               [in] Sync ID for put or get.
  * @return Returns 0 on success or an error code on failure.
  */
-ACLSHMEM_HOST_API int aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t event_id);
+ACLSHMEM_HOST_API int aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id);
 
 #ifdef __cplusplus
 }

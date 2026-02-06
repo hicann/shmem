@@ -335,8 +335,8 @@ typedef struct {
  */
 typedef struct {
     int64_t aclshmem_ub;     ///< __ubuf__ buffer pointer, used as temporary buffer for memory copy operations
-    uint32_t ub_size;        ///< Size of the UB buffer in bytes (Bytes)
-    uint32_t event_id;       ///< TEventID for memory copy synchronization (used by MTE, unused by SDMA)
+    uint32_t ub_size;        ///< Size of the UB buffer in bytes
+    uint32_t sync_id;        ///< TEventID/MutexID for pipeline synchronization
 } aclshmem_ub_config_t;
 
 // Legacy type aliases for backward compatibility
