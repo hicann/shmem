@@ -22,25 +22,20 @@
  * |int8       | int8      |
  * |int16      | int16     |
  * |int32      | int32     |
- */
-#define ACLSHMEM_TYPE_FUNC_ATOMIC_INT(FUNC) \
-    FUNC(int8, int8_t, ATOMIC_S8);          \
-    FUNC(int16, int16_t, ATOMIC_S16);       \
-    FUNC(int32, int32_t, ATOMIC_S32)
-/**
- * @brief Standard Atomic Add Types and Names
- *
- * |NAME       | TYPE      |
- * |-----------|-----------|
  * |half       | half      |
+ * |bfloat16   | bfloat16  |
  * |float      | float     |
  */
-#define ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(FUNC) \
-    FUNC(half, half, ATOMIC_F16);             \
-    FUNC(float, float, ATOMIC_F32)
+#define ACLSHMEM_TYPE_FUNC_ATOMIC_ADD(FUNC)  \
+    FUNC(int8, int8_t);           \
+    FUNC(int16, int16_t);        \
+    FUNC(int32, int32_t);        \
+    FUNC(half, half);            \
+    FUNC(bfloat16, bfloat16_t); \
+    FUNC(float, float)
 
 /**
- * @brief  Automatically generates aclshmem atomic add functions for different data types (e.g., int8, int16, int32).
+ * @brief  Automatically generates aclshmem atomic add functions for different data types (e.g., int8, int16, int32, float, half, bfloat16).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_add(\_\_gm\_\_ TYPE *dst, TYPE value, int32_t pe)
@@ -54,38 +49,17 @@
  * - **value**  - [in] Value atomic add to destination.
  * - **pe**     - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                      \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE)                                                      \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
 
 /** \cond */
-ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
+ACLSHMEM_TYPE_FUNC_ATOMIC_ADD(ACLSHMEM_ATOMIC_ADD_TYPENAME);
 /** \endcond */
 #define shmem_int8_atomic_add aclshmem_int8_atomic_add
 #define shmem_int16_atomic_add aclshmem_int16_atomic_add
 #define shmem_int32_atomic_add aclshmem_int32_atomic_add
-
-/**
- * @brief  Automatically generates aclshmem atomic add functions for different data types (e.g., float, half).
- *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_add(\_\_gm\_\_ TYPE *dst, TYPE value, int32_t pe)
- *
- * @par Function Description
- * Asynchronous interface. Perform contiguous data atomic add operation on
- * symmetric memory from the specified PE to address on the local PE.
- *
- * @par Parameters
- * - **dst**    - [in] Pointer on local device of the destination data.
- * - **value**  - [in] Value atomic add to destination.
- * - **pe**     - [in] PE number of the remote PE.
- */
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)
-
-/** \cond */
-ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT);
-/** \endcond */
 #define shmem_half_atomic_add aclshmem_half_atomic_add
+#define shmem_bfloat16_atomic_add aclshmem_bfloat16_atomic_add
 #define shmem_float_atomic_add aclshmem_float_atomic_add
 
 #include "gm2gm/shmem_device_amo.hpp"

@@ -13,34 +13,23 @@
 #include "kernel_operator.h"
 #include "shmemi_device_cc.h"
 
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE, ATOMIC_TYPE)                                                      \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                    \
-    {                                                                                                              \
-        /* ROCE */                                                                                                 \
-        /* RDMA */                                                                                                 \
-        /* MTE  */                                                                                                 \
-        dcci_atomic();                                                                                             \
-        dsb_all();                                                                                                 \
-        set_st_atomic_cfg(ATOMIC_TYPE, ATOMIC_SUM);                                                                \
-        st_atomic<TYPE>(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                              \
-        dcci_atomic();                                                                                             \
+#define ACLSHMEM_ATOMIC_ADD_TYPENAME(NAME, TYPE)                                                                         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                          \
+    {                                                                                                                    \
+        auto ptr = aclshmem_ptr(dst, pe);                                                                                \
+        __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();                                       \
+        AscendC::TEventID my_sync_id = (AscendC::TEventID)device_state->mte_config.sync_id;                              \
+        AscendC::SetAtomicNone();                                                                                        \
+        __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                  \
+        __ubuf__ TYPE *buf = reinterpret_cast<__ubuf__ TYPE *>(device_state->mte_config.aclshmem_ub);                    \
+        *buf = value;                                                                                                    \
+        AscendC::SetAtomicAdd<TYPE>();                                                                                   \
+        aclshmemi_copy_ub2gm(remote_ptr, buf, sizeof(TYPE));                                                             \
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(my_sync_id);                                                     \
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(my_sync_id);                                                    \
+        AscendC::SetAtomicNone();                                                                                        \
     }
 
-ACLSHMEM_TYPE_FUNC_ATOMIC_INT(ACLSHMEM_ATOMIC_ADD_TYPENAME);
-
-#define ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT(NAME, TYPE, ATOMIC_TYPE)                                                \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_add(__gm__ TYPE *dst, TYPE value, int32_t pe)                    \
-    {                                                                                                              \
-        /* ROCE */                                                                                                 \
-        /* RDMA */                                                                                                 \
-        /* MTE  */                                                                                                 \
-        dcci_atomic();                                                                                             \
-        dsb_all();                                                                                                 \
-        set_st_atomic_cfg(ATOMIC_TYPE, ATOMIC_SUM);                                                                \
-        st_atomic(value, (__gm__ TYPE *)aclshmem_ptr(dst, pe));                                                    \
-        dcci_atomic();                                                                                             \
-    }
-
-ACLSHMEM_TYPE_FUNC_ATOMIC_FLOAT(ACLSHMEM_ATOMIC_ADD_TYPENAME_FLOAT);
+ACLSHMEM_TYPE_FUNC_ATOMIC_ADD(ACLSHMEM_ATOMIC_ADD_TYPENAME);
 
 #endif

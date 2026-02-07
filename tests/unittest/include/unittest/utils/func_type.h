@@ -54,17 +54,19 @@
     FUNC(char, char)
 
 #define ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(FUNC) \
-    FUNC(half, op::fp16_t);                   \
-    FUNC(float, float);                       \
-    FUNC(int8, int8_t);                       \
-    FUNC(int16, int16_t);                     \
+    FUNC(bfloat16, op::bfloat16);                \
+    FUNC(half, op::fp16_t);                      \
+    FUNC(float, float);                          \
+    FUNC(int8, int8_t);                          \
+    FUNC(int16, int16_t);                        \
     FUNC(int32, int32_t)
 
 #define ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_KERNEL(FUNC) \
-    FUNC(half, half);                           \
-    FUNC(float, float);                         \
-    FUNC(int8, int8_t);                         \
-    FUNC(int16, int16_t);                       \
+    FUNC(bfloat16, bfloat16_t);                    \
+    FUNC(half, half);                              \
+    FUNC(float, float);                            \
+    FUNC(int8, int8_t);                            \
+    FUNC(int16, int16_t);                          \
     FUNC(int32, int32_t)
 
 struct uint128_t {

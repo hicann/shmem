@@ -27,7 +27,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
             }                                                                                           \
             dst_addr = gva + rank * MESSAGE_SIZE;                                                       \
             if (AscendC::GetSubBlockIdx() == 0) {                                                       \
-                aclshmem_##NAME##_atomic_add((__gm__ TYPE *)dst_addr, rank + 1, peer);                  \
+                aclshmem_##NAME##_atomic_add((__gm__ TYPE *)dst_addr, 1, peer);                         \
             }                                                                                           \
         }                                                                                               \
         aclshmem_barrier_all();                                                                         \

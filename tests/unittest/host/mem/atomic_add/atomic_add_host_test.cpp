@@ -53,10 +53,10 @@ ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ATOMIC_ADD_FUNC);
         ASSERT_EQ(aclrtMemcpy(xHost, totalSize, ptr, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);                       \
         for (uint32_t i = 0; i < rank_size; i++) {                                                                    \
             if (i == rank_id) {                                                                                       \
-                continue;                                                                                             \
+                ASSERT_EQ(xHost[i * messageSize / sizeof(TYPE)], static_cast<TYPE>(rank_id + 1));                     \
+            } else {                                                                                                  \
+                ASSERT_EQ(xHost[i * messageSize / sizeof(TYPE)], static_cast<TYPE>(block_dim));                       \
             }                                                                                                         \
-            /* both AIV and AIC will execute */                                                                       \
-            ASSERT_EQ(xHost[i * messageSize / sizeof(TYPE)], static_cast<TYPE>((i + 1) * block_dim * 2));             \
         }                                                                                                             \
     }
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_HOST(TEST_ACLSHMEM_ATOMIC_ADD_HOST);
