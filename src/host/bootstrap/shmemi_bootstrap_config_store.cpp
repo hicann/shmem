@@ -110,6 +110,7 @@ static int config_store_bootstrap_finalize(aclshmemi_bootstrap_handle_t *handle)
     if (store_ != nullptr) {
         shm::store::StoreFactory::DestroyStore();
     }
+    group_engine_ = nullptr;
     store_ = nullptr;
 
     return ACLSHMEM_SUCCESS;

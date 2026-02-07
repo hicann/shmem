@@ -31,8 +31,6 @@ int bootstrap_loader_finalize(aclshmemi_bootstrap_handle_t *handle)
 
     dlclose(plugin_hdl);
     plugin_hdl = nullptr;
-    free(plugin_name);
-    plugin_name = nullptr;
 
     return 0;
 }
@@ -56,11 +54,6 @@ void aclshmemi_bootstrap_free()
     if (plugin_hdl != nullptr) {
         dlclose(plugin_hdl);
         plugin_hdl = nullptr;
-    }
-
-    if (plugin_name != nullptr) {
-        free(plugin_name);
-        plugin_name = nullptr;
     }
 }
 
@@ -207,5 +200,8 @@ void aclshmemi_bootstrap_finalize() {
     }
     g_boot_handle.finalize(&g_boot_handle);
     g_boot_handle.is_bootstraped = false;
-    dlclose(plugin_hdl);
+    if (plugin_hdl != nullptr) {
+        dlclose(plugin_hdl);
+        plugin_hdl = nullptr;
+    }
 }
