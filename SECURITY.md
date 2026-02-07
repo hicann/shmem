@@ -45,15 +45,11 @@ char *tls_info ="                               \
     packagePath: /etc/lib"
 int32_t ret = aclshmemx_set_conf_store_tls(true, tls_info, strlen(tls_info));
 ```
-| 环境变量                | 说明              |
-|---------------------| --------------- |
-| ACLSHMEM_MASTER_ADDR| 通信面IP          |
-| ACLSHMEM_MASTER_PORT| 通信面端口          |
-| MASTER_ADDR         | 备用通信面IP        |
-| MASTER_PORT         | 备用通信面端口      |
-| ACLSHMEM_LOG_LEVEL  | shmem日志级别      |
-| SHMEM_HOME_PATH     | shmem安装路径      |
-| VERSION             | 编译whl包默认版本号 |
+| 环境变量             | 说明              |
+|------------------| --------------- |
+| SHMEM_LOG_LEVEL  | shmem日志级别      |
+| SHMEM_HOME_PATH  | shmem安装路径      |
+| VERSION          | 编译whl包默认版本号 |
 
 ## 运行用户建议
 

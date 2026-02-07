@@ -27,34 +27,6 @@ static py::function g_py_decrypt_func;
 static py::function g_py_logger_func;
 static constexpr size_t MAX_CIPHER_LEN(10 * 1024 * 1024);
 
-inline std::string get_connect_url()
-{
-    auto address = std::getenv("ACLSHMEM_MASTER_ADDR");
-    auto port = std::getenv("ACLSHMEM_MASTER_PORT");
-    if (address != nullptr && port != nullptr) {
-        return std::string("tcp://").append(address).append(":").append(port);
-    }
-    // use pta addr:port+11 if shmem env not set
-    address = std::getenv("MASTER_ADDR");
-    port = std::getenv("MASTER_PORT");
-    if (address == nullptr || port == nullptr) {
-        std::cerr << "[ERROR] invlaid address and port" << std::endl;
-        return "";
-    }
-
-    char *endptr;
-    const long usePtaPortOffset = 11;
-    auto port_long = std::strtol(port, &endptr, 10);
-    // master port + 11 as non-master port.
-    if (endptr == port || *endptr != '\0' || port_long <= 0 || port_long > UINT16_MAX - usePtaPortOffset) {
-        // SHM_LOG_ERROR is not available in this file, use std::cerr
-        std::cerr << "[ERROR] Invalid MASTER_PORT value from environment: " << port << std::endl;
-        return "";
-    }
-    port_long = port_long + usePtaPortOffset;
-    return std::string("tcp://").append(address).append(":").append(std::to_string(port_long));
-}
-
 int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
 {
     aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;

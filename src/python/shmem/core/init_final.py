@@ -78,12 +78,13 @@ def init(device: int=None, uid: UniqueID=None, rank: int=None, nranks: int=None,
         AclshmemInvalid: If the required arguments for the selected method are missing or incorrect.
         AclshmemError: If ACLSHMEM fails to initialize using the specified method.
     """
-    log_level = os.environ.get("ACLSHMEM_LOG_LEVEL")
+    log_level = os.environ.get("SHMEM_LOG_LEVEL")
 
-    if not log_level or log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", None]:
+    if not log_level or log_level not in ["DEBUG", "INFO", "WARN", "ERROR", None]:
         logger.warning("Set log level to 'ERROR'.")
         log_level = "ERROR"
-
+    if log_level == "WARN":
+        log_level = "WARNING"
     setup_aclshmem_logger(log_level=log_level)
     if initializer_method not in ["uid"]:
         raise AclshmemInvalid("Invalid init method requested")
