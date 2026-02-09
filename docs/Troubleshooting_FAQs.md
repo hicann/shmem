@@ -67,13 +67,13 @@ status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
 
 错误日志:
 
-![图片](./images/trouble-shooting/local_mem_size_asymmetirc_alloc.png)
+![图片](./images/trouble-shooting/local_mem_size_asymmetric_alloc.png)
 
 注意: 
 1. 日志中显示的实际分配大小和local_mem_size大小有`6MB`的差异为shmem框架内部使用空间
 2. 此处`local_mem_size`大小为`2MB`对齐，若尝试分配其他大小如`1025 * 1024 * 1024`可能会出现不同的错误信息: 
 
-![图片](./images/trouble-shooting/local_mem_size_asymmetirc_alloc_not_2mb.png)
+![图片](./images/trouble-shooting/local_mem_size_asymmetric_alloc_not_2mb.png)
 
 #### A: 应保证aclshmemx_init_attr_t初始化过程中每pe分配的local_mem_size大小一致
 
