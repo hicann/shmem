@@ -40,11 +40,11 @@ ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid);
 /**
  * @brief init process with unique id. This function need run with PTA.
  *
- * @param my_pe                 [in] my_pe
- * @param n_pes                 [in] n_pes
- * @param local_mem_size        [in] local_mem_size
- * @param uid                   [in] uid
- * @param aclshmem_attr         [in/out] aclshmem_attr
+ * @param my_pe                 [in] Local PE ID, must be less than the maximum supported PEs (my_pe < ACLSHMEM_MAX_PES)
+ * @param n_pes                 [in] Total number of PEs, must be less than or equal to the maximum supported PEs (n_pes <= ACLSHMEM_MAX_PES)
+ * @param local_mem_size        [in] Allocated local memory size , must be less than the maximum supported local memory size (local_mem_size < ACLSHMEM_MAX_LOCAL_SIZE)
+ * @param uid                   [in] Unique ID obtained from <b>aclshmemx_get_uniqueid()</b>
+ * @param aclshmem_attr         [in/out] Attribute struct, output parameter of this interface and input parameter for subsequent initialization functions <b>aclshmemx_init_attr()</b>
  * @return Returns 0 on success or an error code on failure
  */
 ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int64_t local_mem_size,

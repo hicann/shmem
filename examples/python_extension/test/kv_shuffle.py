@@ -8,14 +8,14 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 import multiprocessing
+import argparse
 from dataclasses import dataclass
 import torch
 import torch_npu
 import torch_npu.profiler
 
-
-RANKS = 8
-
+PES = 8
+TOOL = 0
 # Model Params
 MAX_SEQLEN = 1024
 MAX_BATCH = 10
@@ -32,7 +32,7 @@ def get_pair_rank(sort_idx, local_rank):
     pair_rank = 0
     for idx, rank in enumerate(sort_idx):
         if rank == local_rank:
-            pair_idx = (RANKS - 1) - idx # notice idx can't be RANKS
+            pair_idx = (PES - 1) - idx # notice idx can't be PES
             pair_rank = sort_idx[pair_idx]
     return pair_rank.item()
 
@@ -65,13 +65,13 @@ def balance_kv(kv_lens):
 
     # Get rank to rank pair
     pair_list = []
-    for i in range(RANKS):
+    for i in range(PES):
         pair_idx = get_pair_rank(sort_idx, i)
         pair_list.append([pair_idx])
 
     # Get rank to rank transfer_tokens
     transfer_tokens_list = []
-    for i in range(RANKS):
+    for i in range(PES):
         transfer_tokens, transfer_batch_id = get_pair_transfer_tokens(kv_lens, kv_sum, kv_mean, pair_list, i)
         if (transfer_tokens > 0):
             pair_list[i].append(0) # 0 means send
@@ -95,7 +95,7 @@ class CacheData:
 
 def gendata(rank):
     torch.manual_seed(42)
-    kv_lens = torch.randint(0, MAX_SEQLEN, (RANKS, INIT_BATCH))
+    kv_lens = torch.randint(0, MAX_SEQLEN, (PES, INIT_BATCH))
     kv_sum = torch.sum(kv_lens, dim=-1) # (rank_size, 1)
 
     k_cache_list = []
@@ -103,7 +103,7 @@ def gendata(rank):
     used_blocks_list = []
     batch_blocks_list = []
     # Prepare Inputs
-    for i in range(RANKS):
+    for i in range(PES):
         k_cache = torch.zeros((max_block_nums, KV_HEAD_NUM, PAGE_SIZE, HEAD_DIM), dtype=torch.int8)
         v_cache = torch.zeros((max_block_nums, KV_HEAD_NUM, PAGE_SIZE, HEAD_DIM), dtype=torch.int8)
         batch_list = kv_lens[i]
@@ -137,7 +137,7 @@ def gendata(rank):
     v_cache_list_g = [_v_cache.clone() for _v_cache in v_cache_list]
 
     # Params Prepare And Golden Calculate
-    for i in range(RANKS):
+    for i in range(PES):
         local_rank = i
         shuffle_table = pair_list
         k_cache_list_g = k_cache_list_g
@@ -200,7 +200,7 @@ def worker(rank):
     stream = torch_npu.npu.Stream(device=f'npu:{torch_npu.npu.current_device()}')
     local_mem_size = 1024 * 1024 * 1024
     ipports = "tcp://127.0.0.1:8662"
-    aclshmem_common.attr_init(rank, RANKS, local_mem_size, ipports)
+    aclshmem_common.attr_init(rank, PES, local_mem_size, ipports)
     kv_shuffle = torch.classes.ShmemOps.KVShuffle()
     my_cache_data = gendata(rank)
     
@@ -227,40 +227,49 @@ def worker(rank):
     else:
         src_block_tensor = torch.Tensor()
         dst_block_tensor = torch.Tensor()
+    if TOOL == 1:
+        experimental_config = torch_npu.profiler._ExperimentalConfig(
+            export_type=torch_npu.profiler.ExportType.Text,
+            profiler_level=torch_npu.profiler.ProfilerLevel.Level2,
+            msprof_tx=False,
+            aic_metrics=torch_npu.profiler.AiCMetrics.AiCoreNone,
+            l2_cache=False,
+            op_attr=False,
+            data_simplification=False,
+            record_op_args=False
+        )
+        
+        with torch_npu.profiler.profile(
+            activities=[
+                torch_npu.profiler.ProfilerActivity.CPU,
+                torch_npu.profiler.ProfilerActivity.NPU
+                ],
+            schedule=torch_npu.profiler.schedule(wait=0, warmup=0, active=1, repeat=1, skip_first=0),
+            on_trace_ready=torch_npu.profiler.tensorboard_trace_handler("./result"),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_modules=False,
+            with_flops=False,
+            experimental_config=experimental_config) as prof:
 
-    experimental_config = torch_npu.profiler._ExperimentalConfig(
-        export_type=torch_npu.profiler.ExportType.Text,
-        profiler_level=torch_npu.profiler.ProfilerLevel.Level2,
-        msprof_tx=False,
-        aic_metrics=torch_npu.profiler.AiCMetrics.AiCoreNone,
-        l2_cache=False,
-        op_attr=False,
-        data_simplification=False,
-        record_op_args=False
-    )
-    
-
-    
-    with torch_npu.profiler.profile(
-        activities=[
-            torch_npu.profiler.ProfilerActivity.CPU,
-            torch_npu.profiler.ProfilerActivity.NPU
-            ],
-        schedule=torch_npu.profiler.schedule(wait=0, warmup=0, active=1, repeat=1, skip_first=0),
-        on_trace_ready=torch_npu.profiler.tensorboard_trace_handler("./result"),
-        record_shapes=True,
-        profile_memory=True,
-        with_stack=True,
-        with_modules=False,
-        with_flops=False,
-        experimental_config=experimental_config) as prof:
-
-        with torch_npu.npu.stream(stream):
-            for _ in range(10):
+            with torch_npu.npu.stream(stream):
+                for _ in range(10):
+                    kv_shuffle.compute(global_shuffle_tensor, aclshmem_k_cache_tensor,
+                                    aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)
+                stream.synchronize()
+                prof.step()
+    elif TOOL == 0:
+         with torch_npu.npu.stream(stream):
                 kv_shuffle.compute(global_shuffle_tensor, aclshmem_k_cache_tensor,
-                                   aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)
-            stream.synchronize()
-            prof.step()
+                                aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)
+                stream.synchronize()
+    else:
+        print("Unknown tool, Running without any tools!")
+        with torch_npu.npu.stream(stream):
+                kv_shuffle.compute(global_shuffle_tensor, aclshmem_k_cache_tensor,
+                                aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)
+                stream.synchronize()
     
     print("rank: ", rank, " kv_shuffle end !!!!")
     npu_tensork = aclshmem_k_cache_tensor.cpu()
@@ -276,10 +285,27 @@ def worker(rank):
 
 
 if __name__ == "__main__":
-    num_processes = RANKS  # 定义要启动的进程数量
+    parser = argparse.ArgumentParser(description="KVShuffle")
+
+    parser.add_argument(
+        "--tool",
+        type=int,
+        default=0
+    )
+    parser.add_argument(
+        "--pes",
+        type=int,
+        default=8
+    )
+
+    args = parser.parse_args()
+    
+    TOOL = args.tool
+    PES = args.pes
+
     processes = []
 
-    for rank in range(num_processes):
+    for rank in range(PES):
         p = multiprocessing.Process(target=worker, args=(rank,))
         processes.append(p)
         p.start()

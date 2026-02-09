@@ -20,9 +20,13 @@
 #endif
 
 #ifdef RUN_WITH_UNIQUEID
-int run_main() {
+int run_main(int argc, char* argv[]) {
+    if (argc < 1) {
+        std::cerr << "Usage: " << argv[0] << " <pe> <pe_size>" << std::endl;
+        return 1;
+    }
     MPI_Init(nullptr, nullptr);
-
+    int g_npu = atoi(argv[1]);
     int pe;
     int pe_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &pe);
@@ -30,7 +34,8 @@ int run_main() {
     int status = ACLSHMEM_SUCCESS;
     
     aclInit(nullptr);
-    aclrtSetDevice(pe);
+    int device_id = pe % g_npu;
+    aclrtSetDevice(device_id);
     
     aclshmemx_init_attr_t attributes;
     aclshmemx_uniqueid_t uid = ACLSHMEM_UNIQUEID_INITIALIZER;
@@ -70,9 +75,13 @@ int run_main() {
 #endif
 
 #ifdef RUN_WITH_MPI
-int run_main() {
+int run_main(int argc, char* argv[]) {
+    if (argc < 1) {
+        std::cerr << "Usage: " << argv[0] << " <pe> <pe_size>" << std::endl;
+        return 1;
+    }
     MPI_Init(nullptr, nullptr);
-
+    int g_npu = atoi(argv[1]);
     int pe;
     int pe_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &pe);
@@ -80,7 +89,8 @@ int run_main() {
     int status = ACLSHMEM_SUCCESS;
     
     aclInit(nullptr);
-    aclrtSetDevice(pe);
+    int device_id = pe % g_npu;
+    aclrtSetDevice(device_id);
     
     uint64_t local_mem_size = 1024 * 1024 * 1024;
     aclshmemx_init_attr_t attributes = {
@@ -143,16 +153,20 @@ int run_main(int argc, char* argv[]) {
         return 1;
     }
     
-    int pe = atoi(argv[1]);
+    int device_id = atoi(argv[1]);
     int pe_size = atoi(argv[2]);
     std::string ipport = argv[3];
+    int g_npu = atoi(argv[4]);
+    int f_pe = atoi(argv[5]);
+    pe = f_pe + device_id;
+    int f_npu = atoi(argv[6]);
     std::cout << pe << pe_size << ipport << std::endl;
     aclshmemx_uniqueid_t default_flag_uid = ACLSHMEM_UNIQUEID_INITIALIZER;
     aclshmemx_init_attr_t attributes;
 
     int status = ACLSHMEM_SUCCESS;
     aclInit(nullptr);
-    aclrtSetDevice(pe);
+    aclrtSetDevice(device_id);
     
     uint64_t local_mem_size = 1024 * 1024 * 1024;
     test_set_attr(pe, pe_size, local_mem_size, ipport.c_str(), &default_flag_uid, &attributes);
@@ -185,7 +199,7 @@ int main(int main_argc, char* main_argv[]) {
     #ifdef RUN_WITH_DEFAULT
         status = run_main(main_argc, main_argv);
     #elif defined(RUN_WITH_UNIQUEID) || defined(RUN_WITH_MPI)
-        status = run_main();
+        status = run_main(main_argc, main_argv);
     #else
         std::cerr << "Error: Please define one of RUN_WITH_UNIQUEID/RUN_WITH_MPI/RUN_WITH_DEFAULT" << std::endl;
         return 1;

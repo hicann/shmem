@@ -12,7 +12,12 @@
 # 初始化默认值
 MODE="default"  # 默认模式为default
 NUM_PROCESSES=2 # 默认进程数为2
-
+FIRST_NPU="0"
+FIRST_PE="0"
+GNPU_NUM="8"
+IPPORT="tcp://127.0.0.1:8666"
+SESSION_ID="127.0.0.1:8666"
+ONLY_BUILD=OFF
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -26,7 +31,69 @@ while [[ $# -gt 0 ]]; do
                 echo "Error: pesize must be a positive integer!"
                 exit 1
             fi
+            if [ "$GNPU_NUM" -gt "$NUM_PROCESSES" ]; then
+                GNPU_NUM="$NUM_PROCESSES"
+                echo "Because GNPU_NUM is greater than NUM_PROCESSES, GNPU_NUM is assigned the value of NUM_PROCESSES=${NUM_PROCESSES}."
+            fi
             shift 2
+            ;;
+        -frank)
+            if [ -n "$2" ]; then
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "Error: -frank requires a numeric value."
+                    exit 1
+                fi
+                FIRST_PE="$2"
+                shift 2
+            else
+                echo "Error: -frank requires a value."
+                exit 1
+            fi
+            ;;
+        -ipport)
+            if [ -n "$2" ]; then
+                if [[ "$2" =~ ^[a-zA-Z0-9/:._-]+$ ]]; then
+                    IPPORT="tcp://${2}"
+                    SESSION_ID="${2}"
+                    shift 2
+                else
+                    echo "Error: Invalid -ipport format, only alphanumeric and :/_- allowed"
+                    exit 1
+                fi
+            else
+                echo "Error: -ipport requires a value."
+                exit 1
+            fi
+            ;;
+        -gnpus)
+            if [ -n "$2" ]; then
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "Error: -gnpus requires a numeric value."
+                    exit 1
+                fi
+                GNPU_NUM="$2"
+                shift 2
+            else
+                echo "Error: -gnpus requires a value."
+                exit 1
+            fi
+            ;;
+        -fnpu)
+            if [ -n "$2" ]; then
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "Error: -fnpu requires a numeric value."
+                    exit 1
+                fi
+                FIRST_NPU="$2"
+                shift 2
+            else
+                echo "Error: -fnpu requires a value."
+                exit 1
+            fi
+            ;;
+        -build)
+            ONLY_BUILD=ON
+            shift
             ;;
         *)
             echo "Error: Unknown parameter '$1'"
@@ -56,6 +123,8 @@ esac
 BUILD_DIR="build"
 EXECUTABLE_NAME="init_examples"
 
+export SHMEM_UID_SESSION_ID=$SESSION_ID
+
 echo "=== Prepare build directory ==="
 if [ -d "$BUILD_DIR" ]; then
     rm -rf "$BUILD_DIR"/*
@@ -78,18 +147,28 @@ if [ $? -ne 0 ]; then
 fi
 cd ..
 
+if [ "$ONLY_BUILD" == "ON" ]; then
+    echo "Compile only, prepare for cross-machine tasks."
+    exit 0
+fi
+
 echo "=== Launch executable (mode: ${MODE}, pesize: ${NUM_PROCESSES}) ==="
-export SHMEM_UID_SESSION_ID=127.0.0.1:8666
-IPPORT="tcp://127.0.0.1:8666"
+
 
 case "$MODE" in
     mpi|uid)
-        mpirun -np "$NUM_PROCESSES" ./build/bin/"${EXECUTABLE_NAME}"
+        if [ -f "hostfile" ]; then
+            echo "Found hostfile, run mpirun with -f hostfile"
+            mpirun -f hostfile ./build/bin/"${EXECUTABLE_NAME}" "$GNPU_NUM"
+        else
+            echo "No hostfile found, run mpirun without hostfile"
+            mpirun -np "$NUM_PROCESSES" ./build/bin/"${EXECUTABLE_NAME}"
+        fi
         ;;
     default)
-        for (( idx=0; idx < NUM_PROCESSES; idx++ )); do
+        for (( idx=0; idx < GNPU_NUM; idx++ )); do
             echo "Starting process $idx/$NUM_PROCESSES..."
-            ./build/bin/"${EXECUTABLE_NAME}" "$idx" "$NUM_PROCESSES" "${IPPORT}" &
+            ./build/bin/"${EXECUTABLE_NAME}" "$idx" "$NUM_PROCESSES" "${IPPORT}" "$GNPU_NUM" "$FIRST_PE" "$FIRST_NPU" &
         done
         wait
         echo "=== All processes completed ==="

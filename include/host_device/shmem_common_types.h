@@ -147,11 +147,11 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
  */
 
 /// \def ACLSHMEM_MAX_PES
-/// \brief Maximum number of Processing Elements (PE) supported by ACLSHMEM
+/// \brief Maximum number of Processing Elements (PE) supported by ACLSHMEM (16384)
 #define ACLSHMEM_MAX_PES 16384
 
 /// \def ACLSHMEM_MAX_TEAMS
-/// \brief Maximum number of teams supported by ACLSHMEM
+/// \brief Maximum number of teams supported by ACLSHMEM (2048)
 #define ACLSHMEM_MAX_TEAMS 2048
 
 /// \def ACLSHMEM_MAX_LOCAL_SIZE
@@ -159,7 +159,7 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 #define ACLSHMEM_MAX_LOCAL_SIZE (40UL * 1024 * 1024 * 1024)
 
 /// \def TEAM_CONFIG_PADDING
-/// \brief Padding bytes for the team configuration structure, used for memory alignment
+/// \brief Padding bytes for the team configuration structure, used for memory alignment (48 bytes)
 #define TEAM_CONFIG_PADDING 48
 
 /* arch related */
