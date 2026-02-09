@@ -342,6 +342,7 @@ typedef struct {
 // Legacy type aliases for backward compatibility
 typedef aclshmem_ub_config_t aclshmem_mte_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
 typedef aclshmem_ub_config_t aclshmem_sdma_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
+typedef aclshmem_ub_config_t aclshmem_rdma_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
 
 // state
 /**
@@ -385,6 +386,7 @@ typedef struct {
 
     aclshmem_mte_config_t mte_config;   ///< Configuration information of the MTE memory transfer engine
     aclshmem_sdma_config_t sdma_config; ///< Configuration information of the SDMA memory transfer engine
+    aclshmem_rdma_config_t rdma_config; ///< Configuration information of RDMA
     uint64_t qp_info;                 ///< Queue Pair (QP) information, used for communication mechanisms such as RDMA
 
     uint64_t sdma_workspace_addr;  /// sdma aicpu和aiv的共享内存

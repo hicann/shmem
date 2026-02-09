@@ -103,10 +103,10 @@ struct ACLSHMEMHybmDeviceMeta {
 ACLSHMEM_DEVICE __gm__ ACLSHMEMAIVRDMAInfo* aclshmemi_qp_info_fetch();
 
 ACLSHMEM_DEVICE void aclshmemi_roce_poll_cq_update_info(AscendC::LocalTensor<uint64_t> &ubLocal64,
-    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curTail, uint32_t &rRankId, uint32_t &qpIdx);
+    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curTail, uint32_t &rRankId, uint32_t &qpIdx, uint32_t sync_id);
 
 ACLSHMEM_DEVICE void aclshmemi_rdma_post_send_update_info(AscendC::LocalTensor<uint64_t> &ubLocal64,
-    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curHead, __gm__ ACLSHMEMWQCtx *&qpCtxEntry);
+    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curHead, __gm__ ACLSHMEMWQCtx *&qpCtxEntry, uint32_t sync_id);
 
 /**
  * @brief RDMA Poll Completion Queue (CQ) function. Return status: 0 means success, non-zero means error.
@@ -116,13 +116,14 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_post_send_update_info(AscendC::LocalTensor<u
  * @param idx                    [in] expect completion queue consumer index after polling
  * @param ubLocal64              [in] temporary UB local tensor of uint64_t used as workspace
  * @param ubLocal32              [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
  */
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq(uint32_t remoteRankId, uint32_t qpIdx, uint32_t idx,
                                           AscendC::LocalTensor<uint64_t> ubLocal64,
-                                          AscendC::LocalTensor<uint32_t> ubLocal32);
+                                          AscendC::LocalTensor<uint32_t> ubLocal32, uint32_t sync_id);
 
 ACLSHMEM_DEVICE void aclshmemi_roce_poll_cq_update_info(AscendC::LocalTensor<uint64_t> &ubLocal64,
-    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curTail, uint32_t &remoteRankId, uint32_t &qpIdx);
+    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curTail, uint32_t &remoteRankId, uint32_t &qpIdx, uint32_t sync_id);
 
 /**
  * @brief AIV direct RDMA helper function for post send, prepare WQE and ring doorbell.
@@ -135,15 +136,16 @@ ACLSHMEM_DEVICE void aclshmemi_roce_poll_cq_update_info(AscendC::LocalTensor<uin
  * @param messageLen             [in] message length in Bytes
  * @param ubLocal64              [in] temporary UB local tensor of uint64_t used as workspace
  * @param ubLocal32              [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
  */
 ACLSHMEM_DEVICE void aclshmemi_rdma_post_send(__gm__ uint8_t* remoteAddr, __gm__ uint8_t* localAddr,
                                         uint32_t destRankId, uint32_t qpIdx,
                                         ACLSHMEMAIVOPCODE opcode, uint64_t messageLen,
                                         AscendC::LocalTensor<uint64_t> ubLocal64,
-                                        AscendC::LocalTensor<uint32_t> ubLocal32);
+                                        AscendC::LocalTensor<uint32_t> ubLocal32, uint32_t sync_id);
 
 ACLSHMEM_DEVICE void aclshmemi_rdma_post_send_update_info(AscendC::LocalTensor<uint64_t> &ubLocal64,
-    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curHead, __gm__ ACLSHMEMWQCtx *&qpCtxEntry);
+    AscendC::LocalTensor<uint32_t> &ubLocal32, uint32_t &curHead, __gm__ ACLSHMEMWQCtx *&qpCtxEntry, uint32_t sync_id);
 
 /**
  * @brief Asynchronous RDMA Write function.
@@ -155,12 +157,13 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_post_send_update_info(AscendC::LocalTensor<u
  * @param messageLen             [in] message length in Bytes
  * @param ubLocal64              [in] temporary UB local tensor of uint64_t used as workspace
  * @param ubLocal32              [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
  */
 template<typename T>
 ACLSHMEM_DEVICE void aclshmemi_roce_write(__gm__ T* destDmaAddr, __gm__ T* srcDmaAddr, uint32_t destRankId,
                                     uint32_t qpIdx, uint64_t messageLen,
                                     AscendC::LocalTensor<uint64_t> ubLocal64,
-                                    AscendC::LocalTensor<uint32_t> ubLocal32);
+                                    AscendC::LocalTensor<uint32_t> ubLocal32, uint32_t sync_id);
 
 /**
  * @brief Asynchronous RDMA READ function.
@@ -172,12 +175,13 @@ ACLSHMEM_DEVICE void aclshmemi_roce_write(__gm__ T* destDmaAddr, __gm__ T* srcDm
  * @param messageLen             [in] message length in Bytes
  * @param ubLocal64              [in] temporary UB local tensor of uint64_t used as workspace
  * @param ubLocal32              [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
  */
 template<typename T>
 ACLSHMEM_DEVICE void aclshmemi_roce_read(__gm__ T* destDmaAddr, __gm__ T* srcDmaAddr, uint32_t srcRankId,
                                    uint32_t qpIdx, uint64_t messageLen,
                                    AscendC::LocalTensor<uint64_t> ubLocal64,
-                                   AscendC::LocalTensor<uint32_t> ubLocal32);
+                                   AscendC::LocalTensor<uint32_t> ubLocal32, uint32_t sync_id);
 
 /**
  * @brief RDMA Quiet function. This synchronous function ensures all previous RDMA WQEs are completed
@@ -187,10 +191,11 @@ ACLSHMEM_DEVICE void aclshmemi_roce_read(__gm__ T* destDmaAddr, __gm__ T* srcDma
  * @param qpIdx                  [in] QP index in multi-QP scenario (default 0 for single QP)
  * @param ubLocal64              [in] temporary UB local tensor of uint64_t used as workspace
  * @param ubLocal32              [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
  */
 ACLSHMEM_DEVICE void aclshmemi_roce_quiet(uint32_t remoteRankId, uint32_t qpIdx,
                                     AscendC::LocalTensor<uint64_t> ubLocal64,
-                                    AscendC::LocalTensor<uint32_t> ubLocal32);
+                                    AscendC::LocalTensor<uint32_t> ubLocal32, uint32_t sync_id);
 
 ACLSHMEM_DEVICE void aclshmemi_roce_qpinfo_test(__gm__ uint8_t* gva, uint32_t destRankId, uint32_t qpIdx);
 

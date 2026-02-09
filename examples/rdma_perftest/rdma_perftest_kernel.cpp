@@ -99,7 +99,7 @@ extern "C" __global__ __aicore__ void rdma_postsend_cost(uint64_t fftsConfig, GM
         GM_ADDR dest_addr = (GM_ADDR)(aclshmem_roce_ptr(src_addr, peer));
         int64_t start = AscendC::GetSystemCycle();
         for (uint32_t i = 0; i < 500; i++) {
-            aclshmemi_roce_write(dest_addr, src_addr, peer, 0, message_length, ubLocal64, ubLocal32);
+            aclshmemi_roce_write(dest_addr, src_addr, peer, 0, message_length, ubLocal64, ubLocal32, 0);
         }
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t end = AscendC::GetSystemCycle();
@@ -134,7 +134,7 @@ extern "C" __global__ __aicore__ void rdma_highlevel_put_bw(uint64_t fftsConfig,
         for (int i = 0; i < 10000; i++) {
             aclshmem_uint8_put_nbi(src_addr, src_addr, message_length, peer);
         }
-        aclshmemi_roce_quiet(peer, 0, ubLocal64, ubLocal32);
+        aclshmemi_roce_quiet(peer, 0, ubLocal64, ubLocal32, 0);
         aclshmem_uint8_put_nbi(gva + rank_size * message_length + 8, src_addr, sizeof(uint32_t), peer);
         while (*(__gm__ uint32_t*)(gva + message_length * rank_size + 16) != peer + MAGIC_VAL) {
             dcci_cachelines(gva + message_length * rank_size + 16, 8);
@@ -180,10 +180,10 @@ extern "C" __global__ __aicore__ void rdma_mte_put_bw(uint64_t fftsConfig, GM_AD
             peer = 1;
             int64_t start = AscendC::GetSystemCycle();
             for (int i = 0; i < 10000; i++) {
-                aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(src_addr, peer), src_addr, peer, 0, message_length, ubLocal64, ubLocal32);
+                aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(src_addr, peer), src_addr, peer, 0, message_length, ubLocal64, ubLocal32, 0);
             }
-            aclshmemi_roce_quiet(peer, 0, ubLocal64, ubLocal32);
-            aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(gva + rank_size * message_length * 2 + 8, peer), src_addr, peer, 0, sizeof(int64_t), ubLocal64, ubLocal32);
+            aclshmemi_roce_quiet(peer, 0, ubLocal64, ubLocal32, 0);
+            aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(gva + rank_size * message_length * 2 + 8, peer), src_addr, peer, 0, sizeof(int64_t), ubLocal64, ubLocal32, 0);
             while (*(__gm__ int64_t*)(gva + message_length * rank_size * 2 + 16) != peer + MAGIC_VAL + iter) {
                 dcci_cachelines(gva + message_length * rank_size * 2 + 16, 8);
                 AscendC::GetSystemCycle();
@@ -198,7 +198,7 @@ extern "C" __global__ __aicore__ void rdma_mte_put_bw(uint64_t fftsConfig, GM_AD
                 AscendC::GetSystemCycle();
             }
             AscendC::PipeBarrier<PIPE_ALL>();
-            aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(gva + rank_size * message_length * 2 + 16, peer), src_addr, peer, 0, sizeof(int64_t), ubLocal64, ubLocal32);
+            aclshmemi_roce_write((GM_ADDR)aclshmem_roce_ptr(gva + rank_size * message_length * 2 + 16, peer), src_addr, peer, 0, sizeof(int64_t), ubLocal64, ubLocal32, 0);
         }
     } else { // core 1, MTE
         GM_ADDR src_addr = gva + (rank + rank_size) * message_length;

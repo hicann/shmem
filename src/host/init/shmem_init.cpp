@@ -33,6 +33,8 @@ constexpr int DEFAULT_BLOCK_NUM = 1;
 constexpr uint32_t DEFAULT_MTE_UB_SIZE = 16 * 1024;
 constexpr uint32_t DEFAULT_SDMA_UB_SIZE = 64;
 constexpr int64_t DEFAULT_SDMA_UB_OFFSET = 191 * 1024;
+constexpr uint32_t DEFAULT_RDMA_UB_SIZE = 64;
+constexpr int64_t DEFAULT_RDMA_UB_OFFSET = 190 * 1024;
 
 // initializer
 #define ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER                                                         \
@@ -59,6 +61,7 @@ constexpr int64_t DEFAULT_SDMA_UB_OFFSET = 191 * 1024;
             false,                                              /* aclshmem_is_aclshmem_created */     \
             {0, DEFAULT_MTE_UB_SIZE, 0},                        /* aclshmem_mte_config */              \
             {DEFAULT_SDMA_UB_OFFSET, DEFAULT_SDMA_UB_SIZE, 0},  /* aclshmem_sdma_config */             \
+            {DEFAULT_RDMA_UB_OFFSET, DEFAULT_RDMA_UB_SIZE, 0},  /* aclshmem_rdma_config */             \
             0,                                                  /* qp_info */                          \
             0,                                                  /* sdma_workspace_addr */              \
     }

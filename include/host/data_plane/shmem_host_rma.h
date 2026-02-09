@@ -567,6 +567,17 @@ ACLSHMEM_HOST_API int aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size
  */
 ACLSHMEM_HOST_API int aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id);
 
+/**
+ * @brief Set necessary parameters for RDMA operations.
+ *
+ * @param offset                [in] The start address on UB.
+ * @param ub_size               [in] The Size of Temp UB Buffer.
+ * @param sync_id               [in] Sync ID for put or get.
+ * @return Returns 0 on success or an error code on failure.
+ */
+ACLSHMEM_HOST_API int aclshmemx_set_rdma_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id);
+#define shmem_rdma_set_ub_params aclshmemx_set_rdma_config
+
 #ifdef __cplusplus
 }
 #endif

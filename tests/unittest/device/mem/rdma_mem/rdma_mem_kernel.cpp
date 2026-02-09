@@ -29,7 +29,7 @@ extern "C" __global__ __aicore__ void RDMAGetTestLowLevel(GM_ADDR gva, uint64_t 
             continue;
         }
         dest_addr = gva + peer * MESSAGE_SIZE;
-        aclshmemx_roce_get_nbi(dest_addr, dest_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_roce_get_nbi(dest_addr, dest_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer, 0);
     }
 }
 
@@ -55,7 +55,7 @@ extern "C" __global__ __aicore__ void RDMAPutTestLowLevel(GM_ADDR gva, uint64_t 
             continue;
         }
         src_addr = gva + rank * MESSAGE_SIZE;
-        aclshmemx_roce_put_nbi(src_addr, src_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_roce_put_nbi(src_addr, src_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer, 0);
     }
 }
 

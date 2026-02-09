@@ -450,7 +450,7 @@ ACLSHMEM_DEVICE void aclshmemi_handle(aclshmem_team_t tid)
         if (peer == mype) {
             continue;
         }
-        aclshmemi_roce_quiet(peer, 0, ub_tensor_64, ub_tensor_32);
+        aclshmemi_roce_quiet(peer, 0, ub_tensor_64, ub_tensor_32, 0);
     }
 
     if ASCEND_IS_AIV {

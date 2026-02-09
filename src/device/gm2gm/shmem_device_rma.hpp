@@ -486,18 +486,19 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
             /* RoCE */                                                                                                      \
             auto ptr = aclshmem_roce_ptr(src, pe);                                                                          \
             if (ptr == nullptr) return;                                                                                     \
+            uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;                                                       \
             /* Create LocalTensor */                                                                                        \
             AscendC::LocalTensor<uint32_t> ub_tensor_32;                                                                    \
             ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                              \
-            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);             \
+            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;                                                                  \
             AscendC::LocalTensor<uint64_t> ub_tensor_64;                                                                    \
             ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                              \
-            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR               \
-                                                                             + UB_ALIGN_SIZE);                              \
+            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);                         \
             ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;                                                                  \
+            uint32_t sync_id = device_state->rdma_config.sync_id;                                                           \
             aclshmemi_roce_read((__gm__ uint8_t*)dst, (__gm__ uint8_t*)ptr, pe, 0, elem_size * sizeof(TYPE),                \
-                                ub_tensor_64, ub_tensor_32);                                                                \
+                                ub_tensor_64, ub_tensor_32, sync_id);                                                       \
         }                                                                                                                   \
     }
 
@@ -566,18 +567,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
             /* RoCE */                                                                                                   \
             auto ptr = aclshmem_roce_ptr((__gm__ void *)src.GetPhyAddr(), pe);                                           \
             if (ptr == nullptr) return;                                                                                  \
+            uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;                                                    \
             /* Create LocalTensor */                                                                                     \
             AscendC::LocalTensor<uint32_t> ub_tensor_32;                                                                 \
             ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                           \
-            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);          \
+            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                      \
             ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;                                                               \
             AscendC::LocalTensor<uint64_t> ub_tensor_64;                                                                 \
             ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                           \
-            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR            \
-                                                                            + UB_ALIGN_SIZE);                            \
+            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);                      \
             ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;                                                               \
+            uint32_t sync_id = device_state->rdma_config.sync_id;                                                        \
             aclshmemi_roce_read((__gm__ uint8_t*)(dst.GetPhyAddr()), (__gm__ uint8_t*)ptr, pe, 0,                        \
-                                elem_size * sizeof(TYPE), ub_tensor_64, ub_tensor_32);                                   \
+                                elem_size * sizeof(TYPE), ub_tensor_64, ub_tensor_32, sync_id);                          \
         }                                                                                                                \
     }
 
@@ -630,18 +632,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
             /* RoCE */                                                                                                      \
             auto ptr = aclshmem_roce_ptr(dst, pe);                                                                          \
             if (ptr == nullptr) return;                                                                                     \
+            uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;                                                       \
             /* Create LocalTensor */                                                                                        \
             AscendC::LocalTensor<uint32_t> ub_tensor_32;                                                                    \
             ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                              \
-            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);             \
+            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                         \
             ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;                                                                  \
             AscendC::LocalTensor<uint64_t> ub_tensor_64;                                                                    \
             ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                              \
-            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR               \
-                                                                            + UB_ALIGN_SIZE);                               \
+            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);                         \
             ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;                                                                  \
+            uint32_t sync_id = device_state->rdma_config.sync_id;                                                           \
             aclshmemi_roce_write((__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src, pe, 0, elem_size * sizeof(TYPE),               \
-                                    ub_tensor_64, ub_tensor_32);                                                            \
+                                    ub_tensor_64, ub_tensor_32, sync_id);                                                   \
         }                                                                                                                   \
     }
 
@@ -710,18 +713,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
             /* RoCE */                                                                                                   \
             auto ptr = aclshmem_roce_ptr((__gm__ void *)dst.GetPhyAddr(), pe);                                           \
             if (ptr == nullptr) return;                                                                                  \
+            uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;                                                    \
             /* Create LocalTensor */                                                                                     \
             AscendC::LocalTensor<uint32_t> ub_tensor_32;                                                                 \
             ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                           \
-            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR);          \
+            ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                      \
             ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;                                                               \
             AscendC::LocalTensor<uint64_t> ub_tensor_64;                                                                 \
             ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);                           \
-            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(ACLSHMEM_INTERNAL_UB_BUF_START_ADDR            \
-                                                                            + UB_ALIGN_SIZE);                            \
+            ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);                      \
             ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;                                                               \
+            uint32_t sync_id = device_state->rdma_config.sync_id;                                                        \
             aclshmemi_roce_write((__gm__ uint8_t*)ptr, (__gm__ uint8_t*)(src.GetPhyAddr()), pe, 0,                       \
-                                                    elem_size * sizeof(TYPE), ub_tensor_64, ub_tensor_32);               \
+                                                    elem_size * sizeof(TYPE), ub_tensor_64, ub_tensor_32, sync_id);      \
         }                                                                                                                \
     }
 

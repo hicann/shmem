@@ -76,6 +76,16 @@ int32_t aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size, uint32_t sy
     return ACLSHMEM_SUCCESS;
 }
 
+// Set RDMA Interfaces necessary UB Buffer.
+int32_t aclshmemx_set_rdma_config(uint64_t offset, uint32_t ub_size, uint32_t sync_id)
+{
+    g_state.rdma_config.aclshmem_ub = offset;
+    g_state.rdma_config.ub_size = ub_size;
+    g_state.rdma_config.sync_id = sync_id;
+    ACLSHMEM_CHECK_RET(update_device_state());
+    return ACLSHMEM_SUCCESS;
+}
+
 #define ACLSHMEM_TYPE_PUT(NAME, TYPE)                                                                                    \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE *dest, TYPE *source, size_t nelems, int pe)                        \
     {                                                                                                                    \

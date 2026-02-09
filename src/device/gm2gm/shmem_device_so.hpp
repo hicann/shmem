@@ -277,8 +277,8 @@ ACLSHMEM_DEVICE void aclshmemi_highlevel_signal_set(__gm__ int32_t *dst, __gm__ 
                                                                         + UB_ALIGN_SIZE);
     ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
     aclshmemi_roce_write((__gm__ uint8_t*)aclshmem_roce_ptr(dst, pe), (__gm__ uint8_t*)src, pe, 0, sizeof(int32_t),
-        ub_tensor_64, ub_tensor_32);
-    aclshmemi_roce_quiet(pe, 0, ub_tensor_64, ub_tensor_32);
+        ub_tensor_64, ub_tensor_32, 0);
+    aclshmemi_roce_quiet(pe, 0, ub_tensor_64, ub_tensor_32, 0);
 }
 
 ACLSHMEM_DEVICE void aclshmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val)
