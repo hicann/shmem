@@ -49,6 +49,9 @@ int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
 - CANN版本（根据功能选择其一）：
     - 8.2.RC1.alpha003 及以上（社区版）支持 D2D 功能。下载链接：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann)
     - 8.5.0 及以上（尝鲜版）支持 D2D、D2H、H2D 功能。下载链接：[尝鲜版链接](https://ascend.devcloud.huaweicloud.com/cann/run/software/)
+    - 9.0.0 及以上（尝鲜版）新增支持 SDMA 功能。下载链接：
+        - toolkit包（[x86_64](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/x86_64/Ascend-cann-toolkit_9.0.0_linux-x86_64.run)/[aarch64](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/aarch64/Ascend-cann-toolkit_9.0.0_linux-aarch64.run)）
+        - ops-legacy包（根据硬件平台下载对应版本：[A2 x86_64](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/x86_64/ops/cann-910b-ops-legacy_9.0.0_linux-x86_64.run)/[A2 aarch64](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/aarch64/ops/cann-910b-ops-legacy_9.0.0_linux-aarch64.run)/[A3 x86_64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260202_newest/cann-A3-ops-legacy_9.0.0_linux-x86_64.run)/[A3 aarch64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260202_newest/cann-A3-ops-legacy_9.0.0_linux-aarch64.run)）
 - 安装PyTorch框架和torch_npu插件
 编译运行torch输入输出tensor的算子时必须安装本包。
 根据实际环境，选择对应的版本进行安装，具体可以查看[Ascend Extension for PyTorch](https://www.hiascend.com/document/detail/zh/Pytorch/720/configandinstg/instg/insg_0004.html)文档。
