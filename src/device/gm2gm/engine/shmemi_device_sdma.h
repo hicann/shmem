@@ -108,8 +108,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t
                                                      const workspace_layout_t &layout, const sdma_config_t &config,
                                                      uint32_t *sq_tail);
 
-ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uint32_t> &tmp_local,
-                                                        AscendC::TEventID event_id);
+ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id);
 
 /**
  * @brief AIV direct STARS helper function for post send, prepare SQE and ring doorbell.
@@ -118,17 +117,17 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uin
  * @param send_buffer               [in] Source buffer for data to be sent
  * @param message_len               [in] message length in Bytes
  * @param tmp_local                 [in] temporary UB local tensor of uint32_t used as workspace
- * @param event_id                  [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id                   [in] ID used to sync pipeline.
  */
 ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm__ uint8_t *send_buffer,
                                               uint64_t message_len, AscendC::LocalTensor<uint32_t> &tmp_local,
-                                              AscendC::TEventID event_id);
+                                              uint32_t sync_id);
 
 /**
  * @brief SDMA Quiet function. This synchronous function ensures all previous SDMA SQEs are completed.
  *
  * @param buf                       [in] temporary UB local tensor of uint32_t used as workspace
- * @param sync_id                   [in] ID used to sync.
+ * @param sync_id                   [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t sync_id);
@@ -138,7 +137,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t
  *
  * @param buf                       [in] Pointer on local UB.
  * @param ub_size                   [in] The size of temp Buffer on UB. (In Bytes)
- * @param sync_id                   [in] ID used to sync.
+ * @param sync_id                   [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(__ubuf__ T *buf, uint32_t ub_size, uint32_t sync_id);

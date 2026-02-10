@@ -110,8 +110,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_gm2ub(const AscendC::LocalTensor<T> &dstUb,
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID)
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(src, pe);
 
@@ -127,8 +126,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, uint3
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elem_size,
-                                        int pe, AscendC::TEventID EVENT_ID)
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src,
+                                           uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
 
@@ -147,7 +146,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC:
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID)
+                                           int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(src, pe);
     __gm__ T *remote_ptr = reinterpret_cast<__gm__ T *>(ptr);
@@ -174,8 +173,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, const
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
 
@@ -197,8 +195,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::LocalTensor<T> dst, AscendC:
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID)
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(dst, pe);
 
@@ -215,7 +212,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, uint3
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, uint32_t elem_size,
-                                        int pe, AscendC::TEventID EVENT_ID)
+                                           int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
 
@@ -234,7 +231,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID)
+                                           int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(dst, pe);
 
@@ -262,8 +259,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, const
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
 

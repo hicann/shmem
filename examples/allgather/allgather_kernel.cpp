@@ -157,16 +157,16 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
             }
             AscendC::PipeBarrier<PIPE_ALL>();
             for (int i = 0; num_total > 0; i++) {
-                AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+                AscendC::TEventID event_id = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
                 __ubuf__ T *buf = pingpongId == 0 ? ping_buff : pong_buff;
 
                 uint32_t copy_num = num_total > copy_ub_num ? copy_ub_num : num_total;
 
-                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
                 aclshmemx_mte_get_nbi(output_gm + group_recv_offset + recv_offset,
                                       gva_data_gm + group_send_offset + send_offset, buf, copy_ub_size, copy_num, x,
-                                      EVENT_ID);
-                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                                      event_id);
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
 
                 send_offset += copy_num;
                 recv_offset += copy_num;

@@ -35,11 +35,11 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
  * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
+                                           uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -51,12 +51,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
  * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           const non_contiguous_copy_param &copy_params, int pe,
-                                           AscendC::TEventID EVENT_ID);
+                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
@@ -67,12 +66,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param buf               [in] LocalTensor on local UB.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                           AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -83,12 +81,12 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param buf               [in] LocalTensor on local UB.
  * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                            AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                           int pe, AscendC::TEventID EVENT_ID);
+                                           int pe, uint32_t sync_id);
 #define shmem_mte_get_mem_nbi aclshmemx_mte_get_nbi
 
 /**
@@ -100,11 +98,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID);
+                                           uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -116,12 +114,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
  * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           const non_contiguous_copy_param &copy_params, int pe,
-                                           AscendC::TEventID EVENT_ID);
+                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -131,12 +128,11 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param buf               [in] Pointer on local UB.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                           AscendC::TEventID EVENT_ID);
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -147,12 +143,12 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param buf               [in] LocalTensor on local UB.
  * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
                                            AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                           int pe, AscendC::TEventID EVENT_ID);
+                                           int pe, uint32_t sync_id);
 #define shmem_mte_put_mem_nbi aclshmemx_mte_put_nbi
 
 #endif

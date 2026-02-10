@@ -183,7 +183,7 @@ public:
                 int pingpongId = 0;
 
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
-                    AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+                    AscendC::TEventID event_id = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
                     AscendC::LocalTensor<ElementC> buf = pingpongId == 0 ? tmpBuffer1 : tmpBuffer2;
 
                     MatrixCoord processCoord{processIndex / processCount.column(),
@@ -202,14 +202,14 @@ public:
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
                     // [ReduceScatter] 2. Pre Interface Sync
-                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
 
                     // [ReduceScatter] 3. Start aclshmemx_mte_get_nbi
                     aclshmemx_mte_get_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], buf, copySize,
-                                          mRankIdx % rankSize, EVENT_ID);
+                                          mRankIdx % rankSize, event_id);
 
                     // [ReduceScatter] 4. Post Interface Sync
-                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
                     pingpongId = (pingpongId + 1) % BufferNum;
                 }
                 // [ReduceScatter] 4. Post Interface Sync
@@ -293,11 +293,11 @@ public:
 
                             uint32_t copySize = actualMoveShape.row() * actualMoveShape.column();
 
-                            AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+                            AscendC::TEventID event_id = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
                             AscendC::LocalTensor<ElementC> buf = pingpongId == 0 ? tmpBuffer1 : tmpBuffer2;
 
                             // [AllGather] 2. Pre Interface Sync
-                            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
 
                             non_contiguous_copy_param copyParams;
                             copyParams.repeat = actualMoveShape.row();
@@ -307,10 +307,10 @@ public:
 
                             // [AllGather] 3. Start aclshmemx_mte_get_nbi non-contiguous version
                             aclshmemx_mte_get_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf,
-                                                  copyParams, mRankIdx % rankSize, EVENT_ID);
+                                                  copyParams, mRankIdx % rankSize, event_id);
 
                             // [AllGather] 4. Post Interface Sync
-                            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
                             pingpongId = (pingpongId + 1) % BufferNum;
                         }
                         residueM -= actualMoveM;

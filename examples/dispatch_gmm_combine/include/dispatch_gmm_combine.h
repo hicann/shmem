@@ -296,22 +296,22 @@ private:
         for (uint32_t processIndex = 0; processIndex < processCount; ++processIndex) {
             uint32_t curProcessNum = (processIndex == processCount - 1) ? elemNum - ubMoveNum * (processCount - 1) :
                                       ubMoveNum;
-            AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+            AscendC::TEventID event_id = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
             AscendC::LocalTensor<T> buf = pingpongId == 0 ? tmpBuffer1 : tmpBuffer2;
             auto processOffset = processIndex * ubMoveNum;
 
             auto inputOffset = processOffset;
             auto outputOffset = processOffset;
             // [ReduceScatter] 2. Pre Interface Sync
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
             // [ReduceScatter] 3. Start aclshmemx_mte_get_nbi
             copyGmToUb(buf, src[inputOffset], layout::RowMajor{1, curProcessNum}, layout::RowMajor{1, curProcessNum});
-            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(event_id);
             copyUbToGm(dst[outputOffset], buf, layout::RowMajor{1, curProcessNum}, layout::RowMajor{1, curProcessNum});
 
             // [ReduceScatter] 4. Post Interface Sync
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
             pingpongId = (pingpongId + 1) % BufferNum;
         }
         // [ReduceScatter] 4. Post Interface Sync

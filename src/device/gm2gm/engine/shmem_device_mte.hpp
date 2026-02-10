@@ -46,7 +46,7 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe)
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
+                                           uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(src, pe);
     __gm__ T *remote_ptr = reinterpret_cast<__gm__ T *>(ptr);
@@ -60,26 +60,25 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, remote_ptr + i * repeat_elem, block_size);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst + i * repeat_elem, buf, block_size);
         if (i != loop_times - 1) {  // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, remote_ptr + repeat_times * repeat_elem, remain);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain);
     }
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                          const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(src, pe);
     __gm__ T *remote_ptr = reinterpret_cast<__gm__ T *>(ptr);
@@ -99,8 +98,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT, 0);
     aclshmemi_copy_gm2ub(ub_tensor, src_tensor, data_copy_params_gm2ub);
 
-    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
 
     AscendC::DataCopyExtParams data_copy_params_ub2gm(copy_params.repeat, copy_params.length * sizeof(T),
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
@@ -110,8 +109,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
 
@@ -127,26 +125,26 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, remote_buff[i * repeat_elem], block_size);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst[i * repeat_elem], buf, block_size);
         if (i != loop_times - 1) {  // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, remote_buff[repeat_times * repeat_elem], remain);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst[repeat_times * repeat_elem], buf, remain);
     }
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID)
+                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
+                                           int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
 
@@ -160,8 +158,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT, 0);
     aclshmemi_copy_gm2ub(buf, remote_buff, data_copy_params_gm2ub);
 
-    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
 
     AscendC::DataCopyExtParams data_copy_params_ub2gm(copy_params.repeat, copy_params.length * sizeof(T),
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
@@ -171,7 +169,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
+                                           uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(dst, pe);
     __gm__ T *remote_ptr = reinterpret_cast<__gm__ T *>(ptr);
@@ -185,26 +183,25 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, src + i * repeat_elem, block_size);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_ptr + i * repeat_elem, buf, block_size);
         if (i != loop_times - 1) {  // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_ptr + repeat_times * repeat_elem, buf, remain);
     }
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                        const non_contiguous_copy_param &copy_params, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr(dst, pe);
     __gm__ T *remote_ptr = reinterpret_cast<__gm__ T *>(ptr);
@@ -224,8 +221,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT, 0);
     aclshmemi_copy_gm2ub(ub_tensor, src_tensor, data_copy_params_gm2ub);
 
-    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
 
     AscendC::DataCopyExtParams data_copy_params_ub2gm(copy_params.repeat, copy_params.length * sizeof(T),
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
@@ -235,8 +232,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
-                                        AscendC::TEventID EVENT_ID)
+                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
 
@@ -252,26 +248,26 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, src[i * repeat_elem], block_size);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_buff[i * repeat_elem], buf, block_size);
         if (i != loop_times - 1) {  // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, src[repeat_times * repeat_elem], remain);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_buff[repeat_times * repeat_elem], buf, remain);
     }
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                        AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                        int pe, AscendC::TEventID EVENT_ID)
+                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
+                                           int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
 
@@ -285,8 +281,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT, 0);
     aclshmemi_copy_gm2ub(buf, src, data_copy_params_gm2ub);
 
-    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
 
     AscendC::DataCopyExtParams data_copy_params_ub2gm(copy_params.repeat, copy_params.length * sizeof(T),
                                                       (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
@@ -295,7 +291,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
 }
 
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
-    uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID, bool enable_L2)
+                                           uint32_t ub_size, uint32_t elem_size, int pe, uint32_t sync_id,
+                                           bool enable_L2)
 {
     auto ptr = aclshmem_ptr(src, pe);
     __gm__ int8_t* remote_ptr = reinterpret_cast<__gm__ int8_t*>(ptr);
@@ -309,24 +306,25 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* sr
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, remote_ptr + i * repeat_elem, block_size, enable_L2);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst + i * repeat_elem, buf, block_size, enable_L2);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, remote_ptr + repeat_times * repeat_elem, remain, enable_L2);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain, enable_L2);
     }
 }
 
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, __ubuf__ int8_t* buf,
-    uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID, bool enable_L2)
+                                           uint32_t ub_size, uint32_t elem_size, int pe, uint32_t sync_id,
+                                           bool enable_L2)
 {
     auto ptr = aclshmem_ptr(dst, pe);
     __gm__ int8_t* remote_ptr = reinterpret_cast<__gm__ int8_t*>(ptr);
@@ -340,44 +338,44 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* sr
     uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (uint64_t i = 0; i < repeat_times; i++) {
         aclshmemi_copy_gm2ub(buf, src + i * repeat_elem, block_size, enable_L2);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_ptr + i * repeat_elem, buf, block_size, enable_L2);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
         }
     }
     if (remain > 0) {
         aclshmemi_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain, enable_L2);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
         aclshmemi_copy_ub2gm(remote_ptr + repeat_times * repeat_elem, buf, remain, enable_L2);
     }
 }
 
 ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size,
-    int32_t pe, bool enable_L2)
+                                           int32_t pe, bool enable_L2)
 {
     /* Global State Get */
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
     /* CopyUB Config Set */
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
+    uint32_t copy_event_id = device_state->mte_config.sync_id;
     aclshmemx_mte_get_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
         elem_size, pe, copy_event_id, enable_L2);
 }
 
 ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* src, uint32_t elem_size, int32_t pe,
-    bool enable_L2)
+                                           bool enable_L2)
 {
         /* Global State Get */
         __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
         /* CopyUB Config Set */
         uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->mte_config.ub_size;
-        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
+        uint32_t copy_event_id = device_state->mte_config.sync_id;
         aclshmemx_mte_put_nbi(dst, src, reinterpret_cast<__ubuf__ int8_t*>(copy_ub), copy_ub_size,
             elem_size, pe, copy_event_id, enable_L2);
 }

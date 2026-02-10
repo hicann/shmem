@@ -21,7 +21,7 @@ constexpr uint32_t ACLSHMEM_SDMA_SQ_DEPTH = 2048U;
 
 template <typename T>
 ACLSHMEM_DEVICE void copy_gm_to_gm(__gm__ uint8_t *dst, __gm__ uint8_t *src, uint32_t size,
-                                   AscendC::LocalTensor<T> &tmp_local, AscendC::TEventID event_id)
+                                   AscendC::LocalTensor<T> &tmp_local, uint32_t sync_id)
 {
     AscendC::GlobalTensor<T> gm_src;
     AscendC::GlobalTensor<T> gm_dst;
@@ -36,13 +36,13 @@ ACLSHMEM_DEVICE void copy_gm_to_gm(__gm__ uint8_t *dst, __gm__ uint8_t *src, uin
     AscendC::PipeBarrier<PIPE_ALL>();
     // ub2gm
     AscendC::DataCopyPad(gm_dst, tmp_local, cp_params);
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
+    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_set_value(__gm__ uint8_t *addr, T x, AscendC::LocalTensor<T> &tmp_local,
-                                         AscendC::TEventID event_id)
+                                         uint32_t sync_id)
 {
     AscendC::GlobalTensor<T> gm_dst;
     gm_dst.SetGlobalBuffer((__gm__ T *)addr);
@@ -51,8 +51,8 @@ ACLSHMEM_DEVICE void aclshmemi_set_value(__gm__ uint8_t *addr, T x, AscendC::Loc
     AscendC::DataCopyExtParams cp_out_params{1, sizeof(T), 0, 0, 0};
     // ub2gm
     AscendC::DataCopyPad(gm_dst, tmp_local, cp_out_params);
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(event_id);
+    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
 }
 
 ACLSHMEM_DEVICE void aclshmemi_fill_sdma_sqe(__gm__ stars_channel_info_t* channel_info, __gm__ uint8_t* src,
@@ -132,8 +132,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t
     }
 }
 
-ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uint32_t> &tmp_local,
-                                                        AscendC::TEventID event_id)
+ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id)
 {
     const auto block_idx = AscendC::GetBlockIdx();
     uint32_t queue_num = 1;
@@ -156,21 +155,21 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uin
 
         // Poll until flag is received or timeout occurs
         while (send_value == 0 && times < max_times) {
-            copy_gm_to_gm<uint32_t>(local_recv_workspace, remote_recv_workspace, 1, tmp_local, event_id);
+            copy_gm_to_gm<uint32_t>(local_recv_workspace, remote_recv_workspace, 1, tmp_local, sync_id);
             dcci_cacheline(local_recv_workspace);
             send_value = *((__gm__ uint32_t *)local_recv_workspace);
             times++;
         }
 
         // Clear
-        aclshmemi_set_value<uint32_t>(remote_recv_workspace, 0, tmp_local, event_id);
-        aclshmemi_set_value<uint32_t>(local_recv_workspace, 0, tmp_local, event_id);
+        aclshmemi_set_value<uint32_t>(remote_recv_workspace, 0, tmp_local, sync_id);
+        aclshmemi_set_value<uint32_t>(local_recv_workspace, 0, tmp_local, sync_id);
     }
 }
 
 ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm__ uint8_t *send_buffer,
                                               uint64_t message_len, AscendC::LocalTensor<uint32_t> &tmp_local,
-                                              AscendC::TEventID event_id)
+                                              uint32_t sync_id)
 {
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
 
@@ -209,7 +208,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
     workspace_layout.remote_recv_workspace = my_workspace + ACLSHMEM_SDMA_MAX_CHAN * ACLSHMEM_SDMA_FLAG_LENGTH;
 
     aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)workspace_layout.send_workspace, config.queue_num, tmp_local,
-        event_id);
+        sync_id);
 
     // 4. Initialize the sq_tail array
     uint32_t sq_tail[ACLSHMEM_SDMA_MAX_CHAN] = {0};
@@ -234,12 +233,13 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
         // Flush data cache to ensure all SQEs are written back to HBM
         AscendC::GlobalTensor<uint8_t> write_info;
         write_info.SetGlobalBuffer((__gm__ uint8_t *)(channel_info->sq_base), item_size);
-        AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(write_info);
+        AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE,
+            AscendC::DcciDst::CACHELINE_OUT>(write_info);
 
         // Ring Doorbell
         aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + 8, sq_tail[queue_id], tmp_local,
-                                      event_id);
-        aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail[queue_id], tmp_local, event_id);
+                                      sync_id);
+        aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail[queue_id], tmp_local, sync_id);
     }
 
     AscendC::PipeBarrier<PIPE_ALL>();
@@ -271,14 +271,12 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
     ub_tensor.address_.dataLen = ub_size;
 
-    aclshmemi_sdma_post_send((__gm__ uint8_t *)ptr, (__gm__ uint8_t *)src, elem_size * sizeof(T), ub_tensor,
-        (AscendC::TEventID)sync_id);
+    aclshmemi_sdma_post_send((__gm__ uint8_t *)ptr, (__gm__ uint8_t *)src, elem_size * sizeof(T), ub_tensor, sync_id);
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(AscendC::GlobalTensor<T> &dst, AscendC::GlobalTensor<T> &src,
-                                            AscendC::LocalTensor<T> &buf, uint32_t elem_size, int pe,
-                                            uint32_t sync_id)
+                                            AscendC::LocalTensor<T> &buf, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) {
@@ -289,7 +287,7 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(AscendC::GlobalTensor<T> &dst, Ascen
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());
 
     aclshmemi_sdma_post_send((__gm__ uint8_t *)ptr, (__gm__ uint8_t *)(src.GetPhyAddr()), elem_size * sizeof(T),
-        ub_tensor, (AscendC::TEventID)sync_id);
+        ub_tensor, sync_id);
 }
 
 template <typename T>
@@ -306,14 +304,12 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
     ub_tensor.address_.dataLen = ub_size;
 
-    aclshmemi_sdma_post_send((__gm__ uint8_t *)dst, (__gm__ uint8_t *)ptr, elem_size * sizeof(T), ub_tensor,
-        (AscendC::TEventID)sync_id);
+    aclshmemi_sdma_post_send((__gm__ uint8_t *)dst, (__gm__ uint8_t *)ptr, elem_size * sizeof(T), ub_tensor, sync_id);
 }
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(AscendC::GlobalTensor<T> &dst, AscendC::GlobalTensor<T> &src,
-                                            AscendC::LocalTensor<T> &buf, uint32_t elem_size, int pe,
-                                            uint32_t sync_id)
+                                            AscendC::LocalTensor<T> &buf, uint32_t elem_size, int pe, uint32_t sync_id)
 {
     auto ptr = aclshmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) {
@@ -324,7 +320,7 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(AscendC::GlobalTensor<T> &dst, Ascen
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());
 
     aclshmemi_sdma_post_send((__gm__ uint8_t *)(dst.GetPhyAddr()), (__gm__ uint8_t *)ptr, elem_size * sizeof(T),
-        ub_tensor, (AscendC::TEventID)sync_id);
+        ub_tensor, sync_id);
 }
 
 template <typename T>
@@ -333,7 +329,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t
     AscendC::LocalTensor<uint32_t> ub_tensor;
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());
-    aclshmemi_sdma_poll_for_completion(ub_tensor, (AscendC::TEventID)sync_id);
+    aclshmemi_sdma_poll_for_completion(ub_tensor, sync_id);
 }
 
 template <typename T>
@@ -343,7 +339,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(__ubuf__ T *buf, uint32_t ub_size, uin
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
     ub_tensor.address_.dataLen = ub_size;
-    aclshmemi_sdma_poll_for_completion(ub_tensor, (AscendC::TEventID)sync_id);
+    aclshmemi_sdma_poll_for_completion(ub_tensor, sync_id);
 }
 
 #endif
