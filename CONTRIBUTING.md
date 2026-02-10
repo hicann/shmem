@@ -44,7 +44,7 @@
   如果对应Issue需要进行代码修改，您可以在Issue评论框中输入“/assign”或“/assign @yourself”，将该Issue分配给您，跟踪协助解决问题。
 
   ## 了解行为准则
-  SHMEM属于CANN开放项目，在参与贡献前，请了解[CANN开放项目行为准则](contributors/code-of-conduct.md)，后续您在SHMEM项目的活动（包括但不限于发表评论、提交Issue、发表wiki等）都请遵循此行为准则。
+  SHMEM属于CANN开放项目，在参与贡献前，请了解[CANN开放项目行为准则](https://gitcode.com/cann/community/blob/master/contributor/code-of-conduct.md)，后续您在SHMEM项目的活动（包括但不限于发表评论、提交Issue、发表wiki等）都请遵循此行为准则。
   
   ## 签署CLA
   
@@ -66,8 +66,8 @@
   
   > 📝 **提示**
   >
-  > - 关于Gitcode工作流的详细操作可参见[Gitcode工作流说明](contributors/gitcode-workflow.md)。
-  > - 当您在提交PR过程中遇到问题，常见问题的解决方法可参见[FAQs](contributors/infra-faqs.md)。
+  > - 关于Gitcode工作流的详细操作可参见[Gitcode工作流说明](https://gitcode.com/cann/community/blob/master/contributor/gitcode-workflow.md)。
+  > - 当您在提交PR过程中遇到问题，常见问题的解决方法可参见[FAQs](https://gitcode.com/cann/infrastructure/blob/main/docs/FAQ/infra-faqs.md)。
   
   ### 贡献分类
   
@@ -117,7 +117,7 @@
     
     如果您准备向社区上报Bug或者提交需求，或者为社区贡献自己的意见或建议，请提交Issue。
   
-    提交Issue请参考 [Issue 提交指南](contributors/issue-submit.md)。
+    提交Issue请参考 [Issue 提交指南](https://gitcode.com/cann/community/blob/master/contributor/issue-operation.md)。
   
   - 参与Issue讨论
   
@@ -131,13 +131,13 @@
   
   1. 准备CANN开发环境
     
-     如果您想参与编码贡献，需要准备CANN开发环境，请参考[环境准备](../README.md#二、环境构建)。
+     如果您想参与编码贡献，需要准备CANN开发环境，请参考[环境准备](./README.md#二、环境构建)。
   
   2. 了解SHMEM的开发注意事项
   
-     1）请参考[安装指南](../README.md#CANN详细安装指南)，了解编码贡献的一些环境和工具要求。
+     1）请参考[安装指南](./README.md#CANN详细安装指南)，了解编码贡献的一些环境和工具要求。
   
-     2）SHMEM软件编码遵循许可协议：CANN Open Software License Agreement Version 2.0，详细的协议说明请参见[LICENSE](../LICENSE)文件，如果您贡献代码到SHMEM源码仓，请遵循此协议。
+     2）SHMEM软件编码遵循许可协议：CANN Open Software License Agreement Version 2.0，详细的协议说明请参见[LICENSE](./LICENSE)文件，如果您贡献代码到SHMEM源码仓，请遵循此协议。
      
        请在新建的cpp、cc、h等源码文件头部增加如下声明：
      
