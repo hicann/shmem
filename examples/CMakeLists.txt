@@ -27,6 +27,7 @@ function(aclshmem_add_fusion_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/templates/include
         ${PROJECT_SOURCE_DIR}/examples/utils
         ${PROJECT_SOURCE_DIR}/src/device/
+        ${PROJECT_SOURCE_DIR}/src/
         ${MPI_INCLUDE_PATH}
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link --cce-aicore-arch=dav-c220 ${SANITIZER_FLAGS})
@@ -49,6 +50,7 @@ function(aclshmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
         ${PROJECT_SOURCE_DIR}/examples/utils
         ${PROJECT_SOURCE_DIR}/src/device/
+        ${PROJECT_SOURCE_DIR}/src/
     )
     target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link --cce-aicore-arch=dav-c220-vec ${SANITIZER_FLAGS})
 

@@ -12,6 +12,9 @@
 #include "acl/acl.h"
 #include "shmem.h"
 
+// shmem prof
+#include "utils/prof/shmemi_prof.h"
+
 #undef inline
 #include "opdev/fp16_t.h"
 #include "opdev/bfloat16.h"
@@ -72,6 +75,7 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
         int64_t times = 0;
         int64_t flag = 0;
         while (copy_total_size >= copy_ub_size) {
+            SHMEMI_PROF_START(0);
             aclshmemx_mte_put_nbi(gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
                                   input_gm + aivIndex * len_per_core + times * copy_ub_num, tmp_buff, copy_ub_size,
                                   copy_ub_num, my_rank, EVENT_ID0);
@@ -80,7 +84,7 @@ ACLSHMEM_DEVICE void all_gather_origin(__gm__ T *input, __gm__ T *output, __gm__
             times += 1;
             flag = times + magic;
             aclshmemx_signal_op(gva_sync_gm + flag_offset, flag, ACLSHMEM_SIGNAL_SET, my_rank);
-
+            SHMEMI_PROF_END(0);
             AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
 

@@ -305,6 +305,8 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "After calling MM_AR kernel " << std::endl;
 
+    aclshmemx_show_prof();
+
     if (rank_id == 0) {
         ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
         WriteFile(options.GetDataPath("aclshmem_output.bin"), dHost, dSize);

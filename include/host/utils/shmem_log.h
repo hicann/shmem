@@ -34,6 +34,12 @@ ACLSHMEM_HOST_API int32_t aclshmemx_set_extern_logger(void (*func)(int level, co
 ACLSHMEM_HOST_API int32_t aclshmemx_set_log_level(int level);
 #define shmem_set_log_level aclshmemx_set_log_level
 
+
+/**
+ * @brief Prinf profiling data.
+ */
+ACLSHMEM_HOST_API void aclshmemx_show_prof();
+
 #ifdef __cplusplus
 }
 #endif

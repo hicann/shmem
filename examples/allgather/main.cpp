@@ -120,6 +120,8 @@ int test_aclshmem_all_gather(int rank_id, int n_ranks)
         }
         status = aclrtSynchronizeStream(stream);
 
+        aclshmemx_show_prof();
+
         // Result Check
         T *output_host;
         size_t output_size = n_ranks * trans_size * sizeof(T);

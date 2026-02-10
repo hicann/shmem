@@ -339,6 +339,34 @@ typedef struct {
     uint32_t sync_id;        ///< TEventID/MutexID for pipeline synchronization
 } aclshmem_ub_config_t;
 
+/// \def ACLSHMEM_CYCLE_PROF_MAX_BLOCK
+/// \brief cycle profling max block nums
+#define ACLSHMEM_CYCLE_PROF_MAX_BLOCK 32
+
+/// \def ACLSHMEM_CYCLE_PROF_FRAME_CNT
+/// \brief cycle profling frame count
+#define ACLSHMEM_CYCLE_PROF_FRAME_CNT 32
+
+/**
+ * @struct aclshmem_prof_block_t
+ * @brief ccount and cycles structure
+ * @details cycle profling block data
+ */
+typedef struct {
+    int64_t ccount[ACLSHMEM_CYCLE_PROF_FRAME_CNT];
+    int64_t cycles[ACLSHMEM_CYCLE_PROF_FRAME_CNT];
+} aclshmem_prof_block_t;
+
+/**
+ * @struct aclshmem_prof_pe_t
+ * @brief block_prof data on pe structure
+ * @details cycle profiling data on the pe
+ */
+typedef struct {
+    int32_t pe_id;
+    aclshmem_prof_block_t block_prof[ACLSHMEM_CYCLE_PROF_MAX_BLOCK];
+} aclshmem_prof_pe_t;
+
 // Legacy type aliases for backward compatibility
 typedef aclshmem_ub_config_t aclshmem_mte_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
 typedef aclshmem_ub_config_t aclshmem_sdma_config_t;  ///< @deprecated Use aclshmem_ub_config_t instead
@@ -390,6 +418,7 @@ typedef struct {
     uint64_t qp_info;                 ///< Queue Pair (QP) information, used for communication mechanisms such as RDMA
 
     uint64_t sdma_workspace_addr;  /// sdma aicpu和aiv的共享内存
+    aclshmem_prof_pe_t *profs;     ///< for profiling
 } aclshmem_device_host_state_t;
 
 // host only state

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -7,20 +7,15 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef SHMEMI_INIT_H
-#define SHMEMI_INIT_H
+#ifndef PROF_UTIL_H
+#define PROF_UTIL_H
 
-#include "stdint.h"
 #include "host_device/shmem_common_types.h"
-#include "init/backends/shmemi_init_backend.h"
 
-extern aclshmem_device_host_state_t g_state;
-extern aclshmem_host_state_t g_state_host;
-extern aclshmem_prof_pe_t g_host_profs;
-extern aclshmemi_init_backend* init_manager;
-int32_t aclshmemi_control_barrier_all();
-int32_t is_alloc_size_symmetric(size_t size);
+int32_t prof_get_col_pe(char *tmp_pe);
 
-int32_t update_device_state(void);
+int32_t prof_util_init(aclshmem_prof_pe_t *host_profs, aclshmem_device_host_state_t *global_state);
 
-#endif  // ACLSHMEMI_INIT_H
+void prof_data_print(aclshmem_prof_pe_t *host_profs, aclshmem_device_host_state_t *global_state);
+
+#endif  // PROF_UTIL_H

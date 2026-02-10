@@ -21,6 +21,7 @@
 #include "shmemi_host_common.h"
 #include "shmemi_init.h"
 #include "host/shmem_host_def.h"
+#include "prof/prof_util.h"
 
 using namespace std;
 
@@ -64,10 +65,12 @@ constexpr int64_t DEFAULT_RDMA_UB_OFFSET = 190 * 1024;
             {DEFAULT_RDMA_UB_OFFSET, DEFAULT_RDMA_UB_SIZE, 0},  /* aclshmem_rdma_config */             \
             0,                                                  /* qp_info */                          \
             0,                                                  /* sdma_workspace_addr */              \
+            NULL,                                               /* aclshmem_prof_pe_t */             \
     }
 
 aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
 aclshmem_host_state_t g_state_host = {nullptr, DEFAULT_TEVENT, DEFAULT_BLOCK_NUM};
+aclshmem_prof_pe_t g_host_profs;
 
 aclshmemi_init_backend* init_manager = nullptr;
 
@@ -216,6 +219,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
     g_state.is_aclshmem_initialized = true;
+    ACLSHMEM_CHECK_RET(prof_util_init(&g_host_profs, &g_state));
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
@@ -354,4 +358,9 @@ void aclshmem_global_exit(int status)
         g_boot_handle.global_exit(status);
     }
     SHM_LOG_WARN("Bootstrap not initialized. Global_exit Do nothing. ");
+}
+
+void aclshmemx_show_prof()
+{
+    prof_data_print(&g_host_profs, &g_state);
 }

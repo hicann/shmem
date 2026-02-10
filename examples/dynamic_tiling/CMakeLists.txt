@@ -20,6 +20,7 @@ function(add_impl_share_lib NAME)
         ${PROJECT_SOURCE_DIR}/examples/dynamic_tiling/include
         ${PROJECT_SOURCE_DIR}/examples/templates/include
         ${PROJECT_SOURCE_DIR}/examples/utils
+        ${PROJECT_SOURCE_DIR}/src
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
     target_link_libraries(${NAME} PRIVATE shmem)

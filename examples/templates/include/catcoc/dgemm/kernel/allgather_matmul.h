@@ -18,6 +18,8 @@
 #include "catlass/gemm_coord.hpp"
 #include "catlass/matrix_coord.hpp"
 
+#include "utils/prof/shmemi_prof.h"
+
 namespace Catcoc::DGemm::Kernel {
 
 using Catlass::MatrixCoord;
@@ -248,12 +250,13 @@ public:
 
                     auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
                     auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
-
+                    SHMEMI_PROF_START(0);
                     allGather(
                         gmBlockSrc, layoutBlockSrc,
                         gmBlockDst, layoutBlockDst,
                         actualCommBlockShape, remoteRankIdx % params.rankSize
                     );
+                    SHMEMI_PROF_END(0);
                 }
             }
             allGather.FinalizeBlockLoop();
