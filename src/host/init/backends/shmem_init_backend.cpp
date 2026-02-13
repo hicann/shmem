@@ -47,6 +47,7 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
         delete mstx_reg_ptr_;
         mstx_reg_ptr_ = nullptr;
     }
+    host_state_->is_aclshmem_created = false;
 }
 
 int aclshmemi_init_backend::init_device_state()

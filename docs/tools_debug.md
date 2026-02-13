@@ -45,8 +45,6 @@ bash run.sh -ranks 2 -tool mssanitizer
 ![image](images/tools/mssanitizer_example.png)
 
 **注：`aclshmem_malloc`等shmem提供的内存分配接口是对已完成物理地址映射的一大块连续虚拟内存进行划分，不涉及实际的物理内存申请或虚拟内存对物理内存的映射操作。如使用的虚拟地址已完成和已分配物理地址的映射，即使超出`aclshmem_malloc`分配的范围也不会报错，因为该地址对应的内存可以合法使用。**
-shmem后续会适配[mssanitizer内存检测工具](https://www.hiascend.com/document/detail/zh/mindstudio/830/ODtools/Operatordevelopmenttools/atlasopdev_16_0039.html)
-当前版本暂不支持，预计Q1支持（不包含软同步竞争检测）。
 
 ## profiling
 shmem提供了Profiling打点工具，通过采集系统时钟周期数并转换为实际时间，精准量化不同Block（计算核）、不同Frame（埋点 ID）下的MTE搬运性能，详细介绍请参考[在示例中使用Profiling工具](profiling.md).

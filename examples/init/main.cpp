@@ -158,7 +158,7 @@ int run_main(int argc, char* argv[]) {
     std::string ipport = argv[3];
     int g_npu = atoi(argv[4]);
     int f_pe = atoi(argv[5]);
-    pe = f_pe + device_id;
+    int pe = f_pe + device_id;
     int f_npu = atoi(argv[6]);
     std::cout << pe << pe_size << ipport << std::endl;
     aclshmemx_uniqueid_t default_flag_uid = ACLSHMEM_UNIQUEID_INITIALIZER;

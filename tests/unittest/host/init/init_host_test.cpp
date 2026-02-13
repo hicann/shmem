@@ -211,6 +211,40 @@ void test_aclshmem_extern_logger(int rank_id, int n_ranks, uint64_t local_mem_si
     }
 }
 
+void test_aclshmem_repeatedly_init(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    int status = ACLSHMEM_SUCCESS;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_INNER_ERROR);
+    status = aclshmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    sleep(2);
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(g_state.mype, rank_id);
+    EXPECT_EQ(g_state.npes, n_ranks);
+    EXPECT_NE(g_state.heap_base, nullptr);
+    EXPECT_NE(g_state.p2p_device_heap_base[rank_id], nullptr);
+    EXPECT_EQ(g_state.heap_size, local_mem_size + ACLSHMEM_EXTRA_SIZE);
+    EXPECT_NE(g_state.team_pools[0], nullptr);
+    status = aclshmemx_init_status();
+    EXPECT_EQ(status, ACLSHMEM_STATUS_IS_INITIALIZED);
+    status = aclshmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
 TEST(TestInitAPI, TestShmemInit)
 {
     const int process_count = test_gnpu_num;
@@ -335,6 +369,13 @@ TEST(TestInitAPI, TestShmemExternLog)
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_aclshmem_extern_logger, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemRepeatInit)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_repeatedly_init, local_mem_size, process_count);
 }
 
 TEST(TestInitAPI, TestShmemGetUniqueIdAndInit)

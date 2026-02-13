@@ -192,6 +192,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     int32_t ret;
     // config init
     SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
+    ACLSHMEM_CHECK_RET(aclshmemx_init_status() != ACLSHMEM_STATUS_NOT_INITIALIZED, "SHMEM has been initialized, do not call init interface repeatedly!", ACLSHMEM_INNER_ERROR);
     ACLSHMEM_CHECK_RET(aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL));
     ACLSHMEM_CHECK_RET(check_attr(attributes), "An error occurred while checking the initialization attributes. Please check the initialization parameters.");
     ACLSHMEM_CHECK_RET(version_compatible(), "ACLSHMEM Version mismatch.");
