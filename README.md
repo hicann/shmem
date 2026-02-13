@@ -101,7 +101,7 @@ source install/set_env.sh
 chmod +x SHMEM_1.0.0_linux-aarch64.run
 ./SHMEM_1.0.0_linux-aarch64.run --check
 
-# 安装（默认路径：/usr/local/cann/shmem）
+# 安装（默认路径：/usr/local/Ascend/shmem）
 ./SHMEM_1.0.0_linux-aarch64.run --install
 ```
 ### 验证安装
