@@ -254,6 +254,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)
             fn_build_googletest
+            BUILD_TYPE=Debug
             cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift

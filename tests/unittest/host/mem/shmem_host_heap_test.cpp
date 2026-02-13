@@ -94,6 +94,22 @@ TEST_F(ShareMemoryManagerTest, allocate_full_space_success)
         local_mem_size, process_count);
 }
 
+TEST_F(ShareMemoryManagerTest, allocate_asymmetric_alloc_failed)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            auto ptr = aclshmem_malloc(4096UL + rank_id);
+            EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
 TEST_F(ShareMemoryManagerTest, allocate_large_memory_failed)
 {
     const int process_count = test_gnpu_num;
