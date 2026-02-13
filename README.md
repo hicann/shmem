@@ -94,7 +94,9 @@ bash scripts/build.sh
 # 配置环境变量
 source install/set_env.sh
 ```
+备注：build.sh的参数可以参考[related_scripts.md](./docs/related_scripts.md)
 #### 方式二：二进制包安装
+获取方式：```bash scripts/build.sh -package```
 软件包格式：```SHMEM_{version}_linux-{arch}.run```
 ```bash
 # 权限配置与校验
@@ -103,6 +105,9 @@ chmod +x SHMEM_1.0.0_linux-aarch64.run
 
 # 安装（默认路径：/usr/local/Ascend/shmem）
 ./SHMEM_1.0.0_linux-aarch64.run --install
+
+# 配置环境变量
+source /usr/local/Ascend/shmem/latest/set_env.sh
 ```
 ### 验证安装
 以```matmul_allreduce```为例，验证核心功能：

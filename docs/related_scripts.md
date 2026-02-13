@@ -3,8 +3,20 @@
 ## build.sh
 使用方式
 ```sh
-bash build.sh
+bash build.sh -<args>
 ```
+* **参数：**
+
+  * -package
+    * 生成run包SHMEM\_{version}\_linux-{arch}.run，生成路径为{project_root}/package/{arch}/
+    * 生成python whl包shmem-xxx.whl，生成路径为{project_root}/package/{arch}/
+  * -python_extension
+    * 生成python whl包shmem-xxx.whl，生成路径为{project_root}/dist/
+  * -uttests
+    * UT用例编译
+  * --examples
+    * 样例用例编译
+    
 SHMEM自动编译脚本，会自动完成依赖库的下载，工程编译，UT用例编译，库打包
 
 ## install.sh
@@ -23,7 +35,7 @@ ${INSTALL_PATH}
 ## run.sh
 UT测试用例运行脚本。
 ```sh
-bash run.sh
+bash scripts/run.sh
 ```
 提供多种参数支持自定义用例执行
 ```sh
