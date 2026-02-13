@@ -321,8 +321,6 @@ int main(int argc, char *argv[])
         CHECK_RET(test_allgather_sdma<uint8_t>(my_pe, n_pes));
     } else if (std::string(data_type) == "int64") {
         CHECK_RET(test_allgather_sdma<int64_t>(my_pe, n_pes));
-    } else if (std::string(data_type) == "fp16") {
-        CHECK_RET(test_allgather_sdma<half>(my_pe, n_pes));
     } else if (std::string(data_type) == "fp32") {
         CHECK_RET(test_allgather_sdma<float>(my_pe, n_pes));
     } else {

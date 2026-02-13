@@ -16,4 +16,4 @@ bash run.sh -ranks ${RANKS} -type ${TYPES}
 ````
     - **参数说明**：
         - RANKS：指定用于运行的设备（NPU）数量，限定单台机器内。
-        - TYPES：指定传输数据类型，当前支持：int，uint8，int64，fp16，fp32。
+        - TYPES：指定传输数据类型，当前支持：int，uint8，int64，fp32。
