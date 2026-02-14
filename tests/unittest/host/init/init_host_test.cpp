@@ -262,6 +262,57 @@ void test_aclshmem_repeatedly_init(int rank_id, int n_ranks, uint64_t local_mem_
     EXPECT_EQ(aclFinalize(), 0);
 }
 
+std::vector<std::string> split_env(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+void test_aclshmem_init_cant_access(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    const std::string env_name = "ASCEND_RT_VISIBLE_DEVICES";
+    std::string original_value;
+    bool is_original_empty = false;
+    const char* original_env_value = std::getenv(env_name.c_str());
+    std::string target_device;
+    if (original_env_value) {
+        original_value = original_env_value;
+        std::vector<std::string> devices = split_env(original_value, ',');
+        if (devices.size() >= n_ranks) {
+            target_device = devices[rank_id];
+        } else {
+            return;
+        }
+    } else {
+        target_device = std::to_string(rank_id);
+        is_original_empty = true;
+    }
+    setenv(env_name.c_str(), target_device.c_str(), 1);
+
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    int status = ACLSHMEM_SUCCESS;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(0), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_DL_FUNC_FAILED);
+    status = aclshmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclrtResetDevice(0), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+    if (is_original_empty) {
+        unsetenv(env_name.c_str());
+    } else {
+        setenv(env_name.c_str(), original_value.c_str(), 1);
+    }
+}
+
 TEST(TestInitAPI, TestShmemInit)
 {
     const int process_count = test_gnpu_num;
@@ -424,10 +475,16 @@ TEST(TestInitAPI, TestShmemGetUniqueIdAndInit)
     EXPECT_EQ(aclFinalize(), 0);
 }
 
-
 TEST(TestInitAPI, TestShmemInvalidIP)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_aclshmem_init_invalid_ip, local_mem_size, 1);
+}
+
+TEST(TestInitAPI, TestShmemCantAccess)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_init_cant_access, local_mem_size, process_count);
 }
