@@ -211,6 +211,23 @@ void test_aclshmem_extern_logger(int rank_id, int n_ranks, uint64_t local_mem_si
     }
 }
 
+void test_aclshmem_init_invalid_ip(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    int status = ACLSHMEM_SUCCESS;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(rank_id, n_ranks, local_mem_size, "tcp://123.45.67.89:2345", &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_INNER_ERROR);
+    status = aclshmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
 void test_aclshmem_repeatedly_init(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
@@ -405,4 +422,12 @@ TEST(TestInitAPI, TestShmemGetUniqueIdAndInit)
     EXPECT_EQ(aclshmem_finalize(), ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
+}
+
+
+TEST(TestInitAPI, TestShmemInvalidIP)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_init_invalid_ip, local_mem_size, 1);
 }
