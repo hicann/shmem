@@ -24,6 +24,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_ub2gm(__gm__ T* dstGva, __ubuf__ T* srcUb,
     AscendC::DataCopyExtParams dataCopyParams(1, size, 0, 0, 0);
     ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(srcUb);
+    ubTensor.address_.dataLen = ALIGN_UP(size, UB_ALIGN_SIZE);
     gmTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dstGva));
     if (!toL2Cache) {
         gmTensor.SetL2CacheHint(AscendC::CacheMode::CACHE_MODE_DISABLE);
@@ -49,6 +50,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_ub2gm(__gm__ T* dstGva, __ubuf__ T* srcUb,
     AscendC::GlobalTensor<T> gmTensor;
     ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(srcUb);
+    ubTensor.address_.dataLen = ALIGN_UP(copyParams.blockCount * copyParams.blockLen, UB_ALIGN_SIZE);
     gmTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dstGva));
     AscendC::DataCopyPad(gmTensor, ubTensor, copyParams);
 }
@@ -70,6 +72,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_gm2ub(__ubuf__ T* dstUb, __gm__ T* srcGva,
     AscendC::DataCopyExtParams dataCopyParams(1, size, 0, 0, 0);
     ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(dstUb);
+    ubTensor.address_.dataLen = ALIGN_UP(size, UB_ALIGN_SIZE);
     gmTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(srcGva));
     if (!toL2Cache) {
         gmTensor.SetL2CacheHint(AscendC::CacheMode::CACHE_MODE_DISABLE);
@@ -96,6 +99,7 @@ ACLSHMEM_DEVICE void aclshmemi_copy_gm2ub(__ubuf__ T* dstUb, __gm__ T* srcGva,
     AscendC::GlobalTensor<T> gmTensor;
     ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(dstUb);
+    ubTensor.address_.dataLen = ALIGN_UP(copyParams.blockCount * copyParams.blockLen, UB_ALIGN_SIZE);
     gmTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(srcGva));
     AscendC::DataCopyPadExtParams<T> padParams;
     AscendC::DataCopyPad(ubTensor, gmTensor, copyParams, padParams);
@@ -162,6 +166,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__ubuf__ T *dst, __gm__ T *src, const
     AscendC::LocalTensor<T> ub_tensor;
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(dst);
+    ub_tensor.address_.dataLen = ALIGN_UP(copy_params.repeat * copy_params.length * sizeof(T), UB_ALIGN_SIZE);
     src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(remote_ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
@@ -248,6 +253,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __ubuf__ T *src, const
     AscendC::GlobalTensor<T> dst_tensor;
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(src);
+    ub_tensor.address_.dataLen = ALIGN_UP(copy_params.repeat * copy_params.length * sizeof(T), UB_ALIGN_SIZE);
     dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(remote_ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);

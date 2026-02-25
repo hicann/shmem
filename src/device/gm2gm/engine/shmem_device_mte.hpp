@@ -88,6 +88,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
     AscendC::GlobalTensor<T> dst_tensor;
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    ub_tensor.address_.dataLen = ALIGN_UP(copy_params.repeat * copy_params.length * sizeof(T), UB_ALIGN_SIZE);
     src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(remote_ptr));
     dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(dst));
 
@@ -211,6 +212,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
     AscendC::GlobalTensor<T> dst_tensor;
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    ub_tensor.address_.dataLen = ALIGN_UP(copy_params.repeat * copy_params.length * sizeof(T), UB_ALIGN_SIZE);
     src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(src));
     dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(remote_ptr));
 

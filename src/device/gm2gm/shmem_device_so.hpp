@@ -96,7 +96,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
         AscendC::LocalTensor<TYPE> ub_tensor;                                                                               \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                      \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                \
-        ub_tensor.address_.logicPos = device_state->mte_config.ub_size;                                                     \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                     \
         aclshmemx_mte_put_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                           \
         __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);                                      \
         aclshmem_quiet();                                                                                                   \
@@ -134,7 +134,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED);
         AscendC::LocalTensor<TYPE> ub_tensor;                                                                               \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                      \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                \
-        ub_tensor.address_.logicPos = device_state->mte_config.ub_size;                                                     \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                     \
         aclshmemx_mte_put_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                         \
         __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);                                      \
         aclshmem_quiet();                                                                                                   \
@@ -196,7 +196,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
         AscendC::LocalTensor<TYPE> ub_tensor;                                                                         \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                          \
-        ub_tensor.address_.logicPos = device_state->mte_config.ub_size;                                               \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                               \
         aclshmemx_mte_put_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                     \
         __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);                                \
         aclshmem_fence();                                                                                             \
@@ -234,7 +234,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
         AscendC::LocalTensor<TYPE> ub_tensor;                                                                       \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                              \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                        \
-        ub_tensor.address_.logicPos = device_state->mte_config.ub_size;                                             \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                             \
         aclshmemx_mte_put_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                 \
         __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);                              \
         aclshmem_fence();                                                                                           \

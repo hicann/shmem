@@ -144,6 +144,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
         AscendC::GlobalTensor<TYPE> dst_tensor;                                                                           \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+        ub_tensor.address_.dataLen = ALIGN_UP(block_size * ascendc_block_len_bytes, UB_ALIGN_SIZE);                       \
                                                                                                                           \
         for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
             src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(remote_ptr + i * src_offset_unit));                \
@@ -226,6 +227,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
         AscendC::GlobalTensor<uint8_t> dst_tensor;                                                                        \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+        ub_tensor.address_.dataLen = ALIGN_UP(block_size * ascendc_block_len_bytes, UB_ALIGN_SIZE);                       \
                                                                                                                           \
         for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
             src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(remote_ptr + i * src_offset_unit));             \
@@ -329,6 +331,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
         AscendC::GlobalTensor<TYPE> dst_tensor;                                                                           \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+        ub_tensor.address_.dataLen = ALIGN_UP(block_size * ascendc_block_len_bytes, UB_ALIGN_SIZE);                       \
                                                                                                                           \
         for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
             src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ TYPE *>(source + i * src_offset_unit));                    \
@@ -411,6 +414,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
         AscendC::GlobalTensor<uint8_t> dst_tensor;                                                                        \
         ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                    \
         ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);                                                  \
+        ub_tensor.address_.dataLen = ALIGN_UP(block_size * ascendc_block_len_bytes, UB_ALIGN_SIZE);                       \
                                                                                                                           \
         for (uint64_t i = 0; i < repeat_times; i++) {                                                                     \
             src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(source_ptr + i * src_offset_unit));             \
