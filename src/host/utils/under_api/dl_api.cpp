@@ -23,8 +23,8 @@ Result DlApi::LoadLibrary(const std::string &libDirPath)
     if (result != ACLSHMEM_SUCCESS) {
         return result;
     }
-
-    result = DlHalApi::LoadLibrary();
+    AscendSocType socType = GetAscendSocType();
+    result = DlHalApi::LoadLibrary(socType);
     if (result != ACLSHMEM_SUCCESS) {
         DlAclApi::CleanupLibrary();
         return result;
@@ -60,4 +60,27 @@ Result DlApi::LoadExtendLibrary(DlApiExtendLibraryType libraryType)
     return ACLSHMEM_SUCCESS;
 }
 
+AscendSocType DlApi::GetAscendSocType()
+{
+    static AscendSocType cachedSocType = [&]() -> AscendSocType {
+        auto name = DlAclApi::AclrtGetSocName();
+        if (name == nullptr) {
+            SHM_LOG_ERROR("AclrtGetSocName() failed.");
+            return ASCEND_UNKNOWN;
+        }
+        SHM_LOG_DEBUG("success get soc name: " << name);
+        std::string socName{name};
+        if (socName.find("Ascend910B") != std::string::npos) {
+            return AscendSocType::ASCEND_910B;
+        } else if (socName.find("Ascend910_93") != std::string::npos) {
+            return AscendSocType::ASCEND_910C;
+        } else if (socName.find("Ascend950") != std::string::npos) {
+            return AscendSocType::ASCEND_950;
+        }
+
+        return ASCEND_UNKNOWN;
+    }();
+
+    return cachedSocType;
+}
 }

@@ -90,16 +90,6 @@ struct ACLSHMEMcqeCtx {
     uint32_t byte32;
 };
 
-struct ACLSHMEMHybmDeviceMeta {
-    uint32_t entityId;
-    uint32_t rankId;
-    uint32_t rankSize;
-    uint32_t extraContextSize;
-    uint64_t symmetricSize;
-    uint64_t qpInfoAddress;
-    uint64_t reserved[12];  // total 128B, equal HYBM_DEVICE_PRE_META_SIZE
-};
-
 ACLSHMEM_DEVICE __gm__ ACLSHMEMAIVRDMAInfo* aclshmemi_qp_info_fetch();
 
 ACLSHMEM_DEVICE void aclshmemi_roce_poll_cq_update_info(AscendC::LocalTensor<uint64_t> &ubLocal64,

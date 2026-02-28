@@ -15,9 +15,9 @@
 
 #include "host/shmem_host_def.h"
 #include "shmemi_logger.h"
+#include "shmemi_string_util.h"
 #include "store_tcp_config.h"
 #include "store_prefix.h"
-#include "store_string_util.h"
 #include "store_factory.h"
 
 namespace shm {
@@ -106,7 +106,7 @@ Result ParseStr2Array(const std::string &token, char splitter, std::set<std::str
     std::istringstream tokenSteam(token);
     std::string part;
     while (std::getline(tokenSteam, part, splitter)) {
-        part = StringUtil::TrimString(part);
+        part = utils::StringUtil::TrimString(part);
         if (!part.empty()) {
             parts.insert(part);
         }
@@ -125,8 +125,8 @@ Result ParseStr2KV(const std::string &token, char splitter, std::pair<std::strin
     std::string key;
     std::string value;
     if (std::getline(stm, key, splitter) && std::getline(stm, value, splitter)) {
-        key = StringUtil::TrimString(key);
-        value = StringUtil::TrimString(value);
+        key = utils::StringUtil::TrimString(key);
+        value = utils::StringUtil::TrimString(value);
         if (!key.empty() && !value.empty()) {
             pair.first = key;
             pair.second = value;
@@ -173,7 +173,7 @@ Result ParseTlsInfo(const std::string &inputStr, AcclinkTlsOption &tlsOption)
     std::string token;
 
     while (std::getline(tokenSteam, token, ';')) {
-        if (!StringUtil::TrimString(token).empty()) {
+        if (!utils::StringUtil::TrimString(token).empty()) {
             tokens.push_back(token);
         }
     }

@@ -33,7 +33,6 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
     GM_ADDR sync_ptr,
     int64_t block_nums,
     int64_t kv_head_num, int64_t page_size, int64_t head_dim, int32_t count) {
-#ifdef __DAV_C220_VEC__
     util_set_ffts_config(fftsAddr);
 
     int64_t n_pes = aclshmem_n_pes();
@@ -120,7 +119,6 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
         aclshmemx_signal_op(gva_sync_gm + local_rank_offset, count, ACLSHMEM_SIGNAL_SET, pair_rank);
         aclshmem_signal_wait_until(gva_sync_gm + pair_rank_offset, ACLSHMEM_CMP_EQ, count);
     }
-#endif
 }
 
 KVShuffleOps::KVShuffleOps(uint32_t block_dims, void* stream) : count_(0), block_dims_(block_dims), stream_(stream)

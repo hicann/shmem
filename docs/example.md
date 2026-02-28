@@ -221,7 +221,6 @@ constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
 template<typename T>
 ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
 {
-#ifdef __DAV_C220_VEC__
     const int64_t aivNum = GetBlockNum() * 2;
     const int64_t aivIndex = GetBlockIdx();
 
@@ -271,6 +270,5 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, _
         num_per_core = elements - num_per_core * core_rank_idx;
     }
     aclshmemx_mte_get_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x, EVENT_ID0);
-#endif
 }
 ```

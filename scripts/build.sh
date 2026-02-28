@@ -39,6 +39,7 @@ COMPILE_OPTIONS=""
 
 COVERAGE_TYPE=""
 GEN_DOC=OFF
+SOC_TYPE=""
 
 cann_default_path="/usr/local/Ascend/ascend-toolkit"
 
@@ -50,7 +51,7 @@ function fn_build()
     mkdir -p build
 
     cd build
-    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER ..
+    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} ..
     make install -j17
     cd -
 }
@@ -231,7 +232,7 @@ function build_shared_lib() {
     echo "build shared lib start"
     cd "$PROJECT_ROOT"/examples/shared_lib || exit
     rm -rf build
-    cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/shared_lib/output
+    cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/shared_lib/output -DSOC_TYPE=${SOC_TYPE}
     cmake --build build -j
     cmake --install build
     cd "$PROJECT_ROOT" || exit
@@ -319,6 +320,10 @@ while [[ $# -gt 0 ]]; do
         -mssanitizer)
             USE_MSSANITIZER=ON
             shift
+            ;;
+        -soc_type)
+            SOC_TYPE="$2"
+            shift 2
             ;;
         *)
             echo "Error: Unknown option $1."

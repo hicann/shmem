@@ -12,7 +12,7 @@
 #include <cerrno>
 #include <cctype>
 #include <climits>
-#include "store_num_util.h"
+#include "shmemi_num_util.h"
 #include "store_factory.h"
 #include "store_net_group_engine.h"
 #include "store_net_common.h"
@@ -282,7 +282,7 @@ Result SmemNetGroupEngine::GroupAllGather(const char *sendBuf, uint32_t sendSize
 bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& prevEvent)
 {
     char opt = getVal[0];
-    if (!NumUtil::IsDigit(getVal.substr(1))) {
+    if (!utils::NumUtil::IsDigit(getVal.substr(1))) {
         SHM_LOG_INFO("value is not digit");
         return false;
     }
@@ -303,7 +303,7 @@ bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& p
         SHM_LOG_ERROR("get group dynamic size failed, ret: " << ret);
         return false;
     }
-    if (!NumUtil::IsDigit(getVal)) {
+    if (!utils::NumUtil::IsDigit(getVal)) {
         SHM_LOG_INFO("value is not digit");
         return false;
     }

@@ -19,6 +19,5 @@
 #include "mem/shmemi_mm.h"
 #include "sync/shmemi_sync.h"
 #include "init/bootstrap/shmemi_bootstrap.h"
-#include "utils/utils.h"
 
 #endif // ACLSHMEM_ACLSHMEMI_HOST_COMMON_H

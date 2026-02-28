@@ -91,6 +91,22 @@ inline bool funci::get_library_real_path(const std::string &lib_dir_path, const 
         }                                                                                             \
     } while (0)
 
+#define DL_LOAD_SYM_NON_TERMINATE(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME)        \
+    do {                                                                                              \
+        TARGET_FUNC_VAR = (TARGET_FUNC_TYPE)dlsym(FILE_HANDLE, SYMBOL_NAME);                          \
+        if ((TARGET_FUNC_VAR) == nullptr) {                                                           \
+            SHM_LOG_ERROR("Failed to call dlsym to load " << (SYMBOL_NAME) << ", error" << dlerror()); \
+            return ACLSHMEM_DL_FUNC_FAILED;                                                             \
+        }                                                                                             \
+    } while (0)
+
+#define DL_COLLECT_RESULT(ret, func)       \
+    do {                                   \
+        Result tmp_ret = (func);           \
+        if (tmp_ret != ACLSHMEM_SUCCESS) { \
+            (ret) = tmp_ret;               \
+        }                                  \
+    } while (0)
 
 #define DL_LOAD_SYM_ALT(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME, SYMBOL_NAME_ALT) \
     do {                                                                                              \

@@ -50,7 +50,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft()
         return;
     }
 
-    int32_t block_idx = AscendC::GetBlockIdx();
+    int32_t cur_block_idx = AscendC::GetBlockIdx();
     int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
     auto sync_pool = aclshmemi_get_core_sync_pool();
     auto sync_counter = aclshmemi_get_core_sync_counter();
@@ -59,11 +59,11 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft()
     int32_t shift = 1;
     int32_t offset = 0;
     while (shift < block_dim) {
-        int32_t next = (block_idx + shift) % block_dim;
+        int32_t next = (cur_block_idx + shift) % block_dim;
 
         aclshmemi_signal_set((__gm__ int32_t *)(sync_pool + next * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
         aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool +
-            block_idx * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+            cur_block_idx * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
 
         shift *= SHIFT_MULTIPLIER;
         offset++;
@@ -224,7 +224,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v1(aclshmem_team_t team_idx)
 template<bool IS_AIV_ONLY = true>
 ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
 {
-    int32_t block_idx = AscendC::GetBlockIdx();
+    int32_t cur_block_idx = AscendC::GetBlockIdx();
     int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
     auto my_pe = aclshmem_team_my_pe(team);
     auto team_size = aclshmem_team_n_pes(team);
@@ -243,7 +243,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
     if ASCEND_IS_AIV {
         while (temp) {
             // notify neighbors
-            for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+            for (int32_t i = cur_block_idx + 1; i <= k - 1; i += block_dim) {
                 int32_t shift = i * pow_k;
                 if (shift >= team_size) {
                     break;
@@ -254,7 +254,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
             }
 
             // wait for neighbors notification
-            for (int32_t i = block_idx + 1; i <= k - 1; i += block_dim) {
+            for (int32_t i = cur_block_idx + 1; i <= k - 1; i += block_dim) {
                 int32_t shift = i * pow_k;
                 if (shift >= team_size) {
                     break;
@@ -272,7 +272,7 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v2(aclshmem_team_t team)
             pow_k *= k;
         }
 
-        if (!block_idx) {
+        if (!cur_block_idx) {
             aclshmemi_store((__gm__ int32_t *)sync_counter, count);
         }
     }
@@ -464,7 +464,9 @@ extern "C" {
 
 ACLSHMEM_DEVICE void util_set_ffts_config(uint64_t config)
 {
+#if !defined(__DAV_C310_VEC__) && !defined(__DAV_C310_CUBE__)
     AscendC::SetSyncBaseAddr(config);
+#endif
 }
 
 ACLSHMEM_DEVICE void aclshmem_barrier(aclshmem_team_t tid)

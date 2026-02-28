@@ -15,7 +15,7 @@ set(CMAKE_CXX_COMPILER bisheng)
 
 add_library(aclshmem_unittest_device SHARED ${TEST_KERNEL_FILES} $<TARGET_OBJECTS:aclshmem_device>)
 target_link_options(aclshmem_unittest_device PRIVATE --cce-fatobj-link)
-target_compile_options(aclshmem_unittest_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
+target_compile_options(aclshmem_unittest_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH})
 target_include_directories(aclshmem_unittest_device PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/src/device/

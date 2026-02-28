@@ -7,8 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef STORE_STRING_UTIL_H
-#define STORE_STRING_UTIL_H
+#ifndef SHMEM_SHM_STRING_UTIL_H
+#define SHMEM_SHM_STRING_UTIL_H
 
 #include <string>
 #include <vector>
@@ -16,7 +16,7 @@
 #include <limits>
 
 namespace shm {
-namespace store {
+namespace utils {
 static const std::string ipv6_common_core =
     R"((?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){7})|)"
     R"((?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6})?::)"
@@ -100,6 +100,6 @@ inline bool StringUtil::String2Uint(const std::string& str, UIntType& val)
     val = static_cast<UIntType>(result);
     return true;
 }
-}  // namespace store
+}  // namespace utils
 }  // namespace shm
 #endif

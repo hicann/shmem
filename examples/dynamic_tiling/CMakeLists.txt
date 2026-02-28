@@ -11,7 +11,7 @@
 add_custom_target(lib_impl)
 function(add_impl_share_lib NAME)
     add_library(${NAME} SHARED ${ARGN})
-    target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${MPI_CXX_COMPILE_FLAGS} --cce-aicore-arch=dav-c220)
+    target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${MPI_CXX_COMPILE_FLAGS} ${CCE_AICORE_ARCH})
     target_include_directories(${NAME} PRIVATE
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include

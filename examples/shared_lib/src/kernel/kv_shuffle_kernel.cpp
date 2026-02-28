@@ -34,7 +34,6 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
     int64_t block_num,
     int64_t kv_head_num, int64_t page_size, int64_t head_dim, int32_t count)
 {
-#ifdef __DAV_C220_VEC__
     util_set_ffts_config(fftsAddr);
 
     int64_t n_pes = aclshmem_n_pes();
@@ -66,10 +65,10 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
         int64_t core_size = block_size / (aiv_num / 2);
 
         int ping_pong_flag = 0;
-        for (int block_idx = 0; block_idx < block_num; ++block_idx) {
+        for (int blk_idx = 0; blk_idx < block_num; ++blk_idx) {
             // Get dst&&src Block ID
-            int src_block_id = *((__gm__ int64_t*)src_block_table + block_idx);
-            int dst_block_id = *((__gm__ int64_t*)dst_block_table + block_idx);
+            int src_block_id = *((__gm__ int64_t*)src_block_table + blk_idx);
+            int dst_block_id = *((__gm__ int64_t*)dst_block_table + blk_idx);
 
             // Cal dst&&src Data Offset
             int64_t src_offset = src_block_id * block_size + (aiv_idx % 8) * core_size;
@@ -121,7 +120,6 @@ extern "C" __global__ __aicore__ void ShmemKVShuffle(
         aclshmemx_signal_op(gva_sync_gm + local_rank_offset, count, ACLSHMEM_SIGNAL_SET, pair_rank);
         aclshmem_signal_wait_until(gva_sync_gm + pair_rank_offset, ACLSHMEM_CMP_EQ, count);
     }
-#endif
 }
 
 void kv_shuffle(

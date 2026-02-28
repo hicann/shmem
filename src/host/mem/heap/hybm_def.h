@@ -16,12 +16,21 @@
 typedef void *hybm_entity_t;
 typedef void *hybm_mem_slice_t;
 
+constexpr uint64_t KB = 1024ULL;
+constexpr uint64_t MB = KB * 1024ULL;
+constexpr uint64_t GB = MB * 1024ULL;
+constexpr uint64_t TB = GB * 1024ULL;
+
 #define HYBM_FREE_SINGLE_SLICE 0x00
 #define HYBM_FREE_ALL_SLICE 0x01
 
 #define HYBM_EXPORT_PARTIAL_SLICE 0x00
 #define HYBM_EXPORT_ALL_SLICE 0x01
 
+#define HYBM_PERFORMANCE_MODE_FLAG_INDEX 7
+#define HYBM_PERFORMANCE_MODE_FLAG_LEN   1
+#define HYBM_BIND_NUMA_FLAG_INDEX        0
+#define HYBM_BIND_NUMA_FLAG_LEN          7
 
 typedef enum {
     HYBM_TYPE_AI_CORE_INITIATE = 0,

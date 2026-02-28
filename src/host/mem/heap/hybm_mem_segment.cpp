@@ -8,11 +8,13 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "dl_comm_def.h"
+#include "dl_api.h"
 #include "dl_acl_api.h"
 #include "shmemi_net_util.h"
 #include "hybm_device_mem_segment.h"
 #include "host/shmem_host_def.h"
 #include "hybm_device_mem_segment.h"
+#include "hybm_vmm_based_segment.h"
 
 namespace shm {
 bool MemSegment::deviceInfoReady{false};
@@ -48,10 +50,14 @@ MemSegmentPtr MemSegment::Create(const MemSegmentOptions &options, int entityId)
             break;
 #else
         case HYBM_MST_HBM:
-            tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
+            if (socType_ == AscendSocType::ASCEND_950 || (socType_ == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+                tmpSeg = std::make_shared<HybmVmmBasedSegment>(options, entityId);
+            } else {
+                tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
+            }
             break;
         case HYBM_MST_DRAM:
-            SHM_LOG_ERROR("Not support HOST_SIDE malloc, please update CANN version");
+            SHM_LOG_ERROR("Not support HOST_SIDE malloc now.");
             break;
 #endif
         default:
@@ -125,21 +131,9 @@ Result MemSegment::InitDeviceInfo()
         }
     }
 
-    auto name = DlAclApi::AclrtGetSocName();
-    if (name == nullptr) {
-        SHM_LOG_ERROR("AclrtGetSocName() failed.");
-        return ACLSHMEM_INNER_ERROR;
-    }
-
-    std::string socName{name};
-    if (socName.find("Ascend910B") != std::string::npos) {
-        socType_ = AscendSocType::ASCEND_910B;
-    } else if (socName.find("Ascend910_93") != std::string::npos) {
-        socType_ = AscendSocType::ASCEND_910C;
-    }
-
+    socType_ = DlApi::GetAscendSocType();
     SHM_LOG_DEBUG("local sdid=0x" << std::hex << sdid_ << ", local server=0x" << std::hex << serverId_
-                                 << ", spid=" << superPodId_ << ", socName=" << socName);
+                                 << ", spid=" << superPodId_);
     deviceInfoReady = true;
     return ACLSHMEM_SUCCESS;
 }

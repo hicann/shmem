@@ -28,8 +28,6 @@ using aclrtMallocFunc = int32_t (*)(void **, size_t, uint32_t);
 using aclrtFreeFunc = int (*)(void *);
 using aclrtMemcpyFunc = int32_t (*)(void *, size_t, const void *, size_t, uint32_t);
 using aclrtMemcpyAsyncFunc = int32_t (*)(void *, size_t, const void *, size_t, uint32_t, void *);
-using aclrtMemcpy2dFunc = int32_t (*)(void *, size_t, const void *, size_t, size_t, size_t, uint32_t);
-using aclrtMemcpy2dAsyncFunc = int32_t (*)(void *, size_t, const void *, size_t, size_t, size_t, uint32_t, void *);
 using aclrtMemsetFunc = int32_t (*)(void *, size_t, int32_t, size_t);
 using rtDeviceGetBareTgidFunc = int32_t (*)(uint32_t *);
 using rtGetDeviceInfoFunc = int32_t (*)(uint32_t, int32_t, int32_t, int64_t *val);
@@ -128,24 +126,6 @@ public:
         return pAclrtMemcpyAsync(dst, destMax, src, count, kind, stream);
     }
 
-    static inline Result AclrtMemcpy2d(void *dst, size_t dpitch, const void *src, size_t spitch,
-                                       size_t width, size_t height, uint32_t kind)
-    {
-        if (pAclrtMemcpy2d == nullptr) {
-            return ACLSHMEM_UNDER_API_UNLOAD;
-        }
-        return pAclrtMemcpy2d(dst, dpitch, src, spitch, width, height, kind);
-    }
-
-    static inline Result AclrtMemcpy2dAsync(void *dst, size_t dpitch, const void *src, size_t spitch,
-                                            size_t width, size_t height, uint32_t kind, void *stream)
-    {
-        if (pAclrtMemcpy2dAsync == nullptr) {
-            return ACLSHMEM_UNDER_API_UNLOAD;
-        }
-        return pAclrtMemcpy2dAsync(dst, dpitch, src, spitch, width, height, kind, stream);
-    }
-
     static inline Result AclrtMemset(void *dst, size_t destMax, int32_t value, size_t count)
     {
         if (pAclrtMemset == nullptr) {
@@ -236,8 +216,6 @@ private:
     static aclrtFreeFunc pAclrtFree;
     static aclrtMemcpyFunc pAclrtMemcpy;
     static aclrtMemcpyAsyncFunc pAclrtMemcpyAsync;
-    static aclrtMemcpy2dFunc pAclrtMemcpy2d;
-    static aclrtMemcpy2dAsyncFunc pAclrtMemcpy2dAsync;
     static aclrtMemsetFunc pAclrtMemset;
     static rtDeviceGetBareTgidFunc pRtDeviceGetBareTgid;
     static rtGetDeviceInfoFunc pRtGetDeviceInfo;

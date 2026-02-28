@@ -27,8 +27,6 @@ aclrtMallocFunc DlAclApi::pAclrtMalloc = nullptr;
 aclrtFreeFunc DlAclApi::pAclrtFree = nullptr;
 aclrtMemcpyFunc DlAclApi::pAclrtMemcpy = nullptr;
 aclrtMemcpyAsyncFunc DlAclApi::pAclrtMemcpyAsync = nullptr;
-aclrtMemcpy2dFunc DlAclApi::pAclrtMemcpy2d = nullptr;
-aclrtMemcpy2dAsyncFunc DlAclApi::pAclrtMemcpy2dAsync = nullptr;
 aclrtMemsetFunc DlAclApi::pAclrtMemset = nullptr;
 rtDeviceGetBareTgidFunc DlAclApi::pRtDeviceGetBareTgid = nullptr;
 rtGetDeviceInfoFunc DlAclApi::pRtGetDeviceInfo = nullptr;
@@ -71,8 +69,6 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     DL_LOAD_SYM(pAclrtFree, aclrtFreeFunc, rtHandle, "aclrtFree");
     DL_LOAD_SYM(pAclrtMemcpy, aclrtMemcpyFunc, rtHandle, "aclrtMemcpy");
     DL_LOAD_SYM(pAclrtMemcpyAsync, aclrtMemcpyAsyncFunc, rtHandle, "aclrtMemcpyAsync");
-    DL_LOAD_SYM(pAclrtMemcpy2d, aclrtMemcpy2dFunc, rtHandle, "aclrtMemcpy2d");
-    DL_LOAD_SYM(pAclrtMemcpy2dAsync, aclrtMemcpy2dAsyncFunc, rtHandle, "aclrtMemcpy2dAsync");
     DL_LOAD_SYM(pAclrtMemset, aclrtMemsetFunc, rtHandle, "aclrtMemset");
     DL_LOAD_SYM(pRtDeviceGetBareTgid, rtDeviceGetBareTgidFunc, rtHandle, "rtDeviceGetBareTgid");
     DL_LOAD_SYM(pRtGetDeviceInfo, rtGetDeviceInfoFunc, rtHandle, "rtGetDeviceInfo");
@@ -85,6 +81,7 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     DL_LOAD_SYM(pRtGetLogicDevIdByUserDevId, rtGetLogicDevIdByUserDevIdFunc, rtHandle, "rtGetLogicDevIdByUserDevId");
 
     gLoaded = true;
+    SHM_LOG_INFO("Load " << realPath << " success.");
     return ACLSHMEM_SUCCESS;
 }
 
@@ -105,8 +102,6 @@ void DlAclApi::CleanupLibrary()
     pAclrtFree = nullptr;
     pAclrtMemcpy = nullptr;
     pAclrtMemcpyAsync = nullptr;
-    pAclrtMemcpy2d = nullptr;
-    pAclrtMemcpy2dAsync = nullptr;
     pAclrtMemset = nullptr;
     pRtDeviceGetBareTgid = nullptr;
     pRtGetDeviceInfo = nullptr;

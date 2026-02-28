@@ -28,6 +28,23 @@ endif()
 option(USE_UNIT_TEST "USE_UNIT_TEST" OFF)
 message(STATUS "USE_UNIT_TEST:${USE_UNIT_TEST}")
 
+message(STATUS "SOC_TYPE:${SOC_TYPE}")
+if(SOC_TYPE STREQUAL "Ascend950")
+    set(CCE_AICORE_ARCH
+        --cce-aicore-arch=dav-c310
+    )
+    set(CCE_AICORE_ARCH_VEC
+        --cce-aicore-arch=dav-c310-vec
+    )
+else()
+    set(CCE_AICORE_ARCH
+        --cce-aicore-arch=dav-c220
+    )
+    set(CCE_AICORE_ARCH_VEC
+        --cce-aicore-arch=dav-c220-vec
+    )
+endif()
+
 set(CMAKE_COMPILER bisheng)
 set(CMAKE_C_COMPILER ${CMAKE_COMPILER})
 set(CMAKE_CXX_COMPILER ${CMAKE_COMPILER})
@@ -113,7 +130,7 @@ function(aclshmem_add_share_lib NAME)
         ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/obj"  # 兼容性保留
     )
 
-    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220-vec)
+    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH_VEC})
     target_include_directories(${NAME}_kernel PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include

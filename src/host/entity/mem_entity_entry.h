@@ -20,7 +20,7 @@
  * @param flags            [in] optional flags
  * @return 0 if successful
  */
-int32_t hybm_init(uint16_t deviceId, uint64_t flags);
+int32_t hybm_init(int32_t deviceId, uint64_t flags);
 
 /**
  * @brief UnInitialize hybrid big memory library

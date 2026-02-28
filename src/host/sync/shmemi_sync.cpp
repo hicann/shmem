@@ -26,7 +26,13 @@ static uint64_t ffts_config;
 int32_t aclshmemi_sync_init()
 {
     uint32_t len;
+#ifdef FFTS_CONFIG
     return rtGetC2cCtrlAddr(&ffts_config, &len);
+#else
+    len = 0;
+    ffts_config = 0;
+    return 0;
+#endif
 }
 
 uint64_t util_get_ffts_config()

@@ -91,21 +91,21 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
 
         uint32_t data_length = elem_size * sizeof(T);
         // allgather
-        const auto block_idx = AscendC::GetBlockIdx();
+        const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
+        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
             return;
         }
         uint64_t base_per_core = data_length / comm_block_dim;
         uint64_t extra_bytes = data_length % comm_block_dim;
         uint64_t data_offset = 0;
-        if (block_idx < extra_bytes) {
-            data_offset = block_idx * (base_per_core + 1);
+        if (cur_block_idx < extra_bytes) {
+            data_offset = cur_block_idx * (base_per_core + 1);
         } else {
             data_offset = extra_bytes * (base_per_core + 1) +
-                                    (block_idx - extra_bytes) * base_per_core;
+                                    (cur_block_idx - extra_bytes) * base_per_core;
         }
-        if (block_idx < extra_bytes) {
+        if (cur_block_idx < extra_bytes) {
             base_per_core += 1;
         }
         if (base_per_core == 0) {
@@ -146,21 +146,21 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
         tmp_local.address_.bufferAddr = ub_offset;
         tmp_local.address_.dataLen = ub_size;
 
-        const auto block_idx = AscendC::GetBlockIdx();
+        const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
+        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
             return;
         }
         uint64_t base_per_core = elem_size / comm_block_dim;
         uint64_t extra_size = elem_size % comm_block_dim;
         uint64_t data_offset = 0;
-        if (block_idx < extra_size) {
-            data_offset = block_idx * (base_per_core + 1);
+        if (cur_block_idx < extra_size) {
+            data_offset = cur_block_idx * (base_per_core + 1);
         } else {
             data_offset = extra_size * (base_per_core + 1) +
-                                    (block_idx - extra_size) * base_per_core;
+                                    (cur_block_idx - extra_size) * base_per_core;
         }
-        if (block_idx < extra_size) {
+        if (cur_block_idx < extra_size) {
             base_per_core += 1;
         }
         if (base_per_core == 0) {

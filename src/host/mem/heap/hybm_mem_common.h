@@ -80,11 +80,6 @@ struct MemSegmentOptions {
     uint32_t flags = 0;
 };
 
-enum AscendSocType {
-    ASCEND_UNKNOWN = 0,
-    ASCEND_910B,
-    ASCEND_910C,
-};
 }  // namespace shm
 
 #endif  // MEM_FABRIC_HYBRID_HYBM_MM_COMMON_H

@@ -135,7 +135,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t
 
 ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id)
 {
-    const auto block_idx = AscendC::GetBlockIdx();
+    const auto cur_block_idx = AscendC::GetBlockIdx();
     uint32_t queue_num = 1;
 
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
@@ -143,7 +143,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uin
     workspace_layout_t layout;
     layout.send_workspace = context_gm + sizeof(stars_channel_flag_info_t) +
                             ACLSHMEM_SDMA_MAX_CHAN * sizeof(stars_channel_info_t);
-    layout.recv_workspace = layout.send_workspace + ACLSHMEM_SDMA_FLAG_LENGTH * (block_idx * queue_num + 1);
+    layout.recv_workspace = layout.send_workspace + ACLSHMEM_SDMA_FLAG_LENGTH * (cur_block_idx * queue_num + 1);
     layout.remote_recv_workspace = layout.recv_workspace + ACLSHMEM_SDMA_MAX_CHAN * ACLSHMEM_SDMA_FLAG_LENGTH;
 
     const uint32_t max_times = 1000000;
@@ -178,7 +178,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
     if (context_gm == nullptr)
         return;
 
-    const auto block_idx = AscendC::GetBlockIdx();
+    const auto cur_block_idx = AscendC::GetBlockIdx();
     // 1. Initialize per-core parameters, including channel count, etc.
     sdma_config_t config;
     // block_dim * queue_num must not exceed 40 (ACLSHMEM_SDMA_MAX_CHAN)
@@ -187,7 +187,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
     config.per_core_bytes = message_len;
     config.iter_num = (config.per_core_bytes + config.block_bytes - 1) / config.block_bytes;
 
-    if (config.iter_num == 0 || block_idx >= (ACLSHMEM_SDMA_MAX_CHAN / config.queue_num)) {
+    if (config.iter_num == 0 || cur_block_idx >= (ACLSHMEM_SDMA_MAX_CHAN / config.queue_num)) {
         AscendC::PipeBarrier<PIPE_ALL>();
         return;
     }
@@ -195,14 +195,14 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
     // 2. Calculate base channel index for the current core
     __gm__ stars_channel_info_t *batch_write_channel_base = 
         (__gm__ stars_channel_info_t *)(context_gm + sizeof(stars_channel_flag_info_t));
-    __gm__ stars_channel_info_t *batch_write_channel_info = batch_write_channel_base + block_idx * config.queue_num;
+    __gm__ stars_channel_info_t *batch_write_channel_info = batch_write_channel_base + cur_block_idx * config.queue_num;
 
     // 3. Calculate base addresses of send and receive flags
     __gm__ uint8_t *workspace = context_gm + sizeof(stars_channel_flag_info_t) +
                                 ACLSHMEM_SDMA_MAX_CHAN * sizeof(stars_channel_info_t);
     workspace_layout_t workspace_layout;
     uint64_t per_core_workspace_size = config.queue_num * ACLSHMEM_SDMA_FLAG_LENGTH;
-    __gm__ uint8_t *my_workspace = workspace + ACLSHMEM_SDMA_FLAG_LENGTH + (block_idx * per_core_workspace_size);
+    __gm__ uint8_t *my_workspace = workspace + ACLSHMEM_SDMA_FLAG_LENGTH + (cur_block_idx * per_core_workspace_size);
 
     workspace_layout.send_workspace = workspace;
     workspace_layout.recv_workspace = my_workspace;

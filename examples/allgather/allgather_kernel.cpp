@@ -201,7 +201,6 @@ template <typename T>
 ACLSHMEM_DEVICE void all_gather_big_data(uint64_t fftsAddr, __gm__ T *input, __gm__ T *output, __gm__ T *gva, int elements,
                                       int magic)
 {
-#ifdef __DAV_C220_VEC__
     util_set_ffts_config(fftsAddr);
 
     const int64_t max_gva_num = GVA_BUFF_MAX_SIZE / sizeof(T);
@@ -219,7 +218,6 @@ ACLSHMEM_DEVICE void all_gather_big_data(uint64_t fftsAddr, __gm__ T *input, __g
         total_num -= max_gva_num;
         AscendC::PipeBarrier<PIPE_ALL>();
     }
-#endif
 }
 
 // all_gather
@@ -227,7 +225,6 @@ template <typename T>
 ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T *input, __gm__ T *output, __gm__ T *gva,
                                         int elements, int magic)
 {
-#ifdef __DAV_C220_VEC__
     const int64_t aivNum = GetBlockNum();
     const int64_t aivIndex = GetBlockIdx();
 
@@ -279,7 +276,6 @@ ACLSHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T *input, _
     }
     aclshmemx_mte_get_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x,
                           EVENT_ID0);
-#endif
 }
 
 #define ALLGATHER_FUNC_DEF(type)                                                                                   \

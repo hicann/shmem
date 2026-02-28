@@ -380,6 +380,7 @@ int32_t MemEntityDefault::SetExtraContext(const void *context, uint32_t size) no
     }
 
     uint64_t addr = HYBM_DEVICE_USER_CONTEXT_ADDR + id_ * HYBM_DEVICE_USER_CONTEXT_PRE_SIZE;
+    SHM_LOG_DEBUG("set extra context to addr: 0x" << std::hex << addr << " size: " << size);
     auto ret = DlAclApi::AclrtMemcpy((void *)addr, HYBM_DEVICE_USER_CONTEXT_PRE_SIZE, context, size,
                                      ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != ACLSHMEM_SUCCESS) {
@@ -513,9 +514,10 @@ int MemEntityDefault::UpdateHybmDeviceInfo(uint32_t extCtxSize) noexcept
     auto ret = DlAclApi::AclrtMemcpy((void *)addr, DEVICE_LARGE_PAGE_SIZE, &info, sizeof(HybmDeviceMeta),
                                      ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("update hybm info memory failed, ret: " << ret);
+        SHM_LOG_ERROR("update hybm info memory failed, ret: " << ret << ", addr:" << (void *)addr);
         return ACLSHMEM_INNER_ERROR;
     }
+    SHM_LOG_DEBUG("update hybm info memory success, addr:" << (void *)addr);
     return ACLSHMEM_SUCCESS;
 }
 

@@ -248,22 +248,6 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 
 /**@} */ // end of group_macros
 
-/**
- * @addtogroup group_constants
- * @{
- */
-// global_state
-/// \var SVM_START_ADDR
-/// \brief Start address of the Shared Virtual Memory (SVM) (0x100000000000)
-constexpr uint64_t SVM_START_ADDR = 0x100000000000ULL;
-
-/// \var SVM_END_ADDR
-/// \brief End address of the Shared Virtual Memory (SVM), calculated as: start address + 0x80000000000 - 1GB
-constexpr uint64_t SVM_END_ADDR = 0x100000000000ULL + 0x80000000000ULL - (1UL << 30UL); // svm end
-
-/// \var GLOBAL_STATE_SIZE
-/// \brief Fixed memory size of the global state structure (4MB), used to store system global configuration information
-constexpr uint64_t GLOBAL_STATE_SIZE = 4UL * 1024UL * 1024UL; // global_state fixed length
 /**@} */
 // synchronization
 /**

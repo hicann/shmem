@@ -8,7 +8,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.16)
 project(SHMEM)
 
 # 设置C++标准
@@ -47,6 +47,24 @@ if(USE_MSSANITIZER)
     )
 else()
     set(SANITIZER_FLAGS)
+endif()
+
+message(STATUS "SOC_TYPE:${SOC_TYPE}")
+if(SOC_TYPE STREQUAL "Ascend950")
+    set(CCE_AICORE_ARCH
+        --cce-aicore-arch=dav-c310
+    )
+    set(CCE_AICORE_ARCH_VEC
+        --cce-aicore-arch=dav-c310-vec
+    )
+else()
+    set(CCE_AICORE_ARCH
+        --cce-aicore-arch=dav-c220
+    )
+    set(CCE_AICORE_ARCH_VEC
+        --cce-aicore-arch=dav-c220-vec
+    )
+    add_compile_definitions(FFTS_CONFIG=1)
 endif()
 
 option(USE_EXAMPLES "USE_EXAMPLES" OFF)

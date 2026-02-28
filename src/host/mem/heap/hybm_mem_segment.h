@@ -15,6 +15,7 @@
 #include "hybm_mem_common.h"
 #include "hybm_mem_slice.h"
 #include "transport_def.h"
+#include "dl_comm_def.h"
 
 namespace shm {
 struct TransportExtraInfo {

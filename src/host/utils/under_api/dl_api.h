@@ -12,6 +12,7 @@
 
 #include <string>
 #include "host/shmem_host_def.h"
+#include "dl_comm_def.h"
 
 namespace shm {
 
@@ -25,6 +26,7 @@ public:
     static Result LoadLibrary(const std::string &libDirPath);
     static void CleanupLibrary();
     static Result LoadExtendLibrary(DlApiExtendLibraryType libraryType);
+    static AscendSocType GetAscendSocType();
 };
 }
 

@@ -448,7 +448,7 @@ static uint64_t VirtAllocGvaMem(void *mgmt, uint64_t allocPtr,
     }
     if (retPtr != allocPtr) {
         SHM_LOG_ERROR("gva alloc mem failed. (size=0x" << std::hex << allocSize <<
-            (retPtr >= DEVMM_SVM_MEM_START ? ", maybe ascend driver need to update)" : ")"));
+            (retPtr >= DEVMM_SVM_MEM_START ? ", maybe ascend driver need to update)" : ")") << " ret=0x" << retPtr << std::dec);
         return 0;
     }
 
@@ -548,7 +548,6 @@ int32_t HalGvaReserveMemory(uint64_t *address, size_t size, int32_t deviceId, ui
     if (g_gvaHeapMgr.inited) {
         va = g_gvaHeapMgr.start - allocSize;
     }
-
     uint64_t retVa = VirtAllocGvaMem(mgmt, va, allocSize, &heap_type, advise);
     if (retVa != va) {
         SHM_LOG_ERROR("HalGvaInitMemory alloc mem failed. (flag=" << flags << " size=0x" << std::hex << size << ")");

@@ -18,27 +18,33 @@
 #include "hybm_ex_info_transfer.h"
 #include "shmemi_file_util.h"
 #include "mem_entity_factory.h"
+#include "mem_entity_def.h"
+#include "acl/acl.h"
+#include "acl/acl_rt.h"
+
+#include "runtime/kernel.h"
+#include "runtime/mem.h"
+#include "runtime/dev.h"
+#include "runtime/rt_ffts.h"
+
 #include "mem_entity_entry.h"
 
 using namespace shm;
 
 namespace {
 static uint64_t g_baseAddr = 0ULL;
-int64_t initialized = 0;
-uint16_t initedDeviceId = 0;
+bool initialized = false;
+int32_t inited_device_id = -1;
 int32_t initedLogicDeviceId = -1;
+drv_mem_handle_t *alloc_handle = nullptr;
+AscendSocType soc_type = ASCEND_UNKNOWN;
 
 std::mutex initMutex;
 }
 
 int32_t HybmGetInitDeviceId()
 {
-    return static_cast<int32_t>(initedDeviceId);
-}
-
-bool HybmHasInited()
-{
-    return initialized > 0;
+    return inited_device_id;
 }
 
 static inline int hybm_load_library()
@@ -56,30 +62,64 @@ static inline int hybm_load_library()
     return 0;
 }
 
-HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
+static inline int32_t init_meta_memory_for_modern(void** globalMemoryBase, size_t allocSize)
+{
+    size_t alignSize = ALIGN_UP(allocSize, DEVMM_HEAP_SIZE);
+    uint64_t va = (HYBM_DEVICE_VA_START + HYBM_DEVICE_VA_SIZE - DEVMM_HEAP_SIZE) - alignSize;
+    auto ret = DlHalApi::HalMemAddressReserve(globalMemoryBase, alignSize, 0, reinterpret_cast<void *>(va), 0);
+    if (ret != 0) {
+        DlApi::CleanupLibrary();
+        SHM_LOG_ERROR("prepare virtual memory size(" << alignSize << ") failed. ret: " << ret);
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+    drv_mem_prop memprop;
+    memprop.side = MEM_DEV_SIDE;
+    memprop.devid = initedLogicDeviceId;
+    memprop.module_id = 0;
+    memprop.pg_type = MEM_NORMAL_PAGE_TYPE;
+    memprop.mem_type = MEM_HBM_TYPE;
+    memprop.reserve = 0;
+    ret = DlHalApi::HalMemCreate(&alloc_handle, allocSize, &memprop, 0);
+    if (ret != ACLSHMEM_SUCCESS) {
+        DlApi::CleanupLibrary();
+        SHM_LOG_ERROR("HalMemCreate failed: " << ret);
+        return ACLSHMEM_DL_FUNC_FAILED;
+    }
+    ret = DlHalApi::HalMemMap(reinterpret_cast<void *>(HYBM_DEVICE_META_ADDR), allocSize, 0, alloc_handle, 0);
+    if (ret != ACLSHMEM_SUCCESS) {
+        DlApi::CleanupLibrary();
+        SHM_LOG_ERROR("HalMemMap failed: " << ret);
+        DlHalApi::HalMemRelease(alloc_handle);
+        return ACLSHMEM_DL_FUNC_FAILED;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+
+static inline int32_t init_meta_memory_for_legacy(void** globalMemoryBase, size_t allocSize, uint64_t flags)
+{
+    drv::DevmmInitialize(initedLogicDeviceId, DlHalApi::GetFd());
+    auto ret = drv::HalGvaReserveMemory((uint64_t *)globalMemoryBase, allocSize, initedLogicDeviceId, flags);
+    if (ret != ACLSHMEM_SUCCESS) {
+        DlApi::CleanupLibrary();
+        SHM_LOG_ERROR("initialize mete memory with size: " << allocSize << ", flag: " << flags << " failed: " << ret);
+        return ACLSHMEM_INNER_ERROR;
+    }
+    ret = drv::HalGvaAlloc(HYBM_DEVICE_META_ADDR, allocSize, 0);
+    if (ret != ACLSHMEM_SUCCESS) {
+        DlApi::CleanupLibrary();
+        int32_t hal_ret = drv::HalGvaUnreserveMemory((uint64_t)*globalMemoryBase);
+        SHM_LOG_ERROR("HalGvaAlloc hybm meta memory failed: " << ret << ", un-reserve memory " << hal_ret);
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+HYBM_API int32_t hybm_init(int32_t deviceId, uint64_t flags)
 {
     std::unique_lock<std::mutex> lockGuard{initMutex};
-    if (initialized > 0) {
-        if (initedDeviceId != deviceId) {
-            SHM_LOG_ERROR("this deviceId(" << deviceId << ") is not equal to the deviceId(" <<
-                initedDeviceId << ") of other module!");
-            return ACLSHMEM_INNER_ERROR;
-        }
-
-        /*
-         * hybm_init will be accessed multiple times when bm/shm/trans init
-         * incremental loading is required here.
-         */
-        SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(hybm_load_library(), "load library failed");
-
-        initialized++;
-        return 0;
-    }
-
-    SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(HalGvaPrecheck(), "the current version of ascend driver does not support mf!");
-
+    SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(HalGvaPrecheck(), "the current version of ascend driver does not support!");
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(hybm_load_library(), "load library failed");
-
     auto ret = DlAclApi::RtGetLogicDevIdByUserDevId(deviceId, &initedLogicDeviceId);
     if (ret != 0 || initedLogicDeviceId < 0) {
         SHM_LOG_ERROR("fail to get logic device id " << deviceId << ", ret=" << ret);
@@ -95,25 +135,18 @@ HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
 
     void *globalMemoryBase = nullptr;
     size_t allocSize = HYBM_DEVICE_INFO_SIZE;  // 申请meta空间
-    drv::DevmmInitialize(initedLogicDeviceId, DlHalApi::GetFd());
-    ret = drv::HalGvaReserveMemory((uint64_t *)&globalMemoryBase, allocSize, initedLogicDeviceId, flags);
-    if (ret != 0) {
-        DlApi::CleanupLibrary();
-        SHM_LOG_ERROR("initialize mete memory with size: " << allocSize << ", flag: " << flags << " failed: " << ret);
-        return ACLSHMEM_INNER_ERROR;
+    soc_type = DlApi::GetAscendSocType();
+    if ((soc_type == AscendSocType::ASCEND_950) || (soc_type == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+        ret = init_meta_memory_for_modern(&globalMemoryBase, allocSize);
+    } else {
+        ret = init_meta_memory_for_legacy(&globalMemoryBase, allocSize, flags);
     }
-
-    ret = drv::HalGvaAlloc(HYBM_DEVICE_META_ADDR, HYBM_DEVICE_INFO_SIZE, 0);
     if (ret != ACLSHMEM_SUCCESS) {
-        DlApi::CleanupLibrary();
-        int32_t hal_ret = drv::HalGvaUnreserveMemory((uint64_t)globalMemoryBase);
-        SHM_LOG_ERROR("HalGvaAlloc hybm meta memory failed: " << ret << ", un-reserve memory " << hal_ret);
-        return ACLSHMEM_MALLOC_FAILED;
+        return ret;
     }
-
-    initedDeviceId = deviceId;
+    inited_device_id = deviceId;
     SHM_LOG_INFO("hybm_init end device id " << deviceId << ", logic device id " << initedLogicDeviceId);
-    initialized = 1L;
+    initialized = true;
     g_baseAddr = (uint64_t)globalMemoryBase;
     SHM_LOG_INFO("hybm init successfully.");
     return 0;
@@ -122,26 +155,35 @@ HYBM_API int32_t hybm_init(uint16_t deviceId, uint64_t flags)
 HYBM_API void hybm_uninit(void)
 {
     std::unique_lock<std::mutex> lockGuard{initMutex};
-    if (initialized <= 0L) {
+    if (!initialized) {
         SHM_LOG_WARN("hybm not initialized.");
         return;
     }
-
-    if (--initialized > 0L) {
-        return;
+    int ret = 0;
+    if ((soc_type == AscendSocType::ASCEND_950) || (soc_type == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+        if (g_baseAddr != 0ULL) {
+            ret = DlHalApi::HalMemUnmap(reinterpret_cast<void *>(g_baseAddr));
+            SHM_LOG_INFO("unmap meta info res: " << ret);
+            if (alloc_handle != nullptr) {
+                ret = DlHalApi::HalMemRelease(alloc_handle);
+                SHM_LOG_INFO("release meta memory handle res: " << ret);
+            }
+            ret = DlHalApi::HalMemAddressFree(reinterpret_cast<void *>(g_baseAddr));
+            SHM_LOG_INFO("free meta memory res: " << ret);
+        }
+    } else {
+        drv::HalGvaFree(HYBM_DEVICE_META_ADDR, HYBM_DEVICE_INFO_SIZE);
+        ret = drv::HalGvaUnreserveMemory(g_baseAddr);
     }
 
-    drv::HalGvaFree(HYBM_DEVICE_META_ADDR, HYBM_DEVICE_INFO_SIZE);
-    auto ret = drv::HalGvaUnreserveMemory(g_baseAddr);
     g_baseAddr = 0ULL;
+    alloc_handle = nullptr;
     SHM_LOG_INFO("uninitialize GVA memory return: " << ret);
-    initialized = 0;
+    initialized = false;
 }
 
 HYBM_API hybm_entity_t hybm_create_entity(uint16_t id, const hybm_options *options, uint32_t flags)
 {
-    SHM_ASSERT_RETURN(HybmHasInited(), nullptr);
-
     auto &factory = MemEntityFactory::Instance();
     auto entity = factory.GetOrCreateEngine(id, flags);
     if (entity == nullptr) {

@@ -12,7 +12,7 @@
 #define MF_HYBM_CORE_DL_HAL_API_H
 
 #include <mutex>
-#include "dl_hal_api_def.h"
+#include "dl_comm_def.h"
 
 namespace shm {
 using halSvmModuleAllocedSizeIncFunc = void (*)(void *, uint32_t, uint32_t, uint64_t);
@@ -38,23 +38,22 @@ using halEraseIdleSizeTreeFunc = int32_t (*)(void *RbtreeNode, void *rbtree_queu
 using halGetAllocedNodeInRangeFunc = void *(*)(uint64_t va, void *rbtree_queue);
 using halGetIdleVaNodeInRangeFunc = void *(*)(uint64_t va, void *rbtree_queue);
 using halInsertAllocedTreeFunc = int32_t (*)(void *RbtreeNode, void *rbtree_queue);
-using halFreeRbtreeNodeFunc = void (*)(void *RbNode, void *rbtree_queue);
 
-using halSqTaskSendFunc = int (*)(uint32_t, halTaskSendInfo *);
-using halCqReportRecvFunc = int (*)(uint32_t, halReportRecvInfo *);
-using halSqCqAllocateFunc = int(*)(uint32_t, halSqCqInputInfo *, halSqCqOutputInfo *);
-using halSqCqFreeFunc = int(*)(uint32_t, halSqCqFreeInfo *);
-using halResourceIdAllocFunc = int(*)(uint32_t, struct halResourceIdInputInfo *, struct halResourceIdOutputInfo *);
-using halResourceIdFreeFunc = int(*)(uint32_t, struct halResourceIdInputInfo *);
-using halGetSsidFunc = int(*)(uint32_t, uint32_t *);
-using halResourceConfigFunc = int(*)(uint32_t, struct halResourceIdInputInfo *, struct halResourceConfigInfo *);
-using halSqCqQueryFunc = int(*)(uint32_t devId, struct halSqCqQueryInfo *info);
-using halHostRegisterFunc = int(*)(void *, uint64_t, uint32_t, uint32_t, void **);
-using halHostUnregisterFunc = int(*)(void *, uint32_t);
+using halMemAddressReserveFunc = int (*)(void **, size_t, size_t, void *, uint64_t);
+using halMemAddressFreeFunc = int (*)(void *);
+using halMemCreateFunc = int (*)(drv_mem_handle_t **, size_t, const struct drv_mem_prop *, uint64_t);
+using halMemReleaseFunc = int (*)(drv_mem_handle_t *);
+using halMemMapFunc = int (*)(void *, size_t, size_t, drv_mem_handle_t *, uint64_t);
+using halMemUnmapFunc = int (*)(void *);
+using halMemExportFunc = int (*)(drv_mem_handle_t *, drv_mem_handle_type, uint64_t, struct MemShareHandle *);
+using halMemImportFunc = int (*)(drv_mem_handle_type, struct MemShareHandle *, uint32_t, drv_mem_handle_t **);
+using halMemTransShareableHandleFunc = int (*)(drv_mem_handle_type, struct MemShareHandle *, uint32_t *, uint64_t *);
+using halMemGetAllocationGranularityFunc = int (*)(const struct drv_mem_prop *, drv_mem_granularity_options, size_t *);
+using halMemShareHandleSetAttributeFunc = int (*)(uint64_t, enum ShareHandleAttrType, struct ShareHandleAttr);
 
 class DlHalApi {
 public:
-    static Result LoadLibrary();
+    static Result LoadLibrary(AscendSocType socType);
     static void CleanupLibrary();
 
     static inline void HalSvmModuleAllocedSizeInc(void *type, uint32_t devid, uint32_t moduleId, uint64_t size)
@@ -212,70 +211,102 @@ public:
         return pInsertAllocedTree(RbtreeNode, rbtree_queue);
     }
 
-    static inline void HalFreeRbtreeNode(void *RbtreeNode, void *rbtree_queue)
+    static inline int HalMemAddressReserve(void **ptr, size_t size, size_t alignment, void *addr, uint64_t flag)
     {
-        return pFreeRbtreeNode(RbtreeNode, rbtree_queue);
+        if (pHalMemAddressReserve == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemAddressReserve(ptr, size, alignment, addr, flag);
     }
 
-    static inline int HalSqTaskSend(uint32_t devId, struct halTaskSendInfo *info)
+    static inline int HalMemAddressFree(void *ptr)
     {
-        return pHalSqTaskSend(devId, info);
+        if (pHalMemAddressFree == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemAddressFree(ptr);
     }
 
-    static inline int HalCqReportRecv(uint32_t devId, struct halReportRecvInfo *info)
+    static inline int HalMemCreate(drv_mem_handle_t **handle, size_t size, struct drv_mem_prop *prop, uint64_t flag)
     {
-        return pHalCqReportRecv(devId, info);
+        if (pHalMemCreate == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemCreate(handle, size, prop, flag);
     }
 
-    static inline int HalSqCqAllocate(uint32_t devId, struct halSqCqInputInfo *in, struct halSqCqOutputInfo *out)
+    static inline int HalMemRelease(drv_mem_handle_t *handle)
     {
-        return pHalSqCqAllocate(devId, in, out);
+        if (pHalMemRelease == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemRelease(handle);
     }
 
-    static inline int HalSqCqFree(uint32_t devId, struct halSqCqFreeInfo *info)
+    static inline int HalMemMap(void *ptr, size_t size, size_t offset, drv_mem_handle_t *handle, uint64_t flag)
     {
-        return pHalSqCqFree(devId, info);
+        if (pHalMemMap == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemMap(ptr, size, offset, handle, flag);
     }
 
-    static inline int HalResourceIdAlloc(uint32_t devId, struct halResourceIdInputInfo *in,
-        struct halResourceIdOutputInfo *out)
+    static inline int HalMemUnmap(void *ptr)
     {
-        return pHalResourceIdAlloc(devId, in, out);
+        if (pHalMemUnmap == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemUnmap(ptr);
     }
 
-    static inline int HalResourceIdFree(uint32_t devId, struct halResourceIdInputInfo *in)
+    static inline int HalMemExport(drv_mem_handle_t *handle, drv_mem_handle_type type, uint64_t flags,
+                                   struct MemShareHandle *sHandle)
     {
-        return pHalResourceIdFree(devId, in);
+        if (pHalMemExport == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemExport(handle, type, flags, sHandle);
     }
 
-    static inline int HalGetSsid(uint32_t devId, uint32_t *ssid)
+    static inline int HalMemImport(drv_mem_handle_type type, struct MemShareHandle *sHandle, uint32_t devid,
+                                   drv_mem_handle_t **handle)
     {
-        return pHalGetSsid(devId, ssid);
+        if (pHalMemImport == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemImport(type, sHandle, devid, handle);
     }
 
-    static inline int HalResourceConfig(uint32_t devId, struct halResourceIdInputInfo *in,
-        struct halResourceConfigInfo *para)
+    static inline int HalMemShareHandleSetAttribute(uint64_t handle, enum ShareHandleAttrType type,
+                                                    struct ShareHandleAttr attr)
     {
-        return pHalResourceConfig(devId, in, para);
+        if (pHalMemShareHandleSetAttribute == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemShareHandleSetAttribute(handle, type, attr);
     }
 
-    static inline int HalSqCqQuery(uint32_t devId, struct halSqCqQueryInfo *info)
+    static inline int HalMemTransShareableHandle(drv_mem_handle_type type, struct MemShareHandle *handle,
+                                                 uint32_t *serverId, uint64_t *shareableHandle)
     {
-        return pHalSqCqQuery(devId, info);
+        if (pHalMemTransShareableHandle == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemTransShareableHandle(type, handle, serverId, shareableHandle);
     }
 
-    static inline int HalHostRegister(void *srcPtr, uint64_t size, uint32_t flag, uint32_t devid, void **dstPtr)
+    static inline int HalMemGetAllocationGranularity(const struct drv_mem_prop *prop,
+                                                     drv_mem_granularity_options option, size_t *granularity)
     {
-        return pHalHostRegister(srcPtr, size, flag, devid, dstPtr);
-    }
-
-    static inline int HalHostUnregister(void *srcPtr, uint32_t devid)
-    {
-        return pHalHostUnregister(srcPtr, devid);
+        if (pHalMemGetAllocationGranularity == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pHalMemGetAllocationGranularity(prop, option, granularity);
     }
 
 private:
-    static Result LoadHybmV1V2Library();
+    static Result LoadLegacyLibrary();
+    static Result loadModernLibrary(AscendSocType socType);
 
 private:
     static std::mutex gMutex;
@@ -307,19 +338,18 @@ private:
     static halGetAllocedNodeInRangeFunc pGetAllocedNodeInRange;
     static halGetIdleVaNodeInRangeFunc pGetIdleVaNodeInRange;
     static halInsertAllocedTreeFunc pInsertAllocedTree;
-    static halFreeRbtreeNodeFunc pFreeRbtreeNode;
 
-    static halSqTaskSendFunc pHalSqTaskSend;
-    static halCqReportRecvFunc pHalCqReportRecv;
-    static halSqCqAllocateFunc pHalSqCqAllocate;
-    static halSqCqFreeFunc pHalSqCqFree;
-    static halResourceIdAllocFunc pHalResourceIdAlloc;
-    static halResourceIdFreeFunc pHalResourceIdFree;
-    static halGetSsidFunc pHalGetSsid;
-    static halResourceConfigFunc pHalResourceConfig;
-    static halSqCqQueryFunc pHalSqCqQuery;
-    static halHostRegisterFunc pHalHostRegister;
-    static halHostUnregisterFunc pHalHostUnregister;
+    static halMemAddressReserveFunc pHalMemAddressReserve;
+    static halMemAddressFreeFunc pHalMemAddressFree;
+    static halMemCreateFunc pHalMemCreate;
+    static halMemReleaseFunc pHalMemRelease;
+    static halMemMapFunc pHalMemMap;
+    static halMemUnmapFunc pHalMemUnmap;
+    static halMemExportFunc pHalMemExport;
+    static halMemImportFunc pHalMemImport;
+    static halMemShareHandleSetAttributeFunc pHalMemShareHandleSetAttribute;
+    static halMemTransShareableHandleFunc pHalMemTransShareableHandle;
+    static halMemGetAllocationGranularityFunc pHalMemGetAllocationGranularity;
 };
 
 }

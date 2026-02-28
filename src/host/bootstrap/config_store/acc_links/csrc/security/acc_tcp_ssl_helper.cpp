@@ -11,7 +11,7 @@
 #include "acc_common_util.h"
 #include "shmemi_file_util.h"
 #include "openssl_api_wrapper.h"
-#include "store_string_util.h"
+#include "shmemi_string_util.h"
 
 namespace {
 constexpr uint32_t CERT_CHECK_AHEAD_DAYS = 30;
@@ -184,7 +184,7 @@ AccResult AccTcpSslHelper::LoadServerCert(SSL_CTX *sslCtx)
 
 AccResult AccTcpSslHelper::GetPkPass()
 {
-    std::string encryptedText = shm::store::StringUtil::TrimString(tlsPkPwd);
+    std::string encryptedText = utils::StringUtil::TrimString(tlsPkPwd);
     if (mDecryptHandler_ == nullptr) {
         LOG_INFO("user employs a plaintext password, which does not require a decryption function.");
         size_t len = encryptedText.length();

@@ -14,8 +14,8 @@
 #include <regex>
 #include <limits>
 #include "shmemi_logger.h"
-#include "store_string_util.h"
-#include "store_num_util.h"
+#include "shmemi_string_util.h"
+#include "shmemi_num_util.h"
 #include "device_rdma_helper.h"
 
 namespace shm {
@@ -23,7 +23,7 @@ namespace transport {
 namespace device {
 Result ParseDeviceNic(const std::string &nic, uint16_t &port)
 {
-    if (!shm::store::StringUtil::String2Uint(nic, port) || port == 0) {
+    if (!utils::StringUtil::String2Uint(nic, port) || port == 0) {
         SHM_LOG_ERROR("failed to convert nic : " << nic << " to uint16_t, or port is 0.");
         return ACLSHMEM_INVALID_PARAM;
     }
@@ -91,7 +91,7 @@ Result ParseDeviceNic(const std::string &nic, mf_sockaddr &address)
         }
 
         uint16_t port_val;
-        if (!shm::store::StringUtil::String2Uint(actual_port, port_val)) {
+        if (!utils::StringUtil::String2Uint(actual_port, port_val)) {
             SHM_LOG_ERROR("failed to convert str : " << actual_port << " to uint16_t, or sin_port is 0.");
             return ACLSHMEM_INVALID_PARAM;
         }
@@ -128,7 +128,7 @@ Result ParseDeviceNic(const std::string &nic, mf_sockaddr &address)
         }
 
         uint16_t port_val;
-        if (!shm::store::StringUtil::String2Uint(port_str, port_val)) {
+        if (!utils::StringUtil::String2Uint(port_str, port_val)) {
             SHM_LOG_ERROR("failed to convert str : " << port_str << " to uint16_t, or sin_port is 0.");
             return ACLSHMEM_INVALID_PARAM;
         }

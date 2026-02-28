@@ -28,7 +28,7 @@ add_library(aclshmem_device OBJECT ${ACLSHMEM_KERNEL_FILES})
 target_compile_options(aclshmem_device
     PRIVATE
     ${CMAKE_CCE_COMPILE_OPTIONS}
-    --cce-aicore-arch=dav-c220
+    ${CCE_AICORE_ARCH}
 )
 target_include_directories(aclshmem_device
     PUBLIC

@@ -256,8 +256,7 @@ Result MemSegmentDevice::Mmap() noexcept
             continue;
         }
 
-        size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
-        auto remoteAddress = reservedVirtualAddresses_[im.rankId];;
+        auto remoteAddress = reservedVirtualAddresses_[im.rankId];
         if (mappedMem_.find((uint64_t)remoteAddress) != mappedMem_.end()) {
             SHM_LOG_INFO("remote slice on rank(" << im.rankId << ") has maped: " << (void *)remoteAddress);
             continue;

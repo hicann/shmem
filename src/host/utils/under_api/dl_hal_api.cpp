@@ -45,22 +45,54 @@ halEraseIdleSizeTreeFunc DlHalApi::pEraseIdleSizeTree = nullptr;
 halGetAllocedNodeInRangeFunc DlHalApi::pGetAllocedNodeInRange = nullptr;
 halGetIdleVaNodeInRangeFunc DlHalApi::pGetIdleVaNodeInRange = nullptr;
 halInsertAllocedTreeFunc DlHalApi::pInsertAllocedTree = nullptr;
-halFreeRbtreeNodeFunc DlHalApi::pFreeRbtreeNode = nullptr;
 
-halSqTaskSendFunc DlHalApi::pHalSqTaskSend = nullptr;
-halCqReportRecvFunc DlHalApi::pHalCqReportRecv = nullptr;
-halSqCqAllocateFunc DlHalApi::pHalSqCqAllocate = nullptr;
-halSqCqFreeFunc DlHalApi::pHalSqCqFree = nullptr;
-halResourceIdAllocFunc DlHalApi::pHalResourceIdAlloc = nullptr;
-halResourceIdFreeFunc DlHalApi::pHalResourceIdFree = nullptr;
-halGetSsidFunc DlHalApi::pHalGetSsid = nullptr;
-halResourceConfigFunc DlHalApi::pHalResourceConfig = nullptr;
-halSqCqQueryFunc DlHalApi::pHalSqCqQuery = nullptr;
-halHostRegisterFunc DlHalApi::pHalHostRegister = nullptr;
-halHostUnregisterFunc DlHalApi::pHalHostUnregister = nullptr;
+halMemAddressReserveFunc DlHalApi::pHalMemAddressReserve = nullptr;
+halMemAddressFreeFunc DlHalApi::pHalMemAddressFree = nullptr;
+halMemCreateFunc DlHalApi::pHalMemCreate = nullptr;
+halMemReleaseFunc DlHalApi::pHalMemRelease = nullptr;
+halMemMapFunc DlHalApi::pHalMemMap = nullptr;
+halMemUnmapFunc DlHalApi::pHalMemUnmap = nullptr;
+halMemExportFunc DlHalApi::pHalMemExport = nullptr;
+halMemImportFunc DlHalApi::pHalMemImport = nullptr;
+halMemTransShareableHandleFunc DlHalApi::pHalMemTransShareableHandle = nullptr;
+halMemGetAllocationGranularityFunc DlHalApi::pHalMemGetAllocationGranularity = nullptr;
+halMemShareHandleSetAttributeFunc DlHalApi::pHalMemShareHandleSetAttribute = nullptr;
 
-Result DlHalApi::LoadHybmV1V2Library()
+Result DlHalApi::loadModernLibrary(AscendSocType socType)
 {
+    DL_LOAD_SYM(pHalMemAddressReserve, halMemAddressReserveFunc, halHandle, "halMemAddressReserve");
+    DL_LOAD_SYM(pHalMemAddressFree, halMemAddressFreeFunc, halHandle, "halMemAddressFree");
+    DL_LOAD_SYM(pHalMemCreate, halMemCreateFunc, halHandle, "halMemCreate");
+    DL_LOAD_SYM(pHalMemRelease, halMemReleaseFunc, halHandle, "halMemRelease");
+    DL_LOAD_SYM(pHalMemMap, halMemMapFunc, halHandle, "halMemMap");
+    DL_LOAD_SYM(pHalMemUnmap, halMemUnmapFunc, halHandle, "halMemUnmap");
+    DL_LOAD_SYM(pHalMemExport, halMemExportFunc, halHandle, "halMemExportToShareableHandleV2");
+    DL_LOAD_SYM(pHalMemImport, halMemImportFunc, halHandle, "halMemImportFromShareableHandleV2");
+    if (socType == AscendSocType::ASCEND_910C) {
+        DL_LOAD_SYM(pHalMemShareHandleSetAttribute, halMemShareHandleSetAttributeFunc, halHandle,
+                    "halMemShareHandleSetAttribute");
+    }
+    DL_LOAD_SYM(pHalMemTransShareableHandle, halMemTransShareableHandleFunc, halHandle, "halMemTransShareableHandle");
+    DL_LOAD_SYM(pHalMemGetAllocationGranularity, halMemGetAllocationGranularityFunc, halHandle,
+                "halMemGetAllocationGranularity");
+    return ACLSHMEM_SUCCESS;
+}
+
+Result DlHalApi::LoadLegacyLibrary()
+{
+    /* load sym */
+    DL_LOAD_SYM(pHalFd, int *, halHandle, "g_devmm_mem_dev");
+    DL_LOAD_SYM(pVirtAllocMemFromBase, halVirtAllocMemFromBaseFunc, halHandle, "devmm_virt_alloc_mem_from_base");
+    DL_LOAD_SYM(pIoctlEnableHeap, halIoctlEnableHeapFunc, halHandle, "devmm_ioctl_enable_heap");
+    DL_LOAD_SYM(pGetHeapListByType, halGetHeapListByTypeFunc, halHandle, "devmm_get_heap_list_by_type");
+    DL_LOAD_SYM(pVirtSetHeapIdle, halVirtSetHeapIdleFunc, halHandle, "devmm_virt_set_heap_idle");
+    DL_LOAD_SYM(pVirtGetHeapMgmt, halVirtGetHeapMgmtFunc, halHandle, "devmm_virt_get_heap_mgmt");
+    DL_LOAD_SYM(pIoctlFreePages, halIoctlFreePagesFunc, halHandle, "devmm_ioctl_free_pages");
+    DL_LOAD_SYM(pVaToHeapIdx, halVaToHeapIdxFunc, halHandle, "devmm_va_to_heap_idx");
+    DL_LOAD_SYM(pVirtGetHeapFromQueue, halVirtGetHeapFromQueueFunc, halHandle, "devmm_virt_get_heap_from_queue");
+    DL_LOAD_SYM(pVirtNormalHeapUpdateInfo, halVirtNormalHeapUpdateInfoFunc, halHandle,
+                "devmm_virt_normal_heap_update_info");
+    DL_LOAD_SYM(pVaToHeap, halVaToHeapFunc, halHandle, "devmm_va_to_heap");
     if (HybmGetGvaVersion() == HYBM_GVA_V1 or HybmGetGvaVersion() == HYBM_GVA_V2) {
         if (HybmGetGvaVersion() == HYBM_GVA_V1) {
             DL_LOAD_SYM(pVirtDestroyHeapV1, halVirtDestroyHeapV1Func, halHandle, "devmm_virt_destroy_heap");
@@ -83,7 +115,6 @@ Result DlHalApi::LoadHybmV1V2Library()
                     "devmm_rbtree_get_idle_va_node_in_range");
         DL_LOAD_SYM(pInsertAllocedTree, halInsertAllocedTreeFunc, halHandle,
                     "devmm_rbtree_insert_alloced_tree");
-        DL_LOAD_SYM(pFreeRbtreeNode, halFreeRbtreeNodeFunc, halHandle, "devmm_free_rbtree_node");
     } else { // HYBM_GVA_V3
         DL_LOAD_SYM(pSvmModuleAllocedSizeInc, halSvmModuleAllocedSizeIncFunc, halHandle, "svm_module_alloced_size_inc");
         DL_LOAD_SYM(pVirtDestroyHeapV2, halVirtDestroyHeapV2Func, halHandle, "devmm_virt_destroy_heap");
@@ -91,7 +122,7 @@ Result DlHalApi::LoadHybmV1V2Library()
     return ACLSHMEM_SUCCESS;
 }
 
-Result DlHalApi::LoadLibrary()
+Result DlHalApi::LoadLibrary(AscendSocType socType)
 {
     std::lock_guard<std::mutex> guard(gMutex);
     if (gLoaded) {
@@ -106,36 +137,15 @@ Result DlHalApi::LoadLibrary()
     }
 
     SHM_ASSERT_RETURN(HybmGetGvaVersion() != HYBM_GVA_UNKNOWN, ACLSHMEM_NOT_INITED);
-    /* load sym */
-    DL_LOAD_SYM(pHalFd, int *, halHandle, "g_devmm_mem_dev");
-    DL_LOAD_SYM(pVirtAllocMemFromBase, halVirtAllocMemFromBaseFunc, halHandle, "devmm_virt_alloc_mem_from_base");
-    DL_LOAD_SYM(pIoctlEnableHeap, halIoctlEnableHeapFunc, halHandle, "devmm_ioctl_enable_heap");
-    DL_LOAD_SYM(pGetHeapListByType, halGetHeapListByTypeFunc, halHandle, "devmm_get_heap_list_by_type");
-    DL_LOAD_SYM(pVirtSetHeapIdle, halVirtSetHeapIdleFunc, halHandle, "devmm_virt_set_heap_idle");
-    DL_LOAD_SYM(pVirtGetHeapMgmt, halVirtGetHeapMgmtFunc, halHandle, "devmm_virt_get_heap_mgmt");
-    DL_LOAD_SYM(pIoctlFreePages, halIoctlFreePagesFunc, halHandle, "devmm_ioctl_free_pages");
-    DL_LOAD_SYM(pVaToHeapIdx, halVaToHeapIdxFunc, halHandle, "devmm_va_to_heap_idx");
-    DL_LOAD_SYM(pVirtGetHeapFromQueue, halVirtGetHeapFromQueueFunc, halHandle, "devmm_virt_get_heap_from_queue");
-    DL_LOAD_SYM(pVirtNormalHeapUpdateInfo, halVirtNormalHeapUpdateInfoFunc, halHandle,
-                "devmm_virt_normal_heap_update_info");
-    DL_LOAD_SYM(pVaToHeap, halVaToHeapFunc, halHandle, "devmm_va_to_heap");
-
-    auto ret = DlHalApi::LoadHybmV1V2Library();
+    Result ret = 0;
+    if ((socType == AscendSocType::ASCEND_950) || (socType == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+        ret = DlHalApi::loadModernLibrary(socType);
+    } else {
+        ret = DlHalApi::LoadLegacyLibrary();
+    }
     if (ret != 0) {
         return ret;
     }
-
-    DL_LOAD_SYM(pHalSqTaskSend, halSqTaskSendFunc, halHandle, "halSqTaskSend");
-    DL_LOAD_SYM(pHalCqReportRecv, halCqReportRecvFunc, halHandle, "halCqReportRecv");
-    DL_LOAD_SYM(pHalSqCqAllocate, halSqCqAllocateFunc, halHandle, "halSqCqAllocate");
-    DL_LOAD_SYM(pHalSqCqFree, halSqCqFreeFunc, halHandle, "halSqCqFree");
-    DL_LOAD_SYM(pHalResourceIdAlloc, halResourceIdAllocFunc, halHandle, "halResourceIdAlloc");
-    DL_LOAD_SYM(pHalResourceIdFree, halResourceIdFreeFunc, halHandle, "halResourceIdFree");
-    DL_LOAD_SYM(pHalGetSsid, halGetSsidFunc, halHandle, "drvMemSmmuQuery");
-    DL_LOAD_SYM(pHalResourceConfig, halResourceConfigFunc, halHandle, "halResourceConfig");
-    DL_LOAD_SYM(pHalSqCqQuery, halSqCqQueryFunc, halHandle, "halSqCqQuery");
-    DL_LOAD_SYM(pHalHostRegister, halHostRegisterFunc, halHandle, "halHostRegister");
-    DL_LOAD_SYM(pHalHostUnregister, halHostUnregisterFunc, halHandle, "halHostUnregister");
 
     gLoaded = true;
     return ACLSHMEM_SUCCESS;
@@ -172,18 +182,17 @@ void DlHalApi::CleanupLibrary()
     pGetAllocedNodeInRange = nullptr;
     pGetIdleVaNodeInRange = nullptr;
     pInsertAllocedTree = nullptr;
-    pFreeRbtreeNode = nullptr;
 
-    pHalSqTaskSend = nullptr;
-    pHalCqReportRecv = nullptr;
-    pHalSqCqAllocate = nullptr;
-    pHalSqCqFree = nullptr;
-    pHalResourceIdAlloc = nullptr;
-    pHalResourceIdFree = nullptr;
-    pHalGetSsid = nullptr;
-    pHalSqCqQuery = nullptr;
-    pHalHostRegister = nullptr;
-    pHalHostUnregister = nullptr;
+    pHalMemAddressReserve = nullptr;
+    pHalMemAddressFree = nullptr;
+    pHalMemCreate = nullptr;
+    pHalMemRelease = nullptr;
+    pHalMemMap = nullptr;
+    pHalMemUnmap = nullptr;
+    pHalMemExport = nullptr;
+    pHalMemImport = nullptr;
+    pHalMemGetAllocationGranularity = nullptr;
+    pHalMemTransShareableHandle = nullptr;
 
     if (halHandle != nullptr) {
         dlclose(halHandle);
