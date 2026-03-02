@@ -14,7 +14,7 @@ bash build.sh -<args>
     * 生成python whl包shmem-xxx.whl，生成路径为{project_root}/dist/
   * -uttests
     * UT用例编译
-  * --examples
+  * -examples
     * 样例用例编译
     
 SHMEM自动编译脚本，会自动完成依赖库的下载，工程编译，UT用例编译，库打包
