@@ -93,4 +93,33 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(AscendC::GlobalTensor<T> &dst, AscendC::GlobalTensor<T> &src,
                                             AscendC::LocalTensor<T> &buf, uint32_t elem_size, int pe, uint32_t sync_id);
 
+/**
+ * @brief Asynchronous interface. Performs a l2 cache manager operation on device global memory.
+ * WARNING: Currently, cmo_type only supports CMO_TYPE_PREFETCH.
+ *
+ * @param src               [in] Pointer to device global memory to operate on.
+ * @param elem_size         [in] Number of elements (of type T) to operate on.
+ * @param cmo_type          [in] Cache operation type.
+ * @param buf               [in] Pointer on local UB.
+ * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
+ * @param sync_id           [in] ID used to sync.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_cmo_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_type,
+                                        __ubuf__ T *buf, uint32_t ub_size, uint32_t sync_id);
+
+/**
+ * @brief Asynchronous interface. Performs a l2 cache manager operation on device global memory.
+ * WARNING: Currently, cmo_type only supports CMO_TYPE_PREFETCH.
+ *
+ * @param src               [in] AscendC::GlobalTensor of device memory to operate on.
+ * @param elem_size         [in] Number of elements.
+ * @param cmo_type          [in] Cache operation type.
+ * @param buf               [in] LocalTensor on local UB.
+ * @param sync_id           [in] ID used to sync.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_cmo_nbi(AscendC::GlobalTensor<T> &src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_type,
+                                            AscendC::LocalTensor<T> &buf, uint32_t sync_id);
+
 #endif

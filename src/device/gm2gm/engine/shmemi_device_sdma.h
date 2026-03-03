@@ -100,9 +100,80 @@ struct stars_sdma_sqe_t {
     /**** 64 bytpes ****/
 };
 
+enum class ACLSHMEMCMOTYPE : uint32_t {
+    CMO_TYPE_PREFETCH = 6,  // Load data from memory into l2 cache
+    CMO_TYPE_WRITEBACK,     // Flush modified data from l2 cache to main memory while retaining a copy in cache
+    CMO_TYPE_INVALID,       // Discard the data block in l2 cache, making it invalid
+    CMO_TYPE_FLUSH,         // Forcefully write data from l2 cache to main memory and remove it from cache
+    CMO_TYPE_MAX,
+};
+
+struct stars_sdma_cmo_sqe_t {
+    uint8_t type : 6;
+    uint8_t l1_lock : 1;
+    uint8_t l1_unlock : 1;
+
+    uint8_t ie : 2;
+    uint8_t pre_p : 2;
+    uint8_t post_p : 2;
+    uint8_t wr_cqe : 1;
+    uint8_t reserved : 1;
+
+    uint16_t block_dim;
+
+    uint16_t rt_stream_id;
+    uint16_t task_id;
+
+    uint32_t res3;
+    /********12 bytes**********/
+
+    uint16_t res4;
+    uint8_t kernel_credit;
+    uint8_t ptr_mode : 1;
+    uint8_t res5 : 7;
+    /********16 bytes**********/
+
+    uint32_t opcode : 8;
+    uint32_t ie2 : 1;
+    uint32_t sssv : 1;
+    uint32_t dssv : 1;
+    uint32_t sns : 1;
+    uint32_t dns : 1;
+    uint32_t qos : 4;
+    uint32_t sro : 1;
+    uint32_t dro : 1;
+    uint32_t partid : 8;
+    uint32_t mpam : 1;
+    uint32_t d2d_offset_flag : 1;
+    uint32_t res6 : 3;
+    /********20 bytes**********/
+
+    uint16_t src_stream_id;
+    uint16_t src_sub_stream_id;
+    uint16_t dst_stream_id;
+    uint16_t dst_sub_stream_id;
+    /********28 bytes**********/
+
+    uint32_t length;
+    uint32_t src_addr_low;
+    uint32_t src_addr_high;
+    uint32_t dst_addr_low;
+    uint32_t dst_addr_high;
+
+    uint32_t src_offset_low;
+    uint32_t dst_offset_low;
+    uint16_t src_offset_high;
+    uint16_t dst_offset_high;
+    uint32_t res_last[1];
+    /********64 bytes**********/
+};
+
 ACLSHMEM_DEVICE void aclshmemi_sdma_submit_data_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
                                                      __gm__ uint8_t *send_buffer, __gm__ uint8_t *recv_buffer,
                                                      const sdma_config_t &config, uint32_t *sq_tail);
+
+ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
+                                                    __gm__ uint8_t *src, uint32_t size, ACLSHMEMCMOTYPE cmo_type, uint32_t *sq_tail);
 
 ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
                                                      const workspace_layout_t &layout, const sdma_config_t &config,
@@ -122,6 +193,20 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(AscendC::LocalTensor<uin
 ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm__ uint8_t *send_buffer,
                                               uint64_t message_len, AscendC::LocalTensor<uint32_t> &tmp_local,
                                               uint32_t sync_id);
+
+/**
+ * @brief AIV direct STARS helper function for cache manager operation, prepare SQE and ring doorbell.
+ *
+ * @param src                       [in] Address of device memory to operate on.
+ * @param size                      [in] Size of memory in bytes.
+ * @param cmo_type                  [in] Cache operation type. Currently only supports prefetch.
+ * @param tmp_local                 [in] Temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                   [in] ID used to sync pipeline.
+ */
+ACLSHMEM_DEVICE void aclshmemi_cmo_async(__gm__ uint8_t* src,
+                                uint32_t size,
+                                ACLSHMEMCMOTYPE cmo_type, 
+                                AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id);
 
 /**
  * @brief SDMA Quiet function. This synchronous function ensures all previous SDMA SQEs are completed.
