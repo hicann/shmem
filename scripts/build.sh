@@ -34,6 +34,7 @@ PYEXPAND_TYPE=OFF
 PACKAGE=OFF
 USE_CXX11_ABI=ON
 USE_MSSANITIZER=OFF
+BUILD_ALL=OFF
 
 COMPILE_OPTIONS=""
 
@@ -47,10 +48,7 @@ cd ${PROJECT_ROOT}
 
 function fn_build()
 {
-    [ -d build ] && rm -rf build
-    mkdir -p build
-
-    cd build
+    mkdir -p build && cd build
     cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} ..
     make install -j17
     cd -
@@ -61,7 +59,7 @@ function fn_whl_build()
   echo "Python extension enabled. Copying and packaging Python wheel..."
 
   cd "${PROJECT_ROOT}/src/python"
-  rm -rf build shmem.egg-info ${PROJECT_ROOT}/dist
+  rm -rf shmem.egg-info ${PROJECT_ROOT}/dist
 GIT_COMMIT=`git rev-parse HEAD` || true
   {
   echo "commit_id: ${GIT_COMMIT}"
@@ -146,7 +144,7 @@ function fn_build_googletest()
     [[ ! -d "googletest" ]] && git clone --branch v1.14.x --depth 1 https://gitcode.com/GitHub_Trending/go/googletest.git
     cd googletest
 
-    rm -rf build && mkdir build && cd build
+    mkdir -p build && cd build
     if [ "$USE_CXX11_ABI" == "ON" ]
     then
         sed -i '21 a add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)' ../CMakeLists.txt
@@ -171,7 +169,7 @@ function fn_build_doxygen()
     wget --no-check-certificate https://github.com/doxygen/doxygen/releases/download/Release_1_9_6/doxygen-1.9.6.src.tar.gz
     tar -xzvf doxygen-1.9.6.src.tar.gz
     cd doxygen-1.9.6
-    rm -rf build && mkdir build && cd build
+    mkdir -p build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/doxygen
     cmake --build . --parallel $(nproc)
     cmake --install . > /dev/null
@@ -231,7 +229,6 @@ function fn_gen_doc()
 function build_shared_lib() {
     echo "build shared lib start"
     cd "$PROJECT_ROOT"/examples/shared_lib || exit
-    rm -rf build
     cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/shared_lib/output -DSOC_TYPE=${SOC_TYPE}
     cmake --build build -j
     cmake --install build
@@ -242,7 +239,6 @@ function build_shared_lib() {
 function build_torch_library() {
     echo "build torch library start"
     cd "$PROJECT_ROOT"/examples/python_extension || exit
-    rm -rf build
     cmake --no-warn-unused-cli -B build $COMPILE_OPTIONS -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_INSTALL_PREFIX="$PROJECT_ROOT"/examples/python_extension/output -DPython3_EXECUTABLE="$(which python3)" -DBUILD_TORCH_LIB=True
     cmake --build build -j
     cmake --install build
@@ -309,6 +305,12 @@ while [[ $# -gt 0 ]]; do
             PYEXPAND_TYPE=ON
             shift
             ;;
+        -full)
+            BUILD_ALL=ON
+            fn_build_googletest
+            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
+            shift
+            ;;
         -use_cxx11_abi1)
             USE_CXX11_ABI=ON
             shift
@@ -332,19 +334,41 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ "$PYEXPAND_TYPE" = "ON" ]; then
+# 清空 build
+[ -d build ] && rm -rf build
+
+if [ "$BUILD_ALL" = "ON" ]; then
+    OLD_COMPILE_OPTIONS=${COMPILE_OPTIONS}
+    # build whl
     fn_whl_build
-else
+
+    # build examples
+    COMPILE_OPTIONS="${OLD_COMPILE_OPTIONS} -DUSE_EXAMPLES=ON"
     fn_build
-fi
 
-fn_make_run_package
-if [ ${GEN_DOC} == "ON" ]; then
-    fn_gen_doc
-fi
+    # build uttests
+    BUILD_TYPE=Debug
+    COMPILE_OPTIONS="${OLD_COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
+    fn_build
 
-if [ "$PACKAGE" == "ON" ]; then
+    # build package
+    fn_make_run_package
     make_package
+else
+    if [ "$PYEXPAND_TYPE" = "ON" ]; then
+        fn_whl_build
+    else
+        fn_build
+    fi
+
+    fn_make_run_package
+    if [ "$PACKAGE" == "ON" ]; then
+        make_package
+    fi
+
+    if [ ${GEN_DOC} == "ON" ]; then
+        fn_gen_doc
+    fi
 fi
 
 if [ "${PYEXPAND_EXAMPLE}" == "ON" ]; then

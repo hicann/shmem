@@ -43,9 +43,7 @@ class BuildCppLibs(build_py):
         build_dir = Path("build")
         install_dir = Path("install/shmem")
 
-        if build_dir.exists():
-            shutil.rmtree(build_dir)
-        build_dir.mkdir()
+        build_dir.mkdir(exist_ok=True)
 
         pyexpand_type = os.getenv("PYEXPAND_TYPE", "ON")
         build_type = os.getenv("BUILD_TYPE", "Release")

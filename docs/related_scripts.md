@@ -16,7 +16,8 @@ bash build.sh -<args>
     * UT用例编译
   * -examples
     * 样例用例编译
-    
+  * -full
+    * 编译上述所有选项，即 package + python_extension + uttests + examples
 SHMEM自动编译脚本，会自动完成依赖库的下载，工程编译，UT用例编译，库打包
 
 ## install.sh
