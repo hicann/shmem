@@ -10,7 +10,7 @@
 
 #### Q: 算子精度问题，无error日志，发现共享内存访问到的数据异常;
 
-<img src="./images/trouble-shooting/shmem_alloc-asymmetric-alloc-no-error.png" alt="算子精度报错" width="500"/>
+![算子精度报错](./images/trouble-shooting/shmem_alloc-asymmetric-alloc-no-error.png)
 
 错误示例代码: 
 
@@ -44,7 +44,7 @@ if (symmTest != nullptr) {
 
 修正方式: 确保每个rank分配相同大小的共享内存
 
-<img src="./images/trouble-shooting/shmem_alloc-asymmetric-alloc.png" alt="共享内存非对称分配" width="500"/>
+![共享内存非对称分配](./images/trouble-shooting/shmem_alloc-asymmetric-alloc.png)
 
 ### aclshmemx_set_attr_uniqueid_args对每个pe设置了不同的local_mem_size
 #### Q: 提示local size diffs

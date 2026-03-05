@@ -129,7 +129,7 @@ source /usr/local/Ascend/shmem/latest/set_env.sh
    ```sh
    bash scripts/build.sh -examples -debug
    ```
-   注意: 此处`-example`参数非必选项，仅提供[使用参考](./docs/Troubleshooting_FAQs.md#SHMEM-常见问题)。
+   注意: 此处`-example`参数非必选项，仅提供[使用参考](./docs/debug/Troubleshooting_FAQs.md#SHMEM-常见问题)。
 
 ### Python接口使用
 注意：python接口API列表可参考：[python接口API列表](./docs/pythonAPI.md)。
@@ -270,7 +270,7 @@ A：确认已安装 wheel 包，且 ```source``` 了 install 目录下的 ```set
 ### Q4：关闭 TLS 后仍提示加密失败？
 A：需在 ```aclshmemx_init_attr``` 前调用 ```aclshmemx_set_conf_store_tls```，初始化后无法修改 TLS 配置。
 
-> 更多故障排查见：[Troubleshooting](docs/Troubleshooting_FAQs.md)
+> 更多故障排查见：[Troubleshooting](docs/debug/Troubleshooting_FAQs.md)
 ### Q5：googletest、catlass、这两个插件执行huild.sh时提示git失败？
 A:确认git配置与是否可以访问网站，如果环境不能连接网站可以尝试手动下载文件到3rdparty目录下
 ### Q6：CANN包安装失败？可访问常见问题地址，查看是否有解决的方案

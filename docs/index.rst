@@ -14,28 +14,29 @@ Welcome to Shmem's Documentation!
     :caption: Using SHMEM
     :name: Using SHMEM
     
-    api_demo.md
+    example/api_demo.md
     compilation_build_guide.md
-    log_debug.md
-    tools_debug.md
+    debug/log_debug.md
+    debug/tools_debug.md
+    debug/dump_debug.md
 
 .. toctree::
     :maxdepth: 2
     :caption: API
     :name: API
 
-    def.rst
-    host_api.rst
-    device_api.rst
-    pythonAPI.md
-    env_vars_intro.md
+    api/def.rst
+    api/host_api.rst
+    api/device_api.rst
+    api/pythonAPI.md
+    api/env_vars_intro.md
 
 .. toctree::
     :maxdepth: 2
     :caption: Example
     :name: Example
 
-    example.md
+    example/example.md
 
 .. toctree::
     :maxdepth: 2
@@ -50,7 +51,7 @@ Welcome to Shmem's Documentation!
     :caption: Troubleshooting And FAQs
     :name: Troubleshooting And FAQs
 
-    Troubleshooting_FAQs.md
+    debug/Troubleshooting_FAQs.md
 
 .. toctree::
     :maxdepth: 2
