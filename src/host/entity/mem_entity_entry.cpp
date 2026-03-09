@@ -162,7 +162,7 @@ HYBM_API void hybm_uninit(void)
     int ret = 0;
     if ((soc_type == AscendSocType::ASCEND_950) || (soc_type == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
         if (g_baseAddr != 0ULL) {
-            ret = DlHalApi::HalMemUnmap(reinterpret_cast<void *>(g_baseAddr));
+            ret = DlHalApi::HalMemUnmap(reinterpret_cast<void *>(HYBM_DEVICE_META_ADDR));
             SHM_LOG_INFO("unmap meta info res: " << ret);
             if (alloc_handle != nullptr) {
                 ret = DlHalApi::HalMemRelease(alloc_handle);
