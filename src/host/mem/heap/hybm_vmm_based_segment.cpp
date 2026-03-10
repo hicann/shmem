@@ -201,14 +201,10 @@ Result HybmVmmBasedSegment::ExportInner(const std::shared_ptr<MemSlice> &slice, 
     uint32_t sId;
     ret = DlHalApi::HalMemTransShareableHandle(MEM_HANDLE_TYPE_NONE, &info.shareHandle, &sId, &shareable);
     SHM_VALIDATE_RETURN(ret == ACLSHMEM_SUCCESS, "HalMemTransShareableHandle failed:" << ret, ACLSHMEM_INNER_ERROR);
-    AscendSocType socType = DlApi::GetAscendSocType();
-    if (socType == AscendSocType::ASCEND_910C) {
-        struct ShareHandleAttr attr = {};
-        attr.enableFlag = SHR_HANDLE_NO_WLIST_ENABLE;
-        ret = DlHalApi::HalMemShareHandleSetAttribute(shareable, SHR_HANDLE_ATTR_NO_WLIST_IN_SERVER, attr);
-        SHM_VALIDATE_RETURN(ret == ACLSHMEM_SUCCESS, "HalMemShareHandleSetAttribute failed:" << ret, ACLSHMEM_INNER_ERROR);
-    }
-
+    struct ShareHandleAttr attr = {};
+    attr.enableFlag = SHR_HANDLE_NO_WLIST_ENABLE;
+    ret = DlHalApi::HalMemShareHandleSetAttribute(shareable, SHR_HANDLE_ATTR_NO_WLIST_IN_SERVER, attr);
+    SHM_VALIDATE_RETURN(ret == ACLSHMEM_SUCCESS, "HalMemShareHandleSetAttribute failed:" << ret, ACLSHMEM_INNER_ERROR);
     info.deviceId = options_.devId;
     info.logicDeviceId = logicDeviceId_;
     info.magic = HBM_SLICE_EXPORT_INFO_MAGIC;
