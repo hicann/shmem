@@ -160,7 +160,7 @@ void ShmemMatmulReduceScatter(
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: matmul_reduce_scatter pe_size relative_pe_id ip_port m n k [device_id_list]\n";
+       "Usage: matmul_reduce_scatter pe_size pe_id ip_port m n k [device_id_list]\n";
 
     int peSize;
     int peId;

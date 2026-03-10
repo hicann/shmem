@@ -13,7 +13,7 @@ export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 ```
 
 3.命令行参数说明
-    ./rdma_demo <n_pes> <relative_pe_id> <g_npus> <f_pe> <f_npu>
+    ./rdma_demo <n_pes> <pe_id> <g_npus> <f_pe> <f_npu>
 
 - n_pes: 全局Pe数量。
 - ipport: SHMEM初始化需要的IP及端口号，格式为tcp://<IP>:<端口号>。如果执行跨机测试，需要讲IP设为pe0所在Host的IP。

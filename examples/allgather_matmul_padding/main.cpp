@@ -161,7 +161,7 @@ void ShmemAllGatherMatmulPadding(
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: allgather_matmul_padding pe_size relative_pe_id ip_port m n k [device_id_list]\n";
+       "Usage: allgather_matmul_padding pe_size pe_id ip_port m n k [device_id_list]\n";
 
     int peSize;
     int peId;

@@ -162,7 +162,7 @@ case "$MODE" in
             mpirun -f hostfile ./build/bin/"${EXECUTABLE_NAME}" "$GNPU_NUM"
         else
             echo "No hostfile found, run mpirun without hostfile"
-            mpirun -np "$NUM_PROCESSES" ./build/bin/"${EXECUTABLE_NAME}"
+            mpirun -np "$NUM_PROCESSES" ./build/bin/"${EXECUTABLE_NAME}" "NUM_PROCESSES"
         fi
         ;;
     default)

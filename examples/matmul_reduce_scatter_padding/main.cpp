@@ -172,7 +172,7 @@ void ShmemMatmulReduceScatterPadding(
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: matmul_reduce_scatter_padding pe_size relative_pe_id ip_port m n k [device_id_list]\n";
+       "Usage: matmul_reduce_scatter_padding pe_size pe_id ip_port m n k [device_id_list]\n";
 
     int peSize;
     int peId;

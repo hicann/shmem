@@ -174,7 +174,7 @@ void ShmemAllGatherMatmul(
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: allgather_matmul pe_size relative_pe_id ip_port m n k [device_id_list]\n";
+       "Usage: allgather_matmul pe_size pe_id ip_port m n k [device_id_list]\n";
 
     int peSize;
     int peId;

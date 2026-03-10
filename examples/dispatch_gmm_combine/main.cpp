@@ -482,6 +482,6 @@ int main(int argc, char **argv)
         std::exit(EXIT_FAILURE);
     }
 
-    std::cout << "[SUCCESS] demo run success in relative_pe_id " << rank_id << std::endl;
+    std::cout << "[SUCCESS] demo run success in pe_id " << rank_id << std::endl;
     return 0;
 }
