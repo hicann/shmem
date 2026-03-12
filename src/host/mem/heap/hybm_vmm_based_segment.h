@@ -54,8 +54,11 @@ public:
 
     hybm_mem_type GetMemoryType() const noexcept override
     {
-        return options_.segType == HYBM_MST_HBM ? HYBM_MEM_TYPE_DEVICE : HYBM_MEM_TYPE_HOST;
+        return HYBM_MEM_TYPE_DEVICE;
     }
+    bool CheckSdmaReaches(uint32_t rankId) const noexcept override;
+    static bool CanMapRemote(const MemExportInfo &rmi) noexcept;
+    static void GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept;
 
 private:
     Result ExportInner(const std::shared_ptr<MemSlice> &slice, MemShareHandle &sHandle) noexcept;
@@ -70,6 +73,7 @@ private:
     std::map<uint16_t, MemSliceStatus> slices_;
     std::map<uint16_t, std::string> exportMap_;
     std::map<uint64_t, drv_mem_handle_t *> mappedMem_;
+    std::map<uint16_t, MemExportInfo> importMap_;
 };
 } // namespace shm
 

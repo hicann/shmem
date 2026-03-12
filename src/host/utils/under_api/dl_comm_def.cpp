@@ -212,6 +212,15 @@ int32_t HalGvaPrecheck(void)
         checkVer = HYBM_GVA_V1;
         return ACLSHMEM_SUCCESS;
     }
+
+    // 临时check,判断version在区间内
+    std::string verStartA5 = "V100R001C10B600";
+    std::string verEndA5   = "V100R001C10B999";
+    if (!DriverVersionCheck(verEndA5) && DriverVersionCheck(verStartA5)) {
+        SHM_LOG_ERROR("Env is A5, Driver version V4 found");
+        checkVer = HYBM_GVA_V4;
+        return ACLSHMEM_SUCCESS;
+    }
     SHM_LOG_ERROR("Failed to determine driver version");
     return ACLSHMEM_INNER_ERROR;
 }

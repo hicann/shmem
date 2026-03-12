@@ -49,7 +49,6 @@ Result HybmVmmBasedSegment::ValidateOptions() noexcept
 
 Result HybmVmmBasedSegment::ReserveMemorySpace(void **address) noexcept
 {
-    static uint64_t usedOffset = 0U;
     SHM_ASSERT_RETURN(address != nullptr, ACLSHMEM_INVALID_PARAM);
     SHM_ASSERT_LOG_AND_RETURN(ValidateOptions() == ACLSHMEM_SUCCESS, "Failed to validate options.", ACLSHMEM_INVALID_PARAM);
     if (globalVirtualAddress_ != nullptr) {
@@ -63,18 +62,26 @@ Result HybmVmmBasedSegment::ReserveMemorySpace(void **address) noexcept
     }
 
     void *base = nullptr;
-    for (uint32_t i = 0; i < options_.rankCnt; i++) {
-        auto ret = aclrtReserveMemAddress(&base, options_.size, 0, nullptr, 1);
-        if (ret != 0 || base == 0) {
-            SHM_LOG_ERROR("prepare virtual memory size(" << totalVirtualSize_ << ") failed. ret: " << ret);
-            return ACLSHMEM_MALLOC_FAILED;
-        }
-        SHM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << " size: " << options_.size << ", rankId: " << i);
-        totalVirtualSize_ += options_.size;
-        reservedVirtualAddresses_.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(base)));
+    size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+    size_t totalReservedSize = options_.rankCnt * reserveAlignedSize;
+
+    auto ret = aclrtReserveMemAddress(&base, totalReservedSize, 0, nullptr, 1);
+    if (ret != 0 || base == nullptr) {
+        SHM_LOG_ERROR("prepare virtual memory total size(" << totalReservedSize << ") failed. ret: " << ret);
+        return ACLSHMEM_MALLOC_FAILED;
     }
 
-    globalVirtualAddress_ = reinterpret_cast<uint8_t *>(reservedVirtualAddresses_[0]);
+    SHM_LOG_INFO("success to reserve total memory space for logic deviceid " << logicDeviceId_ 
+                << ", vaddr: " << base << " total size: " << totalReservedSize);
+
+    uint8_t* currentAddr = static_cast<uint8_t*>(base);
+    for (uint32_t i = 0; i < options_.rankCnt; i++) {
+        reservedVirtualAddresses_.emplace_back(reinterpret_cast<uint64_t>(currentAddr));
+        SHM_LOG_INFO("rankId: " << i << ", vaddr: " << (void*)currentAddr << " size: " << options_.size << " align_size: " << reserveAlignedSize);
+        currentAddr += reserveAlignedSize;
+    }
+
+    globalVirtualAddress_ = reinterpret_cast<uint8_t*>(reservedVirtualAddresses_[0]);
     allocatedSize_ = 0UL;
     sliceCount_ = 0;
     *address = reinterpret_cast<void *>(reservedVirtualAddresses_[0]);
@@ -90,10 +97,7 @@ Result HybmVmmBasedSegment::UnReserveMemorySpace() noexcept
     allocatedSize_ = 0;
     sliceCount_ = 0;
     if (globalVirtualAddress_ != nullptr) {
-        for (auto reserved : reservedVirtualAddresses_) {
-            aclrtReleaseMemAddress(reinterpret_cast<void *>(reserved));
-        }
-
+        aclrtReleaseMemAddress(reinterpret_cast<void *>(globalVirtualAddress_));
         reservedVirtualAddresses_.clear();
         totalVirtualSize_ = 0;
         globalVirtualAddress_ = nullptr;
@@ -103,7 +107,8 @@ Result HybmVmmBasedSegment::UnReserveMemorySpace() noexcept
 
 Result HybmVmmBasedSegment::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice> &slice) noexcept
 {
-    if ((size % DEVICE_LARGE_PAGE_SIZE) != 0UL || size + allocatedSize_ > options_.size) {
+    size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
+    if ((size % DEVICE_LARGE_PAGE_SIZE) != 0UL || size + allocatedSize_ > reserveAlignedSize) {
         SHM_LOG_ERROR("invalid allocate memory size : " << size << ", now used " << allocatedSize_ << " of "
                                                        << options_.size);
         return ACLSHMEM_INVALID_PARAM;
@@ -261,8 +266,11 @@ Result HybmVmmBasedSegment::Import(const std::vector<std::string> &allExInfo, vo
         SHM_LOG_INFO("no need to share, skip import");
         return ACLSHMEM_SUCCESS;
     }
+
+    std::map<uint16_t, MemExportInfo> importMap;
     LiteralExInfoTranslater<MemExportInfo> translator;
     uint64_t exportMagic = HBM_SLICE_EXPORT_INFO_MAGIC;
+    uint64_t heapSize = 0;
     std::vector<MemExportInfo> desInfos{allExInfo.size()};
     for (auto i = 0U; i < allExInfo.size(); i++) {
         auto ret = translator.Deserialize(allExInfo[i], desInfos[i]);
@@ -275,6 +283,13 @@ Result HybmVmmBasedSegment::Import(const std::vector<std::string> &allExInfo, vo
             SHM_LOG_ERROR("import info(" << i << ") magic(" << desInfos[i].magic << ") invalid.");
             return ACLSHMEM_INVALID_PARAM;
         }
+        if (i == 0) {
+            heapSize = desInfos[i].size;
+        } else if (heapSize != desInfos[i].size) {
+            SHM_LOG_ERROR("import info(" << i << ") size(" << desInfos[i].size << ") invalid.");
+            return ACLSHMEM_INVALID_PARAM;
+        }
+
         if (options_.segType == HYBM_MST_HBM && desInfos[i].rankId != options_.rankId &&
             CanLocalHostReaches(desInfos[i].superPodId, desInfos[i].serverId, desInfos[i].logicDeviceId)) {
             auto ret = DlAclApi::AclrtDeviceEnablePeerAccess(desInfos[i].deviceId, 0);
@@ -290,7 +305,9 @@ Result HybmVmmBasedSegment::Import(const std::vector<std::string> &allExInfo, vo
                                                                        << " logic_device:" << logicDeviceId_
                                                                        << " remote_logic:" << desInfos[i].logicDeviceId);
         }
+        importMap.emplace(desInfos[i].rankId, desInfos[i]);
     }
+    importMap_ = std::move(importMap);
 
     try {
         std::copy(desInfos.begin(), desInfos.end(), std::back_inserter(imports_));
@@ -369,13 +386,12 @@ Result HybmVmmBasedSegment::RemoveImported(const std::vector<uint32_t> &ranks) n
             return ACLSHMEM_INVALID_PARAM;
         }
     }
-
+    size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
     for (auto &rank : ranks) {
-        size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         uint64_t addr = reinterpret_cast<uint64_t>(globalVirtualAddress_) + reserveAlignedSize * rank;
         auto it = mappedMem_.lower_bound(addr);
         auto st = it;
-        while (it != mappedMem_.end() && (*it).first < addr + options_.size) {
+        while (it != mappedMem_.end() && (*it).first < addr + reserveAlignedSize) {
             DlHalApi::HalMemUnmap(reinterpret_cast<void *>((*it).first));
             DlHalApi::HalMemRelease((*it).second);
             it++;
@@ -417,14 +433,29 @@ bool HybmVmmBasedSegment::MemoryInRange(const void *begin, uint64_t size) const 
     return true;
 }
 
+bool HybmVmmBasedSegment::CanMapRemote(const MemExportInfo &rmi) noexcept
+{
+    return IsSdmaAccessible(rmi.superPodId, rmi.serverId, rmi.logicDeviceId);
+}
+
+void HybmVmmBasedSegment::GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept
+{
+    sdId = sdid_;
+    serverId = serverId_;
+    superPodId = superPodId_;
+}
+
 bool HybmVmmBasedSegment::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept
 {
-    if (!MemoryInRange(addr, size)) {
-        rankId = options_.rankId;
+    return true;
+}
+
+bool HybmVmmBasedSegment::CheckSdmaReaches(uint32_t remoteRankId) const noexcept
+{
+    auto pos = importMap_.find(static_cast<uint16_t>(remoteRankId));
+    if (pos == importMap_.end()) {
         return false;
-    } else {
-        uint64_t offset = static_cast<const uint8_t *>(addr) - static_cast<const uint8_t *>(globalVirtualAddress_);
-        rankId = offset / options_.size;
-        return true;
     }
+
+    return IsSdmaAccessible(pos->second.superPodId, pos->second.serverId, pos->second.logicDeviceId);
 }
