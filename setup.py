@@ -58,6 +58,7 @@ class BuildCppLibs(build_py):
             f"-DUSE_CXX11_ABI={use_cxx11_abi}",
             "-DCMAKE_INSTALL_PREFIX=../install",
             f"-DUSE_MSSANITIZER={use_mssanitizer}",
+            "-DCMAKE_SKIP_RPATH=TRUE",
         ]
 
         if compile_options_str.strip():

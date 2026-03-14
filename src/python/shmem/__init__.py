@@ -17,6 +17,28 @@ import ctypes
 import logging
 import torch
 import torch_npu
+
+current_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_path)
+sys.path.append(current_dir)
+libs_path = current_dir
+
+# List of required .so files (add new dependencies here)
+required_so_files = [
+    "libshmem_utils.so",
+    "aclshmem_bootstrap_config_store.so",
+    "libshmem.so", 
+]
+
+for lib in required_so_files:
+    lib_path = os.path.join(libs_path, lib)
+    try:
+        ctypes.CDLL(lib_path)
+    except FileNotFoundError:
+        raise RuntimeError(f"Shared library file not found: {lib_path}")
+    except OSError as e:
+        raise RuntimeError(f"Failed to load shared library {lib_path}: {e}")
+
 from . import core
 from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
 from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_using_unique_id, \
