@@ -90,6 +90,8 @@ static inline int32_t init_meta_memory_for_modern(void** globalMemoryBase, size_
         DlApi::CleanupLibrary();
         SHM_LOG_ERROR("HalMemMap failed: " << ret);
         DlHalApi::HalMemRelease(alloc_handle);
+        DlHalApi::HalMemAddressFree(reinterpret_cast<void *>(*globalMemoryBase));
+        alloc_handle = nullptr;
         return ACLSHMEM_DL_FUNC_FAILED;
     }
     return ACLSHMEM_SUCCESS;

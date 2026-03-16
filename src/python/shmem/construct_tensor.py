@@ -21,6 +21,12 @@ def calc_nbytes(shape, dtype: torch.dtype):
     return ele_num * torch.tensor([], dtype=dtype).element_size()
 
 def construct_tensor_from_ptr(data_ptr, shape, dtype, device, stride=None, storage_offset=None):
+    if not isinstance(data_ptr, int):
+        raise TypeError(f"data_ptr must be integer type, got {type(data_ptr)}")
+    if data_ptr <= 0:
+        raise ValueError(f"data_ptr must be positive, got {data_ptr}")
+    if not isinstance(dtype, torch.dtype):
+            raise TypeError(f"dtype must be torch.dtype type, got {type(dtype)}")
     if stride is None:
         if len(shape) == 0:
             stride = ()
@@ -28,6 +34,8 @@ def construct_tensor_from_ptr(data_ptr, shape, dtype, device, stride=None, stora
             stride_list = [1]
             for i in range(-1, -len(shape), -1):
                 dim = shape[i]
+                if dim < 0:
+                    raise ValueError(f"shape dim must be positive, got {dim}")
                 stride_list = [stride_list[0] * dim] + stride_list
             stride = tuple(stride_list)
 

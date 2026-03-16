@@ -135,6 +135,10 @@ static int config_store_bootstrap_allgather(const void *in, void *out, int len, 
 
 static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) {
     SHM_LOG_INFO("group_engine_bootstrap_barrier");
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap barrier: invalid arguments.");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
     int rank = handle->mype;
     int tag = 0;
     int nranks = handle->npes;

@@ -71,7 +71,8 @@ int DeviceQpManager::CreateServerSocket() noexcept
     listenInfo.port = (deviceAddress_.type == IpV4) ? deviceAddress_.ip.ipv4.sin_port
         : deviceAddress_.ip.ipv6.sin6_port;
     bool successListen = false;
-    while (listenInfo.port <= std::numeric_limits<uint16_t>::max()) {
+    uint16_t maxPort = std::numeric_limits<uint16_t>::max();
+    while (listenInfo.port <= maxPort) {
         auto ret = DlHccpApi::RaSocketListenStart(&listenInfo, 1);
         if (ret == 0) {
             if (deviceAddress_.type == IpV4) {
@@ -80,6 +81,9 @@ int DeviceQpManager::CreateServerSocket() noexcept
                 deviceAddress_.ip.ipv6.sin6_port = listenInfo.port;
             }
             successListen = true;
+            break;
+        }
+        if (listenInfo.port == maxPort) {
             break;
         }
         listenInfo.port++;

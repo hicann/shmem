@@ -74,8 +74,8 @@ def signal_wait(signal_var: Buffer, signal_val: int, signal_operation: Compariso
                       Must be a valid stream created via the ACL runtime.
     """
     if stream is None:
-        logger.error("put/get operations without an explicit stream are not supported.")
-        raise AclshmemInvalid("put/get operations without an explicit stream are not supported.")
+        logger.error("signal_wait operations without an explicit stream are not supported.")
+        raise AclshmemInvalid("signal_wait operations without an explicit stream are not supported.")
 
     _pyshmem.aclshmemx_signal_wait_until_on_stream(signal_var.addr, signal_operation, signal_val, stream)
 
