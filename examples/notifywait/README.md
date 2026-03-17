@@ -15,7 +15,7 @@ bash scripts/build.sh -package
 bash scripts/build.sh -examples
 ```
 
-3.在`shmem/examples/sdma`目录执行demo:
+3.在`shmem/examples/notifywait`目录执行demo:
 ```bash
 bash run.sh -pes ${PES} -type ${TYPES}
 ````

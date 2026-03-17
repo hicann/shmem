@@ -66,9 +66,6 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
         // allgather
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = data_length / comm_block_dim;
         uint64_t extra_bytes = data_length % comm_block_dim;
         uint64_t data_offset = 0;
@@ -121,9 +118,6 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
 
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = elem_size / comm_block_dim;
         uint64_t extra_size = elem_size % comm_block_dim;
         uint64_t data_offset = 0;

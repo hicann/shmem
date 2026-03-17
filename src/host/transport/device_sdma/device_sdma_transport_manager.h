@@ -14,6 +14,7 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <vector>
 
 #include "host_device/shmem_common_types.h"
 #include "transport_manager.h"
@@ -35,9 +36,10 @@ struct host_stream_info_t { // 与aicpu算子相同定义
 };
 
 struct sdma_op_res_info_t {
-    host_stream_info_t streams[ACLSHMEM_SDMA_MAX_CHAN];
+    uint64_t size;
+    uint64_t streams_addr;
     uint64_t workspace_addr;
-    uint8_t reserved[56]; // 对齐到64字节
+    uint8_t reserved[40]; // 对齐到64字节
 };
 
 class SdmaTransportManager : public TransportManager {
@@ -80,6 +82,7 @@ private:
 
     static sdma_op_res_info_t op_res_info_;
     static void *op_res_info_device_ptr_;
+    static std::vector<host_stream_info_t> streams_;
 };
 } // namespace device
 } // namespace transport

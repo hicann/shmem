@@ -61,6 +61,7 @@ struct stars_sdma_sqe_t {
     /**** 8 bytpes ****/
 
     uint32_t res3;
+    /* *******12 bytes********* */
 
     uint16_t res4;
     uint8_t kernel_credit;

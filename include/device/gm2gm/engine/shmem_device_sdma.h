@@ -28,8 +28,6 @@ ACLSHMEM_DEVICE void aclshmemx_set_sdma_config(uint64_t offset, uint32_t ub_size
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
  * PE to address on the local device.
- * WARNING: When using SDMA as the underlying transport method, the number of AIV cores invoked 
- * must not exceed 40 (ACLSHMEM_SDMA_MAX_CHAN).
  *
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
@@ -46,8 +44,6 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
  * PE to address on the local PE.
- * WARNING: When using SDMA as the underlying transport method, the number of AIV cores invoked 
- * must not exceed 40 (ACLSHMEM_SDMA_MAX_CHAN).
  *
  * @param dst               [in] AscendC::GlobalTensor on local device of the destination data.
  * @param src               [in] AscendC::GlobalTensor on Symmetric memory of the source data.
@@ -62,8 +58,6 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(AscendC::GlobalTensor<T> &dst, Ascen
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- * WARNING: When using SDMA as the underlying transport method, the number of AIV cores invoked 
- * must not exceed 40 (ACLSHMEM_SDMA_MAX_CHAN).
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
@@ -79,8 +73,6 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- * WARNING: When using SDMA as the underlying transport method, the number of AIV cores invoked 
- * must not exceed 40 (ACLSHMEM_SDMA_MAX_CHAN).
  *
  * @param dst               [in] AscendC::GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] AscendC::GlobalTensor on local device of the source data.

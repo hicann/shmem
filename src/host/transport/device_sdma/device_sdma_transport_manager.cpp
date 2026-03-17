@@ -31,6 +31,7 @@ namespace transport {
 namespace device {
 sdma_op_res_info_t SdmaTransportManager::op_res_info_ = {};
 void *SdmaTransportManager::op_res_info_device_ptr_ = nullptr;
+std::vector<host_stream_info_t> SdmaTransportManager::streams_;
 
 Result SdmaTransportManager::OpenDevice(const TransportOptions &options)
 {
@@ -41,8 +42,8 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions &options)
 
     dlerror(); // 清除历史错误
 
-    // 创建host测stream
-    ACLSHMEM_CHECK_RET(CreateStarsStreams(ACLSHMEM_SDMA_MAX_CHAN));
+    // 创建host测stream（910B/910_93按照最大AIV核数申请）
+    ACLSHMEM_CHECK_RET(CreateStarsStreams(ACLSHMEM_MAX_AIV_PER_NPU));
 
     // 申请AICPU和AIV的共享内存
     constexpr size_t workspace_size = 16 * 1024; // 16KB
@@ -64,19 +65,19 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions &options)
 }
 
 Result SdmaTransportManager::CreateNotifyIds(){
-    uint32_t notify_ids[ACLSHMEM_SDMA_MAX_CHAN] = {0};
+    uint32_t notify_ids[ACLSHMEM_MAX_AIV_PER_NPU] = {0};
 
     // 获取NotifyId存储区的起始地址 
     uint32_t* notify_id_base = reinterpret_cast<uint32_t*>(
         reinterpret_cast<uint8_t*>(g_state.sdma_workspace_addr) + ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET
     );
-    for (size_t i = 0; i < ACLSHMEM_SDMA_MAX_CHAN; i++) {
+    for (size_t i = 0; i < ACLSHMEM_MAX_AIV_PER_NPU; i++) {
         g_state_host.notify_arr[i] = nullptr;
         ACLSHMEM_CHECK_RET(aclrtCreateNotify(&g_state_host.notify_arr[i], 0));
         ACLSHMEM_CHECK_RET(aclrtGetNotifyId(g_state_host.notify_arr[i], &notify_ids[i]));
     }
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(notify_id_base, ACLSHMEM_SDMA_MAX_CHAN * sizeof(uint32_t), notify_ids, 
-                ACLSHMEM_SDMA_MAX_CHAN * sizeof(uint32_t), ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(notify_id_base, ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t), notify_ids, 
+        ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t), ACL_MEMCPY_HOST_TO_DEVICE));
 }
 
 Result SdmaTransportManager::CreateStarsStreams(int32_t channel_num)
@@ -89,12 +90,13 @@ Result SdmaTransportManager::CreateStarsStreams(int32_t channel_num)
     ACLSHMEM_CHECK_RET(DlAclApi::RtGetDeviceInfo(device_id, 0, info_type_phy_die_id, &die_id));
     SHM_LOG_DEBUG(mype_ << " get device_id: " << device_id << ", die_id: " << die_id);
 
+    streams_.resize(channel_num);
     for (int32_t i = 0; i < channel_num; i++) {
-        op_res_info_.streams[i].stream_ = 0;
+        streams_[i].stream_ = 0;
 
         void *stream = nullptr;
         ACLSHMEM_CHECK_RET(aclrtCreateStreamWithConfig(&stream, 0, ACL_STREAM_DEVICE_USE_ONLY));
-        op_res_info_.streams[i].stream_ = reinterpret_cast<uint64_t>(stream);
+        streams_[i].stream_ = reinterpret_cast<uint64_t>(stream);
 
         int32_t stream_id = 0;
         int ret = aclrtStreamGetId(stream, &stream_id);
@@ -125,15 +127,14 @@ Result SdmaTransportManager::CreateStarsStreams(int32_t channel_num)
             ACLSHMEM_CHECK_RET(aclrtDestroyStream(stream));
             return ACLSHMEM_INNER_ERROR;
         }
-        op_res_info_.streams[i].ctx_ = reinterpret_cast<uint64_t>(ctx);
-        op_res_info_.streams[i].stream_id = stream_id;
-        op_res_info_.streams[i].sq_id = sq_id;
-        op_res_info_.streams[i].cq_id = cq_id;
-        op_res_info_.streams[i].logic_cq_id = logic_cq_id;
-        op_res_info_.streams[i].dev_id = die_id;
-        SHM_LOG_DEBUG(mype_ << "create stream " << i << "," << op_res_info_.streams[i].stream_ << "," <<
-            op_res_info_.streams[i].dev_id << "," << stream_id << "," << sq_id << "," << cq_id << "," <<
-            logic_cq_id << "," << op_res_info_.streams[i].ctx_);
+        streams_[i].ctx_ = reinterpret_cast<uint64_t>(ctx);
+        streams_[i].stream_id = stream_id;
+        streams_[i].sq_id = sq_id;
+        streams_[i].cq_id = cq_id;
+        streams_[i].logic_cq_id = logic_cq_id;
+        streams_[i].dev_id = die_id;
+        SHM_LOG_DEBUG(mype_ << "create stream " << i << "," << streams_[i].stream_ << "," << streams_[i].dev_id <<
+            "," << stream_id << "," << sq_id << "," << cq_id << "," << logic_cq_id << "," << streams_[i].ctx_);
     }
     SHM_LOG_INFO(mype_ << " create " << channel_num << " stars streams success.");
     return ACLSHMEM_SUCCESS;
@@ -151,11 +152,22 @@ Result SdmaTransportManager::MallocSdmaWorkspace(size_t workspace_size)
 
 Result SdmaTransportManager::CopyHostOpResToDevice()
 {
+    void *streams_device_ptr = nullptr;
+    size_t streams_size = streams_.size() * sizeof(host_stream_info_t);
+    ACLSHMEM_CHECK_RET(aclrtMalloc(&streams_device_ptr, streams_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(streams_device_ptr, streams_size, streams_.data(), streams_size,
+        ACL_MEMCPY_HOST_TO_DEVICE));
+
+    op_res_info_.size = streams_.size();
+    op_res_info_.streams_addr = reinterpret_cast<uint64_t>(streams_device_ptr);
     op_res_info_.workspace_addr = g_state.sdma_workspace_addr;
-    size_t size = sizeof(op_res_info_);
-    ACLSHMEM_CHECK_RET(aclrtMalloc(&op_res_info_device_ptr_, size, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACLSHMEM_CHECK_RET(aclrtMemset(op_res_info_device_ptr_, size, 0, size));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(op_res_info_device_ptr_, size, &op_res_info_, size, ACL_MEMCPY_HOST_TO_DEVICE));
+
+    size_t op_res_size = sizeof(op_res_info_);
+    ACLSHMEM_CHECK_RET(aclrtMalloc(&op_res_info_device_ptr_, op_res_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMemset(op_res_info_device_ptr_, op_res_size, 0, op_res_size));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(op_res_info_device_ptr_, op_res_size, &op_res_info_, op_res_size,
+        ACL_MEMCPY_HOST_TO_DEVICE));
+
     SHM_LOG_INFO(mype_ << " copy op res to device success.");
     return ACLSHMEM_SUCCESS;
 }
@@ -241,6 +253,10 @@ Result SdmaTransportManager::CloseDevice()
         SHM_LOG_WARN(mype_ << " sdma not initialized");
         return ACLSHMEM_SUCCESS;
     }
+    if (op_res_info_.streams_addr) {
+        (void)aclrtFree(reinterpret_cast<void *>(op_res_info_.streams_addr));
+        op_res_info_.streams_addr = 0;
+    }
     if (op_res_info_device_ptr_) {
         (void)aclrtFree(op_res_info_device_ptr_);
         op_res_info_device_ptr_ = nullptr;
@@ -248,14 +264,17 @@ Result SdmaTransportManager::CloseDevice()
     if (op_res_info_.workspace_addr) {
         (void)aclrtFree(reinterpret_cast<void *>(op_res_info_.workspace_addr));
     }
-    for (size_t i = 0; i < ACLSHMEM_SDMA_MAX_CHAN; i++) {
-        if (op_res_info_.streams[i].stream_) {
-            (void)aclrtDestroyStream(reinterpret_cast<void *>(op_res_info_.streams[i].stream_));
+    for (auto &stream : streams_) {
+        if (stream.stream_) {
+            (void)aclrtDestroyStream(reinterpret_cast<void *>(stream.stream_));
         }
+    }
+    for (size_t i = 0; i < ACLSHMEM_MAX_AIV_PER_NPU; i++) {
         if(g_state_host.notify_arr[i]){
             (void)aclrtDestroyNotify(g_state_host.notify_arr[i]);
         }
     }
+    streams_.clear();
     op_res_info_ = {};
     inited_ = false;
     SHM_LOG_INFO(mype_ << " sdma transport finalize.");

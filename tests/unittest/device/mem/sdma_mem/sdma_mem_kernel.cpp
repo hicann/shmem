@@ -29,9 +29,6 @@ extern "C" __global__ __aicore__ void SDMAPutTest(GM_ADDR gva, uint64_t config)
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = data_length / comm_block_dim;
         uint64_t extra_bytes = data_length % comm_block_dim;
         uint64_t data_offset = 0;
@@ -79,9 +76,6 @@ extern "C" __global__ __aicore__ void SDMAGetTest(GM_ADDR gva, uint64_t config)
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = data_length / comm_block_dim;
         uint64_t extra_bytes = data_length % comm_block_dim;
         uint64_t data_offset = 0;
@@ -132,9 +126,6 @@ extern "C" __global__ __aicore__ void SDMAPutTestTensor(GM_ADDR gva, uint64_t co
         constexpr uint64_t elem_size = MESSAGE_SIZE;
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = elem_size / comm_block_dim;
         uint64_t extra_size = elem_size % comm_block_dim;
         uint64_t data_offset = 0;
@@ -189,9 +180,6 @@ extern "C" __global__ __aicore__ void SDMAGetTestTensor(GM_ADDR gva, uint64_t co
         constexpr uint64_t elem_size = MESSAGE_SIZE;
         const auto cur_block_idx = AscendC::GetBlockIdx();
         const auto comm_block_dim = AscendC::GetBlockNum() * AscendC::GetSubBlockNum();
-        if (cur_block_idx >= ACLSHMEM_SDMA_MAX_CHAN) {
-            return;
-        }
         uint64_t base_per_core = elem_size / comm_block_dim;
         uint64_t extra_size = elem_size % comm_block_dim;
         uint64_t data_offset = 0;

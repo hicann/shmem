@@ -181,10 +181,6 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 /// \brief ACLSHMEM memory page size (2MB), complying with system memory paging specifications
 #define ACLSHMEM_PAGE_SIZE (1024UL * 1024UL * 2)
 
-/// \def ACLSHMEM_SDMA_MAX_CHAN
-/// \brief Max number of SDMA channels
-#define ACLSHMEM_SDMA_MAX_CHAN 40
-
 /// \def ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET
 /// \brief notify_addr offset (14KB)
 #define ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET (14 * 1024)
@@ -426,7 +422,7 @@ typedef struct {
     void *default_stream;       ///< Default ACL runtime stream (aclrtStream type) on the host, used for asynchronous task scheduling
     int8_t default_event_id;    ///< Default event ID on the host, used for stream synchronization
     uint32_t default_block_num; ///< Default block count on the host, used for memory/task block management
-    aclrtNotify notify_arr[ACLSHMEM_SDMA_MAX_CHAN];
+    aclrtNotify notify_arr[ACLSHMEM_MAX_AIV_PER_NPU];
 } aclshmem_host_state_t;
 
 /**@} */ // end of group_structs
