@@ -24,7 +24,7 @@ python3 scripts/golden.py $PE_SIZE
 
 # Start Process
 export SHMEM_UID_SESSION_ID=127.0.0.1:8899
-export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${PE_SIZE}; idx = idx + 1 )); do
     APP="$EXEC_BIN $PE_SIZE $idx $IPPORT"
     ${APP}&
