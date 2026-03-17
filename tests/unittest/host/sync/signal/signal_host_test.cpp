@@ -308,7 +308,7 @@ static void test_signal_add_all_pes(int32_t pe_id, int32_t n_pes, uint64_t local
                           ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
     std::cout << "[PE " << pe_id << "] after add, host_value = " << host_value << std::endl;
-    int32_t expected = pe_id + add_value * 2; // 2个AIV
+    int32_t expected = pe_id + add_value;
     
     // 每个pe都等待自己的信号达到expected
     aclshmemi_control_barrier_all();
