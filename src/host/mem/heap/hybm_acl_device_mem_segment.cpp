@@ -99,9 +99,9 @@ Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlic
     aclrtPhysicalMemProp prop;
     prop.handleType = ACL_MEM_HANDLE_TYPE_NONE;
     prop.allocationType = ACL_MEM_ALLOCATION_TYPE_PINNED;
-    prop.memAttr = ACL_HBM_MEM_HUGE;
-    prop.location.id = (options_.segType == HYBM_MST_DRAM) ? 0 : deviceId_;
-    prop.location.type = (options_.segType == HYBM_MST_DRAM) ? ACL_MEM_LOCATION_TYPE_HOST : ACL_MEM_LOCATION_TYPE_DEVICE;
+    prop.memAttr = (options_.segType == HYBM_MST_DRAM) ? ACL_DDR_MEM_P2P_HUGE : ACL_HBM_MEM_HUGE;
+    prop.location.id = (options_.segType == HYBM_MST_DRAM) ? -1 : deviceId_;
+    prop.location.type = (options_.segType == HYBM_MST_DRAM) ? ACL_MEM_LOCATION_TYPE_HOST_NUMA : ACL_MEM_LOCATION_TYPE_DEVICE;
     prop.reserve = 0;
     auto ret = aclrtMallocPhysical(&local_handle_, size, &prop, 0);
     if (ret != ACLSHMEM_SUCCESS) {
@@ -182,7 +182,7 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     }
 
     HbmExportInfo info{};
-    auto handle_type = (options_.segType == HYBM_MST_DRAM) ? ACL_MEM_SHARE_HANDLE_TYPE_FABRIC : ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT;
+    auto handle_type = ACL_MEM_SHARE_HANDLE_TYPE_FABRIC;
     auto ret = aclrtMemExportToShareableHandleV2(local_handle_, 1, handle_type, &info.shareHandle);
     if (ret != 0) {
         SHM_LOG_ERROR("aclrtMemExportToShareableHandleV2 failed, ret: " << ret);
@@ -270,7 +270,7 @@ Result MemSegmentDevice::Mmap() noexcept
         SHM_LOG_DEBUG("remote slice on rank(" << im.rankId << ") should map to: " << (void *)remoteAddress
                                              << ", size = " << im.size);
         aclrtDrvMemHandle imported_handle;
-        auto handle_type = (options_.segType == HYBM_MST_DRAM) ? ACL_MEM_SHARE_HANDLE_TYPE_FABRIC : ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT;
+        auto handle_type = ACL_MEM_SHARE_HANDLE_TYPE_FABRIC;
         ACLSHMEM_CHECK_RET(aclrtMemImportFromShareableHandleV2(&im.shareHandle, handle_type, 0, &imported_handle),
             "aclrtMemImportFromShareableHandleV2 failed", ACLSHMEM_SMEM_ERROR);
         auto ret = aclrtMapMem(reinterpret_cast<void *>(remoteAddress), im.size, 0, imported_handle, 0);
