@@ -305,7 +305,7 @@ int main(int argc, char **argv)
             aDevice, bDevice, cDevice, gmSymmetric,
             m, n, k, deviceDump);
         ACL_CHECK(aclrtSynchronizeStream(stream));
-        Adx::AdumpPrintWorkSpace(deviceDump, ALL_DUMPSIZE, stream, "test");
+        Adx::AdumpPrintWorkSpace(deviceDump, ALL_DUMPSIZE, stream, "AllGatherMatmul");
 #else
         ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
             fftsAddr,
@@ -349,10 +349,21 @@ namespace ShmemKernel {
 
 void aclshmem_allgather_matmul(uint32_t block_dim, void *stream, uint64_t fftsAddr, void *aDevice, void *bDevice, void *cDevice, void *gmSymmetric, uint32_t m, uint32_t n, uint32_t k)
 {
-    ShmemAllGatherMatmul<<<block_dim, nullptr, stream>>>(
+#if defined(ENABLE_ASCENDC_DUMP)
+        uint8_t *deviceDump{nullptr};
+        ACL_CHECK(aclrtMalloc(reinterpret_cast<void **>(&deviceDump), ALL_DUMPSIZE, ACL_MEM_MALLOC_HUGE_FIRST));
+        ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
+            fftsAddr,
+            (uint8_t *)aDevice, (uint8_t *)bDevice, (uint8_t *)cDevice, (uint8_t *)gmSymmetric,
+            m, n, k, deviceDump);
+        ACL_CHECK(aclrtSynchronizeStream(stream));
+        Adx::AdumpPrintWorkSpace(deviceDump, ALL_DUMPSIZE, stream, "AllGatherMatmul");
+#else
+        ShmemAllGatherMatmul<<<block_dim, nullptr, stream>>>(
             fftsAddr,
             (uint8_t *)aDevice, (uint8_t *)bDevice, (uint8_t *)cDevice, (uint8_t *)gmSymmetric,
             m, n, k);
+#endif
 }
 
 }
