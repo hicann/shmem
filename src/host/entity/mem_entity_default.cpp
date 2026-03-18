@@ -809,7 +809,7 @@ hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) c
     if (sdmaReach) {
         supportDataOp |= HYBM_DOP_TYPE_MTE;
     }
-    if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) != 0) {
+    if (sdmaReach && ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) != 0)) {
         supportDataOp |= HYBM_DOP_TYPE_DEVICE_SDMA;
     }
     if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
