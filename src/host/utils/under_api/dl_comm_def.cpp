@@ -14,6 +14,8 @@
 #include "dl_comm_def.h"
 #include "utils/shmemi_logger.h"
 
+const std::string DRIVER_VER_V5_BEGIN = "V100R001C10B600";
+const std::string DRIVER_VER_V5_END = "V100R001C10B999";
 const std::string DRIVER_VER_V4 = "V100R001C23SPC005B219";
 const std::string DRIVER_VER_V3 = "V100R001C21B035";
 const std::string DRIVER_VER_V2 = "V100R001C19SPC109B220";
@@ -192,6 +194,11 @@ static bool DriverVersionCheck(const std::string &ver)
 
 int32_t HalGvaPrecheck(void)
 {
+    if (!DriverVersionCheck(DRIVER_VER_V5_END) && DriverVersionCheck(DRIVER_VER_V5_BEGIN)) {
+        SHM_LOG_INFO("Driver version V5 found, compatible with V4");
+        checkVer = HYBM_GVA_V4;
+        return ACLSHMEM_SUCCESS;
+    }
     if (DriverVersionCheck(DRIVER_VER_V4)) {
         SHM_LOG_INFO("Driver version V4 found");
         checkVer = HYBM_GVA_V4;
@@ -213,14 +220,6 @@ int32_t HalGvaPrecheck(void)
         return ACLSHMEM_SUCCESS;
     }
 
-    // 临时check,判断version在区间内
-    std::string verStartA5 = "V100R001C10B600";
-    std::string verEndA5   = "V100R001C10B999";
-    if (!DriverVersionCheck(verEndA5) && DriverVersionCheck(verStartA5)) {
-        SHM_LOG_ERROR("Env is A5, Driver version V4 found");
-        checkVer = HYBM_GVA_V4;
-        return ACLSHMEM_SUCCESS;
-    }
     SHM_LOG_ERROR("Failed to determine driver version");
     return ACLSHMEM_INNER_ERROR;
 }
