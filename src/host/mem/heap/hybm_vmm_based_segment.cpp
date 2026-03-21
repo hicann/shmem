@@ -339,6 +339,11 @@ Result HybmVmmBasedSegment::Mmap() noexcept
             continue;
         }
 
+        if (!CanMapRemote(im)) {
+            SHM_LOG_INFO("remote slice on rank(" << im.rankId << ") SDMA cannot reaches.");
+            continue;
+        }
+
         SHM_LOG_DEBUG("remote slice on rank(" << im.rankId << ") should map to: " << (void *)remoteAddress
                                              << ", size = " << im.size);
         drv_mem_handle_t *handle = nullptr;

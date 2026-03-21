@@ -50,7 +50,7 @@ MemSegmentPtr MemSegment::Create(const MemSegmentOptions &options, int entityId)
             break;
 #else
         case HYBM_MST_HBM:
-            if (socType_ == AscendSocType::ASCEND_950 || (socType_ == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+            if (socType_ == AscendSocType::ASCEND_950 || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
                 tmpSeg = std::make_shared<HybmVmmBasedSegment>(options, entityId);
             } else {
                 tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);

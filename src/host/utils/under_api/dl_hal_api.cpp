@@ -136,7 +136,7 @@ Result DlHalApi::LoadLibrary(AscendSocType socType)
 
     SHM_ASSERT_RETURN(HybmGetGvaVersion() != HYBM_GVA_UNKNOWN, ACLSHMEM_NOT_INITED);
     Result ret = 0;
-    if ((socType == AscendSocType::ASCEND_950) || (socType == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+    if ((socType == AscendSocType::ASCEND_950) || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
         ret = DlHalApi::loadModernLibrary(socType);
     } else {
         ret = DlHalApi::LoadLegacyLibrary();

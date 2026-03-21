@@ -14,8 +14,8 @@
 #include "dl_comm_def.h"
 #include "utils/shmemi_logger.h"
 
-const std::string DRIVER_VER_V5_BEGIN = "V100R001C10B600";
-const std::string DRIVER_VER_V5_END = "V100R001C10B999";
+const std::string DRIVER_VER_V5_BEGIN = "V100R001C10SPC001B208";
+const std::string DRIVER_VER_V5_END = "V100R001C11B999";
 const std::string DRIVER_VER_V4 = "V100R001C23SPC005B219";
 const std::string DRIVER_VER_V3 = "V100R001C21B035";
 const std::string DRIVER_VER_V2 = "V100R001C19SPC109B220";

@@ -138,7 +138,7 @@ HYBM_API int32_t hybm_init(int32_t deviceId, uint64_t flags)
     void *globalMemoryBase = nullptr;
     size_t allocSize = HYBM_DEVICE_INFO_SIZE;  // 申请meta空间
     soc_type = DlApi::GetAscendSocType();
-    if ((soc_type == AscendSocType::ASCEND_950) || (soc_type == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+    if ((soc_type == AscendSocType::ASCEND_950) || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
         ret = init_meta_memory_for_modern(&globalMemoryBase, allocSize);
     } else {
         ret = init_meta_memory_for_legacy(&globalMemoryBase, allocSize, flags);
@@ -162,7 +162,7 @@ HYBM_API void hybm_uninit(void)
         return;
     }
     int ret = 0;
-    if ((soc_type == AscendSocType::ASCEND_950) || (soc_type == AscendSocType::ASCEND_910C && HybmGetGvaVersion() == HYBM_GVA_V4)) {
+    if ((soc_type == AscendSocType::ASCEND_950) || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
         if (g_baseAddr != 0ULL) {
             ret = DlHalApi::HalMemUnmap(reinterpret_cast<void *>(HYBM_DEVICE_META_ADDR));
             SHM_LOG_INFO("unmap meta info res: " << ret);
