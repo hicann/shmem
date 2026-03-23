@@ -55,7 +55,6 @@ uint64_t local_mem_size = 1024UL * 1024UL * 1024;
 const char* test_global_ipport = "tcp://127.0.0.1:8666";
 status = aclrtSetDevice(device_id);
 
-aclshmemx_init_attr_t attributes;
 aclshmemx_init_attr_t* attributes = new aclshmemx_init_attr_t{rank_id, n_ranks, test_global_ipport, local_mem_size, {0, ACLSHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
 aclshmemx_init_attr(attributes);
 delete attributes;
