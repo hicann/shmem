@@ -529,6 +529,8 @@ ACLSHMEM_HOST_API void aclshmem_getmem_nbi(void* dst, void* src, size_t elem_siz
     * @param elem_size         [in] Number of elements in the dest and source arrays.
     * @param pe                [in] PE number of the remote PE.
     * @param stream            [in] copy used stream(use default stream if stream == NULL).
+    *
+    * @note Cross-machine support: Supports cross-machine. Uses MTE when HCCS is connected, otherwise uses RDMA if available.
  */
 ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t elem_size,
                                             int32_t pe, aclrtStream stream);
@@ -542,6 +544,8 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t e
     * @param elem_size         [in] Number of elements in the dest and source arrays.
     * @param pe                [in] PE number of the remote PE.
     * @param stream            [in] copy used stream(use default stream if stream == NULL).
+    *
+    * @note Cross-machine support: Supports cross-machine. Uses MTE when HCCS is connected, otherwise uses RDMA if available.
  */
 ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t elem_size,
                                             int32_t pe, aclrtStream stream);

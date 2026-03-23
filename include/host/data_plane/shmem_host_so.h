@@ -198,6 +198,10 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem
  *                                   ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD.
  * @param pe                    [in] The PE number on which the remote signal variable is to be updated.
  * @param stream                [in] Used stream(use default stream if stream == NULL).
+ *
+ * @note Cross-machine support:
+ *       - ACLSHMEM_SIGNAL_SET: Supports RDMA cross-machine.
+ *       - ACLSHMEM_SIGNAL_ADD: Does not support RDMA cross-machine. Supports MTE cross-machine when HCCS is available.
  */
 ACLSHMEM_HOST_API void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream);
 #define shmem_signal_op_on_stream aclshmemx_signal_op_on_stream
