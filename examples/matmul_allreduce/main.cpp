@@ -305,7 +305,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "After calling MM_AR kernel " << std::endl;
 
-    aclshmemx_show_prof();
+    aclshmemx_show_prof(nullptr, true);
 
     if (pe_id == 0) {
         ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));

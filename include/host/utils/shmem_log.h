@@ -12,6 +12,8 @@
 #ifndef SHMEM_HOST_LOG_H
 #define SHMEM_HOST_LOG_H
 
+#include "host_device/shmem_common_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,11 +36,13 @@ ACLSHMEM_HOST_API int32_t aclshmemx_set_extern_logger(void (*func)(int level, co
 ACLSHMEM_HOST_API int32_t aclshmemx_set_log_level(int level);
 #define shmem_set_log_level aclshmemx_set_log_level
 
-
 /**
- * @brief Prinf profiling data.
+ * @brief Show profiling data and optionally return profiling pointer.
+ *
+ * @param out_profs [out] Pointer to output profiling data. Can be nullptr if you don't need the pointer.
+ * @param verbose [in] Whether to print profiling data to console. Default is true.
  */
-ACLSHMEM_HOST_API void aclshmemx_show_prof();
+ACLSHMEM_HOST_API void aclshmemx_show_prof(aclshmem_prof_pe_t **out_profs, bool verbose);
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <iostream>
+#include <string>
 #include "acl/acl.h"
 #include "utils/shmemi_logger.h"
 #include "host/shmem_host_def.h"
@@ -66,19 +67,40 @@ int32_t prof_util_init(aclshmem_prof_pe_t *host_profs, aclshmem_device_host_stat
     return ACLSHMEM_SUCCESS;
 }
 
-void prof_data_print(aclshmem_prof_pe_t *host_profs, aclshmem_device_host_state_t *global_state)
+void prof_data_print(aclshmem_prof_pe_t *host_profs, aclshmem_device_host_state_t *global_state, 
+                     aclshmem_prof_pe_t **out_profs, bool verbose)
 {
     if (host_profs->pe_id != global_state->mype) {
         SHM_LOG_INFO("not collect profoling data on this rank, skip print.");
         return;
     }
+    
+    if (out_profs != nullptr) {
+        *out_profs = host_profs;
+    }
+    
     auto copySize = sizeof(aclshmem_prof_pe_t);
     auto ret = aclrtMemcpy(host_profs, copySize, global_state->profs, copySize, ACL_MEMCPY_DEVICE_TO_HOST);
+
     if (ret != 0) {
         std::cout << "copy device profs to host failed " << ret << std::endl;
         return;
     }
-    const int64_t cycle2us = 50;
+
+
+    if (!verbose) {
+        return;
+    }
+    const char *soc_name = aclrtGetSocName();
+    int64_t cycle2us = 50;
+    std::string soc_str;
+    if (soc_name != nullptr) {
+        soc_str = std::string(soc_name);
+        if (soc_str.find("Ascend950") != std::string::npos) {
+            cycle2us = 1000;
+        }
+    }
+    SHM_LOG_INFO("SocName: " << soc_str << ", cycle2us: " << cycle2us);
     const int width_1 = 10;
     const int width_2 = 15;
     std::cout << std::fixed << std::setprecision(3);

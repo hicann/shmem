@@ -158,6 +158,7 @@ foreach(EXAMPLE
     sdma
     notifywait
     cmo
+    mte_perftest
 )
     add_subdirectory(${EXAMPLE})
 endforeach()

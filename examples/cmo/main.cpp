@@ -292,19 +292,7 @@ int copy_test(aclrtStream stream,
     return 0;
 }
 
-std::string intToString(int value) {
-    std::ostringstream oss;
-    oss << value;
-    return oss.str();
-}
-
-std::string floatToString(float value) {
-    std::ostringstream oss;
-    oss << value;
-    return oss.str();
-}
-
-std::string formatSize(int size) {
+std::string format_size(int size) {
     if (size < 1024) {
         return std::to_string(size) + "B";
     } else if (size < 1024 * 1024) {
@@ -319,24 +307,6 @@ std::string formatSize(int size) {
         oss << mb_int << "MB";
         return oss.str();
     }
-}
-
-void writeCSV(const std::string& filename, const std::vector<std::vector<std::string>>& data) {
-    std::ofstream outFile(filename);
-    if (!outFile.is_open()) {
-        std::cerr << "Error: Unable to open file " << filename << std::endl;
-        return;
-    }
-    for (const auto& row : data) {
-        for (size_t i = 0; i < row.size(); ++i) {
-            outFile << row[i];
-            if (i < row.size() - 1) {
-                outFile << ",";
-            }
-        }
-        outFile << "\n";
-    }
-    outFile.close();
 }
 
 template <class T>
@@ -382,7 +352,7 @@ int test_copy_perf(int my_pe, int n_pes)
             size_t cache_gm_size = aiv_num * copy_block_size;
             
             res_csv_t res_csv = {};
-            std::vector<std::string> sub_data = {intToString(loop_times), formatSize(copy_size_per_loop), intToString(n_blocks), formatSize(copypad_size)};
+            std::vector<std::string> sub_data = {int_to_string(loop_times), format_size(copy_size_per_loop), int_to_string(n_blocks), format_size(copypad_size)};
 
             res_t res = {};
             // cmo warmup
@@ -394,8 +364,8 @@ int test_copy_perf(int my_pe, int n_pes)
                 res_csv.no_prefetch_bands.push_back(res.total_band);
                 res_csv.no_prefetch_us.push_back(res.avg_copy_us);
             }
-            sub_data.push_back(floatToString(percentile(res_csv.no_prefetch_us, 50.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.no_prefetch_bands, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.no_prefetch_us, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.no_prefetch_bands, 50.0f)));
 
             // host prefetch
             for (uint32_t loop_i = 0; loop_i < loop_times; loop_i++) {
@@ -403,8 +373,8 @@ int test_copy_perf(int my_pe, int n_pes)
                 res_csv.host_prefetch_bands.push_back(res.total_band);
                 res_csv.host_prefetch_us.push_back(res.avg_copy_us);
             }
-            sub_data.push_back(floatToString(percentile(res_csv.host_prefetch_us, 50.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.host_prefetch_bands, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.host_prefetch_us, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.host_prefetch_bands, 50.0f)));
 
             // device block prefetch
             for (uint32_t loop_i = 0; loop_i < loop_times; loop_i++) {
@@ -412,14 +382,14 @@ int test_copy_perf(int my_pe, int n_pes)
                 res_csv.device_block_prefetch_bands.push_back(res.total_band);
                 res_csv.device_block_prefetch_us.push_back(res.avg_copy_us);
             }
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_us, 50.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_bands, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_us, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_bands, 50.0f)));
 
             csv_data.push_back(sub_data);
         }
     }
     std::filesystem::create_directories("output");
-    writeCSV("output/"+intToString(my_pe)+"_band.csv", csv_data);
+    write_csv("output/"+int_to_string(my_pe)+"_band.csv", csv_data);
 
     std::vector<std::vector<std::string>> csv_data_2 = {
         {"loop_times", "blocks", "cmo_size", 
@@ -441,7 +411,7 @@ int test_copy_perf(int my_pe, int n_pes)
             uint32_t copypad_times = cmo_size / copypad_size;
     
             res_csv_t res_csv = {};
-            std::vector<std::string> sub_data = {intToString(loop_times), intToString(n_blocks), formatSize(cmo_size)};
+            std::vector<std::string> sub_data = {int_to_string(loop_times), int_to_string(n_blocks), format_size(cmo_size)};
 
             res_t res = {};
             // cmo warmup
@@ -453,18 +423,18 @@ int test_copy_perf(int my_pe, int n_pes)
                 res_csv.device_block_prefetch_cmo_us.push_back(res.avg_cmo_send_us);
                 res_csv.device_block_prefetch_cmo_flag_us.push_back(res.avg_cmo_flag_us);
             }
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_us, 5.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_us, 50.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_us, 95.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_flag_us, 5.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_flag_us, 50.0f)));
-            sub_data.push_back(floatToString(percentile(res_csv.device_block_prefetch_cmo_flag_us, 95.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 5.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 95.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 5.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 50.0f)));
+            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 95.0f)));
 
             csv_data_2.push_back(sub_data);
         }
     }
 
-    writeCSV("output/"+intToString(my_pe)+"_cmo.csv", csv_data_2);
+    write_csv("output/"+int_to_string(my_pe)+"_cmo.csv", csv_data_2);
     std::cout << "PE " << my_pe << " Finised !" << std::endl;
 
     CHECK_RET(aclrtDestroyStream(stream));

@@ -330,11 +330,11 @@ typedef struct {
 
 /// \def ACLSHMEM_CYCLE_PROF_MAX_BLOCK
 /// \brief cycle profling max block nums
-#define ACLSHMEM_CYCLE_PROF_MAX_BLOCK 32
+#define ACLSHMEM_CYCLE_PROF_MAX_BLOCK 64
 
 /// \def ACLSHMEM_CYCLE_PROF_FRAME_CNT
 /// \brief cycle profling frame count
-#define ACLSHMEM_CYCLE_PROF_FRAME_CNT 32
+#define ACLSHMEM_CYCLE_PROF_FRAME_CNT 1024
 
 /**
  * @struct aclshmem_prof_block_t
