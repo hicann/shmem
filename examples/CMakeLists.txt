@@ -153,6 +153,7 @@ foreach(EXAMPLE
     matmul_allreduce
     matmul_reduce_scatter
     matmul_reduce_scatter_padding
+    multi_instance
     dynamic_tiling
     rma_d2h_demo
     sdma

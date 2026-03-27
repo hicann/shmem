@@ -13,8 +13,7 @@
 #include <cmath>
 #include <vector>
 
-#include "utils/shmemi_logger.h"
-#include "utils/shmemi_host_types.h"
+#include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 #include "runtime/mem.h"
 

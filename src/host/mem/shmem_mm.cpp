@@ -12,11 +12,6 @@
 #include "shmemi_host_common.h"
 #include "shmemi_mm.h"
 
-namespace {
-std::shared_ptr<memory_manager> aclshmemi_memory_manager;
-std::shared_ptr<memory_manager> aclshmemi_host_memory_manager = nullptr;
-}
-
 int32_t memory_manager_initialize(void *base, uint64_t size, aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {

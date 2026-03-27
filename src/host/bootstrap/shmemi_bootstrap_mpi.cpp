@@ -51,7 +51,7 @@ static int aclshmemi_bootstrap_mpi_alltoall(const void *sendbuf, void *recvbuf, 
     return status;
 }
 
-static void aclshmemi_bootstrap_mpi_global_exit(int status) {
+static void aclshmemi_bootstrap_mpi_global_exit(int status, aclshmemi_bootstrap_handle_t *handle) {
     int rc = MPI_SUCCESS;
 
     rc = MPI_Abort(aclshmemi_bootstrap_mpi_state.comm, status);

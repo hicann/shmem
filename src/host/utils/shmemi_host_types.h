@@ -31,7 +31,7 @@ typedef struct aclshmemi_bootstrap_init_ops {
 
 typedef struct aclshmemi_bootstrap_handle {
     void        *bootstrap_state;
-    aclshmemi_bootstrap_init_ops_t *pre_init_ops;
+    aclshmemi_bootstrap_init_ops_t *pre_init_ops = nullptr;
     const char  *tls_info = nullptr;
     const char  *tls_pk;
     const char  *tls_pk_pw;
@@ -40,7 +40,7 @@ typedef struct aclshmemi_bootstrap_handle {
     int (*allgather)(const void *sendbuf, void *recvbuf, int size, aclshmemi_bootstrap_handle *boot_handle);
     int (*barrier)(aclshmemi_bootstrap_handle *boot_handle);
     int (*alltoall)(const void *sendbuf, void *recvbuf, int size, aclshmemi_bootstrap_handle *boot_handle);
-    void (*global_exit)(int status);
+    void (*global_exit)(int status, aclshmemi_bootstrap_handle *boot_handle);
     aclshmem_decrypt_handler decrypt_handler;
 
     int32_t     mype;
@@ -121,5 +121,4 @@ typedef struct {
     int32_t num_choosen_transport;
 } aclshmemi_host_trans_state_t;
 
-extern aclshmemi_bootstrap_handle_t g_boot_handle;
 #endif // ACLSHMEMI_HOST_TYPES_H

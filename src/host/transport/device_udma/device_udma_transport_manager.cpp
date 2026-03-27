@@ -12,8 +12,7 @@
 #include "dl_acl_api.h"
 #include "dl_hccp_v2_api.h"
 #include "mem_entity_def.h"
-#include "shmemi_logger.h"
-#include "utils/shmemi_host_types.h"
+#include "shmemi_host_common.h"
 #include "device_udma_transport_manager.h"
 
 namespace shm {

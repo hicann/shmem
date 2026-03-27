@@ -41,6 +41,16 @@ bash run.sh -mode mpi -pesize 2
 bash run.sh -mode uid -pesize 2
 ```
 
+执行 uid_multi 流程，4 pe
+```bash
+# enpxxx需要替换为ip addr指令获得的网卡
+export SHMEM_UID_SOCK_IFNAME=enpxxxxxxx:inet4
+
+bash run.sh -mode uid_multi -pesize 4
+
+unset SHMEM_UID_SOCK_IFNAME
+```
+
 ##### 3. 跨机运行
 执行 default 流程，双机，每个机器2 pe，在两台机器分别执行如下命令。
 ```bash

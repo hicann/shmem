@@ -71,7 +71,7 @@ ACLSHMEM_HOST_API int aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags,
  *
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int aclshmem_finalize(void);
+ACLSHMEM_HOST_API int aclshmem_finalize(uint64_t instance_id = 0);
 #define shmem_finalize aclshmem_finalize
 
 
@@ -129,6 +129,20 @@ ACLSHMEM_HOST_API void aclshmem_global_exit(int status);
 ACLSHMEM_HOST_API int32_t aclshmemx_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len);
 #define shmem_set_conf_store_tls aclshmemx_set_conf_store_tls
 
+/**
+ * @brief Get the current instance context.
+ *
+ * @return Returns a pointer to the current instance context on success or NULL on failure.
+ */
+ACLSHMEM_HOST_API aclshmem_instance_ctx* aclshmemx_instance_ctx_get();
+
+/**
+ * @brief Set the current instance context by instance_id.
+ *
+ * @param instance_id the unique identifier of the instance to set as the current context.
+ * @return Returns 0 on success or an error code on failure
+ */
+ACLSHMEM_HOST_API int aclshmemx_instance_ctx_set(uint64_t instance_id);
 
 #ifdef __cplusplus
 }

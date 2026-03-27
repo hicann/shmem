@@ -40,6 +40,13 @@ Welcome to Shmem's Documentation!
 
 .. toctree::
     :maxdepth: 2
+    :caption: Multi_Instance
+    :name: Multi_Instance
+
+    multi_instance.md
+
+.. toctree::
+    :maxdepth: 2
     :caption: Architecture
     :name: Architecture
 

@@ -13,6 +13,13 @@ SHMEM_UID_SOCK_IFNAME配置示例：
 SHMEM_UID_SOCK_IFNAME=enpxxxx:inet4  取ipv4
 SHMEM_UID_SOCK_IFNAME=enpxxxx:inet6  取ipv6
 
+## 多实例相关
+由于每个实例都有独立的bootstrap，每个bootstrap构建时需要提供一个可用端口
+
+* `SHMEM_INSTANCE_PORT_RANGE`:直接指定可用的端口范围。
+SHMEM_INSTANCE_PORT_RANGE配置示例：
+export SHMEM_INSTANCE_PORT_RANGE=1024:2047
+
 ## 日志相关
 
 日志相关环境变量及详细介绍见[SHMEM日志](../debug/log_debug.md)。

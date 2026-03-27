@@ -263,8 +263,12 @@ Returns:
     )");
 
     m.def("aclshmem_finialize", &aclshmem_finalize, py::call_guard<py::gil_scoped_release>(),
+          py::arg("instance_id") = 0,
           R"(
 Finalize share memory module.
+
+Arguments:
+    instance_id(uint64_t): Instance ID. Default is 0.
     )");
 
     m.def("aclshmem_init_using_unique_id", &shm::aclshmem_initialize_unique_id,

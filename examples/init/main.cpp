@@ -15,7 +15,7 @@
 #include <acl/acl.h>
 #include "shmem.h"
 
-#if defined(RUN_WITH_UNIQUEID) || defined(RUN_WITH_MPI)
+#if defined(RUN_WITH_UNIQUEID) || defined(RUN_WITH_UNIQUEID_MULTI_INSTANCE) || defined(RUN_WITH_MPI)
 #include <mpi.h>
 #endif
 
@@ -72,6 +72,112 @@ int run_main(int argc, char* argv[]) {
         return 0;
     }
 }
+#endif
+
+#ifdef RUN_WITH_UNIQUEID_MULTI_INSTANCE
+int uid_multi_instance_create(int pe_id, std::vector<int> &dev_list, uint64_t instance_id) {
+    int status = 0;
+
+    // Create MPI SubGroup
+    int color;
+    if (std::find(dev_list.begin(), dev_list.end(), pe_id) != dev_list.end()) {
+        color = 1;
+    } else {
+        color = MPI_UNDEFINED;  // Won't be in Any SubGroup
+    }
+
+    MPI_Comm split_comm;
+    MPI_Comm_split(MPI_COMM_WORLD, color, pe_id, &split_comm);
+
+    // Create Shmem Instance
+    if (std::find(dev_list.begin(), dev_list.end(), pe_id) != dev_list.end() && split_comm != MPI_COMM_NULL) {
+        int local_pe_id = std::distance(dev_list.begin(), std::find(dev_list.begin(), dev_list.end(), pe_id));
+        int pe_size = dev_list.size();
+        uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+
+        aclshmemx_init_attr_t attr;
+        aclshmemx_uniqueid_t uid = ACLSHMEM_UNIQUEID_INITIALIZER;
+
+        if (local_pe_id == 0) {
+            status = aclshmemx_get_uniqueid(&uid);
+        }
+
+        MPI_Bcast(&uid, sizeof(aclshmemx_uniqueid_t), MPI_UINT8_T, 0, split_comm);
+        attr.instance_id = instance_id;
+        status = aclshmemx_set_attr_uniqueid_args(
+            local_pe_id, pe_size, local_mem_size, &uid, &attr);
+
+        status = aclshmemx_init_attr(
+            ACLSHMEMX_INIT_WITH_UNIQUEID, &attr);
+
+        if (status != ACLSHMEM_SUCCESS) {
+            std::cout << "[ERROR] pe " << pe_id << ": create instance " << instance_id << " failed!" << std::endl;
+            return 1;
+        }
+        std::cout << "pe " << pe_id << ": shmem create instance "<< instance_id << " init SUCCESS" << std::endl;
+    }
+
+    // Destroy MPI SubGroup
+    if (split_comm != MPI_COMM_NULL) {
+        MPI_Comm_free(&split_comm);
+    } else {
+        // Do nothing
+    }
+    
+    return 0;
+}
+
+int uid_multi_instance_destroy(int pe_id, std::vector<int> &dev_list, uint64_t instance_id) {
+    int status = 0;
+    if (std::find(dev_list.begin(), dev_list.end(), pe_id) != dev_list.end()) {
+        status = aclshmem_finalize(instance_id);
+        if (status == ACLSHMEM_SUCCESS) {
+            std::cout << "pe " << pe_id << ": shmem finalize instance "<< instance_id << " init SUCCESS" << std::endl;
+        }
+    }
+    return status;
+}
+
+int run_main(int argc, char* argv[]) {
+    if (argc < 1) {
+        std::cerr << "Usage: " << argv[0] << " <pe> <pe_size>" << std::endl;
+        return 1;
+    }
+    MPI_Init(nullptr, nullptr);
+    int g_npu = atoi(argv[1]);
+    int pe;
+    int pe_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &pe);
+    MPI_Comm_size(MPI_COMM_WORLD, &pe_size);
+    int status = ACLSHMEM_SUCCESS;
+    
+    aclInit(nullptr);
+    int device_id = pe % g_npu;
+    aclrtSetDevice(device_id);
+
+    uint64_t inst1_id = 1;
+    std::vector<int> inst1_devices = {0, 1, 2, 3};
+    status = uid_multi_instance_create(pe, inst1_devices, inst1_id);
+
+    uint64_t inst2_id = 2;
+    std::vector<int> inst2_devices = {0, 2};
+    status = uid_multi_instance_create(pe, inst2_devices, inst2_id);
+    status = uid_multi_instance_destroy(pe, inst2_devices, inst2_id);
+
+    status = uid_multi_instance_destroy(pe, inst1_devices, inst1_id);
+
+    aclrtResetDevice(device_id);
+    aclFinalize();
+    MPI_Finalize();
+    if (status != ACLSHMEM_SUCCESS) {
+        std::cout << "[ERROR] pe " << pe << ": demo run failed!" << std::endl;
+        return 1;
+    } else {
+        std::cout << "[SUCCESS] pe " << pe << ": demo run success!" << std::endl;
+        return 0;
+    }
+}
+
 #endif
 
 #ifdef RUN_WITH_MPI
@@ -198,10 +304,10 @@ int main(int main_argc, char* main_argv[]) {
     int status = ACLSHMEM_SUCCESS;
     #ifdef RUN_WITH_DEFAULT
         status = run_main(main_argc, main_argv);
-    #elif defined(RUN_WITH_UNIQUEID) || defined(RUN_WITH_MPI)
+    #elif defined(RUN_WITH_UNIQUEID) || defined(RUN_WITH_UNIQUEID_MULTI_INSTANCE) || defined(RUN_WITH_MPI)
         status = run_main(main_argc, main_argv);
     #else
-        std::cerr << "Error: Please define one of RUN_WITH_UNIQUEID/RUN_WITH_MPI/RUN_WITH_DEFAULT" << std::endl;
+        std::cerr << "Error: Please define one of RUN_WITH_UNIQUEID/RUN_WITH_UNIQUEID_MULTI_INSTANCE/RUN_WITH_MPI/RUN_WITH_DEFAULT" << std::endl;
         return 1;
     #endif
     return status;

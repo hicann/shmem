@@ -33,8 +33,14 @@
 
 constexpr int DEFAULT_ID = 0;
 
-static shm::store::StorePtr store_ = nullptr;
-static shm::store::SmemGroupEnginePtr group_engine_ = nullptr;
+static std::mutex g_store_mutex;
+// Count Used to guard Multi instance scenario
+static int g_store_ref = 0;
+
+struct ConfigStoreState {
+    shm::store::StorePtr store_ = nullptr;
+    shm::store::SmemGroupEnginePtr group_engine_ = nullptr;
+};
 
 using namespace shm::utils;
 
@@ -76,13 +82,20 @@ int aclshmemi_bootstrap_plugin_pre_init(aclshmemi_bootstrap_handle_t* handle) {
     return ACLSHMEM_SUCCESS;
 }
 
-void config_store_bootstrap_global_exit(int status)
+void config_store_bootstrap_global_exit(int status, aclshmemi_bootstrap_handle_t* handle)
 {
-    if (group_engine_ == nullptr) {
-        SHM_LOG_ERROR("Group is NULL");
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) {
+        SHM_LOG_ERROR("handle->state is NULL"); 
         return;
     }
-    group_engine_->GroupBroadcastExit(status);
+
+    if (state->group_engine_ == nullptr) {
+        SHM_LOG_ERROR("Group is NULL"); 
+        return; 
+    } 
+    state->group_engine_->GroupBroadcastExit(status);
 }
 
 int32_t config_store_set_tls_info(bool enable, const char *tls_info, const uint32_t tls_info_len)
@@ -98,6 +111,9 @@ int32_t config_store_bootstrap_set_tls_key(
 }
 
 static int config_store_bootstrap_finalize(aclshmemi_bootstrap_handle_t *handle) {
+    std::lock_guard<std::mutex> lock(g_store_mutex);
+    g_store_ref--;
+
     if (!handle) {
         return ACLSHMEM_SUCCESS;
     }
@@ -107,16 +123,32 @@ static int config_store_bootstrap_finalize(aclshmemi_bootstrap_handle_t *handle)
         handle->pre_init_ops = nullptr;
     }
 
-    if (store_ != nullptr) {
-        shm::store::StoreFactory::DestroyStore();
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) return ACLSHMEM_INNER_ERROR;
+
+    // DestroyStore will destroy global resource, only do this when all stores are finalized.
+    if (state->store_ != nullptr) {
+        if (g_store_ref == 0) {
+            shm::store::StoreFactory::DestroyStore();
+            SHM_LOG_INFO("Global Store Destroyed. ");
+        } else {
+            SHM_LOG_INFO("Store ref count is " << g_store_ref << ", Skip Global DestroyStore.");
+        }
     }
-    group_engine_ = nullptr;
-    store_ = nullptr;
+
+    state->group_engine_ = nullptr;
+    state->store_ = nullptr;
+    delete state;
 
     return ACLSHMEM_SUCCESS;
 }
 
 static int config_store_bootstrap_allgather(const void *in, void *out, int len, aclshmemi_bootstrap_handle_t *handle) {
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) return ACLSHMEM_INNER_ERROR;    
+    
     if (!in || !out || !handle) {
         SHM_LOG_ERROR("bootstrap allgather: invalid arguments.");
         return ACLSHMEM_BOOTSTRAP_ERROR;
@@ -125,7 +157,7 @@ static int config_store_bootstrap_allgather(const void *in, void *out, int len, 
     int rank = handle->mype;
     int nranks = handle->npes;
 
-    auto ret = group_engine_->GroupAllGather((char *)in, len, (char *)out, len * nranks);
+    auto ret = (shm::store::SmemGroupEnginePtr(state->group_engine_))->GroupAllGather((char *)in, len, (char *)out, len * nranks);
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("Group AllGather timeout or store failure");
         return ACLSHMEM_SMEM_ERROR;
@@ -134,6 +166,10 @@ static int config_store_bootstrap_allgather(const void *in, void *out, int len, 
 }
 
 static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) {
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) return ACLSHMEM_INNER_ERROR; 
+
     SHM_LOG_INFO("group_engine_bootstrap_barrier");
     if (!handle) {
         SHM_LOG_ERROR("bootstrap barrier: invalid arguments.");
@@ -150,12 +186,12 @@ static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) 
 
     SHM_LOG_DEBUG("Barrier start. rank: " << rank << " nranks: " << nranks <<" tag: "<< tag);
 
-    if (group_engine_ == nullptr) {
+    if (state->group_engine_ == nullptr) {
         SHM_LOG_ERROR("Group is NULL");
         return ACLSHMEM_INNER_ERROR;
     }
 
-    auto ret = group_engine_->GroupBarrier();
+    auto ret = (shm::store::SmemGroupEnginePtr(state->group_engine_))->GroupBarrier();
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("Group barrier timeout or store failure");
         return ACLSHMEM_SMEM_ERROR;
@@ -167,39 +203,57 @@ static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) 
 
 int32_t init_config_store(aclshmemi_bootstrap_handle_t* handle)
 {
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) return ACLSHMEM_INNER_ERROR;
+
     shm::store::StoreFactory::SetTlsInfo(false, nullptr, 0);
     int32_t sock_fd = handle->sockFd;
     shm::store::UrlExtraction option;
     std::string url(handle->ipport);
     SHM_ASSERT_RETURN(option.ExtractIpPortFromUrl(url) == ACLSHMEM_SUCCESS, ACLSHMEM_INVALID_PARAM);
     if (handle->mype == 0) {
-        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, true, 0, -1, sock_fd);
+        state->store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, true, 0, -1, sock_fd);
     }
     else {
-        store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, false, handle->mype, handle->timeOut);
+        state->store_ = shm::store::StoreFactory::CreateStore(option.ip, option.port, false, handle->mype, handle->timeOut);
     }
     return ACLSHMEM_SUCCESS;
 }
 
 int32_t init_group_engine(aclshmemi_bootstrap_handle_t* handle)
 {
+    // Get Bootstrap state
+    auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
+    if (!state) return ACLSHMEM_INNER_ERROR;
+
     std::string prefix = "SHM_(" + std::to_string(DEFAULT_ID) + ")_";
-    shm::store::StorePtr store_ptr = shm::store::StoreFactory::PrefixStore(store_, prefix);
+    shm::store::StorePtr store_ptr = shm::store::StoreFactory::PrefixStore(state->store_, prefix);
     shm::store::SmemGroupOption opt = {
         (uint32_t)handle->npes, (uint32_t)handle->mype, handle->timeControlOut * 1000U, false, nullptr, nullptr};
     shm::store::SmemGroupEnginePtr group = shm::store::SmemNetGroupEngine::Create(store_ptr, opt);
     SHM_ASSERT_RETURN(group != nullptr, ACLSHMEM_SMEM_ERROR);
-    group_engine_ = group;
+    state->group_engine_ = group;
     return ACLSHMEM_SUCCESS;
 }
 
 int aclshmemi_bootstrap_plugin_init(void* comm, aclshmemi_bootstrap_handle_t* handle)
 {
+    std::lock_guard<std::mutex> lock(g_store_mutex);
+    g_store_ref++;
+
     int status = ACLSHMEM_SUCCESS;
     if (handle == nullptr) {
         SHM_LOG_ERROR(" aclshmemi_bootstrap_plugin_init: invalid arguments (nullptr)");
         return ACLSHMEM_BOOTSTRAP_ERROR;
     }
+
+    ConfigStoreState *state = new (std::nothrow) ConfigStoreState();
+    if (state == nullptr) {
+        SHM_LOG_ERROR("Failed to allocate memory for bootstrap state. ");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+    handle->bootstrap_state = static_cast<void *>(state);
 
     /* If we don't get ip_port, now get it from uid. */
     std::string ipPort;

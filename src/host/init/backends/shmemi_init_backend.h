@@ -11,6 +11,7 @@
 #define SHMEMI_INIT_BACKEND_H
 
 #include <iostream>
+#include <mutex>
 
 #include "host/shmem_host_def.h"
 #include "host_device/shmem_common_types.h"
@@ -23,9 +24,25 @@
 
 #include "utils/mstx/mstx_mem_register.h"
 
+typedef struct entity_member {
+    void *hbm_gva = nullptr;
+    void *dram_gva = nullptr;
+
+    hybm_entity_t hbm_entity = nullptr;
+    hybm_entity_t dram_entity = nullptr;
+    hybm_mem_slice_t hbm_slice = nullptr;
+    hybm_mem_slice_t dram_slice = nullptr;
+
+    aclshmemx_init_attr_t *entity_attr;
+    aclshmemi_bootstrap_handle_t *entity_boot_handle;
+    aclshmem_device_host_state_t *entity_host_state;
+    aclshmem_device_host_state_t *entity_device_state;
+} entity_member;
+
+
 class aclshmemi_init_backend {
 public:
-    aclshmemi_init_backend(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *global_state, aclshmemi_bootstrap_handle_t *handle);
+    aclshmemi_init_backend();
     ~aclshmemi_init_backend();
 
     int init_device_state();
@@ -40,6 +57,9 @@ public:
     int aclshmemi_control_barrier_all();
     int is_alloc_size_symmetric(size_t size);
 
+    int bind_aclshmem_entity(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *state, aclshmemi_bootstrap_handle_t *handle);
+    int release_aclshmem_entity(uint64_t instance_id);
+
 private:
     int reach_info_init(void *&gva);
     int create_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
@@ -47,27 +67,13 @@ private:
     int exchange_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 private:
-    shmem_init_attr_t *attributes;
-    int npes;
     int device_id;
-    bool inited_ = false;
-    std::string ip_;
-    uint16_t port_ = 9980L;
-    hybm_options options_{};
-    aclshmem_device_host_state_t *host_state_ = nullptr;
-    aclshmem_device_host_state_t *device_state_ = nullptr;
-
-    hybm_entity_t hbm_entity_ = nullptr;
-    hybm_entity_t dram_entity_ = nullptr;
-
-    aclshmemi_bootstrap_handle_t *boot_handle_ = nullptr;
-    
-    void *hbm_gva_ = nullptr;
-    void *dram_gva_ = nullptr;
-    hybm_mem_slice_t hbm_slice_ = nullptr;
-    hybm_mem_slice_t dram_slice_ = nullptr;
+    int hybm_init_count = 0;
 
     shm::mstx_mem_register_base* mstx_reg_ptr_ = nullptr;
+
+    std::mutex entity_map_mutex_;
+    std::map<uint64_t, entity_member*> entity_map_ = {};
 };
 
 #endif // SHMEMI_INIT_BACKEND_H

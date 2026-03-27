@@ -426,6 +426,16 @@ typedef struct {
     aclrtNotify notify_arr[ACLSHMEM_MAX_AIV_PER_NPU];
 } aclshmem_host_state_t;
 
+/**
+ * @struct aclshmem_instance_ctx
+ * @brief Instance context used to store gloabl_id
+ * @details Stores the instance identifier and reserved fields for future extension
+ */
+typedef struct {
+    uint64_t id;            // ACL SHMEM Instance's Unique identifier
+    void *instance;         // Reserved
+} aclshmem_instance_ctx;
+
 /**@} */ // end of group_structs
 
 #ifdef __cplusplus

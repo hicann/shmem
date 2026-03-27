@@ -23,6 +23,16 @@ using namespace std;
 uint64_t g_team_mask = 0;
 aclshmemx_team_t *g_aclshmem_team_pool = nullptr;
 
+#define ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(func_name)                                                              \
+    do {                                                                                                            \
+        if (g_instance_ctx->id != 0) {                                                                              \
+            SHM_LOG_ERROR((func_name) << " is not supported in multi-instance mode (instance_id="                   \
+                            << g_instance_ctx->id << "). "                                                          \
+                            << "Only Instance 0 supports team operations. Please Create new instance instead.");    \
+            return ACLSHMEM_NOT_SUPPORTED;                                                                          \
+        }                                                                                                           \
+    } while (0)                                                                                                     
+
 inline std::string team_config2string(aclshmemx_team_t *config)
 {
     std::ostringstream oss;
@@ -141,12 +151,13 @@ int32_t aclshmemi_team_init_core_sync_counter()
 int32_t aclshmemi_team_init(int32_t rank, int32_t size)
 {
     /* Initialize ACLSHMEM_TEAM_WORLD */
-    g_aclshmem_team_pool = (aclshmemx_team_t *)calloc(ACLSHMEM_MAX_TEAMS, sizeof(aclshmemx_team_t));
+    int team_size = g_instance_ctx->id == 0 ? ACLSHMEM_MAX_TEAMS : 1;
+    g_aclshmem_team_pool = (aclshmemx_team_t *)calloc(team_size, sizeof(aclshmemx_team_t));
     if (g_aclshmem_team_pool == nullptr) {
         SHM_LOG_ERROR("malloc host shmem team pool failed.");
         return ACLSHMEM_INNER_ERROR;
     }
-    for (int i = 0; i < ACLSHMEM_MAX_TEAMS; i++) {
+    for (int i = 0; i < team_size; i++) {
         g_aclshmem_team_pool[i] = aclshmemx_team_t{-1, -1, -1, -1, -1, {0, 0, 0,{'0'}}, {-1}};
     }
 
@@ -195,8 +206,8 @@ int32_t first_free_idx_fetch()
 int32_t aclshmemi_team_finalize()
 {
     /* Destroy all undestroyed teams */
-    int32_t aclshmem_max_teams = ACLSHMEM_MAX_TEAMS;
-    for (int32_t i = 0; i < aclshmem_max_teams; i++) {
+    int team_size = g_instance_ctx->id == 0 ? ACLSHMEM_MAX_TEAMS : 1;
+    for (int32_t i = 0; i < team_size; i++) {
         aclshmem_team_t team = i;
         if (is_valid_team(team)) {
             aclshmem_team_destroy(team);
@@ -279,6 +290,9 @@ int32_t aclshmem_team_split_strided_precheck(aclshmem_team_t parent_team, int32_
 int32_t aclshmem_team_split_strided(aclshmem_team_t parent_team, int32_t pe_start, int32_t pe_stride, int32_t pe_size,
                                  aclshmem_team_t *new_team)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     auto ret = aclshmem_team_split_strided_precheck(parent_team, pe_start, pe_stride, pe_size, new_team);
     if (ret != ACLSHMEM_SUCCESS) {
         return ret;
@@ -426,6 +440,9 @@ int aclshmemi_team_split_2d_y(aclshmem_team_t &parent_team, int32_t &y_team_coun
 
 int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_team_t *x_team, aclshmem_team_t *y_team)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     auto ret = aclshmemi_team_split_2d_precheck(parent_team, x_range, x_team, y_team);
     if (ret != ACLSHMEM_SUCCESS) {
         return ret;
@@ -451,6 +468,9 @@ int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_te
 
 int32_t aclshmem_team_translate_pe(aclshmem_team_t src_team, int32_t src_pe, aclshmem_team_t dest_team)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     if (!is_valid_team(src_team) || !is_valid_team(dest_team)) {
         return -1;
     }
@@ -488,6 +508,9 @@ int32_t aclshmem_n_pes(void)
 
 int32_t aclshmem_team_my_pe(aclshmem_team_t team)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     if (is_valid_team(team)) {
         return g_aclshmem_team_pool[team].mype;
     } else {
@@ -497,6 +520,9 @@ int32_t aclshmem_team_my_pe(aclshmem_team_t team)
 
 int32_t aclshmem_team_n_pes(aclshmem_team_t team)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     if (is_valid_team(team)) {
         return g_aclshmem_team_pool[team].size;
     } else {
@@ -506,6 +532,9 @@ int32_t aclshmem_team_n_pes(aclshmem_team_t team)
 
 int aclshmem_team_get_config(aclshmem_team_t team, aclshmem_team_config_t *config)
 {
+    // Not Single Instance Mode
+    ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
+
     ACLSHMEM_CHECK_RET(config == nullptr);
     if (is_valid_team(team)) {
         *config = g_aclshmem_team_pool[team].config;

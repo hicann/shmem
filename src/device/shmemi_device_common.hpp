@@ -13,8 +13,39 @@
 #include "shmemi_def.h"
 
 #include "shmemi_device_meta.h"
+
+#if defined(MULTI_INSTANCE)
+// Kernel-Level Global Variables 
+[[block_local]] __inline__ uint64_t g_instance_addr;
+
+ACLSHMEM_DEVICE uint64_t aclshmemx_instance_ctx_get()
+{
+    return g_instance_addr;
+}
+
+ACLSHMEM_DEVICE void aclshmemx_instance_ctx_set(uint64_t instance_id)
+{
+    // Set aclshmem_instance Ctx, one instance have dram and hbm entity, so need << 1.
+    g_instance_addr = SMEM_SHM_DEVICE_USER_CONTEXT_ADDR + (instance_id << 1) * SMEM_SHM_DEVICE_USER_CONTEXT_PRE_SIZE;
+    return;
+}
+
+#else   // no MULTI_INSTANCE
+
+__attribute__((unavailable("requires macro MULTI_INSTANCE to be defined!")))
+ACLSHMEM_DEVICE uint64_t aclshmemx_instance_ctx_get();
+
+__attribute__((unavailable("requires macro MULTI_INSTANCE to be defined!")))
+ACLSHMEM_DEVICE void aclshmemx_instance_ctx_set(uint64_t instance_id);
+
+#endif  // MULTI_INSTANCE
+
 ACLSHMEM_DEVICE __gm__ aclshmem_device_host_state_t *aclshmemi_get_state() {
+#if defined(MULTI_INSTANCE)
+    return reinterpret_cast<__gm__ aclshmem_device_host_state_t *>(g_instance_addr);
+#else
     return reinterpret_cast<__gm__ aclshmem_device_host_state_t *>(aclshmemi_get_extra_context_addr(0));
+#endif
 }
 
 ACLSHMEM_DEVICE int aclshmemi_get_my_pe()

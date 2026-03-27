@@ -675,7 +675,7 @@ static int aclshmemi_bootstrap_uid_alltoall(const void *sendbuf, void *recvbuf, 
     return ACLSHMEM_NOT_SUPPORTED;
 }
 
-static void aclshmemi_bootstrap_uid_global_exit(int status) {
+static void aclshmemi_bootstrap_uid_global_exit(int status, aclshmemi_bootstrap_handle_t *handle) {
 
 }
 

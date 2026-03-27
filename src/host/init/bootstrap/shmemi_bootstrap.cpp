@@ -19,9 +19,6 @@
 #define BOOTSTRAP_PLUGIN_INIT_FUNC "aclshmemi_bootstrap_plugin_init"
 #define BOOTSTRAP_PLUGIN_PREINIT_FUNC "aclshmemi_bootstrap_plugin_pre_init"
 
-aclshmemi_bootstrap_handle_t g_boot_handle;
-
-void *plugin_hdl = nullptr;
 const char *plugin_name = nullptr;
 
 static bool get_current_so_dir(char *dir_buf, size_t buf_len)

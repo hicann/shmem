@@ -97,7 +97,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Error: Unknown parameter '$1'"
-            echo "Usage: $0 [-mode <default|mpi|uid>] [-pesize <num>]"
+            echo "Usage: $0 [-mode <default|mpi|uid|uid_multi>] [-pesize <num>]"
             exit 1
             ;;
     esac
@@ -113,9 +113,12 @@ case "$MODE" in
     uid)
         MODE_ID=3
         ;;
+    uid_multi)
+        MODE_ID=4
+        ;;
     *)
         echo "Error: Invalid mode '$MODE'! Only 'default'/'mpi'/'uid' are allowed"
-        echo "Usage: $0 [-mode <default|mpi|uid>] [-pesize <num>]"
+        echo "Usage: $0 [-mode <default|mpi|uid|uid_multi>] [-pesize <num>]"
         exit 1
         ;;
 esac
@@ -123,7 +126,10 @@ esac
 BUILD_DIR="build"
 EXECUTABLE_NAME="init_examples"
 
-export SHMEM_UID_SESSION_ID=$SESSION_ID
+case "$MODE" in
+    mpi|uid|default)
+    export SHMEM_UID_SESSION_ID=$SESSION_ID
+esac
 
 echo "=== Prepare build directory ==="
 if [ -d "$BUILD_DIR" ]; then
@@ -156,7 +162,7 @@ echo "=== Launch executable (mode: ${MODE}, pesize: ${NUM_PROCESSES}) ==="
 
 
 case "$MODE" in
-    mpi|uid)
+    mpi|uid|uid_multi)
         if [ -f "hostfile" ]; then
             echo "Found hostfile, run mpirun with -f hostfile"
             mpirun -f hostfile ./build/bin/"${EXECUTABLE_NAME}" "$GNPU_NUM"

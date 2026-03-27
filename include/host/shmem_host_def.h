@@ -180,7 +180,8 @@ typedef struct aclshmemx_init_attr_t {
     char ip_port[ACLSHMEM_MAX_IP_PORT_LEN] = {};
     uint64_t local_mem_size;
     aclshmem_init_optional_attr_t option_attr = {(1 << 16) + sizeof(aclshmem_init_optional_attr_t), ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    void *comm_args;
+    void *comm_args = nullptr;
+    uint64_t instance_id = 0;
 } aclshmemx_init_attr_t;
 #define shmem_init_attr_t aclshmemx_init_attr_t
 

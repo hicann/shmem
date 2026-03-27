@@ -73,7 +73,41 @@ aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
 aclshmem_host_state_t g_state_host = {nullptr, DEFAULT_TEVENT, DEFAULT_BLOCK_NUM, 0};
 aclshmem_prof_pe_t g_host_profs;
 
+// bootstrap plugin_hdl
+void *plugin_hdl = nullptr;
+aclshmemi_bootstrap_handle_t g_boot_handle;
+std::shared_ptr<memory_manager> aclshmemi_memory_manager = nullptr;
+std::shared_ptr<memory_manager> aclshmemi_host_memory_manager = nullptr;
+
+// Count Used to guard Multi instance scenario
+static int g_init_manager_count = 0;
 aclshmemi_init_backend* init_manager = nullptr;
+
+// Protect instance context access
+static std::mutex g_aclshmem_ctx_mutex;
+
+// Instance context used to store global_resources
+struct aclshmem_context
+{
+    uint64_t instance_id = 0;
+
+    aclshmem_device_host_state_t state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
+    aclshmem_host_state_t host_state = {nullptr, DEFAULT_TEVENT, DEFAULT_BLOCK_NUM};
+
+    void *bootstrap_plugin_hdl = nullptr;
+    aclshmemi_bootstrap_handle_t boot_handle;
+
+    std::shared_ptr<memory_manager> dev_mem_manager = nullptr;
+    std::shared_ptr<memory_manager> host_mem_manager = nullptr;
+
+    explicit aclshmem_context(uint64_t id) : instance_id(id) {}
+};
+
+// g_instance_ctx for global use
+aclshmem_instance_ctx *g_instance_ctx = new aclshmem_instance_ctx{0, nullptr};
+
+std::map<uint32_t, aclshmem_instance_ctx*> aclshmem_ctx_domain = { {0, g_instance_ctx} };
+std::map<uint32_t, aclshmem_context*> aclshmem_resource_domain = { {0, new aclshmem_context(0)} };
 
 int32_t version_compatible()
 {
@@ -209,9 +243,212 @@ int32_t aclshmemi_signal_init()
     return ACLSHMEM_SUCCESS;
 }
 
+int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attributes)
+{
+    // 1. Get Port Range From Environment
+    const char* env_port_range = std::getenv("SHMEM_INSTANCE_PORT_RANGE");
+    if (env_port_range == nullptr) {
+        SHM_LOG_ERROR("The environment variable SHMEM_INSTANCE_PORT_RANGE is not set.");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    std::string env_port_range_str(env_port_range);
+    std::size_t env_pos = env_port_range_str.find(':');
+    if (env_pos == std::string::npos) {
+        SHM_LOG_ERROR("SHMEM_INSTANCE_PORT_RANGE format should be start_port:end_port");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    uint16_t start_port;
+    uint16_t end_port;
+    try {
+        start_port = static_cast<uint16_t>(std::stoi(env_port_range_str.substr(0, env_pos)));
+        end_port = static_cast<uint16_t>(std::stoi(env_port_range_str.substr(env_pos + 1, env_port_range_str.size())));
+    } catch (const std::exception& e) {
+        SHM_LOG_ERROR("Invaild SHMEM_INSTANCE_PORT_RANGE format: " << e.what());
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    if (end_port < start_port) {
+        SHM_LOG_ERROR("SHMEM_INSTANCE_PORT_RANGE: start_port " << start_port << " exceeds end_port " << end_port);
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    // 2. Check if instance_id is valid
+    int max_instance_num = end_port - start_port;
+    uint64_t instance_id = attributes->instance_id;
+    if (instance_id > static_cast<uint64_t>(max_instance_num)) {
+        SHM_LOG_ERROR("instance_id " << instance_id << " exceeds max_instance_num " << max_instance_num << " in default mode");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    uint16_t port = start_port + static_cast<uint16_t>(instance_id);
+
+    // 3. If ip_port is null, return
+    if (attributes->ip_port[0] == '\0') {
+        SHM_LOG_ERROR("init with my_rank:" << attributes->my_pe << " ip_port is nullptr!");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    // 4. replace ip_port in attributes
+    std::string ip_port_str(attributes->ip_port);
+    std::size_t pos = ip_port_str.find(':', ip_port_str.find(':') + 1);
+    if (pos == std::string::npos) {
+        SHM_LOG_ERROR("ip_port format should be ip:port");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    uint16_t input_port;
+    try {
+        input_port = static_cast<uint16_t>(std::stoi(ip_port_str.substr(pos + 1, ip_port_str.size())));
+    } catch (const std::exception& e) {
+        SHM_LOG_ERROR("Invaild ip_port format: " << e.what());
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    if (input_port != 0) {
+        SHM_LOG_ERROR("input_port must be 0 in default mode, but input_port is " << input_port);
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    std::string instance_ipport = ip_port_str.substr(0, pos) + ":" + std::to_string(port);
+    if (instance_ipport.empty()) {
+        SHM_LOG_ERROR("my_rank:" << attributes->my_pe << " instance ipport is nullptr!");
+        return ACLSHMEM_INVALID_VALUE;
+    }
+
+    // 5. Write port in attributes
+    size_t ipport_len = std::min(instance_ipport.size(), static_cast<std::size_t>(ACLSHMEM_MAX_IP_PORT_LEN - 1));
+    std::copy_n(instance_ipport.c_str(), ipport_len, attributes->ip_port);
+    attributes->ip_port[ipport_len] = '\0';
+
+    return ACLSHMEM_SUCCESS;
+}
+
+int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t *attributes)
+{
+    uint64_t instance_id = attributes->instance_id;
+    if (instance_id == 0) {
+        // Do Nothing.
+        return ACLSHMEM_SUCCESS;
+    }
+
+    // Check if Repeat
+    if (aclshmem_ctx_domain.find(instance_id) != aclshmem_ctx_domain.end() || 
+        aclshmem_resource_domain.find(instance_id) != aclshmem_resource_domain.end()) {
+        SHM_LOG_WARN("Instance " << instance_id << " already exists ! Please don't repeat create !");
+        return ACLSHMEM_SUCCESS;
+    }
+
+    // aclshmem_instance port selection, if init with uid, skip
+    if (attributes->ip_port[0] != '\0' || attributes->comm_args == nullptr) {
+        ACLSHMEM_CHECK_RET(aclshmemi_instance_port_selection(attributes));
+    }
+
+    // Create aclshmem_instance_ctx
+    aclshmem_instance_ctx *aclshmem_ctx = new aclshmem_instance_ctx{attributes->instance_id, nullptr};
+    if (aclshmem_ctx == nullptr) {
+        SHM_LOG_ERROR("Failed to allocate memory for aclshmem_instance_ctx.");
+        return ACLSHMEM_INNER_ERROR;
+    }
+    aclshmem_ctx_domain[attributes->instance_id] = aclshmem_ctx;
+
+    aclshmem_context *aclshmem_resource_ctx = new aclshmem_context(attributes->instance_id);
+    if (aclshmem_resource_ctx == nullptr) {
+        SHM_LOG_ERROR("Failed to allocate memory for aclshmem_context.");
+        return ACLSHMEM_INNER_ERROR;
+    }
+    aclshmem_resource_domain[attributes->instance_id] = aclshmem_resource_ctx;
+
+    SHM_LOG_WARN("PE: " << attributes->my_pe << " USING SHMEM Multi-Instance Mode ! Now Ctx set to Instance " << instance_id << " !");
+    return ACLSHMEM_SUCCESS;
+}
+
+int aclshmemi_instance_ctx_destroy(uint64_t instance_id)
+{
+    if (instance_id == 0) {
+        // Do Nothing.
+        return ACLSHMEM_SUCCESS;
+    }
+
+    // if destory an active context
+    if (instance_id == g_instance_ctx->id) {
+        // Set active context to Instance 0
+        aclshmemx_instance_ctx_set_impl(0);
+    }
+
+    // Release Resource
+    auto it_resource = aclshmem_resource_domain.find(instance_id);
+    if (it_resource == aclshmem_resource_domain.end()) {
+        SHM_LOG_ERROR("Instance " << instance_id << " not exists! Illegal Context Destroy!");
+        return ACLSHMEM_INNER_ERROR;
+    }
+    delete it_resource->second;
+    aclshmem_resource_domain.erase(it_resource);
+
+    auto it_ctx = aclshmem_ctx_domain.find(instance_id);
+    if (it_ctx == aclshmem_ctx_domain.end()) {
+        SHM_LOG_ERROR("Instance " << instance_id << " not exists! Illegal Context Destroy!");
+        return ACLSHMEM_INNER_ERROR;
+    }
+    delete it_ctx->second;
+    aclshmem_ctx_domain.erase(it_ctx);
+
+    return ACLSHMEM_SUCCESS;
+}
+
+aclshmem_instance_ctx* aclshmemx_instance_ctx_get()
+{
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    return g_instance_ctx;
+}
+
+int aclshmemx_instance_ctx_set(uint64_t instance_id)
+{
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    return aclshmemx_instance_ctx_set_impl(instance_id);
+}
+
+// Inner Context set Interface, No Lock.
+int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
+{
+    if (aclshmem_ctx_domain.find(instance_id) != aclshmem_ctx_domain.end()) {
+        aclshmem_instance_ctx *new_ctx = aclshmem_ctx_domain[instance_id];
+        aclshmem_context *new_context = aclshmem_resource_domain[instance_id];
+        aclshmem_context *current_context = aclshmem_resource_domain[g_instance_ctx->id];
+
+        // Global_vars write back
+        current_context->state                  = g_state;
+        current_context->host_state             = g_state_host;
+        current_context->bootstrap_plugin_hdl   = plugin_hdl;
+        current_context->boot_handle            = g_boot_handle;
+        current_context->dev_mem_manager        = aclshmemi_memory_manager;
+        current_context->host_mem_manager       = aclshmemi_host_memory_manager;
+
+        // Set Global_vars by new_context
+        g_state                                 = new_context->state;
+        g_state_host                            = new_context->host_state;
+        plugin_hdl                              = new_context->bootstrap_plugin_hdl;
+        g_boot_handle                           = new_context->boot_handle;
+        aclshmemi_memory_manager                = new_context->dev_mem_manager;
+        aclshmemi_host_memory_manager           = new_context->host_mem_manager;
+
+        // Set New aclshmem context
+        g_instance_ctx = aclshmem_ctx_domain[instance_id];
+            
+        return ACLSHMEM_SUCCESS;
+    }
+    SHM_LOG_ERROR("Context Set failed ! Can't find instance " << instance_id << " !");
+    return ACLSHMEM_INNER_ERROR;
+}
+
 int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t *attributes)
 {
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
     int32_t ret;
+    uint64_t id = attributes->instance_id;
+
+    // Multi-instance create ctx
+    ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_create(attributes));
+    ACLSHMEM_CHECK_RET(aclshmemx_instance_ctx_set_impl(id));
+
     // config init
     SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
     ACLSHMEM_CHECK_RET(aclshmemx_init_status() != ACLSHMEM_STATUS_NOT_INITIALIZED, "SHMEM has been initialized, do not call init interface repeatedly!", ACLSHMEM_INNER_ERROR);
@@ -220,11 +457,18 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(version_compatible(), "ACLSHMEM Version mismatch.");
     // init bootstrap
     ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_init(bootstrap_flags, attributes));
-
-    // init backend for memory manager
-    init_manager = new aclshmemi_init_backend(attributes, &g_state, &g_boot_handle);
     ACLSHMEM_CHECK_RET(aclshmemi_state_init_attr(attributes));
 
+    // init backend for memory manager
+    g_init_manager_count++;
+    if (init_manager == nullptr) {
+        init_manager = new aclshmemi_init_backend();
+    } else {
+        SHM_LOG_INFO("init_manager already exists, skipping creation. ");
+    }
+
+    // aclshmem_entity init
+    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle));
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
@@ -249,20 +493,27 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t aclshmem_finalize()
+int32_t aclshmem_finalize(uint64_t instance_id)
 {
-    SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " begins to finalize.");
-    // shmem submodules finalize
-    ACLSHMEM_CHECK_RET(aclshmemi_signal_finalize());
-    ACLSHMEM_CHECK_RET(aclshmemi_team_finalize());
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    // When aclshmem_finalize, first set context; otherwise we will finalize unknown instance
+    aclshmemx_instance_ctx_set_impl(instance_id);
+
+    SHM_LOG_INFO("The instance : " << instance_id <<  ", The pe: " << aclshmem_my_pe() << " begins to finalize.");
     if (init_manager == nullptr) {
         SHM_LOG_INFO("init_manager is null finalize success.");
         g_state.is_aclshmem_initialized = false;
+        ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_destroy(instance_id));
         return ACLSHMEM_SUCCESS;
     }
+    // shmem submodules finalize
+    ACLSHMEM_CHECK_RET(aclshmemi_team_finalize());
+    ACLSHMEM_CHECK_RET(aclshmemi_signal_finalize());
+    memory_manager_destroy();
     // shmem basic finalize
     ACLSHMEM_CHECK_RET(init_manager->remove_heap());
     ACLSHMEM_CHECK_RET(init_manager->release_heap());
+    ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     SHM_LOG_INFO("release_heap success.");
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     if (check_support_d2h()) {
@@ -270,18 +521,23 @@ int32_t aclshmem_finalize()
         ACLSHMEM_CHECK_RET(init_manager->release_heap(HOST_SIDE));
     }
 #endif
-    ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
-    delete init_manager;
-    init_manager = nullptr;
+    ACLSHMEM_CHECK_RET(init_manager->release_aclshmem_entity(instance_id));
     if (g_state_host.default_stream != nullptr) {
-      ACLSHMEM_CHECK_RET(aclrtSynchronizeStream(g_state_host.default_stream));
-      ACLSHMEM_CHECK_RET(aclrtDestroyStream(g_state_host.default_stream));
-      g_state_host.default_stream = nullptr;
+        ACLSHMEM_CHECK_RET(aclrtSynchronizeStream(g_state_host.default_stream));
+        ACLSHMEM_CHECK_RET(aclrtDestroyStream(g_state_host.default_stream));
+        g_state_host.default_stream = nullptr;
     }
-    memory_manager_destroy();
     aclshmemi_bootstrap_finalize();
+
+    // Only When Process have no instance, then release init_manager.
+    g_init_manager_count--;
+    if (g_init_manager_count == 0) {
+        delete init_manager;
+        init_manager = nullptr;
+    }
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
     g_state.is_aclshmem_initialized = false;
+    ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_destroy(instance_id));
     return ACLSHMEM_SUCCESS;
 }
 
@@ -381,7 +637,7 @@ int32_t aclshmemx_set_extern_logger(void (*func)(int level, const char *msg))
 void aclshmem_global_exit(int status)
 {
     if (g_boot_handle.is_bootstraped == true) {
-        g_boot_handle.global_exit(status);
+        g_boot_handle.global_exit(status, &g_boot_handle);
     }
     SHM_LOG_WARN("Bootstrap not initialized. Global_exit Do nothing. ");
 }
