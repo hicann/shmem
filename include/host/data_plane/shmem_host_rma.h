@@ -447,7 +447,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P);
  * Provide a low latency get capability for single element of most basic types.
  *
  * @par Parameters
- * - **src**    - [in] Symmetric address of the destination data on local PE.
+ * - **src**    - [in] Symmetric address of the source data on local PE.
  * - **pe**     - [in] The number of the remote PE.
  *
  * @par Returns
@@ -473,9 +473,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G);
 #undef ACLSHMEM_TYPENAME_G
 
 /**
-* @brief Synchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
+* @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
 *
-* @param dst                [in] Pointer on Symmetric addr of local PE.
+* @param dst                [in] Pointer on Symmetric memory of the destination data.
 * @param src                [in] Pointer on local memory of the source data.
 * @param elem_size          [in] size of elements in the destination and source addr.
 * @param pe                 [in] PE number of the remote PE.
@@ -499,9 +499,9 @@ ACLSHMEM_HOST_API void aclshmem_getmem(void* dst, void* src, size_t elem_size, i
 
 
 /**
-* @brief Asynchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
+* @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
 *
-* @param dst                [in] Pointer on Symmetric addr of local PE.
+* @param dst                [in] Pointer on Symmetric memory of the destination data.
 * @param src                [in] Pointer on local memory of the source data.
 * @param elem_size          [in] size of elements in the destination and source addr.
 * @param pe                 [in] PE number of the remote PE.
@@ -539,8 +539,8 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t e
 /**
     * @brief Copy contiguous data on local PE to symmetric address on the specified PE.
     *
-    * @param dst               [in] Pointer on local device of the destination data.
-    * @param src               [in] Pointer on Symmetric memory of the source data.
+    * @param dst               [in] Pointer on Symmetric memory of the destination data.
+    * @param src               [in] Pointer on local device of the source data.
     * @param elem_size         [in] Number of elements in the dest and source arrays.
     * @param pe                [in] PE number of the remote PE.
     * @param stream            [in] copy used stream(use default stream if stream == NULL).

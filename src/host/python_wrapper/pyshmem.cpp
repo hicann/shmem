@@ -498,7 +498,7 @@ Returns:
 Synchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE
 
 Arguments:
-    dst                [in] Pointer on Symmetric addr of local PE.
+    dst                [in] Pointer on Symmetric address of remote PE.
     src                [in] Pointer on local memory of the source data.
     elem_size          [in] size of elements in the destination and source addr.
     pe                 [in] PE number of the remote PE.
@@ -519,8 +519,8 @@ Arguments:
         Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
         local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
         Arguments:                                                                                                          \
-            dest               [in] Pointer on Symmetric memory of the destination data.
-            source             [in] Pointer on local device of the source data.
+            dest               [in] Pointer on Symmetric address of the destination data.
+            source             [in] Pointer on local memory of the source data.
             dst                [in] The stride between consecutive elements of the dest array.
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
@@ -546,7 +546,7 @@ ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IPUT)
         Synchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
                                                                                                                             \
         Arguments:                                                                                                    		\
-            dst                [in] Pointer on Symmetric addr of local PE.
+            dst                [in] Pointer on Symmetric address of the remote PE.
             src                [in] Pointer on local memory of the source data.
             elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
@@ -571,8 +571,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
         Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
         local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
         Arguments:                                                                                                          \
-            dest               [in] Pointer on Symmetric memory of the destination data.
-            source             [in] Pointer on local device of the source data.
+            dest               [in] Pointer on symmetric address of the destination data.
+            source             [in] Pointer on local memory of the source data.
             dst                [in] The stride between consecutive elements of the dest array.
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
@@ -595,8 +595,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IPUT_SIZE)
 Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE
 
 Arguments:
-    dst                [in] Pointer on Symmetric addr of local PE.
-    src                [in] Pointer on local memory of the source data.
+    dst                [in] Pointer on local memory of the local PE.
+    src                [in] Pointer on symmetric address of the source data.
     elem_size          [in] size of elements in the destination and source addr.
     pe                 [in] PE number of the remote PE.
     )");
@@ -616,8 +616,8 @@ Arguments:
         Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
         strided locations on a local array.                                                                                 \
         Arguments:                                                                                                          \
-            dest               [in] Pointer on local device of the destination data.
-            source             [in] Pointer on Symmetric memory of the source data.
+            dest               [in] Pointer on local memory of the destination data.
+            source             [in] Pointer on symmetric address of the source data.
             dst                [in] The stride between consecutive elements of the dest array.
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
@@ -643,8 +643,8 @@ ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IGET)
         Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
 																															\
         Arguments:                                                                                                    		\
-			dst                [in] Pointer on local memory of the source data.
-			src                [in] Pointer on Symmetric addr of local PE.
+			dst                [in] Pointer on local memory of the destination data.
+			src                [in] Pointer on symmetric address of the source data.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
             )");                                                                                                      		\
@@ -668,8 +668,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
         Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
         strided locations on a local array.                                                                                 \
         Arguments:                                                                                                          \
-            dest               [in] Pointer on local device of the destination data.
-            source             [in] Pointer on Symmetric memory of the source data.
+            dest               [in] Pointer on local memory of the destination data.
+            source             [in] Pointer on symmetric address of the source data.
             dst                [in] The stride between consecutive elements of the dest array.
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
@@ -729,7 +729,7 @@ Returns:
     Provide a low latency put capability for single element of most basic types                        \
                                                                                                        \
     Arguments:                                                                                         \
-        dst     [in] Symmetric address of the destination data on local PE.
+        dst     [in] Symmetric address of the destination data on remote PE.
         value   [in] The element to be put.
         pe      [in] The number of the remote PE.
         )");                                                                                           \
@@ -752,7 +752,7 @@ Returns:
     Provide a low latency get single element of most basic types.
                                                                                      \
     Arguments:                                                                       \
-        src     [in] Symmetric address of the destination data on local PE.
+        src     [in] Symmetric address of the source data on remote PE.
         pe      [in] The number of the remote PE.
         A single element of type specified in the input pointer.
         )");                                                                         \
@@ -796,7 +796,7 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
     Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
 
     Arguments:
-        dst                [in] Pointer on Symmetric addr of local PE.
+        dst                [in] Pointer on symmetric address of the destination data on remote PE.
         src                [in] Pointer on local memory of the source data.
         elem_size          [in] size of elements in the destination and source addr.
         pe                 [in] PE number of the remote PE.
@@ -817,7 +817,7 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
         Asynchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
 																															\
         Arguments:                                                                                                    		\
-			dst                [in] Pointer on Symmetric addr of local PE.
+			dst                [in] Pointer on symmetric address of the destination data on remote PE.
 			src                [in] Pointer on local memory of the source data.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
@@ -839,8 +839,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
     Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE
 
     Arguments:
-        dst                [in] Pointer on Symmetric addr of local PE.
-        src                [in] Pointer on local memory of the source data.
+        dst                [in] Pointer on local memory of the destination data on local PE.
+        src                [in] Pointer on symmetric address of the source data on remote PE.
         elem_size          [in] size of elements in the destination and source addr.
         pe                 [in] PE number of the remote PE.
         )");
@@ -860,8 +860,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
         Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
 																															\
         Arguments:                                                                                                    		\
-			dst                [in] Pointer on local memory of the source data.
-			src                [in] Pointer on Symmetric addr of local PE.
+			dst                [in] Pointer on local memory of the destination data on local PE.
+			src                [in] Pointer on symmetric address of the source data on remote PE.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
             )");                                                                                                      		\
@@ -880,11 +880,11 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("sig"),
         py::arg("signal"), py::arg("sig_op"), py::arg("pe"), R"(
-    Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE
+    Asynchronous interface. Copy contiguous data from the address on the local PE to symmetric memory on the specified PE
 
     Arguments:
-        dst                [in] Pointer on Symmetric addr of local PE.
-        src                [in] Pointer on local memory of the source data.
+        dst                [in] Pointer on symmetric address of the destination data on remote PE.
+        src                [in] Pointer on local memory of the source data on local PE.
         elem_size          [in] size of elements in the destination and source addr.
         sig                [in] Symmetric address of the signal word to be updated.
         signal             [in] The value used to update sig_addr.
@@ -906,8 +906,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE
 
     Arguments:
-        dst                [in] Pointer on Symmetric addr of local PE.
-        src                [in] Pointer on local memory of the source data.
+        dst                [in] Pointer on symmetric address of the destination data on remote PE.
+        src                [in] Pointer on local memory of the source data on local PE.
         elem_size          [in] size of elements in the destination and source addr.
         sig                [in] Symmetric address of the signal word to be updated.
         signal             [in] The value used to update sig_addr.
@@ -932,8 +932,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     Copy contiguous data from the local PE to a symmetric memory address on a remote PE.
 
     Arguments:
-        dst                [in] Pointer on local device of the destination data.
-        src                [in] Pointer on Symmetric memory of the source data.
+        dst                [in] Pointer on symmetric address of the destination data.
+        src                [in] Pointer on local memory of the source data.
         elem_size          [in] Number of elements in the dest and source arrays.
         pe                 [in] PE number of the remote PE.
         stream             [in] copy used stream(use default stream if stream == NULL).
@@ -955,8 +955,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     Copy contiguous data from symmetric memory on a remote PE to a local buffer.
 
     Arguments:
-        dst                [in] Pointer on local device of the destination data.
-        src                [in] Pointer on Symmetric memory of the source data.
+        dst                [in] Pointer on local memory of the destination data.
+        src                [in] Pointer on symmetric address of the source data.
         elem_size          [in] Number of elements in the dest and source arrays.
         pe                 [in] PE number of the remote PE.
         stream             [in] copy used stream(use default stream if stream == NULL).
@@ -1025,8 +1025,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         updating a remote signal flag on completion.
                                                                                                                       \
         Arguments:                                                                                                    \
-            dst               [in] Pointer on local device of the destination data.
-            src               [in] Pointer on Symmetric memory of the source data.
+            dst               [in] Pointer on Symmetric address of the destination data.
+            src               [in] Pointer on local memory of the source data.
             elem_size         [in] Number of elements in the dest and source arrays.
             sig_addr          [in] Symmetric address of the signal word to be updated.
             signal            [in] The value used to update sig_addr.
@@ -1056,8 +1056,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         updating a remote signal flag on completion.
                                                                                                                       \
         Arguments:                                                                                                    \
-            dst               [in] Pointer on local device of the destination data.
-            src               [in] Pointer on Symmetric memory of the source data.
+            dst               [in] Pointer on symmetric address of the destination data.
+            src               [in] Pointer on local memory of the source data.
             elem_size         [in] Number of elements in the dest and source arrays.
             sig_addr          [in] Symmetric address of the signal word to be updated.
             signal            [in] The value used to update sig_addr.

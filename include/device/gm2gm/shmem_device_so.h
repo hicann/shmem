@@ -55,8 +55,8 @@
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE
  *       then update sig_addr
  *
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param sig_addr          [in] Symmetric address of the signal word to be updated.
  * @param signal            [in] The value used to update sig_addr.
@@ -79,8 +79,8 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal(__gm__ void *dst, __gm__ void *src, 
  *      Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -119,8 +119,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
  *      Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -149,8 +149,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR);
  *        on local UB to symmetric address on the specified PE then update sig_addr
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **copy_params** - [in] Params to describe how non-contiguous data is organized in src and dst.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -179,8 +179,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED);
  *        on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **copy_params** - [in] Params to describe how non-contiguous data is organized in src and dst.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -209,8 +209,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED);
  *    updating a remote signal flag on completion.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -229,8 +229,8 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_DETAIL);
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE then update
  * sig_addr
  *
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param sig_addr          [in] Symmetric address of the signal word to be updated.
  * @param signal            [in] The value used to update sig_addr.
@@ -252,8 +252,8 @@ ACLSHMEM_DEVICE void aclshmem_putmem_signal_nbi(__gm__ void *dst, __gm__ void *s
  *      Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -294,8 +294,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
  *      Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -316,7 +316,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_NBI);
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const\
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const\
  * non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
@@ -324,8 +324,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_NBI);
  *        on local UB to symmetric address on the specified PE then update sig_addr
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **copy_params** - [in] Params to describe how non-contiguous data is organized in src and dst.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -346,7 +346,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE>\
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_signal_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE>\
  * src，const non_contiguous_copy_param &copy_params, \_\_gm\_\_ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
@@ -354,8 +354,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_DETAILED_NBI);
  *        on local UB to symmetric address on the specified PE.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **copy_params** - [in] Params to describe how non-contiguous data is organized in src and dst.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
@@ -384,8 +384,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_TENSOR_DETAILED_NBI);
  *    updating a remote signal flag on completion.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
+ * - **src**         - [in] Pointer on local device of the source data.
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.

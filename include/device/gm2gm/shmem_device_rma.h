@@ -91,7 +91,7 @@
  * Provide a low latency put capability for single element of most basic types.
  *
  * @par Parameters
- * - **dst**    - [in] Symmetric address of the destination data on local PE.
+ * - **dst**    - [in] Symmetric address of the destination data.
  * - **value**  - [in] The element to be put.
  * - **pe**     - [in] The number of the remote PE.
  */
@@ -119,13 +119,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
  * @brief  Automatically generates aclshmem g functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_g(\_\_gm\_\_ TYPE *dst, const TYPE value, int32_t pe)
+ * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_g(\_\_gm\_\_ TYPE *src, int32_t pe)
  *
  * @par Function Description
  * Provide a low latency get capability for single element of most basic types.
  *
  * @par Parameters
- * - **src**    - [in] Symmetric address of the destination data on local PE.
+ * - **src**    - [in] Symmetric address of the source data.
  * - **pe**     - [in] The number of the remote PE.
  *
  * @par Returns
@@ -276,8 +276,8 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
 /**
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
@@ -373,7 +373,7 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  * 
- * \remark ACLSHMEM_HOST_API void aclshmem_iputBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ * \remark ACLSHMEM_DEVICE void aclshmem_iputBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
@@ -680,8 +680,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
