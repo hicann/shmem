@@ -165,7 +165,7 @@ int group_all_gather(uint64_t instance_id)
     return status;
 }
 
-int aclshmem_instance_create_test(int pe_id, aclshmemx_init_attr_t &attr, std::vector<int> &dev_list)
+static int aclshmem_instance_create_test(int pe_id, aclshmemx_init_attr_t &attr, std::vector<int> &dev_list)
 {
     int status = 0;
     if (std::find(dev_list.begin(), dev_list.end(), pe_id) != dev_list.end()) {
@@ -194,7 +194,7 @@ int aclshmem_instance_create_test(int pe_id, aclshmemx_init_attr_t &attr, std::v
     return status;
 }
 
-int aclshmem_instance_destroy_test(int dev_id, aclshmemx_init_attr_t &attr, std::vector<int> &dev_list)
+static int aclshmem_instance_destroy_test(int dev_id, aclshmemx_init_attr_t &attr, std::vector<int> &dev_list)
 {
     int status = 0;
     if (std::find(dev_list.begin(), dev_list.end(), dev_id) != dev_list.end()) {

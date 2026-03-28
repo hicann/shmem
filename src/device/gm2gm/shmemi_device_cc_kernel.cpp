@@ -23,7 +23,7 @@ ACLSHMEM_GLOBAL void barrier_on_stream_kernel(aclshmem_team_t team, uint64_t fft
 }
 
 // interfaces
-int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream)
+ int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream)
 {
     barrier_on_stream_kernel<<<1, nullptr, stream>>>(team, util_get_ffts_config());
     return ACLSHMEM_SUCCESS;

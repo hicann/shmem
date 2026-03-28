@@ -10,6 +10,8 @@
 #ifndef MULTI_INSTANCE_KERNEL_H
 #define MULTI_INSTANCE_KERNEL_H
 
+#include <cstdint>
+
 template <class T>
 void group_allgather(
         uint32_t block_dim, void *stream, uint64_t fftsAddr, 

@@ -243,7 +243,7 @@ int32_t aclshmemi_signal_init()
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attributes)
+static int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attributes)
 {
     // 1. Get Port Range From Environment
     const char* env_port_range = std::getenv("SHMEM_INSTANCE_PORT_RANGE");
@@ -322,7 +322,7 @@ int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attributes)
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t *attributes)
+static int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t *attributes)
 {
     uint64_t instance_id = attributes->instance_id;
     if (instance_id == 0) {
@@ -361,7 +361,7 @@ int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t *attributes)
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_instance_ctx_destroy(uint64_t instance_id)
+static int aclshmemi_instance_ctx_destroy(uint64_t instance_id)
 {
     if (instance_id == 0) {
         // Do Nothing.

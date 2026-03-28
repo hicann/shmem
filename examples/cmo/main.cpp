@@ -292,7 +292,7 @@ int copy_test(aclrtStream stream,
     return 0;
 }
 
-std::string format_size(int size) {
+static std::string format_size(int size) {
     if (size < 1024) {
         return std::to_string(size) + "B";
     } else if (size < 1024 * 1024) {

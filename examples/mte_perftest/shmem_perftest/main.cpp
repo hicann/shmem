@@ -23,16 +23,16 @@
 
 int g_npus = 8;
 const char *ipport;
-const char *fuc_data_type;
-const char *fuc_test_type;
+static const char *fuc_data_type;
+static const char *fuc_test_type;
 int f_pe = 0;
 int f_npu = 0;
 aclshmemx_uniqueid_t default_flag_uid;
 
-aclshmem_prof_pe_t *out_profs;
+static aclshmem_prof_pe_t *out_profs;
 extern "C" void launch_mte_perf_kernel(uint32_t block_dim, void *stream, uint8_t *dst_gva, uint8_t *src_gva, int elements, int32_t frame_id, int test_mode, int data_type, int ub_size_kb, int64_t prof_pe_val, int loop_count);
 
-perftest::mte_mode_t get_mte_mode(const char *test_type_str) {
+static perftest::mte_mode_t get_mte_mode(const char *test_type_str) {
     if (strcmp(test_type_str, "put") == 0) return perftest::TEST_MODE_MTE_PUT;
     else if (strcmp(test_type_str, "bi_put") == 0) return perftest::TEST_MODE_BI_PUT;
     else if (strcmp(test_type_str, "get") == 0) return perftest::TEST_MODE_MTE_GET;

@@ -12,7 +12,7 @@ bash scripts/build.sh -examples
 bash run.sh -pes ${PEs} -type ${TYPEs}
 ```
 
-跨机使用方式:
+跨机使用方式(跨机场景目前仅支持A3超节点):
 
 1. 在shmem/目录编译: 
 ```

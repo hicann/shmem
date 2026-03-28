@@ -25,12 +25,12 @@
 int g_npus = 2;
 int ub_size = 16;
 const char *ipport;
-const char *fuc_data_type;
+static const char *fuc_data_type;
 int f_rank = 0;
 int f_npu = 0;
 extern "C" void device_perftest_demo(uint32_t block_dim, void *stream, uint8_t *d1_ptr, uint8_t *d0_ptr, uint8_t *time_gva, int elements, int test_type, int loop_count, int data_type, int ub_size_kb);
 
-perftest::ascendc_mode_t get_test_type(const char *test_type_str) {
+static perftest::ascendc_mode_t get_test_type(const char *test_type_str) {
     if (strcmp(test_type_str, "put") == 0) return perftest::TEST_MODE_ASCENDC_PUT;
     else if (strcmp(test_type_str, "get") == 0) return perftest::TEST_MODE_ASCENDC_GET;
     else if (strcmp(test_type_str, "ub2gm_local") == 0) return perftest::TEST_MODE_UB2GM_LOCAL;
@@ -40,7 +40,7 @@ perftest::ascendc_mode_t get_test_type(const char *test_type_str) {
     return perftest::TEST_MODE_GM2UB_REMOTE;
 }
 
-void fill_data_by_type(std::vector<uint8_t>& data, uint64_t index, uint64_t value, const char *data_type) {
+static void fill_data_by_type(std::vector<uint8_t>& data, uint64_t index, uint64_t value, const char *data_type) {
     size_t datatype_size = get_datatype_size(data_type);
     uint64_t offset_bytes = index *datatype_size;
     
@@ -61,7 +61,7 @@ void fill_data_by_type(std::vector<uint8_t>& data, uint64_t index, uint64_t valu
 }
 
 
-void print_last_element(uint8_t *data, const char *data_type, uint64_t all_size, const char *label, void *device_ptr) {
+static void print_last_element(uint8_t *data, const char *data_type, uint64_t all_size, const char *label, void *device_ptr) {
     size_t datatype_size = get_datatype_size(data_type);
     uint64_t last_offset = all_size - datatype_size;
     std::cout << "[" << label << "] last element: ";
@@ -85,7 +85,7 @@ void print_last_element(uint8_t *data, const char *data_type, uint64_t all_size,
 }
 
 
-int run_rma_performance_test(const char *test_type, int min_block_size, int max_block_size, int min_exponent, int max_exponent, int device1, int device2, int loop_count, const char *data_type)
+static int run_rma_performance_test(const char *test_type, int min_block_size, int max_block_size, int min_exponent, int max_exponent, int device1, int device2, int loop_count, const char *data_type)
 {
     perftest::ascendc_mode_t test_type_enum = get_test_type(test_type);
     perftest::perf_data_type_t data_type_enum = get_data_type(data_type);
