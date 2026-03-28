@@ -16,7 +16,7 @@
 #include "device/shmem_def.h"
 #include "shmemi_device_udma.h"
 
-#if defined(ASCENDC_DUMP) && (ASCENDC_DUMP == 1) && defined(DEBUG_MODE)
+#if defined(ASCENDC_DEBUG) && defined(ASCENDC_DUMP) && (ASCENDC_DUMP == 1) && defined(DEBUG_MODE)
 #define ACLSHMEM_DEBUG_FUNC(func, ...) do { func(__VA_ARGS__); } while(0)
 #else
 #define ACLSHMEM_DEBUG_FUNC(func, ...) ((void)0)
