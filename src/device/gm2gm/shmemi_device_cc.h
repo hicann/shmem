@@ -389,9 +389,6 @@ ACLSHMEM_DEVICE void dsb_all()
 
 ACLSHMEM_DEVICE void aclshmemi_barrier_cross_host(aclshmemx_team_t *team)
 {
-    if (AscendC::GetBlockIdx() != 0)
-        return;
-
     int my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
     int start = team->start;
     int stride = team->stride;

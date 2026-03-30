@@ -30,7 +30,7 @@ int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStrea
 }
 
 // kernels
-ACLSHMEM_GLOBAL void k_aclshmem_handle_wait(int32_t tid)
+ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_handle_wait(int32_t tid)
 {
     aclshmemi_handle(tid);
 }
@@ -75,7 +75,7 @@ void call_aclshmemi_signal_wait_until_on_stream_kernel(int32_t *sig_addr, int cm
     k_aclshmem_signal_wait_until<<<1, nullptr, stream>>>(sig_addr, cmp, cmp_val);
 }
 
-ACLSHMEM_GLOBAL void k_aclshmem_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
 {
     aclshmemx_signal_op(sig_addr, signal, sig_op, pe);
 }

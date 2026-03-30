@@ -97,14 +97,14 @@ ACLSHMEM_GLOBAL void aclshmemi_getbits(GM_ADDR dst, GM_ADDR src, non_contiguous_
     }
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_putmem_signal(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
+ACLSHMEM_GLOBAL_VECTOR void aclshmemi_putmem_signal(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr, int32_t signal,
                                        int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
     aclshmem_uint8_put_signal(dst, src, elem_size, sig_addr_int32, signal, sig_op, pe);
 }
 
-ACLSHMEM_GLOBAL void aclshmemi_putmem_signal_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr,
+ACLSHMEM_GLOBAL_VECTOR void aclshmemi_putmem_signal_nbi(GM_ADDR dst, GM_ADDR src, uint32_t elem_size, GM_ADDR sig_addr,
                                            int32_t signal, int sig_op, int pe)
 {
     __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(sig_addr);
