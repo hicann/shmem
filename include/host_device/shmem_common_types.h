@@ -21,6 +21,10 @@ extern "C" {
 */
 #define ACLSHMEM_GLOBAL __global__ __aicore__
 /**
+ * @private
+*/
+#define ACLSHMEM_GLOBAL_VECTOR [[bisheng::core_ratio(0, 1)]] __global__ __aicore__
+/**
  * @addtogroup group_macros
  * @{
 */

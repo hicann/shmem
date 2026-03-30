@@ -111,6 +111,11 @@ add_compile_options(
     -fstack-protector-strong
 )
 
+check_cxx_compiler_flag("-Wno-unused-value" HAS_WNO_UNUSED_VALUE)
+if(HAS_WNO_UNUSED_VALUE)
+    add_compile_options(-Wno-unused-value)
+endif()
+
 check_cxx_compiler_flag("-Wno-macro-redefined" HAS_WNO_MACRO_REDEFINED)
 if(HAS_WNO_MACRO_REDEFINED)
     add_compile_options(-Wno-macro-redefined)
