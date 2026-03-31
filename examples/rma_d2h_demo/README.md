@@ -44,3 +44,36 @@ bash run.sh
 
 用例执行完成，打屏信息出现“[INFO] demo run end in pe <my_pe>”，说明样例执行结束；打屏信息出现“[SUCCESS] run success in pe <my_pe>”，说明样例执行成功且结果准确。
 
+## 约束限制
+
+**A3超节点Server ID配置要求**
+
+本样例在A3超节点环境下运行时，需要确保各服务器的Server ID配置正确。特别是在更换故障硬件后，可能出现Server ID未正确配置的情况，会导致样例运行失败。
+
+**查询Server ID方法**
+
+使用npu-smi工具查询当前服务器的Server ID配置：
+
+```bash
+npu-smi info -t spod-info -i 0 -c 0
+```
+
+输出示例：
+```
+SDID : 16777216
+Super Pod Size : 384
+Super Pod ID : 0
+Server Index : 4
+```
+
+其中`Server Index`即为当前服务器的Server ID，需要确保和超节点中其他NPU保持一致。
+
+**配置Server ID方法**
+
+如果发现Server ID配置不正确，可以通过以下方式修改：
+
+1. **通过Redfish接口修改**
+   - 参考文档：[Redfish接口修改文档](https://support.huawei.com/enterprise/zh/doc/EDOC1100401665/1f8efb4e?idPath=23710424|251366513|22892968|252309113|261207247)
+
+2. **通过Computing Toolkit修改**
+   - 参考文档：[Computing Toolkit修改文档](https://support.huawei.com/enterprise/zh/doc/EDOC1100526238/df7e6eda?idPath=23710424|251366513|22892968|252309113|258915853)
