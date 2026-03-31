@@ -195,7 +195,7 @@ Result HybmVmmBasedSegment::ExportInner(const std::shared_ptr<MemSlice> &slice, 
     MemExportInfo info;
     std::string exInfo;
     auto pos = slices_.find(slice->index_);
-    auto ret = DlHalApi::HalMemExport(reinterpret_cast<drv_mem_handle_t *>(pos->second.handle), MEM_HANDLE_TYPE_NONE,
+    auto ret = DlHalApi::HalMemExport(reinterpret_cast<drv_mem_handle_t *>(pos->second.handle), MEM_HANDLE_TYPE_FABRIC,
                                       0, &info.shareHandle);
     if (ret != 0) {
         SHM_LOG_ERROR("create shm memory key failed: " << ret);
@@ -204,7 +204,7 @@ Result HybmVmmBasedSegment::ExportInner(const std::shared_ptr<MemSlice> &slice, 
 
     uint64_t shareable = 0U;
     uint32_t sId;
-    ret = DlHalApi::HalMemTransShareableHandle(MEM_HANDLE_TYPE_NONE, &info.shareHandle, &sId, &shareable);
+    ret = DlHalApi::HalMemTransShareableHandle(MEM_HANDLE_TYPE_FABRIC, &info.shareHandle, &sId, &shareable);
     SHM_VALIDATE_RETURN(ret == ACLSHMEM_SUCCESS, "HalMemTransShareableHandle failed:" << ret, ACLSHMEM_INNER_ERROR);
     struct ShareHandleAttr attr = {};
     attr.enableFlag = SHR_HANDLE_NO_WLIST_ENABLE;
@@ -347,7 +347,7 @@ Result HybmVmmBasedSegment::Mmap() noexcept
         SHM_LOG_DEBUG("remote slice on rank(" << im.rankId << ") should map to: " << (void *)remoteAddress
                                              << ", size = " << im.size);
         drv_mem_handle_t *handle = nullptr;
-        auto ret = DlHalApi::HalMemImport(MEM_HANDLE_TYPE_NONE, &im.shareHandle, logicDeviceId_, &handle);
+        auto ret = DlHalApi::HalMemImport(MEM_HANDLE_TYPE_FABRIC, &im.shareHandle, logicDeviceId_, &handle);
         SHM_VALIDATE_RETURN(
             ret == ACLSHMEM_SUCCESS, "HalMemImport memory failed:" << ret << " local sdid:" << sdid_ << " remote ssid:" << im.sdid,
             ACLSHMEM_INNER_ERROR);
