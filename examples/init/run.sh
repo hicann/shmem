@@ -116,9 +116,12 @@ case "$MODE" in
     uid_multi)
         MODE_ID=4
         ;;
+    uid_default)
+        MODE_ID=5
+        ;;
     *)
-        echo "Error: Invalid mode '$MODE'! Only 'default'/'mpi'/'uid' are allowed"
-        echo "Usage: $0 [-mode <default|mpi|uid|uid_multi>] [-pesize <num>]"
+        echo "Error: Invalid mode '$MODE'! Only 'default'/'mpi'/'uid'/'uid_multi'/'uid_default' are allowed"
+        echo "Usage: $0 [-mode <default|mpi|uid|uid_multi|uid_default>] [-pesize <num>]"
         exit 1
         ;;
 esac
@@ -127,7 +130,7 @@ BUILD_DIR="build"
 EXECUTABLE_NAME="init_examples"
 
 case "$MODE" in
-    mpi|uid|default)
+    mpi|uid|default|uid_default)
     export SHMEM_UID_SESSION_ID=$SESSION_ID
 esac
 
@@ -162,7 +165,7 @@ echo "=== Launch executable (mode: ${MODE}, pesize: ${NUM_PROCESSES}) ==="
 
 
 case "$MODE" in
-    mpi|uid|uid_multi)
+    mpi|uid|uid_multi|uid_default)
         if [ -f "hostfile" ]; then
             echo "Found hostfile, run mpirun with -f hostfile"
             mpirun -f hostfile ./build/bin/"${EXECUTABLE_NAME}" "$GNPU_NUM"
