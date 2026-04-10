@@ -121,6 +121,10 @@ status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
 注意: 同时配置时只读取`SHMEM_UID_SESSION_ID`
 
 ## 调试相关
+### 编译问题
+#### Q:自行添加"-O0 -g"编译选项调试，编译出错，"bisheng: error: xxxxx will be ignored. [-Werror -Woption-ignored]"
+#### A:SHMEM根目录的CMakeLists.txt的-Werror选项导致编译器告警被作为错误处理，注释掉-Werror编译选项即可解决。
+
 ### 算子问题
 #### Q:算子使用"-O0 -g"编译选项编译后，运行出错，"min stack size is xxx, larger than current process default size 32768. Please modify aclInit json, and reboot process."
 #### A:在aclInit()接口传入的json文件中，配置更大的栈空间。
