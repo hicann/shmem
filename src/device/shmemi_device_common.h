@@ -23,6 +23,8 @@ ACLSHMEM_DEVICE int aclshmemi_get_total_pe();
 
 ACLSHMEM_DEVICE uint64_t aclshmemi_get_heap_size();
 
+ACLSHMEM_DEVICE void dcci_entire_cache();
+
 template<typename T>
 ACLSHMEM_DEVICE void aclshmemi_store(__gm__ T *addr, T val);
 

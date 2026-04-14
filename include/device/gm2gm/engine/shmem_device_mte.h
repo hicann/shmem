@@ -151,4 +151,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
                                            int pe, uint32_t sync_id);
 #define shmem_mte_put_mem_nbi aclshmemx_mte_put_nbi
 
+/**
+ * @brief Asynchronous interface. Clear instruction pipes and flush data cache to GM.
+ */
+ACLSHMEM_DEVICE void aclshmemx_mte_quiet();
+
 #endif

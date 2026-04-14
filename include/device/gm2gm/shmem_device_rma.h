@@ -153,12 +153,16 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
 
 /**
  * @brief Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to
- *                       address on the local PE.
- *
+ *        address on the local PE. Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
 #define shmem_getmem aclshmem_getmem
@@ -171,12 +175,18 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
  *
  * @par Function Description
  * Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+ * Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                    \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
@@ -232,12 +242,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
  *
  * @par Function Description
  *    Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
+ *    Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                              \
     ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
@@ -275,11 +291,17 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
 
 /**
  * @brief Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ *        Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
 #define shmem_putmem aclshmem_putmem
@@ -291,13 +313,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
  *
  * @par Function Description
- *      Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *      Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ *      Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                     \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
@@ -354,12 +382,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
  *
  * @par Function Description
  *    Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ *    Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                               \
     ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
@@ -398,12 +432,17 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE_MEM);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to
- *                                              address on the local PE.
+ *        address on the local PE. Supports MTE, RDMA, or SDMA as the underlying transport.
  *
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
 #define shmem_getmem_nbi aclshmem_getmem_nbi
@@ -416,14 +455,18 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported. 
+ * Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
@@ -453,14 +496,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported.
+ *    Supports MTE, RDMA, or SDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                                                              \
     ACLSHMEM_DEVICE void aclshmem_get##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
@@ -502,14 +549,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported. 
+ * Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] GlobalTensor on local device of the destination data.
  * - **src**         - [in] GlobalTensor on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
@@ -551,14 +602,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported. 
+ * Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_PUT_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
@@ -588,14 +643,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported.
+ *    Supports MTE, RDMA, or SDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on Symmetric memory of the destination data.
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                                                              \
     ACLSHMEM_DEVICE void aclshmem_put##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
@@ -637,14 +696,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported. 
+ * Supports MTE, RDMA, SDMA, or UDMA as the underlying transport.
  *
  * @par Parameters
  * - **dst**         - [in] GlobalTensor on Symmetric memory of the destination data.
  * - **src**         - [in] GlobalTensor on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 #define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
@@ -679,11 +742,17 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ *        Supports MTE, RDMA, or SDMA as the underlying transport.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ *
+ * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
+ *          as the underlying transport. When using RDMA or SDMA, the corresponding
+ *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
+ *          synchronization.
  */
 ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
 #define shmem_putmem_nbi aclshmem_putmem_nbi

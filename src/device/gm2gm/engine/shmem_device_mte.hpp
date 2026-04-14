@@ -393,4 +393,13 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ int8_t* dst, __gm__ int8_t* sr
             elem_size, pe, copy_event_id, enable_L2);
 }
 
+ACLSHMEM_DEVICE void aclshmemx_mte_quiet()
+{
+    // clear instruction pipes
+    AscendC::PipeBarrier<PIPE_ALL>();
+
+    // flush data cache to GM
+    dcci_entire_cache();
+}
+
 #endif
