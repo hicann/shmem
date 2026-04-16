@@ -107,6 +107,6 @@ def finalize() -> None:
     Raises:
         AclshmemError: If the ACLSHMEM finalization fails.
     """
-    ret = _pyshmem.aclshmem_finialize()
+    ret = _pyshmem.aclshmem_finalize()
     if ret != 0:
         raise AclshmemError("ACLSHMEM finalization fails.")

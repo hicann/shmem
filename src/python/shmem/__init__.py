@@ -42,7 +42,7 @@ for lib in required_so_files:
 from . import core
 from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
 from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_using_unique_id, \
-                       aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
+                       aclshmem_finalize, aclshmem_malloc, aclshmem_free, \
                        aclshmem_ptr, my_pe, pe_count, set_conf_store_tls_key, team_split_strided, \
                        team_split_2d, team_translate_pe, \
                        team_destroy, InitAttr, OpEngineType, \
@@ -55,11 +55,13 @@ from ._pyshmem import (aclshmem_init, aclshmem_get_unique_id, aclshmem_init_usin
                        aclshmem_team_get_config, OptionalAttr, aclshmem_global_exit, set_conf_store_tls, \
                        set_log_level, set_extern_logger, aclshmem_signal_wait_until)
 
+from ._pyshmem import aclshmem_finalize as aclshmem_finialize  # aclshmem_finialize will be deprecated, use aclshmem_finalize instead
+
 __all__ = [
     'aclshmem_init',
     'aclshmem_get_unique_id',
     'aclshmem_init_using_unique_id',
-    'aclshmem_finialize',
+    'aclshmem_finalize',
     'aclshmem_malloc',
     'aclshmem_free',
     'aclshmem_ptr',

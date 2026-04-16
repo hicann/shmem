@@ -59,7 +59,7 @@ def run_init_with_unique_id_tests():
     _ = ash.aclshmem_free(aclshmem_ptr)
 
     # test finialize
-    _ = ash.aclshmem_finialize()
+    _ = ash.aclshmem_finalize()
 
 
 if __name__ == "__main__":

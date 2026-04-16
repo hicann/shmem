@@ -239,7 +239,7 @@
 
 1. 完成共享内存模块
     ```python
-    def aclshmem_finialize() -> None
+    def aclshmem_finalize() -> None
     ```
 
 1. 查询共享内存模块的当前初始化状态

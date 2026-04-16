@@ -41,7 +41,7 @@ def run_register_decrypt_tests():
     print(f'pe[{pe}]: register hander ret={ret}')
 
     # 4. test finialize
-    _ = ash.aclshmem_finialize()
+    _ = ash.aclshmem_finalize()
 
 
 if __name__ == "__main__":

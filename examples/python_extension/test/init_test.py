@@ -51,7 +51,7 @@ def run_tests():
     print(f'x: pe[{pe}]: t_my_pe:{my_team_pe} and t_pe_count:{team_pe_count}')
 
     # 6. test finialize
-    _ = ash.aclshmem_finialize()
+    _ = ash.aclshmem_finalize()
 
 if __name__ == "__main__":
     local_pe = int(os.environ["LOCAL_RANK"])
