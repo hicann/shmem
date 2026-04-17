@@ -15,7 +15,7 @@
 #include <numeric>
 #include <iostream>
 #include <algorithm>
-#include <filesystem>
+#include <sys/stat.h>
 
 #include "utils.h"
 #include "param.h"
@@ -388,7 +388,7 @@ int test_copy_perf(int my_pe, int n_pes)
             csv_data.push_back(sub_data);
         }
     }
-    std::filesystem::create_directories("output");
+    make_dir("output");
     write_csv("output/"+int_to_string(my_pe)+"_band.csv", csv_data);
 
     std::vector<std::vector<std::string>> csv_data_2 = {

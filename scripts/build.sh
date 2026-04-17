@@ -369,10 +369,9 @@ if [ "$BUILD_ALL" = "ON" ]; then
 else
     if [ "$PYEXPAND_TYPE" = "ON" ]; then
         fn_whl_build
-    else
-        fn_build
     fi
 
+    fn_build
     fn_make_run_package
     if [ "$PACKAGE" == "ON" ]; then
         make_package
