@@ -237,7 +237,7 @@ int copy_test(aclrtStream stream,
     size_t res_size = sizeof(float) * 2048;
     CHECK_RET(aclrtMalloc((void **) &(res_ptr), res_size, ACL_MEM_MALLOC_HUGE_FIRST));
     void *res_host;
-    aclrtMallocHost((void **)(&res_host), res_size);
+    CHECK_RET(aclrtMallocHost((void **)(&res_host), res_size));
 
     uint32_t is_device_block_prefetch = 0;
     if (prefetch_type == CMOEXAMPLE::NO_PREFETCH) {
@@ -287,7 +287,7 @@ int copy_test(aclrtStream stream,
     CHECK_RET(aclrtFree(device_dump));
 #endif
     CHECK_RET(aclrtFree(res_ptr));
-    CHECK_RET(aclrtFree(res_host));
+    CHECK_RET(aclrtFreeHost(res_host));
 
     return 0;
 }
