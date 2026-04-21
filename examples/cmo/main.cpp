@@ -281,12 +281,12 @@ int copy_test(aclrtStream stream,
 #if defined(ENABLE_ASCENDC_DUMP)
     Adx::AdumpPrintWorkSpace(device_dump, ALL_DUMPSIZE, stream, "cmo");
 #endif
-    CHECK_RET(aclrtFreeWithDevSync(trash_gm_ptr));
-    CHECK_RET(aclrtFreeWithDevSync(cache_gm_ptr));
+    CHECK_RET(aclrtFree(trash_gm_ptr));
+    CHECK_RET(aclrtFree(cache_gm_ptr));
 #if defined(ENABLE_ASCENDC_DUMP)
-    CHECK_RET(aclrtFreeWithDevSync(device_dump));
+    CHECK_RET(aclrtFree(device_dump));
 #endif
-    CHECK_RET(aclrtFreeWithDevSync(res_ptr));
+    CHECK_RET(aclrtFree(res_ptr));
     CHECK_RET(aclrtFreeHost(res_host));
 
     return 0;
