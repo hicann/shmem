@@ -650,7 +650,7 @@ void FixedRanksQpManager::CloseServices() noexcept
     SHM_LOG_INFO(rankId_ << " server connections closed.");
 
     CloseClientConnections();
-    SHM_LOG_INFO(rankId_ << " clinet connections closed.");
+    SHM_LOG_INFO(rankId_ << " client connections closed.");
 }
 
 void FixedRanksQpManager::CloseClientConnections() noexcept

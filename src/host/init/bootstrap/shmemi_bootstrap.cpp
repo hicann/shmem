@@ -119,7 +119,7 @@ void aclshmemi_bootstrap_free()
 int32_t aclshmemi_bootstrap_pre_init(int flags, aclshmemi_bootstrap_handle_t *handle) {
     int32_t status = ACLSHMEM_SUCCESS;
     if (flags & ACLSHMEMX_INIT_WITH_MPI) {
-        SHM_LOG_ERROR("Unsupport Type for bootstrap preinit.");
+        SHM_LOG_ERROR("Unsupported Type for bootstrap preinit.");
         return ACLSHMEM_INVALID_PARAM;
     } else if (flags & ACLSHMEMX_INIT_WITH_UNIQUEID) {
         plugin_name = BOOTSTRAP_MODULE_CONFIG_STORE;

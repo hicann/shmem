@@ -266,7 +266,7 @@ static int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attribut
         start_port = static_cast<uint16_t>(std::stoi(env_port_range_str.substr(0, env_pos)));
         end_port = static_cast<uint16_t>(std::stoi(env_port_range_str.substr(env_pos + 1, env_port_range_str.size())));
     } catch (const std::exception& e) {
-        SHM_LOG_ERROR("Invaild SHMEM_INSTANCE_PORT_RANGE format: " << e.what());
+        SHM_LOG_ERROR("Invalid SHMEM_INSTANCE_PORT_RANGE format: " << e.what());
         return ACLSHMEM_INVALID_VALUE;
     }
     if (end_port < start_port) {
@@ -301,7 +301,7 @@ static int32_t aclshmemi_instance_port_selection(aclshmemx_init_attr_t *attribut
     try {
         input_port = static_cast<uint16_t>(std::stoi(ip_port_str.substr(pos + 1, ip_port_str.size())));
     } catch (const std::exception& e) {
-        SHM_LOG_ERROR("Invaild ip_port format: " << e.what());
+        SHM_LOG_ERROR("Invalid ip_port format: " << e.what());
         return ACLSHMEM_INVALID_VALUE;
     }
     if (input_port != 0) {
@@ -369,7 +369,7 @@ static int aclshmemi_instance_ctx_destroy(uint64_t instance_id)
         return ACLSHMEM_SUCCESS;
     }
 
-    // if destory an active context
+    // if destroy an active context
     if (instance_id == g_instance_ctx->id) {
         // Set active context to Instance 0
         aclshmemx_instance_ctx_set_impl(0);

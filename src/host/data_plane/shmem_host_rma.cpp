@@ -36,12 +36,12 @@ inline bool is_host_mem_heap(void *ptr)
 void *aclshmem_ptr(void *ptr, int32_t pe)
 {
     if (pe < 0 || pe >= aclshmem_n_pes()) {
-        SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Ilegal PE !!");
+        SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Illegal PE !!");
         return nullptr;
     }
     uint64_t heap_base = is_host_mem_heap(ptr) ? (uint64_t)g_state.host_heap_base : (uint64_t)g_state.heap_base;
     if (!check_heap_addr(ptr, heap_base, g_state.heap_size)) {
-        SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Ilegal Address !!");
+        SHM_LOG_ERROR("aclshmem_ptr Failed. PE: " << aclshmem_my_pe() << " Got Illegal Address !!");
         return nullptr;
     }
 

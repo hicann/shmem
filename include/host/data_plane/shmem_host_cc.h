@@ -53,7 +53,7 @@ ACLSHMEM_HOST_API void aclshmem_barrier_all(void);
  * @brief aclshmem_barrier on the specified stream
  *
  * @param team              [in] team to do barrier
- * @param stream            [in] specifed stream to do barrier
+ * @param stream            [in] specified stream to do barrier
  */
 ACLSHMEM_HOST_API void aclshmemx_barrier_on_stream(aclshmem_team_t team, aclrtStream stream);
 #define shmemx_barrier_on_stream aclshmemx_barrier_on_stream
@@ -62,15 +62,15 @@ ACLSHMEM_HOST_API void aclshmemx_barrier_on_stream(aclshmem_team_t team, aclrtSt
  * @fn ACLSHMEM_HOST_API void aclshmemx_barrier_all_on_stream(aclrtStream stream)
  * @brief aclshmemx_barrier_on_stream of all PEs.
  *
- * @param stream            [in] specifed stream to do barrier
+ * @param stream            [in] specified stream to do barrier
  */
 ACLSHMEM_HOST_API void aclshmemx_barrier_all_on_stream(aclrtStream stream);
 #define shmemx_barrier_all_on_stream aclshmemx_barrier_all_on_stream
 
 /**
- * @brief Similar to aclshmem_barrier. In constract with the aclshmem_barrier routine, aclshmem_sync only ensures
+ * @brief Similar to aclshmem_barrier. In contrast with the aclshmem_barrier routine, aclshmem_sync only ensures
  *        completion and visibility of previously issued memory stores and does not ensure completion of remote memory
- *        updates issued via ACLSHMEM rountines.
+ *        updates issued via ACLSHMEM routines.
  *
  * @param team           [in] team to do barrier
  */

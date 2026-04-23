@@ -334,17 +334,17 @@ typedef struct {
 } aclshmem_ub_config_t;
 
 /// \def ACLSHMEM_CYCLE_PROF_MAX_BLOCK
-/// \brief cycle profling max block nums
+/// \brief cycle profiling max block nums
 #define ACLSHMEM_CYCLE_PROF_MAX_BLOCK 64
 
 /// \def ACLSHMEM_CYCLE_PROF_FRAME_CNT
-/// \brief cycle profling frame count
+/// \brief cycle profiling frame count
 #define ACLSHMEM_CYCLE_PROF_FRAME_CNT 1024
 
 /**
  * @struct aclshmem_prof_block_t
  * @brief ccount and cycles structure
- * @details cycle profling block data
+ * @details cycle profiling block data
  */
 typedef struct {
     int64_t ccount[ACLSHMEM_CYCLE_PROF_FRAME_CNT];

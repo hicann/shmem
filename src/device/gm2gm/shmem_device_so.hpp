@@ -256,7 +256,7 @@ ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int32_t val)
 {
     aclshmemi_store(addr, val);
 
-    // flush data cache to GM after signal to ensure it is visiable to other ranks
+    // flush data cache to GM after signal to ensure it is visible to other ranks
     dcci_cacheline((__gm__ uint8_t *)addr);
 }
 
@@ -268,7 +268,7 @@ ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t 
     } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_ROCE) {
         __gm__ int32_t *sig_addr_int32 = reinterpret_cast<__gm__ int32_t *>(device_state->signal_addr);
         aclshmemi_store(sig_addr_int32, val);
-        // flush data cache to GM after signal to ensure it is visiable to other ranks
+        // flush data cache to GM after signal to ensure it is visible to other ranks
         dcci_cachelines((__gm__ uint8_t *)sig_addr_int32, sizeof(int32_t));
         aclshmemi_highlevel_signal_set(addr, sig_addr_int32, pe);
     }

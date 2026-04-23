@@ -180,7 +180,7 @@ Result DeviceJettyManager::JFCCreate() noexcept
     chanInfo.in.dataPlaneFlag.bs.poolCqCstm = 1; // default 0:hccp poll cq; 1: caller poll cq
     auto ret = DlHccpV2Api::RaCtxChanCreate(ctxHandle_, &chanInfo, &chanHandle_);
     if (ret != 0) {
-        SHM_LOG_ERROR("Create udma channel faild: " << ret);
+        SHM_LOG_ERROR("Create udma channel failed: " << ret);
         return ACLSHMEM_INNER_ERROR;
     }
 

@@ -21,11 +21,11 @@
 
     3. We provide 2 kinds of barrier:
         a. aclshmem_barrier_xxx
-            Barrier of all cores. On systems with only HCCS: All operations of all pes of a team on excuting
-            stream before the barrier are visiable to all pes of the team after the barrier.
+            Barrier of all cores. On systems with only HCCS: All operations of all pes of a team on executing
+            stream before the barrier are visible to all pes of the team after the barrier.
         b. aclshmemx_barrier_xxx_vec
             Barrier of all VEC cores. On systems with only HCCS: All operations of ALL VEC CORES of all pes of a
-            team on excuting stream before the barrier are visiable to ALL VEC CORES of all pes of the team after
+            team on executing stream before the barrier are visible to ALL VEC CORES of all pes of the team after
             the barrier.
 
     4. The scalar unit of cube core is not affected by aclshmem_barrier_xxx. Make sure don't use that.
@@ -95,9 +95,9 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
 #define shmemx_barrier_all_vec aclshmemx_barrier_all_vec
 
 /**
- * @brief Similar to aclshmem_barrier. In constract with the aclshmem_barrier routine, aclshmem_sync only ensures
+ * @brief Similar to aclshmem_barrier. In contrast with the aclshmem_barrier routine, aclshmem_sync only ensures
  *        completion and visibility of previously issued memory stores and does not ensure completion of remote memory
- *        updates issued via ACLSHMEM rountines.
+ *        updates issued via ACLSHMEM routines.
  *
  * @param team           [in] team to do barrier
  */

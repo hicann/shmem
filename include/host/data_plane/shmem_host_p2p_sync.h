@@ -15,7 +15,7 @@
 
     Our barrier implementation ensures that:
         On systems with only HCCS: All operations of all pes of a team ON EXECUTING/INTERNAL STREAMs
-        before the barrier are visiable to all pes of the team after the barrier.
+        before the barrier are visible to all pes of the team after the barrier.
 
     Refer to shmem_device_sync.h for using restrictions.
 */
@@ -45,7 +45,7 @@ ACLSHMEM_HOST_API uint64_t util_get_ffts_config(void);
  * @brief Wait asynchronous RMA operations to finish.
  *
  * @param handle              [in] handle use to wait asynchronous RMA operations to finish
- * @param stream              [in] specifed stream to do wait
+ * @param stream              [in] specified stream to do wait
  */
 ACLSHMEM_HOST_API void aclshmemx_handle_wait(aclshmem_handle_t handle, aclrtStream stream);
 #define shmem_handle_wait aclshmemx_handle_wait

@@ -136,7 +136,7 @@ protected:
     static bool CanLocalHostReaches(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept;
 
     /**
-     * check whether the SDMA accessable to the other device
+     * check whether the SDMA accessible to the other device
      */
     static bool IsSdmaAccessible(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept;
 

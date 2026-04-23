@@ -46,4 +46,4 @@
 #include "host/team/shmem_host_team.h"
 #include "host/utils/shmem_log.h"
 
-#endif // ACLSHMEM_API_H
+#endif // SHMEM_API_H
