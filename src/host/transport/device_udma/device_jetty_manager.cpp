@@ -15,15 +15,11 @@
 #include <vector>
 
 #include "host/shmem_host_def.h"
+#include "../host_device/shmemi_host_device_constant.h"
 #include "runtime/mem.h"
 #include "shmemi_host_common.h"
 #include "device_jetty_manager.h"
 
-constexpr uint32_t CQ_DEPTH_DEFAULT = 16384;
-constexpr uint32_t SQ_DEPTH_DEFAULT = 4096;
-constexpr uint32_t RQ_DEPTH_DEFAULT = 256;
-constexpr uint32_t MAX_SQE_BB_NUM = 4;
-constexpr uint32_t SQ_BASKBLK_CNT = SQ_DEPTH_DEFAULT * MAX_SQE_BB_NUM;
 constexpr uint8_t RNR_RETRY_COUNT_DEFAULT = 7;
 
 namespace shm {
@@ -229,7 +225,7 @@ Result DeviceJettyManager::JFCCreate(PerEidJettyState& state) noexcept
     }
 
     state.cqInfo.in.chanHandle = state.chanHandle;
-    state.cqInfo.in.depth = CQ_DEPTH_DEFAULT;           // optional, normal mode default 16384
+    state.cqInfo.in.depth = shm::UDMA_CQ_DEPTH_DEFAULT; // optional, normal mode default 16384
     state.cqInfo.in.ub.userCtx = 0;                     // optional, default 0
     state.cqInfo.in.ub.mode = JFC_MODE_USER_CTL_NORMAL; // corresponding with jetty mode : JETTY_MODE_USER_CTL_NORMAL
     state.cqInfo.in.ub.ceqn = 0;                        // optional, default 0
@@ -265,8 +261,8 @@ Result DeviceJettyManager::JettyCreate(PerEidJettyState& state) noexcept
     qpCreateAttr.scqHandle = state.cqHandle;
     qpCreateAttr.rcqHandle = state.cqHandle;
     qpCreateAttr.srqHandle = state.cqHandle;
-    qpCreateAttr.sqDepth = SQ_DEPTH_DEFAULT; // optional, default 4096
-    qpCreateAttr.rqDepth = RQ_DEPTH_DEFAULT; // optional, default 256
+    qpCreateAttr.sqDepth = shm::UDMA_SQ_DEPTH_DEFAULT; // optional, default 4096
+    qpCreateAttr.rqDepth = shm::UDMA_RQ_DEPTH_DEFAULT; // optional, default 256
     qpCreateAttr.transportMode = transportMode_;
 
     qpCreateAttr.ub.mode = JettyMode::JETTY_MODE_USER_CTL_NORMAL;
@@ -283,7 +279,7 @@ Result DeviceJettyManager::JettyCreate(PerEidJettyState& state) noexcept
     qpCreateAttr.ub.extMode.piType = 0; // optional, default 0 op mode
     qpCreateAttr.ub.extMode.cstmFlag.bs.sqCstm =
         0; // optional, USER_CTL_NORMAL default is 0, sqbuff no need, others default 1
-    qpCreateAttr.ub.extMode.sqebbNum = SQ_DEPTH_DEFAULT;
+    qpCreateAttr.ub.extMode.sqebbNum = shm::UDMA_SQ_DEPTH_DEFAULT;
     qpCreateAttr.ub.tokenIdHandle = state.tokenIdHandle;
 
     int ret = DlHccpV2Api::RaCtxQpCreate(state.ctxHandle, &qpCreateAttr, &state.qpCreateInfo_, &state.qpHandle);
@@ -295,7 +291,7 @@ Result DeviceJettyManager::JettyCreate(PerEidJettyState& state) noexcept
     state.localWq.wqn = 0;
     state.localWq.bufAddr = state.qpCreateInfo_.ub.sqBuffVa;
     state.localWq.wqeShiftSize = log2(state.qpCreateInfo_.ub.wqebbSize); // wqeSize = 64 = 2^6, wqeShiftSize此处取6
-    state.localWq.depth = SQ_BASKBLK_CNT;
+    state.localWq.depth = shm::UDMA_SQ_BASKBLK_CNT;
     aclrtMalloc(&state.sqPiAddr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMemset(state.sqPiAddr, sizeof(uint32_t), 0, sizeof(uint32_t));
     state.localWq.headAddr = reinterpret_cast<uintptr_t>(state.sqPiAddr);

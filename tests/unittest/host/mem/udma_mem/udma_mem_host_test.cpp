@@ -24,6 +24,7 @@ extern void test_finalize(aclrtStream stream, int device_id);
 
 extern void test_udma_put(uint32_t block_dim, void *stream, uint8_t *gva);
 extern void test_udma_get(uint32_t block_dim, void *stream, uint8_t *gva);
+extern void test_udma_put_signal(uint32_t block_dim, void *stream, uint8_t *gva, uint8_t *sig_addr);
 
 static void test_udma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)
 {
@@ -61,6 +62,34 @@ static void test_udma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id
         ASSERT_EQ(outHost[i * messageSize / sizeof(uint32_t)], i + rankOffset);
     }
 
+    // Test udma put signal
+    uint8_t *sig_addr = static_cast<uint8_t *>(aclshmem_malloc(rank_size * sizeof(uint64_t)));
+    ASSERT_NE(sig_addr, nullptr);
+    
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_put_signal(block_dim, stream, (uint8_t *)gva, sig_addr);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    
+    // Read and validate signals
+    std::vector<uint64_t> signal_values(rank_size, 0);
+    ASSERT_EQ(aclrtMemcpy(signal_values.data(), rank_size * sizeof(uint64_t), sig_addr, rank_size * sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    
+    std::cout << "Signal values received on rank=" << rank_id << ":" << std::endl;
+    bool all_signals_set = true;
+    for (int i = 0; i < rank_size; i++) {
+        if (i == rank_id) {
+            continue;
+        }
+        uint64_t signal = 1000;
+        if (signal_values[i] != signal) {
+            all_signals_set = false;
+        }
+    }
+    ASSERT_TRUE(all_signals_set) << "Signal for rank " << rank_id << " is not set correctly";
+    
+    aclshmem_free(sig_addr);
     ASSERT_EQ(aclrtFreeHost(inHost), 0);
     ASSERT_EQ(aclrtFreeHost(outHost), 0);
 }

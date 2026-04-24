@@ -63,3 +63,26 @@ void test_udma_put(uint32_t block_dim, void *stream, uint8_t *gva)
 {
     UDMAPutTest<<<block_dim, nullptr, stream>>>(gva);
 }
+
+extern "C" __global__ __aicore__ void UDMAPutSignalTest(GM_ADDR gva, GM_ADDR sig_addr)
+{    
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    GM_ADDR src_addr;
+    
+    for (int64_t peer = 0; peer < npes; peer++) {
+        if (peer == my_pe) {
+            continue;
+        }
+        src_addr = gva + my_pe * MESSAGE_SIZE;
+        uint64_t signal = 1000;
+        auto dst_sig_addr = sig_addr + sizeof(uint64_t) * my_pe;
+        aclshmemx_udma_put_signal_nbi(src_addr, src_addr, MESSAGE_SIZE, (__gm__ uint64_t*)dst_sig_addr, signal, peer);
+        aclshmemx_udma_quiet(peer);
+    }
+}
+
+void test_udma_put_signal(uint32_t block_dim, void *stream, uint8_t *gva, uint8_t *sig_addr)
+{
+    UDMAPutSignalTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
+}

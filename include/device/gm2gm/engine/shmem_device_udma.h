@@ -44,9 +44,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(const AscendC::GlobalTensor<T>& dst,
-                                            const AscendC::GlobalTensor<T>& src,
-                                            const AscendC::LocalTensor<T>& buf, uint32_t elem_size, int pe);
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -75,8 +75,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
  * @param sync_id           [in] ID used to sync S\\MTE3 Event.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src,
-    const AscendC::LocalTensor<T>& buf, uint32_t elem_size, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief UDMA Quiet function. This synchronous function ensures all previous UDMA WQEs are completed
@@ -85,7 +86,6 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(const AscendC::GlobalTensor<T>& dst,
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe);
-
 
 /**
  * @brief Asynchronous interface. Add value to dst (remote symmetric address) on the specified PE pe,
@@ -98,7 +98,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_udma_atomic_add(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE void aclshmemx_udma_atomic_add(__gm__ T* dst, T value, int32_t pe);
 
 /**
  * @brief Synchronous interface. Add value to dst (remote symmetric address) on the specified PE pe,
@@ -111,7 +111,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_add(__gm__ T *dst, T value, int32_t p
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_add(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_add(__gm__ T* dst, T value, int32_t pe);
 
 /**
  * @brief Synchronous interface. Conditionally update dst (remote symmetric address) on the specified PE pe
@@ -127,6 +127,23 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_add(__gm__ T *dst, T value, int32_
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_udma_atomic_compare_swap(__gm__ T *dst, T cond, T value, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_udma_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe);
 
+/**
+ * @brief Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
+ *        updating a remote signal flag on completion using UDMA.
+ *        Template function for different data types.
+ *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same
+ *        PE are not supported.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
+ * @param elem_size         [in] Number of elements in the dest and source arrays.
+ * @param sig_addr          [in] Symmetric address of the signal word to be updated.
+ * @param signal            [in] The value used to update sig_addr.
+ * @param pe                [in] PE number of the remote PE.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
+    __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe);
 #endif
