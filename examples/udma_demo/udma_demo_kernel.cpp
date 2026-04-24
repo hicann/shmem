@@ -14,7 +14,8 @@
 constexpr uint64_t INIT_DUMP_SIZE = 200 * 1024 * 1024;
 
 // Minimal all-gather implementation using UDMA.
-extern "C" [[bisheng::core_ratio(0,1)]] __global__ __aicore__ void udma_all_gather_kernel(GM_ADDR gva, GM_ADDR dump, int message_length)
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_all_gather_kernel(
+    GM_ADDR gva, GM_ADDR dump, int message_length)
 {
     AscendC::TPipe pipe;
 #if ASCENDC_DUMP == 1
@@ -33,13 +34,14 @@ extern "C" [[bisheng::core_ratio(0,1)]] __global__ __aicore__ void udma_all_gath
         if (i == my_rank) {
             continue;
         }
-        aclshmemx_udma_put_nbi(gva + message_length * my_rank, gva + message_length * my_rank,
-            (__ubuf__ uint8_t *)ubLocal.GetPhyAddr(), message_length, i);
+        aclshmemx_udma_put_nbi(
+            gva + message_length * my_rank, gva + message_length * my_rank, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(),
+            message_length, i);
         aclshmemx_udma_quiet(i);
     }
 }
 
-void launch_udma_all_gather(uint32_t block_dim, void *stream, uint8_t *gva, uint8_t *dump, int elements)
+void launch_udma_all_gather(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dump, int elements)
 {
     udma_all_gather_kernel<<<block_dim, nullptr, stream>>>(gva, dump, elements);
 }

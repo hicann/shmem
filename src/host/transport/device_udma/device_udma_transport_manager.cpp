@@ -7,20 +7,38 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "dl_acl_api.h"
 #include "dl_hccp_v2_api.h"
 #include "mem_entity_def.h"
 #include "shmemi_host_common.h"
+#include "transport/topo/topo_reader.h"
 #include "device_udma_transport_manager.h"
 
 namespace shm {
 namespace transport {
 namespace device {
+
+namespace {
+
+struct ExchangedMrInfo {
+    uint32_t eidIndex{0};
+    uint32_t valid{0};
+    RegMemResultInfo mr{};
+};
+
+constexpr int32_t INVALID_EID_INDEX = -1;
+
+} // namespace
+
 bool UdmaTransportManager::tsdOpened_ = false;
 bool UdmaTransportManager::raInitialized_ = false;
-void *UdmaTransportManager::storedCtxHandle_ = nullptr;
+std::map<uint32_t, void*> UdmaTransportManager::storedCtxHandleMap_;
 int UdmaTransportManager::subPid_ = 0;
 
 UdmaTransportManager::UdmaTransportManager() noexcept {}
@@ -30,36 +48,37 @@ UdmaTransportManager::~UdmaTransportManager() noexcept
     CleanupResources();
     tsdOpened_ = false;
     raInitialized_ = false;
-    storedCtxHandle_ = nullptr;
+    storedCtxHandleMap_.clear();
     subPid_ = 0;
 }
 
-Result UdmaTransportManager::OpenDevice(const TransportOptions &options)
+Result UdmaTransportManager::OpenDevice(const TransportOptions& options)
 {
     int32_t userId = -1;
     int32_t logicId = -1;
 
-    SHM_LOG_DEBUG(rankId_ << " begin to open device with " << options);
+    SHM_LOG_DEBUG(options.rankId << " begin to open device with " << options);
     auto ret = DlAclApi::AclrtGetDevice(&userId);
-    SHM_ASSERT_LOG_AND_RETURN(ret == 0 && userId >= 0,
-        "AclrtGetDevice() return=" << ret << ", output deviceId=" << userId, ACLSHMEM_DL_FUNC_FAILED);
+    SHM_ASSERT_LOG_AND_RETURN(
+        ret == 0 && userId >= 0, "AclrtGetDevice() return=" << ret << ", output deviceId=" << userId,
+        ACLSHMEM_DL_FUNC_FAILED);
 
     ret = DlAclApi::RtGetLogicDevIdByUserDevId(userId, &logicId);
-    SHM_ASSERT_LOG_AND_RETURN(ret == 0 && logicId >= 0,
-        "RtGetLogicDevIdByUserDevId() return=" << ret << ", output deviceId=" << logicId, ACLSHMEM_DL_FUNC_FAILED);
+    SHM_ASSERT_LOG_AND_RETURN(
+        ret == 0 && logicId >= 0, "RtGetLogicDevIdByUserDevId() return=" << ret << ", output deviceId=" << logicId,
+        ACLSHMEM_DL_FUNC_FAILED);
 
     deviceId_ = static_cast<uint32_t>(logicId);
     rankId_ = options.rankId;
     rankCount_ = options.rankCount;
     role_ = options.role;
 
-    if (!PrepareOpenDevice(deviceId_, rankCount_, ctxHandle_, logicId)) {
+    if (!PrepareOpenDevice(deviceId_, rankCount_)) {
         SHM_LOG_ERROR("PrepareOpenDevice failed.");
         return ACLSHMEM_INNER_ERROR;
     }
 
-    deviceJettyManager_ = new DeviceJettyManager(deviceId_, rankId_, rankCount_);
-    deviceJettyManager_->SetTokenIdHandle(tokenIdHandle_);
+    deviceJettyManager_ = new DeviceJettyManager(deviceId_, rankId_, rankCount_, eidCount_);
     return ACLSHMEM_SUCCESS;
 }
 
@@ -73,50 +92,79 @@ Result UdmaTransportManager::CloseDevice()
     return ACLSHMEM_SUCCESS;
 }
 
-Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion &mr)
+Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& mr)
 {
-    struct MrRegInfoT mrInfo = {};
-    mrInfo.in.mem.addr = mr.addr;
-    mrInfo.in.mem.size = mr.size;
-    mrInfo.in.ub.tokenValue = mr.tokenValue;
-    mrInfo.in.ub.tokenIdHandle = tokenIdHandle_;
-    mrInfo.in.ub.flags.bs.access = MEM_SEG_ACCESS_DEFAULT;
-    mrInfo.in.ub.flags.bs.cacheable = mr.cacheable;
-    mrInfo.in.ub.flags.bs.tokenIdValid = mr.tokenIdValid;
-    mrInfo.in.ub.flags.bs.nonPin = 0;
-    mrInfo.in.ub.flags.bs.userIova = 0;
-    mrInfo.in.ub.flags.bs.tokenPolicy = URMA_TOKEN_PLAIN_TEXT;
+    std::map<uint32_t, RegMemResultInfo> regResultMap;
+    for (const auto& ctxEntry : storedCtxHandleMap_) {
+        const uint32_t eidIndex = ctxEntry.first;
+        void* ctxHandle = ctxEntry.second;
+        auto handleIter = tokenIdHandleMap_.find(eidIndex);
+        if (handleIter == tokenIdHandleMap_.end()) {
+            SHM_LOG_ERROR("Failed to find a tokenIdHandle for EID index " << eidIndex);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        void* tokenIdHandle = handleIter->second;
 
-    auto ret = shm::DlHccpV2Api::RaCtxLmemRegister(ctxHandle_, &mrInfo, &lmemHandle_);
-    if (ret != 0) {
-        SHM_LOG_ERROR("Register MR = " << mr << " failed, ret = " << ret);
-        return ACLSHMEM_INNER_ERROR;
+        struct MrRegInfoT mrInfo = {};
+        mrInfo.in.mem.addr = mr.addr;
+        mrInfo.in.mem.size = mr.size;
+        mrInfo.in.ub.tokenValue = mr.tokenValue;
+        mrInfo.in.ub.tokenIdHandle = tokenIdHandle;
+        mrInfo.in.ub.flags.bs.access = MEM_SEG_ACCESS_DEFAULT;
+        mrInfo.in.ub.flags.bs.cacheable = mr.cacheable;
+        mrInfo.in.ub.flags.bs.tokenIdValid = mr.tokenIdValid;
+        mrInfo.in.ub.flags.bs.nonPin = 0;
+        mrInfo.in.ub.flags.bs.userIova = 0;
+        mrInfo.in.ub.flags.bs.tokenPolicy = URMA_TOKEN_PLAIN_TEXT;
+
+        void* lmemHandle = nullptr;
+        auto ret = shm::DlHccpV2Api::RaCtxLmemRegister(ctxHandle, &mrInfo, &lmemHandle);
+        if (ret != 0) {
+            SHM_LOG_ERROR("Failed to register the memory region for EID index " << eidIndex << ", ret = " << ret);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        lmemHandleMap_[eidIndex] = lmemHandle;
+
+        RegMemResultInfo regResult{
+            mr.addr,
+            mr.size,
+            lmemHandle,
+            mrInfo.out.key,
+            mrInfo.out.ub.tokenId,
+            mr.tokenValue,
+            mrInfo.out.ub.targetSegHandle,
+            tokenIdHandle,
+            mr.cacheable,
+            mr.access};
+        regResultMap[eidIndex] = regResult;
+        ACLSHMEMUBmemInfo localMemInfo{};
+        localMemInfo.token_value_valid = mr.tokenIdValid;
+        localMemInfo.rmt_jetty_type = 1;
+        localMemInfo.target_hint = 0;
+        localMemInfo.tpn = 0;
+        localMemInfo.tid = mrInfo.out.ub.tokenId >> 8;
+        localMemInfo.rmt_token_value = mr.tokenValue;
+        localMemInfo.len = mr.size;
+        localMemInfo.addr = mr.addr;
+        localMemInfoMap_[eidIndex] = localMemInfo;
     }
 
-    RegMemResultInfo regResult{mr.addr, mr.size, lmemHandle_, mrInfo.out.key, mrInfo.out.ub.tokenId,
-        mrInfo.in.ub.tokenValue, mrInfo.out.ub.targetSegHandle, tokenIdHandle_, mr.cacheable, mr.access};
-    localMR_ = regResult;
-    SHM_LOG_INFO("Register MR success, regResult = " << regResult);
-    ACLSHMEMUBmemInfo localMemInfo{};
-    localMemInfo.token_value_valid = mr.tokenIdValid;
-    localMemInfo.rmt_jetty_type = 1;
-    localMemInfo.target_hint = 0;
-    localMemInfo.tpn = 0;
-    localMemInfo.tid = mrInfo.out.ub.tokenId >> 8;
-    localMemInfo.rmt_token_value = mr.tokenValue;
-    localMemInfo.len = mr.size;
-    localMemInfo.addr = mr.addr;
-    ret = deviceJettyManager_->SetLocalMemInfo(localMemInfo);
+    registerMRS_[mr.addr] = regResultMap;
+    localMrMap_ = regResultMap;
+
+    auto ret = deviceJettyManager_->SetLocalMemInfos(localMemInfoMap_);
     if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("Jetty manager set mr failed, ret = " << ret);
+        SHM_LOG_ERROR("Failed to set the local memory information in the jetty manager, ret = " << ret);
         return ret;
     }
-    ret = deviceJettyManager_->SetSwapEid(hccpEid_);
+
+    ret = deviceJettyManager_->SetEids(hccpEidMap_);
     if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("Jetty manager set swap eid failed, ret = " << ret);
+        SHM_LOG_ERROR("Failed to set the swap EID in the jetty manager, ret = " << ret);
         return ret;
     }
-    registerMRS_.emplace(mr.addr, regResult);
+
+    SHM_LOG_INFO("Register MR success.");
     return ACLSHMEM_SUCCESS;
 }
 
@@ -124,20 +172,28 @@ Result UdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
 {
     auto pos = registerMRS_.find(addr);
     if (pos == registerMRS_.end()) {
-        SHM_LOG_ERROR("Input address not register!");
+        SHM_LOG_ERROR("Input address is not registered, address = " << addr);
         return ACLSHMEM_INVALID_PARAM;
     }
 
-    auto ret = shm::DlHccpV2Api::RaCtxLmemUnregister(ctxHandle_, pos->second.lmemHandle);
-    if (ret != 0) {
-        SHM_LOG_ERROR("Unregister MR failed, ret = " << ret);
-        return ACLSHMEM_INNER_ERROR;
+    for (const auto& mrEntry : pos->second) {
+        uint32_t eidIndex = mrEntry.first;
+        void* lmemHandle = mrEntry.second.lmemHandle;
+        auto ctxIt = storedCtxHandleMap_.find(eidIndex);
+        if (ctxIt == storedCtxHandleMap_.end() || lmemHandle == nullptr) {
+            continue;
+        }
+        auto ret = shm::DlHccpV2Api::RaCtxLmemUnregister(ctxIt->second, lmemHandle);
+        if (ret != 0) {
+            SHM_LOG_ERROR("Failed to unregister the memory region for EID index " << eidIndex << ", ret = " << ret);
+            return ACLSHMEM_INNER_ERROR;
+        }
     }
     registerMRS_.erase(pos);
     return ACLSHMEM_SUCCESS;
 }
 
-Result UdmaTransportManager::Prepare(const HybmTransPrepareOptions &options)
+Result UdmaTransportManager::Prepare(const HybmTransPrepareOptions& options)
 {
     SHM_LOG_DEBUG("UdmaTransportManager Prepare with options: " << options);
     int ret;
@@ -145,7 +201,12 @@ Result UdmaTransportManager::Prepare(const HybmTransPrepareOptions &options)
         return ret;
     }
 
-    ret = deviceJettyManager_->Startup(ctxHandle_);
+    deviceJettyManager_->SetCtxHandles(storedCtxHandleMap_);
+    deviceJettyManager_->SetTokenIdHandles(tokenIdHandleMap_);
+    deviceJettyManager_->SetLocalMemInfos(localMemInfoMap_);
+    deviceJettyManager_->SetEids(hccpEidMap_);
+    deviceJettyManager_->SetPeerRoutes(peerEidIndexMap_, peerRemoteEidIndexMap_);
+    ret = deviceJettyManager_->Startup();
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("Jetty manager startup failed, ret = " << ret);
         return ret;
@@ -166,59 +227,179 @@ Result UdmaTransportManager::Connect()
     return ACLSHMEM_SUCCESS;
 }
 
-const void *UdmaTransportManager::GetQpInfo() const
-{
-    return deviceJettyManager_->GetJettyInfoAddress();
-}
+const void* UdmaTransportManager::GetQpInfo() const { return deviceJettyManager_->GetJettyInfoAddress(); }
 
 Result UdmaTransportManager::AsyncConnect()
 {
-    std::vector<RegMemResultInfo> mrList(rankCount_);
-    g_boot_handle.allgather(&localMR_, mrList.data(), sizeof(RegMemResultInfo), &g_boot_handle);
-    memoryHandleList_ = (void **)calloc(rankCount_, sizeof(void *));
-    if (memoryHandleList_ == nullptr) {
-        SHM_LOG_ERROR("Calloc memoryHandleList failed.");
+    uint32_t localMrCount = static_cast<uint32_t>(localMrMap_.size());
+    std::vector<uint32_t> allMrRegInfoCounts(rankCount_);
+    g_boot_handle.allgather(&localMrCount, allMrRegInfoCounts.data(), sizeof(uint32_t), &g_boot_handle);
+
+    const auto maxCountIt = std::max_element(allMrRegInfoCounts.begin(), allMrRegInfoCounts.end());
+    const uint32_t maxMrCount = (maxCountIt == allMrRegInfoCounts.end()) ? 0 : *maxCountIt;
+    if (maxMrCount == 0) {
+        SHM_LOG_ERROR("No local MR information was exchanged.");
         return ACLSHMEM_INNER_ERROR;
     }
-    struct MrImportInfoT mrImportInfo = {};
-    void *rmemHandle = nullptr;
-    int idx = 0;
-    for (auto &mr : mrList) {
-        if (mr.lmemHandle == lmemHandle_) {
-            memoryHandleList_[idx++] = lmemHandle_;
+
+    std::vector<ExchangedMrInfo> localMrByEid(maxMrCount);
+    uint32_t packedIndex = 0;
+    for (const auto& mrEntry : localMrMap_) {
+        localMrByEid[packedIndex].eidIndex = mrEntry.first;
+        localMrByEid[packedIndex].valid = 1;
+        localMrByEid[packedIndex].mr = mrEntry.second;
+        ++packedIndex;
+    }
+
+    std::vector<ExchangedMrInfo> allMrRegInfo(rankCount_ * maxMrCount);
+    g_boot_handle.allgather(
+        localMrByEid.data(), allMrRegInfo.data(), static_cast<uint64_t>(sizeof(ExchangedMrInfo) * maxMrCount),
+        &g_boot_handle);
+    memoryHandleList_.resize(rankCount_);
+    for (uint32_t peer = 0; peer < rankCount_; ++peer) {
+        if (peer == rankId_) {
             continue;
         }
+        auto ctxIt = ctxHandleMap_.find(peer);
+        void* ctxHandle = (ctxIt != ctxHandleMap_.end()) ? ctxIt->second : nullptr;
+        if (ctxHandle == nullptr) {
+            SHM_LOG_ERROR("Failed to find ctxHandle for peer " << peer);
+            return ACLSHMEM_INNER_ERROR;
+        }
+
+        auto remoteEidIt = peerRemoteEidIndexMap_.find(peer);
+        if (remoteEidIt == peerRemoteEidIndexMap_.end()) {
+            SHM_LOG_ERROR("Failed to find remote EID route for peer " << peer);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        uint32_t remoteEidIndex = remoteEidIt->second;
+
+        const ExchangedMrInfo* remoteMrInfo = nullptr;
+        const uint32_t peerMrCount = allMrRegInfoCounts[peer];
+        for (uint32_t idx = 0; idx < peerMrCount; ++idx) {
+            const ExchangedMrInfo& candidate = allMrRegInfo[peer * maxMrCount + idx];
+            if (candidate.valid != 0 && candidate.eidIndex == remoteEidIndex) {
+                remoteMrInfo = &candidate;
+                break;
+            }
+        }
+        if (remoteMrInfo == nullptr) {
+            SHM_LOG_ERROR("No remote MR was exchanged for peer " << peer << " on remote EID index " << remoteEidIndex);
+            return ACLSHMEM_INNER_ERROR;
+        }
+
+        const RegMemResultInfo& mr = remoteMrInfo->mr;
+
+        struct MrImportInfoT mrImportInfo = {};
         mrImportInfo.in.key = mr.key;
         mrImportInfo.in.ub.tokenValue = mr.tokenValue;
         mrImportInfo.in.ub.flags.bs.cacheable = mr.cacheable;
         mrImportInfo.in.ub.flags.bs.access = mr.access;
-        auto ret = shm::DlHccpV2Api::RaCtxRmemImport(ctxHandle_, &mrImportInfo, &rmemHandle);
+        void* rmemHandle = nullptr;
+        auto ret = shm::DlHccpV2Api::RaCtxRmemImport(ctxHandle, &mrImportInfo, &rmemHandle);
         if (ret != 0) {
-            SHM_LOG_ERROR("RaCtxRmemImport failed, ret =" << ret);
+            SHM_LOG_ERROR("Failed to import remote memory for peer " << peer << ", ret = " << ret);
             return ACLSHMEM_INNER_ERROR;
         }
-        memoryHandleList_[idx++] = rmemHandle;
+        memoryHandleList_[peer] = rmemHandle;
     }
     SHM_LOG_INFO("Import remote MR success.");
     return ACLSHMEM_SUCCESS;
 }
 
-bool UdmaTransportManager::PrepareOpenDevice(
-    uint32_t deviceId, uint32_t rankCount, void *&ctxHandle, uint32_t logicDeviceId)
+bool UdmaTransportManager::PrepareOpenDevice(uint32_t deviceId, uint32_t rankCount)
 {
+    // Parse topo to build portEidMap
+    RootInfo rootInfo;
+    TopoInfo topoInfo;
+    uint32_t localId = 0;
+    uint32_t eidCount = 0;
+    if (!TopoReader::ParseRootInfo(rootInfo)) {
+        SHM_LOG_ERROR("Failed to parse the rootinfo file.");
+        return false;
+    }
+    if (!TopoReader::ParseTopoInfo(rootInfo.topo_file_path, topoInfo)) {
+        SHM_LOG_ERROR("Failed to parse the topology file at path " << rootInfo.topo_file_path);
+        return false;
+    }
+
     if (!OpenTsd(deviceId, rankCount)) {
         SHM_LOG_ERROR("Open tsd failed.");
         return false;
     }
 
-    if (!RaInit(deviceId)) {
+    rootInfo_ = rootInfo;
+    if (!RaInit(deviceId + TopoReader::GetDeviceIdOffset(rootInfo_))) {
         SHM_LOG_ERROR("RaInit failed.");
         return false;
     }
 
-    if (!RaCtxInit(deviceId, ctxHandle)) {
-        SHM_LOG_ERROR("RaRdevInit failed.");
+    
+    if (!TopoReader::GetLocalIdWithDeviceIdOffset(rootInfo, deviceId, localId)) {
+        SHM_LOG_ERROR("Failed to find localId for deviceId: " << deviceId);
         return false;
+    }
+    if (!TopoReader::GetEidCount(rootInfo, eidCount)) {
+        SHM_LOG_ERROR("Failed to find eid count from rootinfo.");
+        return false;
+    }
+
+    std::vector<uint32_t> eidCountList(rankCount);
+    g_boot_handle.allgather(&eidCount, eidCountList.data(), sizeof(uint32_t), &g_boot_handle);
+    const auto maxEidCountIt = std::max_element(eidCountList.begin(), eidCountList.end());
+    eidCount_ = (maxEidCountIt == eidCountList.end()) ? 0 : *maxEidCountIt;
+    if (eidCount_ == 0) {
+        SHM_LOG_ERROR("Invalid eidSlotCount resolved from rootinfo rank_addr_list.");
+        return false;
+    }
+
+    // allgather rankId -> localId
+    std::vector<uint32_t> localIdList(rankCount);
+    g_boot_handle.allgather(&localId, localIdList.data(), sizeof(uint32_t), &g_boot_handle);
+
+    std::vector<int32_t> localRouteByPeer(rankCount, INVALID_EID_INDEX);
+
+    for (uint32_t peer = 0; peer < rankCount; ++peer) {
+        if (peer == rankId_) {
+            continue;
+        }
+        uint32_t eidIndex = 0;
+        std::array<uint8_t, 16> eidRaw{};
+        uint32_t peerLocalId = localIdList[peer];
+        if (!TopoReader::GetLocalEidRouteForPeer(rootInfo, topoInfo, localId, peerLocalId, eidIndex, eidRaw)) {
+            SHM_LOG_ERROR(
+                "Failed to resolve the local EID route for peer rank " << peer << ". The localId was " << localId
+                                                                       << " and the peer localId was " << peerLocalId);
+            return false;
+        }
+        peerEidIndexMap_[peer] = eidIndex;
+        localRouteByPeer[peer] = static_cast<int32_t>(eidIndex);
+
+        void* ctxHandle = nullptr;
+        if (!RaCtxInit(deviceId + TopoReader::GetDeviceIdOffset(rootInfo_), eidIndex, eidRaw, ctxHandle)) {
+            SHM_LOG_ERROR("RaCtxInit failed for peer " << peer << " with EID index " << eidIndex);
+            return false;
+        }
+        ctxHandleMap_[peer] = ctxHandle;
+    }
+
+    std::vector<int32_t> allRouteByPeer(rankCount * rankCount, INVALID_EID_INDEX);
+    g_boot_handle.allgather(
+        localRouteByPeer.data(), allRouteByPeer.data(), sizeof(int32_t) * rankCount, &g_boot_handle);
+
+    for (uint32_t peer = 0; peer < rankCount; ++peer) {
+        if (peer == rankId_) {
+            continue;
+        }
+        int32_t remoteRoute = allRouteByPeer[peer * rankCount + rankId_];
+        if (remoteRoute < 0 || static_cast<uint32_t>(remoteRoute) >= eidCount_) {
+            SHM_LOG_ERROR(
+                "Invalid remote EID route for peer rank "
+                << peer << ", remoteRoute = " << remoteRoute << ", local rank = " << rankId_ << ", localId = "
+                << localId << ", peerLocalId = " << localIdList[peer] << ", eidSlotCount = " << eidCount_);
+            return false;
+        }
+        peerRemoteEidIndexMap_[peer] = static_cast<uint32_t>(remoteRoute);
     }
 
     return true;
@@ -244,8 +425,8 @@ bool UdmaTransportManager::OpenTsd(uint32_t deviceId, uint32_t rankCount)
     args.subPid = &subPid;
     auto ret = shm::DlHccpV2Api::TsdProcessOpen(deviceId, &args);
     if (ret != 0) {
-        SHM_LOG_ERROR("TsdProcessOpen for (deviceId = " << deviceId << ", rankCount = " << rankCount
-                                                        << ") failed, ret = " << ret);
+        SHM_LOG_ERROR(
+            "TsdProcessOpen failed, deviceId = " << deviceId << ", rankCount = " << rankCount << ", ret = " << ret);
         return false;
     }
     subPid_ = subPid;
@@ -279,7 +460,7 @@ bool UdmaTransportManager::RaInit(uint32_t deviceId)
     return true;
 }
 
-bool UdmaTransportManager::RaGetDevEidInfoNum(uint32_t deviceId, unsigned int &num)
+bool UdmaTransportManager::RaGetDevEidInfoNum(uint32_t deviceId, unsigned int& num)
 {
     struct RaInfo info = {NETWORK_PEER_ONLINE, 0};
     info.phyId = deviceId;
@@ -294,33 +475,39 @@ bool UdmaTransportManager::RaGetDevEidInfoNum(uint32_t deviceId, unsigned int &n
     return true;
 }
 
-bool UdmaTransportManager::RaGetDevEidInfoList(uint32_t deviceId, unsigned int eidNum, struct CtxInitAttr *attr)
+bool UdmaTransportManager::RaGetDevEidInfoList(
+    uint32_t deviceId, unsigned int eidNum, const std::array<uint8_t, 16>& targetEidRaw, struct CtxInitAttr* attr)
 {
     struct RaInfo info = {NETWORK_PEER_ONLINE, 0};
     info.phyId = deviceId;
     info.mode = NETWORK_OFFLINE;
     SHM_LOG_DEBUG("RaInfo=" << info);
     unsigned int infoListNum = eidNum;
-    struct DevEidInfo *infoList = (struct DevEidInfo *)calloc(eidNum, sizeof(struct DevEidInfo));
-    if (infoList == nullptr) {
-        SHM_LOG_ERROR("DevEidInfo malloc failed.");
-        return false;
-    }
-    int ret = shm::DlHccpV2Api::RaGetDevEidInfoList(info, infoList, &infoListNum);
+    std::vector<DevEidInfo> infoList(eidNum);
+    int ret = shm::DlHccpV2Api::RaGetDevEidInfoList(info, infoList.data(), &infoListNum);
     if (ret != 0 || infoListNum != eidNum) {
-        SHM_LOG_ERROR("RaGetDevEidInfoList failed, info_list_num =" << infoListNum);
-        aclrtFree(infoList);
+        SHM_LOG_ERROR(
+            "Get eid information failed, ret = " << ret << ", expected eidNum = " << eidNum
+                                                 << ", actual eidNum = " << infoListNum);
         return false;
     }
-    SHM_LOG_INFO("RaGetDevEidInfoList success.");
-    attr->ub.eid = infoList[0].eid;
-    attr->ub.eidIndex = infoList[0].eidIndex;
+    SHM_LOG_INFO("Get eid information success.");
 
-    free(infoList);
-    return true;
+    for (unsigned int index = 0; index < infoListNum; ++index) {
+        if (std::memcmp(infoList[index].eid.raw, targetEidRaw.data(), targetEidRaw.size()) != 0) {
+            continue;
+        }
+        attr->ub.eid = infoList[index].eid;
+        attr->ub.eidIndex = infoList[index].eidIndex;
+        SHM_LOG_INFO("Matched eid raw for route eidIndex " << attr->ub.eidIndex);
+        return true;
+    }
+
+    SHM_LOG_ERROR("Failed to match target eid raw in device eid info list.");
+    return false;
 }
 
-bool UdmaTransportManager::RaCtxTokenId(void *ctxHandle, void *&tokenIdHandle)
+bool UdmaTransportManager::RaCtxTokenId(void* ctxHandle, void*& tokenIdHandle)
 {
     struct HccpTokenId tokenId = {0};
     auto ret = shm::DlHccpV2Api::RaCtxTokenIdAlloc(ctxHandle, &tokenId, &tokenIdHandle);
@@ -328,16 +515,17 @@ bool UdmaTransportManager::RaCtxTokenId(void *ctxHandle, void *&tokenIdHandle)
         SHM_LOG_ERROR("RaCtxTokenIdAlloc failed, ret = " << ret);
         return false;
     }
-    tokenId_ = tokenId.tokenId;
     SHM_LOG_DEBUG("RaCtxTokenIdAlloc success, tokenId = " << tokenId.tokenId);
     return true;
 }
 
-bool UdmaTransportManager::RaCtxInit(uint32_t deviceId, void *&ctxHandle)
+bool UdmaTransportManager::RaCtxInit(
+    uint32_t deviceId, uint32_t eidIndex, const std::array<uint8_t, 16>& targetEidRaw, void*& ctxHandle)
 {
-    if (storedCtxHandle_ != nullptr) {
-        SHM_LOG_INFO("CtxHandle already initialized.");
-        ctxHandle = storedCtxHandle_;
+    auto it = storedCtxHandleMap_.find(eidIndex);
+    if (it != storedCtxHandleMap_.end()) {
+        SHM_LOG_INFO("The ctxHandle has already been initialized for EID index " << eidIndex);
+        ctxHandle = it->second;
         return true;
     }
 
@@ -349,25 +537,27 @@ bool UdmaTransportManager::RaCtxInit(uint32_t deviceId, void *&ctxHandle)
     attr.phyId = deviceId;
     struct CtxInitCfg cfg = {};
     cfg.mode = NETWORK_OFFLINE;
-    if (!RaGetDevEidInfoList(deviceId, eidNum, &attr)) {
+    if (!RaGetDevEidInfoList(deviceId, eidNum, targetEidRaw, &attr)) {
         return false;
     }
-    hccpEid_ = attr.ub.eid;
+    hccpEidMap_[eidIndex] = attr.ub.eid;
     SHM_LOG_DEBUG("CtxInitAttr = " << attr);
     auto ret = shm::DlHccpV2Api::RaCtxInit(&cfg, &attr, &ctxHandle);
     if (ret != 0) {
-        SHM_LOG_ERROR("RaCtxInit failed,  ret = " << ret);
+        SHM_LOG_ERROR("RaCtxInit failed, ret = " << ret);
         return false;
     }
-    if (!RaCtxTokenId(ctxHandle, tokenIdHandle_)) {
+    void* tokenIdHandle = nullptr;
+    if (!RaCtxTokenId(ctxHandle, tokenIdHandle)) {
         return false;
     }
-    storedCtxHandle_ = ctxHandle;
-    SHM_LOG_INFO("RaCtxInit success.");
+    tokenIdHandleMap_[eidIndex] = tokenIdHandle;
+    storedCtxHandleMap_[eidIndex] = ctxHandle;
+    SHM_LOG_INFO("RaCtxInit succeeded for EID index " << eidIndex);
     return true;
 }
 
-Result UdmaTransportManager::CheckPrepareOptions(const HybmTransPrepareOptions &options)
+Result UdmaTransportManager::CheckPrepareOptions(const HybmTransPrepareOptions& options)
 {
     if (role_ != HYBM_ROLE_PEER) {
         SHM_LOG_INFO("Transport role: " << role_ << " check options passed.");
@@ -396,41 +586,105 @@ Result UdmaTransportManager::CheckPrepareOptions(const HybmTransPrepareOptions &
 
 void UdmaTransportManager::CleanupResources()
 {
-    if (memoryHandleList_ != nullptr) {
-        for (int i = 0; i < rankCount_; ++i) {
-            if (i == rankId_) {
+    // Unimport remote handle
+    if (memoryHandleList_.size() > 0) {
+        for (uint32_t peer = 0; peer < rankCount_; ++peer) {
+            if (peer == rankId_) {
                 continue;
             }
-            auto ret = shm::DlHccpV2Api::RaCtxRmemUnimport(ctxHandle_, memoryHandleList_[i]);
-            if (ret != 0) {
-                SHM_LOG_ERROR("Rmem unimport failed, rankId = " << i << ", ret = " << ret);
-                return;
+            void* ctxHandle = ctxHandleMap_.count(peer) ? ctxHandleMap_.at(peer) : nullptr;
+            if (ctxHandle == nullptr || memoryHandleList_[peer] == nullptr) {
+                continue;
             }
+            auto ret = shm::DlHccpV2Api::RaCtxRmemUnimport(ctxHandle, memoryHandleList_[peer]);
+            if (ret != 0) {
+                SHM_LOG_WARN("Rmem unimport failed, rankId = " << peer << ", ret = " << ret);
+            }
+            memoryHandleList_[peer] = nullptr;
         }
-        free(memoryHandleList_);
-        memoryHandleList_ = nullptr;
         SHM_LOG_INFO("Unimport remote handle success.");
     }
 
-    if (lmemHandle_ != nullptr) {
-        auto ret = shm::DlHccpV2Api::RaCtxLmemUnregister(ctxHandle_, lmemHandle_);
-        if (ret != 0) {
-            SHM_LOG_ERROR("Unregister failed, ret = " << ret << ", lmemHandle = " << lmemHandle_);
-            return;
+    // Unregister lmem on each EID
+    for (const auto& mrEntry : registerMRS_) {
+        for (const auto& eidMrEntry : mrEntry.second) {
+            uint32_t eidIndex = eidMrEntry.first;
+            void* lmemHandle = eidMrEntry.second.lmemHandle;
+            auto ctxIt = storedCtxHandleMap_.find(eidIndex);
+            if (ctxIt == storedCtxHandleMap_.end() || lmemHandle == nullptr) {
+                continue;
+            }
+            auto ret = shm::DlHccpV2Api::RaCtxLmemUnregister(ctxIt->second, lmemHandle);
+            if (ret != 0) {
+                SHM_LOG_WARN("Failed to unregister the memory region for EID index " << eidIndex << ", ret = " << ret);
+            }
         }
-        lmemHandle_ = nullptr;
-        SHM_LOG_INFO("Unregister memory success.");
+    }
+    registerMRS_.clear();
+    lmemHandleMap_.clear();
+    localMrMap_.clear();
+    localMemInfoMap_.clear();
+    SHM_LOG_INFO("Unregister memory success.");
+
+    // Free tokenIdHandle
+    for (auto& eidTokenEntry : tokenIdHandleMap_) {
+        uint32_t eidIndex = eidTokenEntry.first;
+        void* tokenIdHandle = eidTokenEntry.second;
+        auto ctxIt = storedCtxHandleMap_.find(eidIndex);
+        if (ctxIt == storedCtxHandleMap_.end() || tokenIdHandle == nullptr) {
+            continue;
+        }
+        auto ret = shm::DlHccpV2Api::RaCtxTokenIdFree(ctxIt->second, tokenIdHandle);
+        if (ret != 0) {
+            SHM_LOG_WARN("RaCtxTokenIdFree failed for EID index " << eidIndex << ", ret = " << ret);
+        }
+    }
+    tokenIdHandleMap_.clear();
+    SHM_LOG_INFO("RaCtxTokenIdFree success.");
+
+    // Deinit ctx on each EID
+    for (auto& ctxEntry : storedCtxHandleMap_) {
+        uint32_t eidIndex = ctxEntry.first;
+        void* ctxHandle = ctxEntry.second;
+        if (ctxHandle == nullptr) {
+            continue;
+        }
+        auto ret = shm::DlHccpV2Api::RaCtxDeinit(ctxHandle);
+        if (ret != 0) {
+            SHM_LOG_WARN("RaCtxDeinit failed for EID index " << eidIndex << ", ret = " << ret);
+        }
+    }
+    SHM_LOG_INFO("RaCtxDeinit success.");
+
+    if (raInitialized_) {
+        RaInitConfig deinitConfig{};
+        deinitConfig.phyId = deviceId_ + TopoReader::GetDeviceIdOffset(rootInfo_);
+        deinitConfig.nicPosition = NETWORK_OFFLINE;
+        deinitConfig.hdcType = HDC_SERVICE_TYPE_RDMA_V2;
+        deinitConfig.enableHdcAsync = 1;
+        auto ret = shm::DlHccpV2Api::RaDeinit(&deinitConfig);
+        if (ret != 0) {
+            SHM_LOG_WARN("RaDeinit failed, ret = " << ret << ", device id: " << deviceId_);
+        }
+        SHM_LOG_INFO("RaDeinit success.");
     }
 
-    if (tokenIdHandle_ != nullptr) {
-        auto ret = shm::DlHccpV2Api::RaCtxTokenIdFree(ctxHandle_, tokenIdHandle_);
+    if (tsdOpened_ && subPid_ > 0) {
+        auto ret = shm::DlHccpV2Api::TsdProcessClose(deviceId_, subPid_);
         if (ret != 0) {
-            SHM_LOG_ERROR("RaCtxTokenIdFree failed, ret = " << ret);
-            return;
+            SHM_LOG_WARN(
+                "TsdProcessClose failed, device id: " << deviceId_ << ", subPid: " << subPid_ << ", ret = " << ret);
         }
-        tokenIdHandle_ = nullptr;
-        SHM_LOG_INFO("RaCtxTokenIdFree success.");
+        SHM_LOG_INFO("TsdProcessClose success.");
     }
+
+    storedCtxHandleMap_.clear();
+    ctxHandleMap_.clear();
+    peerEidIndexMap_.clear();
+    peerRemoteEidIndexMap_.clear();
+    hccpEidMap_.clear();
+    memoryHandleList_.clear();
+    lmemHandleMap_.clear();
 }
 
 } // namespace device

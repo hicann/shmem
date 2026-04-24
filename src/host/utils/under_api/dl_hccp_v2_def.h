@@ -872,7 +872,8 @@ struct RegMemResultInfo {
     }
 };
 
-using MemoryRegionMap = std::map<uint64_t, RegMemResultInfo, std::greater<uint64_t>>;
+using MemoryRegionMap = std::map<uint64_t, std::map<uint32_t, RegMemResultInfo>, std::greater<uint64_t>>;
+
 
 } // namespace shm
 

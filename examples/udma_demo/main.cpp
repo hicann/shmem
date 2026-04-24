@@ -23,11 +23,11 @@
 #endif
 
 int g_npus = 8;
-const char *ipport;
+const char* ipport;
 int f_pe = 0;
 int f_npu = 0;
 constexpr uint64_t DEBUG_DUMP_SIZE = 200 * 1024 * 1024;
-extern void launch_udma_all_gather(uint32_t block_dim, void *stream, uint8_t *gva, uint8_t *dump, int message_length);
+extern void launch_udma_all_gather(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dump, int message_length);
 
 aclshmemx_uniqueid_t default_flag_uid;
 
@@ -49,7 +49,7 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_UDMA;
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
-    uint8_t *ptr = static_cast<uint8_t *>(aclshmem_malloc(1024));
+    uint8_t* ptr = static_cast<uint8_t*>(aclshmem_malloc(1024));
 
     // Initialize input data.
     uint32_t trans_size = 16;
@@ -58,27 +58,28 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
         input[i] = (pe_id + num10);
     }
 
-    status |= aclrtMemcpy(ptr + aclshmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t),
-        input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE);
-    uint8_t *dump = nullptr;
+    status |= aclrtMemcpy(
+        ptr + aclshmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), input.data(),
+        trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE);
+    uint8_t* dump = nullptr;
 #if defined(ENABLE_ASCENDC_DUMP)
-    (void)aclrtMalloc((void **)&dump, DEBUG_DUMP_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+    (void)aclrtMalloc((void**)&dump, DEBUG_DUMP_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
     if (dump == nullptr) {
         std::cout << "dump workspace is nullptr" << std::endl;
         return -1;
     }
 #endif
     // Launch the all-gather kernel.
-    launch_udma_all_gather(1, stream, (uint8_t *)ptr, dump, trans_size * sizeof(int32_t));
+    launch_udma_all_gather(1, stream, (uint8_t*)ptr, dump, trans_size * sizeof(int32_t));
     status |= aclrtSynchronizeStream(stream);
     aclshmemi_control_barrier_all();
 #if defined(ENABLE_ASCENDC_DUMP)
     Adx::AdumpPrintWorkSpace(dump, DEBUG_DUMP_SIZE, stream, "udma_demo");
 #endif
     // Copy back and validate the result.
-    int32_t *y_host;
+    int32_t* y_host;
     size_t input_size = n_pes * trans_size * sizeof(int32_t);
-    status |= aclrtMallocHost(reinterpret_cast<void **>(&y_host), input_size);
+    status |= aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size);
     status |= aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST);
 
     const int block_size = 16;
@@ -101,7 +102,7 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int argIdx = 1;
     int status = 0;

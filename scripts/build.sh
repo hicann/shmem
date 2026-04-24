@@ -75,7 +75,12 @@ cd ${PROJECT_ROOT}
 function fn_build()
 {
     mkdir -p build && cd build
-    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE ..
+    local enable_udma_support=OFF
+    if [ "$SOC_TYPE" = "Ascend950" ]; then
+        enable_udma_support=ON
+    fi
+
+    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE -DACLSHMEM_UDMA_SUPPORT=$enable_udma_support ..
     make install -j17
     cd -
 }
@@ -183,6 +188,18 @@ function fn_build_googletest()
     cmake --install . > /dev/null
     [[ -d "$THIRD_PARTY_DIR/googletest/lib64" ]] && cp -rf $THIRD_PARTY_DIR/googletest/lib64 $THIRD_PARTY_DIR/googletest/lib
     echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
+    cd ${PROJECT_ROOT}
+}
+
+function fn_build_nlohmann_json()
+{
+    if [ -f "$THIRD_PARTY_DIR/json/single_include/nlohmann/json.hpp" ]; then
+        return 0
+    fi
+
+    cd $THIRD_PARTY_DIR
+    rm -rf json
+    git clone --branch v3.11.3 --depth 1 https://github.com/nlohmann/json.git json
     cd ${PROJECT_ROOT}
 }
 
@@ -344,6 +361,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [ "$SOC_TYPE" = "Ascend950" ]; then
+    fn_build_nlohmann_json
+fi
 
 # 清空 build
 [ -d build ] && rm -rf build

@@ -14,16 +14,18 @@ project_root="$(cd ${script_dir}/../../ && pwd)"
 export PROJECT_ROOT=${project_root}
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
 
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 cd ${PROJECT_ROOT}
-pids=()
-./build/bin/udma_demo 2 0 tcp://127.0.0.1:8899 2 0 0 & # pe 0
-pid=$!
-pids+=("$pid")
 
-./build/bin/udma_demo 2 1 tcp://127.0.0.1:8899 2 0 0 & # pe 1
-pid=$!
-pids+=("$pid")
+n_pes=8
+g_npus=8
+pids=()
+
+for pe_id in $(seq 0 $((n_pes - 1))); do
+    ./build/bin/udma_demo ${n_pes} ${pe_id} tcp://127.0.0.1:8899 ${g_npus} 0 0 & # pe ${pe_id}
+    pid=$!
+    pids+=("$pid")
+done
 
 ret=0
 for pid in ${pids[@]}; do

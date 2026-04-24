@@ -505,11 +505,16 @@ int MemEntityDefault::LoadExtendLibrary() noexcept
     }
 
     if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) {
+#if defined(ACLSHMEM_UDMA_SUPPORT)
         auto ret = DlApi::LoadExtendLibrary(DL_EXT_LIB_DEVICE_UDMA);
         if (ret != 0) {
             SHM_LOG_ERROR("LoadExtendLibrary for DEVICE UDMA failed: " << ret);
             return ret;
         }
+#else
+        SHM_LOG_ERROR("DEVICE UDMA support is not enabled in this build.");
+        return ACLSHMEM_NOT_SUPPORTED;
+#endif
     }
 
     return ACLSHMEM_SUCCESS;
@@ -786,7 +791,12 @@ Result MemEntityDefault::InitTransManager()
     } else if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) {
         transportManager_ = transport::TransportManager::Create(TransportType::TT_SDMA);
     } else if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) {
+#if defined(ACLSHMEM_UDMA_SUPPORT)
         transportManager_ = transport::TransportManager::Create(TransportType::TT_UDMA);
+#else
+        SHM_LOG_ERROR("DEVICE UDMA support is not enabled in this build.");
+        return ACLSHMEM_NOT_SUPPORTED;
+#endif
     }
 
     transport::TransportOptions options;

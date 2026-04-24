@@ -13,6 +13,7 @@
 
 #include <netinet/in.h>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -25,68 +26,82 @@ namespace shm {
 namespace transport {
 namespace device {
 
+struct PerEidJettyState {
+    uint32_t eidIndex{0};
+    void* ctxHandle{nullptr};
+    void* tokenIdHandle{nullptr};
+    void* chanHandle{nullptr};
+    uint64_t cqVa{0};
+    CqInfoT cqInfo = {0};
+    void* cqHandle{nullptr};
+    void* qpHandle{nullptr};
+    QpCreateInfo qpCreateInfo_;
+    std::vector<void*> remoteQpHandleList;
+    std::vector<uint32_t> tpnList;
+    void* cqPiAddr{nullptr};
+    void* cqCiAddr{nullptr};
+    void* sqPiAddr{nullptr};
+    void* sqCiAddr{nullptr};
+    void *wqeCntAddr{nullptr};
+    void *amoAddr{nullptr};
+    ACLSHMEMUDMAWQCtx localWq{};
+    ACLSHMEMUDMACqCtx localCq{};
+};
+
 class DeviceJettyManager {
 public:
-    DeviceJettyManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount) noexcept;
+    DeviceJettyManager(uint32_t deviceId, uint32_t rankId, uint32_t rankCount, uint32_t eidSlotCount) noexcept;
     ~DeviceJettyManager() noexcept;
 
-    Result SetLocalMemInfo(const ACLSHMEMUBmemInfo &localMemInfo) noexcept;
-    Result SetSwapEid(const HccpEid &hccpEid) noexcept;
-    Result SetTokenIdHandle(void *tokenIdHandle) noexcept;
-    Result Startup(void *ctx_handle) noexcept;
+    Result SetCtxHandles(const std::map<uint32_t, void*>& ctxHandleMap) noexcept;
+    Result SetLocalMemInfos(const std::map<uint32_t, ACLSHMEMUBmemInfo>& localMemInfoMap) noexcept;
+    Result SetEids(const std::map<uint32_t, HccpEid>& hccpEidMap) noexcept;
+    Result SetTokenIdHandles(const std::map<uint32_t, void*>& tokenIdHandleMap) noexcept;
+    Result SetPeerRoutes(
+        const std::map<uint32_t, uint32_t>& peerLocalEidMap,
+        const std::map<uint32_t, uint32_t>& peerRemoteEidMap) noexcept;
+    Result Startup() noexcept;
     Result Shutdown() noexcept;
-    void *GetJettyInfoAddress() noexcept;
+    void* GetJettyInfoAddress() noexcept;
     uint64_t GetJFCInfoAddress() const noexcept;
 
 private:
-    Result JFCCreate() noexcept;
-    Result JettyCreate() noexcept;
+    Result JFCCreate(PerEidJettyState& state) noexcept;
+    Result JettyCreate(PerEidJettyState& state) noexcept;
     Result JettyImport() noexcept;
     Result JettyBind() noexcept;
     bool ReserveUdmaInfoSpace() noexcept;
+    std::vector<uint32_t> CollectUsedLocalEids() const noexcept;
+    bool BuildLocalQpPublishByEid(
+        std::vector<QpImportInfoT>& qpImportByEid, std::vector<QpKeyT>& qpKeyByEid) const noexcept;
+    uint32_t GetFallbackLocalEid() const noexcept;
+    HccpEid ToImportedEid(const HccpEid& hccpEid) const noexcept;
 
-    void FillUdmaWq(ACLSHMEMUDMAWQCtx &srcWq, ACLSHMEMUDMAWQCtx &dstWq) const;
-    void FillUdmaCq(ACLSHMEMUDMACqCtx &srcCq, ACLSHMEMUDMACqCtx &dstCq) const;
-    void FillUdmaMem(ACLSHMEMUBmemInfo &srcMem, ACLSHMEMUBmemInfo &dstMem) const;
+    void FillUdmaWq(ACLSHMEMUDMAWQCtx& srcWq, ACLSHMEMUDMAWQCtx& dstWq) const;
+    void FillUdmaCq(ACLSHMEMUDMACqCtx& srcCq, ACLSHMEMUDMACqCtx& dstCq) const;
+    void FillUdmaMem(ACLSHMEMUBmemInfo& srcMem, ACLSHMEMUBmemInfo& dstMem) const;
     Result FillUdmaInfo() noexcept;
-    void PrintHostInfo(ACLSHMEMAIVUDMAInfo &hostInfo) const;
+    void PrintHostInfo(ACLSHMEMAIVUDMAInfo& hostInfo) const;
 
     const uint32_t deviceId_;
     const uint32_t rankId_;
     const uint32_t rankCount_;
-    void *ctxHandle_{nullptr};
-    ACLSHMEMUBmemInfo localMemInfo_;
-    HccpEid localHccpEid_;
-    void *tokenIdHandle_{nullptr};
-
-    void *chanHandle_{nullptr};
-    uint64_t cqVa_;
-    CqInfoT cqInfo_ = {0};
-    void *cqHandle_{nullptr};
-    void *qpHandle_{nullptr};
-    QpCreateInfo qpCreateInfo_;
-    std::vector<void*> remoteQpHandleList_;
+    const uint32_t eidCount_;
+    std::map<uint32_t, void*> ctxHandleMap_;                // eidIndex -> ctxHandle
+    std::map<uint32_t, ACLSHMEMUBmemInfo> localMemInfoMap_; // eidIndex -> local UDMA mem info
+    std::map<uint32_t, HccpEid> localHccpEidMap_;           // eidIndex -> local HCCP EID
+    std::map<uint32_t, void*> tokenIdHandleMap_;            // eidIndex -> tokenIdHandle
+    std::map<uint32_t, uint32_t> peerLocalEidMap_;          // peerRankId -> local eidIndex
+    std::map<uint32_t, uint32_t> peerRemoteEidMap_;         // peerRankId -> remote eidIndex
+    std::map<uint32_t, PerEidJettyState> jettyStateMap_;    // eidIndex -> per-EID jetty state
     TransportModeT transportMode_ = TransportModeT::CONN_RM;
 
     // device
-    void *udmaInfo_{nullptr};
-    void *hccpEidDevice_{nullptr};
-    void *cqPiAddr_{nullptr};
-    void *cqCiAddr_{nullptr};
-    void *sqPiAddr_{nullptr};
-    void *sqCiAddr_{nullptr};
-    void *wqeCntAddr_{nullptr};
-    void *amoAddr_{nullptr};
+    void* udmaInfo_{nullptr};
+    void* hccpEidDevice_{nullptr};
 
     // host
-    std::vector<ACLSHMEMUDMAWQCtx> wqInfoList_;
-    std::vector<ACLSHMEMUDMACqCtx> cqInfoList_;
     uint32_t udmaInfoSize_{0};
-    std::vector<ACLSHMEMUBmemInfo> ubMemInfoList_;
-    std::vector<HccpEid> hccpEidList_;
-    std::vector<uint32_t> tpnList_;
-    std::vector<QpKeyT> qpKeyList_;
-    std::vector<QpImportInfoT> allQpImportInfoT_;
 };
 } // namespace device
 } // namespace transport

@@ -15,39 +15,43 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <map>
+#include <array>
 #include <mutex>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "mem_entity_def.h"
 #include "transport_manager.h"
 #include "device_chip_info.h"
 #include "device_jetty_manager.h"
+#include "transport/topo/topo_reader.h"
 
 namespace shm {
 namespace transport {
 namespace device {
+
 class UdmaTransportManager : public TransportManager {
 public:
     UdmaTransportManager() noexcept;
     ~UdmaTransportManager() noexcept;
-    Result OpenDevice(const TransportOptions &options) override;
+    Result OpenDevice(const TransportOptions& options) override;
     Result CloseDevice() override;
-    Result RegisterMemoryRegion(const TransportMemoryRegion &mr) override;
+    Result RegisterMemoryRegion(const TransportMemoryRegion& mr) override;
     Result UnregisterMemoryRegion(uint64_t addr) override;
-    Result Prepare(const HybmTransPrepareOptions &options) override;
+    Result Prepare(const HybmTransPrepareOptions& options) override;
     Result Connect() override;
-    const void *GetQpInfo() const override;
-    RegMemResultInfo GetLocalMR() { return localMR_; }
-    Result QueryMemoryKey(uint64_t /*addr*/, TransportMemoryKey & /*key*/) override { return ACLSHMEM_SUCCESS; }
-    Result ParseMemoryKey(const TransportMemoryKey & /*key*/, uint64_t & /*addr*/, uint64_t & /*size*/) override
+    const void* GetQpInfo() const override;
+    Result QueryMemoryKey(uint64_t /*addr*/, TransportMemoryKey& /*key*/) override { return ACLSHMEM_SUCCESS; }
+    Result ParseMemoryKey(const TransportMemoryKey& /*key*/, uint64_t& /*addr*/, uint64_t& /*size*/) override
     {
         return ACLSHMEM_SUCCESS;
     }
     Result AsyncConnect() override;
     Result WaitForConnected(int64_t /*timeoutNs*/) override { return ACLSHMEM_SUCCESS; }
-    Result UpdateRankOptions(const HybmTransPrepareOptions & /*options*/) override { return ACLSHMEM_SUCCESS; }
-    const std::string &GetNic() const override
+    Result UpdateRankOptions(const HybmTransPrepareOptions& /*options*/) override { return ACLSHMEM_SUCCESS; }
+    const std::string& GetNic() const override
     {
         static const std::string empty_nic;
         return empty_nic;
@@ -56,32 +60,40 @@ public:
 private:
     static bool OpenTsd(uint32_t deviceId, uint32_t rankCount);
     static bool RaInit(uint32_t deviceId);
-    bool RaGetDevEidInfoNum(uint32_t deviceId, unsigned int &num);
-    bool RaGetDevEidInfoList(uint32_t deviceId, unsigned int eidNum, struct CtxInitAttr *attr);
-    bool RaCtxTokenId(void *ctxHandle, void *&tokenIdHandle);
-    bool RaCtxInit(uint32_t deviceId, void *&ctxHandle);
-    bool PrepareOpenDevice(uint32_t deviceId, uint32_t rankCount, void *&ctxHandle, uint32_t logicDeviceId);
-    Result CheckPrepareOptions(const HybmTransPrepareOptions &options);
+    bool RaGetDevEidInfoNum(uint32_t deviceId, unsigned int& num);
+    bool RaGetDevEidInfoList(
+        uint32_t deviceId, unsigned int eidNum, const std::array<uint8_t, 16>& targetEidRaw, struct CtxInitAttr* attr);
+    bool RaCtxTokenId(void* ctxHandle, void*& tokenIdHandle);
+    bool RaCtxInit(uint32_t deviceId, uint32_t eidIndex, const std::array<uint8_t, 16>& targetEidRaw, void*& ctxHandle);
+    bool PrepareOpenDevice(uint32_t deviceId, uint32_t rankCount);
+    Result CheckPrepareOptions(const HybmTransPrepareOptions& options);
     void CleanupResources();
 
 private:
     uint32_t rankId_{0};
     uint32_t rankCount_{1};
     uint32_t deviceId_{0};
+    uint32_t eidCount_{0};
     hybm_role_type role_{HYBM_ROLE_PEER};
-    void *ctxHandle_{nullptr};
-    static void *storedCtxHandle_;
+    std::map<uint32_t, void*> ctxHandleMap_;              // peerRankId -> ctxHandle
+    std::map<uint32_t, uint32_t> peerEidIndexMap_;        // peerRankId -> local eidIndex
+    std::map<uint32_t, uint32_t> peerRemoteEidIndexMap_;  // peerRankId -> remote eidIndex
+    static std::map<uint32_t, void*> storedCtxHandleMap_; // eidIndex -> ctxHandle
     static bool tsdOpened_;
     static bool raInitialized_;
-    DeviceJettyManager *deviceJettyManager_{nullptr};
+    DeviceJettyManager* deviceJettyManager_{nullptr};
     RegMemResultInfo localMR_;
-    MemoryRegionMap registerMRS_;
-    HccpEid hccpEid_;
-    uint32_t tokenId_{0};
-    void *tokenIdHandle_{nullptr};
+    std::map<uint32_t, RegMemResultInfo> localMrMap_;       // eidIndex -> local registered MR info
+    std::map<uint32_t, ACLSHMEMUBmemInfo> localMemInfoMap_; // eidIndex -> local UDMA mem info
+    MemoryRegionMap registerMRS_;                           // addr -> (eidIndex -> registered MR info)
+    std::map<uint32_t, HccpEid> hccpEidMap_;                // eidIndex -> HccpEid
+    std::map<uint32_t, void*> tokenIdHandleMap_;            // eidIndex -> tokenIdHandle
     static int subPid_;
-    void **memoryHandleList_{nullptr};
-    void *lmemHandle_{nullptr};
+    std::vector<void*> memoryHandleList_;     // peerRankId -> imported remote MR handle
+    std::map<uint32_t, void*> lmemHandleMap_; // eidIndex -> lmemHandle
+
+    // tmp variables
+    RootInfo rootInfo_;
 };
 } // namespace device
 } // namespace transport

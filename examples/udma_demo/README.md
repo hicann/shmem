@@ -9,14 +9,15 @@ bash scripts/build.sh -examples -soc_type Ascend950
 ```bash
 export PROJECT_ROOT=<shmem-root-directory>
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
-./build/bin/udma_demo 2 0 tcp://127.0.0.1:8765 2 0 0 & # pe 0
-./build/bin/udma_demo 2 1 tcp://127.0.0.1:8765 2 0 0 & # pe 1
-```
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 
-3.命令行参数说明
+bash examples/udma_demo/run.sh
+```
+默认按单机8卡启动，脚本依次拉起`pe 0`到`pe 7`，并等待所有进程退出。
+
+3.脚本命令行参数说明
 ```bash
-./udma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
+./build/bin/udma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
 ```
 
 - n_pes: 全局Pe数量。

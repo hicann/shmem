@@ -12,6 +12,10 @@
 file(GLOB_RECURSE ACLSHMEM_HOST_FILES ${PROJECT_SOURCE_DIR}/src/host/*.cpp)
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
+if(NOT ACLSHMEM_UDMA_SUPPORT)
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_udma")
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
+endif()
 if(USE_MSSANITIZER)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
     message(STATUS "USE_MSSANITIZER=ON")
@@ -57,3 +61,6 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )
+if(ACLSHMEM_UDMA_SUPPORT)
+    target_include_directories(aclshmem_unittest_host PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
+endif()

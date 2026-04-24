@@ -45,6 +45,10 @@ list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/under_api")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx")
+if(NOT ACLSHMEM_UDMA_SUPPORT)
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_udma")
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
+endif()
 
 add_library(aclshmem_host OBJECT ${ACLSHMEM_HOST_FILES})
 target_compile_options(aclshmem_host
@@ -70,6 +74,9 @@ target_include_directories(aclshmem_host
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )
+if(ACLSHMEM_UDMA_SUPPORT)
+    target_include_directories(aclshmem_host PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
+endif()
 
 file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/*.cpp)
 if(USE_MSSANITIZER)
@@ -87,6 +94,9 @@ target_include_directories(shmem_utils
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/host/utils
 )
+if(ACLSHMEM_UDMA_SUPPORT)
+    target_include_directories(shmem_utils PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
+endif()
 install(TARGETS shmem_utils
     LIBRARY DESTINATION lib
 )
