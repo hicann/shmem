@@ -9,7 +9,7 @@ bash scripts/build.sh -examples -soc_type Ascend950
 ```bash
 export PROJECT_ROOT=<shmem-root-directory>
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 ./build/bin/udma_atomic_add 2 0 tcp://127.0.0.1:8899 2 0 0 & # pe 0
 ./build/bin/udma_atomic_add 2 1 tcp://127.0.0.1:8899 2 0 0 & # pe 1
 ```

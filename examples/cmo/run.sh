@@ -102,7 +102,7 @@ done
 
 # Kernel test
 rm -rf ./output
-export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 pids=()
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
