@@ -136,6 +136,38 @@ void test_aclshmem_init_zero_mem(int rank_id, int n_ranks, uint64_t local_mem_si
     EXPECT_EQ(aclFinalize(), 0);
 }
 
+void test_shmem_init_huge_pool(int pe_id, int n_pes, uint64_t local_mem_size)
+{
+    uint32_t device_id = pe_id % test_gnpu_num + test_first_npu;
+    int status = ACLSHMEM_SUCCESS;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    size_t hbm_free, hbm_total;
+    EXPECT_EQ(aclrtGetMemInfo(ACL_HBM_MEM, &hbm_free, &hbm_total), 0);
+    if (local_mem_size > hbm_total) {
+        constexpr uint64_t hbm_ratio_percent = 60;
+        local_mem_size = ALIGN_UP(hbm_total * hbm_ratio_percent / 100, 1024ULL * 1024 * 1024);
+    }
+    shmem_set_conf_store_tls(false, nullptr, 0);
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(pe_id, n_pes, local_mem_size, test_global_ipport, &attributes);
+
+    status = shmem_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(g_state.mype, pe_id);
+    EXPECT_EQ(g_state.npes, n_pes);
+    EXPECT_NE(g_state.heap_base, nullptr);
+    EXPECT_NE(g_state.p2p_device_heap_base[pe_id], nullptr);
+    EXPECT_EQ(g_state.heap_size, local_mem_size + ACLSHMEM_EXTRA_SIZE);
+    EXPECT_NE(g_state.team_pools[0], nullptr);
+    status = shmem_init_status();
+    EXPECT_EQ(status, ACLSHMEM_STATUS_IS_INITIALIZED);
+    status = shmem_finalize();
+    EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
 void test_shmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
@@ -324,7 +356,7 @@ TEST(TestInitAPI, TestShmemInitHugePool)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 38 * 1024UL * 1024UL * 1024;
-    test_mutil_task(test_shmem_init, local_mem_size, process_count);
+    test_mutil_task(test_shmem_init_huge_pool, local_mem_size, process_count);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorInvalidRankId)
