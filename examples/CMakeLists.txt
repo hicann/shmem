@@ -52,6 +52,7 @@ function(aclshmem_add_fusion_example NAME)
             ${PROJECT_SOURCE_DIR}/src/device/
             ${PROJECT_SOURCE_DIR}/src/
             ${MPI_INCLUDE_PATH}
+            $ENV{ASCEND_HOME_PATH}/tools/mssanitizer/include
         )
         target_link_options(${NAME} PRIVATE --cce-fatobj-link ${CCE_AICORE_ARCH} ${SANITIZER_FLAGS})
 
@@ -112,6 +113,7 @@ function(aclshmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/utils
         ${PROJECT_SOURCE_DIR}/src/device/
         ${PROJECT_SOURCE_DIR}/src/
+        $ENV{ASCEND_HOME_PATH}/tools/mssanitizer/include
     )
     target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link ${CCE_AICORE_ARCH_VEC} ${SANITIZER_FLAGS})
     if(USE_EXAMPLES)
