@@ -84,14 +84,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -tool)
             if [ -n "$2" ]; then
-                if [[ "$2" != "msprof" && "$2" != "mssanitizer" ]]; then
-                    echo "Error: -tool only supports 'msprof' or 'mssanitizer'."
+                if [[ "$2" != "msprof" ]]; then
+                    echo "Error: -tool only supports 'msprof'."
                     exit 1
                 fi
                 TOOL="$2"
                 shift 2
             else
-                echo "Error: -tool requires a value (msprof/mssanitizer)."
+                echo "Error: -tool requires a value (msprof)."
                 exit 1
             fi
             ;;
@@ -116,9 +116,9 @@ for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
     if [[ "$TOOL" == "msprof" ]]; then
         PERF_TIME=50
         msprof --application="${PROJECT_ROOT}/build/bin/allgather $PE_SIZE $idx $IPPORT $GNPU_NUM $FIRST_PE $FIRST_NPU $TEST_TYPE $PERF_TIME" --output=${PROJECT_ROOT}/examples/allgather/output/ &
-    elif [[ "$TOOL" == "mssanitizer" ]]; then
-        PERF_TIME=1
-        mssanitizer --log-level=error ${PROJECT_ROOT}/build/bin/allgather $PE_SIZE $idx $IPPORT $GNPU_NUM $FIRST_PE $FIRST_NPU $TEST_TYPE $PERF_TIME &
+    else 
+        PERF_TIME=50
+        ${PROJECT_ROOT}/build/bin/allgather $PE_SIZE $idx $IPPORT $GNPU_NUM $FIRST_PE $FIRST_NPU $TEST_TYPE $PERF_TIME &
     fi
     pid=$!
     pids+=("$pid")

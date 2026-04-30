@@ -21,16 +21,16 @@
 
 #define MSTX_FUSE_SCOPE_END() Sanitizer::SanitizerFuseScopeEnd()
 
-#define MSTX_CROSS_CORE_BARRIER_REPORT(core_num)        \
-    do {                                                \
-        Sanitizer::MstxCrossCoreBarrier mstx_barrier__; \
-        mstx_barrier__.usedCoreNum = (core_num);        \
-        Sanitizer::SanitizerReport(mstx_barrier__);     \
+#define MSTX_CROSS_CORE_BARRIER_REPORT(core_num)          \
+    do {                                                  \
+        Sanitizer::MstxCrossCoreBarrier mstx_barrier__{}; \
+        mstx_barrier__.usedCoreNum = (core_num);          \
+        Sanitizer::SanitizerReport(mstx_barrier__);       \
     } while (0)
 
 #define MSTX_CROSS_NPU_BARRIER_REPORT(team_size, core_num) \
     do {                                                   \
-        Sanitizer::MstxCrossNpuBarrier mstx_barrier__;     \
+        Sanitizer::MstxCrossNpuBarrier mstx_barrier__{};   \
         mstx_barrier__.usedDeviceNum = (team_size);        \
         mstx_barrier__.usedCoreNum = (core_num);           \
         Sanitizer::SanitizerReport(mstx_barrier__);        \
@@ -38,7 +38,7 @@
 
 #define MSTX_CROSS_CORE_BARRIER_REPORT_WITH_PIPE(team_size, core_num, pipe_barrier_all) \
     do {                                                                                \
-        Sanitizer::MstxCrossNpuBarrier mstx_barrier__;                                  \
+        Sanitizer::MstxCrossNpuBarrier mstx_barrier__{};                                \
         mstx_barrier__.usedDeviceNum = (team_size);                                     \
         mstx_barrier__.usedCoreNum = (core_num);                                        \
         mstx_barrier__.pipeBarrierAll = (pipe_barrier_all);                             \
@@ -46,7 +46,8 @@
     } while (0)
 
 #ifdef __CCE_AICORE_ENABLE_MIX__
-#define MSTX_BARRIER_NPU_REPORT(team_size, core_num) MSTX_CROSS_CORE_BARRIER_REPORT_WITH_PIPE(team_size, core_num, true)
+#define MSTX_BARRIER_NPU_REPORT(team_size, core_num) \
+    MSTX_CROSS_CORE_BARRIER_REPORT_WITH_PIPE(team_size, core_num, true)
 #else
 #define MSTX_BARRIER_NPU_REPORT(team_size, core_num) \
     MSTX_CROSS_CORE_BARRIER_REPORT_WITH_PIPE(team_size, core_num, false)
@@ -54,7 +55,7 @@
 
 #define MSTX_SIGNAL_SET_REPORT(addr_, val_)     \
     do {                                        \
-        Sanitizer::MstxSignalSet mstx_set__;    \
+        Sanitizer::MstxSignalSet mstx_set__{};  \
         mstx_set__.addr = (uint64_t)(addr_);    \
         mstx_set__.value = (val_);              \
         Sanitizer::SanitizerReport(mstx_set__); \
@@ -62,7 +63,7 @@
 
 #define MSTX_SIGNAL_WAIT_REPORT(addr_, cmp_, val_)        \
     do {                                                  \
-        Sanitizer::MstxSignalWait mstx_wait__;            \
+        Sanitizer::MstxSignalWait mstx_wait__{};          \
         mstx_wait__.addr = (uint64_t)(addr_);             \
         mstx_wait__.cmpValue = (val_);                    \
         mstx_wait__.cmpOp = (Sanitizer::CompareOp)(cmp_); \
