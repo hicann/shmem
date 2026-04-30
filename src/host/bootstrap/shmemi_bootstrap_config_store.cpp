@@ -68,7 +68,13 @@ int config_store_get_unique_id(void* uid) {
 }
 
 // Plugin pre-initialization entry function. 
-int aclshmemi_bootstrap_plugin_pre_init(aclshmemi_bootstrap_handle_t* handle) {
+int aclshmemi_bootstrap_plugin_pre_init(aclshmemi_bootstrap_handle_t* handle)
+{
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap pre_init: invalid arguments (nullptr).");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+
     if (handle->pre_init_ops == nullptr) {
         SHM_LOG_DEBUG(" bootstrap plugin pre init start.");
         ACLSHMEM_CHECK_RET(ACLSHMEM_BOOTSTRAP_CALLOC(&handle->pre_init_ops, 1));
@@ -84,6 +90,11 @@ int aclshmemi_bootstrap_plugin_pre_init(aclshmemi_bootstrap_handle_t* handle) {
 
 void config_store_bootstrap_global_exit(int status, aclshmemi_bootstrap_handle_t* handle)
 {
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap global_exit: invalid arguments (nullptr).");
+        return;
+    }
+
     // Get Bootstrap state
     auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
     if (!state) {
@@ -145,14 +156,14 @@ static int config_store_bootstrap_finalize(aclshmemi_bootstrap_handle_t *handle)
 }
 
 static int config_store_bootstrap_allgather(const void *in, void *out, int len, aclshmemi_bootstrap_handle_t *handle) {
+    if (!in || !out || !handle) {
+        SHM_LOG_ERROR("bootstrap allgather: invalid arguments (nullptr).");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+
     // Get Bootstrap state
     auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
     if (!state) return ACLSHMEM_INNER_ERROR;    
-    
-    if (!in || !out || !handle) {
-        SHM_LOG_ERROR("bootstrap allgather: invalid arguments.");
-        return ACLSHMEM_BOOTSTRAP_ERROR;
-    }
 
     int rank = handle->mype;
     int nranks = handle->npes;
@@ -166,15 +177,15 @@ static int config_store_bootstrap_allgather(const void *in, void *out, int len, 
 }
 
 static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) {
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap barrier: invalid arguments (nullptr).");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+
     // Get Bootstrap state
     auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
     if (!state) return ACLSHMEM_INNER_ERROR; 
 
-    SHM_LOG_INFO("group_engine_bootstrap_barrier");
-    if (!handle) {
-        SHM_LOG_ERROR("bootstrap barrier: invalid arguments.");
-        return ACLSHMEM_BOOTSTRAP_ERROR;
-    }
     int rank = handle->mype;
     int tag = 0;
     int nranks = handle->npes;
@@ -184,6 +195,7 @@ static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) 
         return ACLSHMEM_SUCCESS;
     }
 
+    SHM_LOG_INFO("group_engine_bootstrap_barrier");
     SHM_LOG_DEBUG("Barrier start. rank: " << rank << " nranks: " << nranks <<" tag: "<< tag);
 
     if (state->group_engine_ == nullptr) {
@@ -203,6 +215,11 @@ static int config_store_bootstrap_barrier(aclshmemi_bootstrap_handle_t *handle) 
 
 int32_t init_config_store(aclshmemi_bootstrap_handle_t* handle)
 {
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap init_config_store: invalid arguments (nullptr).");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+
     // Get Bootstrap state
     auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
     if (!state) return ACLSHMEM_INNER_ERROR;
@@ -223,6 +240,11 @@ int32_t init_config_store(aclshmemi_bootstrap_handle_t* handle)
 
 int32_t init_group_engine(aclshmemi_bootstrap_handle_t* handle)
 {
+    if (!handle) {
+        SHM_LOG_ERROR("bootstrap init_group_engine: invalid arguments (nullptr).");
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+
     // Get Bootstrap state
     auto state = static_cast<ConfigStoreState*>(handle->bootstrap_state);
     if (!state) return ACLSHMEM_INNER_ERROR;
