@@ -283,6 +283,7 @@ endif()
 
 # 添加子目录
 add_subdirectory(src)
+add_subdirectory(tools)
 
 if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)

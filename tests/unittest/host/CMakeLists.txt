@@ -14,8 +14,8 @@ list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/bootstrap")
 if(NOT ACLSHMEM_UDMA_SUPPORT)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_udma")
-    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
 endif()
+list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
 if(USE_MSSANITIZER)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
     message(STATUS "USE_MSSANITIZER=ON")
@@ -25,11 +25,25 @@ else()
 endif()
 
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
+if(NOT ACLSHMEM_UDMA_SUPPORT)
+    list(FILTER TEST_HOST_FILES EXCLUDE REGEX "topo/")
+endif()
 file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)
+file(GLOB_RECURSE UNDER_API_FILES ${PROJECT_SOURCE_DIR}/src/host/utils/under_api/*.cpp)
 set(CMAKE_C_COMPILER gcc)
 set(CMAKE_CXX_COMPILER g++)
 
-add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FILES} ${CONFIG_STORE_FILES})
+if(ACLSHMEM_UDMA_SUPPORT)
+    file(GLOB_RECURSE TOPO_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/host/transport/topo/*.cpp)
+    list(FILTER TOPO_SOURCE_FILES EXCLUDE REGEX "root_info_generate")
+    list(FILTER TOPO_SOURCE_FILES EXCLUDE REGEX "aclshmemi_hal")
+    file(GLOB MOCK_TOPO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/topo/mock_hal.cpp")
+else()
+    set(TOPO_SOURCE_FILES "")
+    set(MOCK_TOPO_FILES "")
+endif()
+
+add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FILES} ${CONFIG_STORE_FILES} ${TOPO_SOURCE_FILES} ${UNDER_API_FILES} ${MOCK_TOPO_FILES})
 target_compile_options(aclshmem_unittest_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
 target_compile_options(aclshmem_unittest_host PRIVATE -g -fprofile-arcs -ftest-coverage)
 target_include_directories(aclshmem_unittest_host PRIVATE
@@ -58,6 +72,7 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/transport/device_rdma
     ${PROJECT_SOURCE_DIR}/src/host/transport/device_sdma
     ${PROJECT_SOURCE_DIR}/src/host/transport/device_udma
+    ${PROJECT_SOURCE_DIR}/src/host/transport/topo/rootinfo
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )

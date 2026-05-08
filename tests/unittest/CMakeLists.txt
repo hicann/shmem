@@ -37,4 +37,4 @@ else()
     set(UT_LIBRARIES "")
 endif()
 
-target_link_libraries(aclshmem_unittest PRIVATE ${UT_LIBRARIES} aclshmem_unittest_device gtest gcov aclshmem_unittest_include shmem_utils)
+target_link_libraries(aclshmem_unittest PRIVATE ${UT_LIBRARIES} aclshmem_unittest_device gtest gmock gcov aclshmem_unittest_include shmem_utils)
