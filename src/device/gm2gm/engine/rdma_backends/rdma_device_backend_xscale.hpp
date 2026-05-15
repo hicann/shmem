@@ -127,11 +127,49 @@ struct aclshmemi_xsc_wqe_atomic_seg_t {
     /**** 16 bytes ****/
 };
 
+struct aclshmemi_xsc_wqe_atomic_64_masked_fa_seg_t {
+    uint64_t add_data;
+    /**** 8 bytes ****/
+    uint64_t field_boundary;
+    /**** 16 bytes ****/
+};
+
+struct aclshmemi_xsc_wqe_atomic_32_masked_fa_seg_t {
+    uint32_t add_data;
+    /**** 4 bytes ****/
+    uint32_t field_boundary;
+    /**** 8 bytes ****/
+    uint64_t reserved;
+    /**** 16 bytes ****/
+};
+
+struct aclshmemi_xsc_wqe_atomic_64_masked_cas_seg_t {
+    uint64_t swap_add;
+    /**** 8 bytes ****/
+    uint64_t compare;
+    /**** 16 bytes ****/
+};
+
+struct aclshmemi_xsc_wqe_atomic_32_masked_cas_seg_t {
+    uint32_t swap_data;
+    /**** 4 bytes ****/
+    uint32_t compare_data;
+    /**** 8 bytes ****/
+    uint32_t swap_mask;
+    /**** 12 bytes ****/
+    uint32_t compare_mask;
+    /**** 16 bytes ****/
+};
+
 enum class aclshmemi_xscdv_msg_type_t : uint32_t {
     ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_WRITE = 1,
     ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_READ = 2,
     ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_CMP_AND_SWAP = 26,
     ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_FETCH_AND_ADD = 27,
+    ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_8B_MSK_CMP_AND_SWAP = 31,
+    ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_8B_MSK_FETCH_AND_ADD = 32,
+    ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_4B_MSK_CMP_AND_SWAP = 33,
+    ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_4B_MSK_FETCH_AND_ADD = 34,
 };
 
 enum class aclshmemi_xsc_opcode_t : uint32_t {
@@ -153,11 +191,15 @@ enum class aclshmemi_xsc_opcode_t : uint32_t {
 
 constexpr int ACLSHMEMI_XSCALE_BASE_WQE_SHIFT = 4;
 constexpr int ACLSHMEMI_XSCALE_SND_WQE_SHIFT = 7;
+constexpr uint32_t ACLSHMEMI_XSCALE_SND_WQE_SIZE = 1 << ACLSHMEMI_XSCALE_SND_WQE_SHIFT;
 
 constexpr uint32_t ACLSHMEMI_XSC_CQE_OWNER_MASK = 1;
 
 constexpr uint64_t ACLSHMEMI_BYTE_WIDTH = 8;
 constexpr uint64_t ACLSHMEMI_BYTE_MASK = 0xFF;
+
+constexpr uint32_t BYTES_32 = sizeof(uint32_t);
+constexpr uint32_t BYTES_64 = sizeof(uint64_t);
 
 constexpr uint64_t ACLSHMEMI_HOST_BYTE_7_SHIFT = 0;
 constexpr uint64_t ACLSHMEMI_HOST_BYTE_6_SHIFT = ACLSHMEMI_BYTE_WIDTH * 1;
@@ -199,6 +241,12 @@ ACLSHMEM_DEVICE uint64_t aclshmemi_htobe64(uint64_t host_val)
            ((host_val >> ACLSHMEMI_HOST_BYTE_2_SHIFT) & ACLSHMEMI_BYTE_MASK) << ACLSHMEMI_BE_BYTE_5_SHIFT |
            ((host_val >> ACLSHMEMI_HOST_BYTE_1_SHIFT) & ACLSHMEMI_BYTE_MASK) << ACLSHMEMI_BE_BYTE_6_SHIFT |
            ((host_val >> ACLSHMEMI_HOST_BYTE_0_SHIFT) & ACLSHMEMI_BYTE_MASK) << ACLSHMEMI_BE_BYTE_7_SHIFT;
+}
+
+ACLSHMEM_DEVICE uint32_t aclshmemi_htobe32(uint32_t host_val)
+{
+    return ((host_val >> 24) & 0xFF) | ((host_val >> 8) & 0xFF00) | ((host_val << 8) & 0xFF0000) |
+           ((host_val << 24) & 0xFF000000);
 }
 
 /**
@@ -255,7 +303,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_ring_cq_doorbell<aclshmemi_rdma_backend_t::X
 
     uint32_t qp_num = rdma_info->qp_num;
     __gm__ aclshmemi_rdma_cq_ctx* cq_context =
-        (__gm__ aclshmemi_rdma_cq_ctx*)(rdma_info->scq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_cq_ctx));
+        (__gm__ aclshmemi_rdma_cq_ctx*)(rdma_info->scq_ptr +
+                                        ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_cq_ctx));
     // Update cur_tail in global memory
     ub_local32.SetValue(0, cur_tail);
     aclshmemi_roce_write_ub_to_gm_with_sync(cq_context->tail_addr, ub_local32, sizeof(uint32_t), sync_id);
@@ -281,7 +330,8 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
     __gm__ aclshmemi_rdma_info* rdma_info = aclshmemi_qp_info_fetch();
     uint32_t qp_num = rdma_info->qp_num;
     __gm__ aclshmemi_rdma_cq_ctx* cq_context =
-        (__gm__ aclshmemi_rdma_cq_ctx*)(rdma_info->scq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_cq_ctx));
+        (__gm__ aclshmemi_rdma_cq_ctx*)(rdma_info->scq_ptr +
+                                        ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_cq_ctx));
     auto cq_base_addr = cq_context->buf_addr;
     auto cqe_size = cq_context->cqe_size;
     auto depth = cq_context->depth;
@@ -416,7 +466,7 @@ ACLSHMEM_DEVICE void aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::X
     __gm__ aclshmemi_rdma_sq_ctx*& sq_context, uint32_t cur_head, AscendC::LocalTensor<uint64_t>& ub_local64,
     AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
 {
-    // Update curHead in global memory
+    // Update cur_head in global memory
     auto cur_hardware_head_addr = sq_context->head_addr;
     ub_local32.SetValue(0, cur_head);
     aclshmemi_roce_write_ub_to_gm_with_sync(cur_hardware_head_addr, ub_local32, sizeof(uint32_t), sync_id);
@@ -459,7 +509,8 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
 
     uint32_t qp_num = rdma_info->qp_num;
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
-        (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+        (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
+                                        ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
     auto mem_info_table = rdma_info->mem_ptr;
     auto sq_base_addr = sq_context->buf_addr;
     auto wqe_size = sq_context->wqe_size;
@@ -496,10 +547,153 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
     wr.rkey = remote_mem_info->rkey;
     wr.lkey = local_mem_info->lkey;
 
-    __gm__ uint8_t* wqe_addr = (__gm__ uint8_t*)(sq_base_addr + wqe_size * (cur_head % depth));
+    __gm__ uint8_t* wqe_addr = (__gm__ uint8_t*)(sq_base_addr + (uint64_t)wqe_size * (cur_head % depth));
 
     uint32_t wqe_total_size =
         aclshmemi_roce_fill_wqe<aclshmemi_rdma_backend_t::XSCALE, OP_CODE>(wr, sq_context, wqe_addr, cur_head);
+
+    dcci_cachelines(wqe_addr, wqe_total_size);
+    cur_head++;
+
+    aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::XSCALE>(
+        sq_context, cur_head, ub_local64, ub_local32, sync_id);
+}
+
+// Currently only support 8B and 4B
+template <typename T, bool IS_MASKED>
+ACLSHMEM_DEVICE uint32_t aclshmemi_rdma_xscdv_fill_wqe_fa(
+    aclshmemi_rdma_send_wr& wr, __gm__ aclshmemi_rdma_sq_ctx*& sq_context, __gm__ uint8_t* wqe_addr, uint32_t cur_head)
+{
+    constexpr uint32_t XSCDV_FA_MASKED_DS_DATA_NUM = 3;
+    constexpr uint8_t TYPE_BYTES = sizeof(T);
+    constexpr uint32_t MSG_LEN = []() {
+        if constexpr (TYPE_BYTES == BYTES_32 && IS_MASKED) {
+            constexpr uint32_t FA_MASKED_4B_DATA_LEN = 8;
+            return FA_MASKED_4B_DATA_LEN;
+        } else {
+            constexpr uint32_t FA_DEFAULT_DATA_LEN = 16;
+            return FA_DEFAULT_DATA_LEN;
+        }
+    }();
+    constexpr uint32_t DATA_LEN = []() {
+        if constexpr (TYPE_BYTES <= BYTES_32) {
+            return BYTES_32;
+        } else if constexpr (TYPE_BYTES <= BYTES_64) {
+            return BYTES_64;
+        } else {
+            return 0;
+        }
+    }();
+    constexpr aclshmemi_xscdv_msg_type_t OPCODE = []() {
+        if constexpr (TYPE_BYTES == BYTES_64 && IS_MASKED) {
+            return aclshmemi_xscdv_msg_type_t::ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_8B_MSK_FETCH_AND_ADD;
+        } else if constexpr (TYPE_BYTES == BYTES_64 && !IS_MASKED) {
+            return aclshmemi_xscdv_msg_type_t::ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_FETCH_AND_ADD;
+        } else if constexpr (TYPE_BYTES <= BYTES_32 && IS_MASKED) {
+            return aclshmemi_xscdv_msg_type_t::ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_ATOMIC_4B_MSK_FETCH_AND_ADD;
+        } else {
+            return static_cast<aclshmemi_xscdv_msg_type_t>(0);
+        }
+    }();
+
+    static_assert(
+        TYPE_BYTES == BYTES_64 || TYPE_BYTES == BYTES_32,
+        "XSCALE backend only support fetch and add operation with type size of 8B or 4B\n");
+
+    static_assert(
+        !(TYPE_BYTES <= BYTES_32 && !IS_MASKED),
+        "XSCALE backend doesn't support fetch and add operation with type size of 4B without mask\n");
+
+    __gm__ uint8_t* cur_wqe_addr = wqe_addr;
+    cur_wqe_addr = aclshmemi_roce_xscale_fill_wqe_ctrl_seg(
+        cur_wqe_addr, XSCDV_FA_MASKED_DS_DATA_NUM, cur_head, OPCODE, MSG_LEN, 1);
+    cur_wqe_addr = aclshmemi_roce_xscale_fill_wqe_data_seg(
+        cur_wqe_addr, wr.rkey, wr.remote_addr, wr.lkey, wr.local_addr, DATA_LEN);
+    // fill atomic segmentations
+    uint32_t offset = (uint32_t)(cur_wqe_addr - wqe_addr);
+    if constexpr (TYPE_BYTES == BYTES_64 && IS_MASKED) {
+        __gm__ aclshmemi_xsc_wqe_atomic_64_masked_fa_seg_t* fa_seg =
+            (__gm__ aclshmemi_xsc_wqe_atomic_64_masked_fa_seg_t*)cur_wqe_addr;
+        fa_seg->add_data = aclshmemi_htobe64(wr.atomic.masked_common.swap_add_data);
+        fa_seg->field_boundary = aclshmemi_htobe64(wr.atomic.masked_common.swap_add_mask);
+
+        return ACLSHMEMI_XSCALE_SND_WQE_SIZE;
+    } else if constexpr (TYPE_BYTES == BYTES_64 && !IS_MASKED) {
+        __gm__ aclshmemi_xsc_wqe_atomic_seg_t* atomic_seg = (__gm__ aclshmemi_xsc_wqe_atomic_seg_t*)cur_wqe_addr;
+        atomic_seg->swap_add = aclshmemi_htobe64(wr.atomic.masked_common.swap_add_data);
+        atomic_seg->compare = aclshmemi_htobe64(wr.atomic.masked_common.swap_add_mask);
+
+        return ACLSHMEMI_XSCALE_SND_WQE_SIZE;
+    } else if constexpr (TYPE_BYTES <= BYTES_32 && IS_MASKED) {
+        __gm__ aclshmemi_xsc_wqe_atomic_32_masked_fa_seg_t* fa_seg =
+            (__gm__ aclshmemi_xsc_wqe_atomic_32_masked_fa_seg_t*)cur_wqe_addr;
+        fa_seg->add_data = aclshmemi_htobe32((uint32_t)wr.atomic.masked_common.swap_add_data & UINT32_MAX);
+        fa_seg->field_boundary = aclshmemi_htobe32((uint32_t)wr.atomic.masked_common.swap_add_mask & UINT32_MAX);
+
+        return ACLSHMEMI_XSCALE_SND_WQE_SIZE;
+    } else {
+        return 0;
+    }
+}
+
+template <typename T, bool IS_MASKED, aclshmemi_rdma_atomic_op_t ATOMIC_OP_CODE>
+ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_fill_wqe_atomic(
+    aclshmemi_rdma_send_wr& wr, __gm__ aclshmemi_rdma_sq_ctx*& sq_context, __gm__ uint8_t* wqe_addr, uint32_t cur_head)
+{
+    if constexpr (ATOMIC_OP_CODE == aclshmemi_rdma_atomic_op_t::OP_ATOMIC_FA) {
+        return aclshmemi_rdma_xscdv_fill_wqe_fa<T, IS_MASKED>(wr, sq_context, wqe_addr, cur_head);
+    } else if constexpr (ATOMIC_OP_CODE == aclshmemi_rdma_atomic_op_t::OP_ATOMIC_CAS) {
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
+template <typename T, bool IS_MASKED, aclshmemi_rdma_atomic_op_t ATOMIC_OP_CODE>
+ACLSHMEM_DEVICE void aclshmemi_rdma_xscdv_post_send_atomic(
+    aclshmemi_rdma_send_wr& wr, uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
+    AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
+{
+    constexpr int XSCALE_POLL_CQ_THRESHOLD = 16;
+    __gm__ aclshmemi_rdma_info* rdma_info = aclshmemi_qp_info_fetch();
+
+    uint32_t qp_num = rdma_info->qp_num;
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context =
+        (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
+                                        ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    auto mem_info_table = rdma_info->mem_ptr;
+    auto sq_base_addr = sq_context->buf_addr;
+    auto wqe_size = sq_context->wqe_size;
+    auto sq_pi_addr = sq_context->head_addr;
+    dcci_cachelines((__gm__ uint8_t*)sq_pi_addr, 8);
+    uint32_t cur_head = *(__gm__ uint32_t*)(sq_pi_addr);
+    auto sq_ci_addr = sq_context->tail_addr;
+    auto depth = sq_context->depth;
+    uint32_t ret = 0;
+
+    dcci_cachelines((__gm__ uint8_t*)sq_ci_addr, 8);
+    uint32_t cur_tail = (*(__gm__ uint32_t*)(sq_ci_addr));
+    // If the send queue (SQ) is about to be full, need to wait for CQE to arrive before continuing to send
+    // Call the poll_cq function to wait for CQE arrival until cur_tail catches up with cur_head
+    // Note: The poll_cq function will block the current thread until the condition is met or timeout occurs
+    // Note: cq_context->depth needs to be greater than or equal to sq_context->depth
+    if ((cur_head + XSCALE_POLL_CQ_THRESHOLD) % depth == (depth + cur_tail) % depth) {
+        ret = aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE>(
+            pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
+        if (ret) {
+            ACLSHMEM_DEBUG_FUNC(
+                aclshmemi_kernel_printf,
+                "Poll CQE error in aclshmemi_xscale_post_send_read_write: pe=%u, qp_idx=%u, cur_tail=%u, "
+                "cur_head=%u\n",
+                pe, qp_idx, cur_tail, cur_head);
+            return;
+        }
+    }
+
+    __gm__ uint8_t* wqe_addr = (__gm__ uint8_t*)(sq_base_addr + (uint64_t)wqe_size * (cur_head % depth));
+
+    uint32_t wqe_total_size =
+        aclshmemi_roce_xscale_fill_wqe_atomic<T, IS_MASKED, ATOMIC_OP_CODE>(wr, sq_context, wqe_addr, cur_head);
 
     dcci_cachelines(wqe_addr, wqe_total_size);
     cur_head++;
@@ -525,5 +719,39 @@ ACLSHMEM_DEVICE void aclshmemi_roce_post_send<aclshmemi_rdma_backend_t::XSCALE, 
     aclshmemi_xscale_post_send_read_write<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
         wr, pe, qp_idx, ub_local64, ub_local32, sync_id);
 }
+
+/*
+ *  =====================================================================================================
+ *  XSCALE Backend Atomic Operations Traits Specialization
+ *  =====================================================================================================
+ *  This specialization provides the atomic operations implementation for XSCALE backend.
+ *  By specializing aclshmemi_backend_traits once, all combinations of T and IS_MASKED are
+ *  automatically supported through the template functions below.
+ *  =====================================================================================================
+ */
+
+template <>
+struct aclshmemi_backend_traits<aclshmemi_rdma_backend_t::XSCALE> {
+    template <typename T, bool IS_MASKED>
+    struct atomic_op_traits {
+        template <aclshmemi_rdma_atomic_op_t ATOMIC_OP_CODE>
+        static ACLSHMEM_DEVICE uint32_t fill_wqe(
+            aclshmemi_rdma_send_wr& wr, __gm__ aclshmemi_rdma_sq_ctx*& sq_context, __gm__ uint8_t* wqe_addr,
+            uint32_t cur_head)
+        {
+            return aclshmemi_roce_xscale_fill_wqe_atomic<T, IS_MASKED, ATOMIC_OP_CODE>(
+                wr, sq_context, wqe_addr, cur_head);
+        }
+
+        template <aclshmemi_rdma_atomic_op_t ATOMIC_OP_CODE>
+        static ACLSHMEM_DEVICE void post_send(
+            aclshmemi_rdma_send_wr& wr, uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
+            AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
+        {
+            aclshmemi_rdma_xscdv_post_send_atomic<T, IS_MASKED, ATOMIC_OP_CODE>(
+                wr, pe, qp_idx, ub_local64, ub_local32, sync_id);
+        }
+    };
+};
 
 #endif // ACLSHMEM_RDMA_DEVICE_BACKEND_XSCALE_HPP

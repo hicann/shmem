@@ -27,7 +27,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
             }                                                                                           \
             dst_addr = gva + rank * MESSAGE_SIZE;                                                       \
             if (AscendC::GetSubBlockIdx() == 0) {                                                       \
-                aclshmem_##NAME##_atomic_add((__gm__ TYPE *)dst_addr, 1, peer);                         \
+                aclshmem_##NAME##_atomic_add((__gm__ TYPE*)dst_addr, 1, peer);                          \
             }                                                                                           \
         }                                                                                               \
         aclshmem_barrier_all();                                                                         \
@@ -35,7 +35,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
 ACLSHMEM_ATOMIC_ADD_FUNC_TYPE_KERNEL(ATOMIC_ADD_TEST_KERNEL);
 
 #define ATOMIC_ADD_TEST(NAME, TYPE)                                                                   \
-    void test_atomic_add_##NAME##_do(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config) \
+    void test_atomic_add_##NAME##_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config) \
     {                                                                                                 \
         test_atomic_add_##NAME##_kernel<<<block_dim, nullptr, stream>>>(gva, config);                 \
     }
