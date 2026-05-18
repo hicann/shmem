@@ -318,6 +318,77 @@ ACLSHMEM_DEVICE T aclshmemx_roce_atomic_fetch(__gm__ T* src, int32_t pe)
 }
 
 template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_atomic_set(__gm__ T* dst, T value, int32_t pe)
+{
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    uint32_t sync_id = device_state->rdma_config.sync_id;
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    aclshmemi_roce_amo_cas<T, true>(
+        reinterpret_cast<__gm__ T*>(remote_ptr), nullptr, pe, 0, value, 0, UINT64_MAX, 0, ub_tensor_64, ub_tensor_32,
+        sync_id);
+    aclshmemx_roce_quiet(pe, reinterpret_cast<__ubuf__ char*>(copy_ub), sync_id);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_roce_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe)
+{
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    uint32_t sync_id = device_state->rdma_config.sync_id;
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    if constexpr (sizeof(T) == 4) {
+        aclshmemi_roce_amo_cas<T, true>(
+            reinterpret_cast<__gm__ T*>(remote_ptr), nullptr, pe, 0, (uint64_t)value, (uint64_t)cond, UINT64_MAX,
+            UINT64_MAX, ub_tensor_64, ub_tensor_32, sync_id);
+    } else {
+        aclshmemi_roce_amo_cas<T, false>(
+            reinterpret_cast<__gm__ T*>(remote_ptr), nullptr, pe, 0, (uint64_t)value, (uint64_t)cond, UINT64_MAX,
+            UINT64_MAX, ub_tensor_64, ub_tensor_32, sync_id);
+    }
+    aclshmemx_roce_quiet(pe, reinterpret_cast<__ubuf__ char*>(copy_ub), sync_id);
+    return aclshmemi_roce_get_atomic_fetch_data<T>(pe, 0);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_roce_atomic_swap(__gm__ T* dst, T value, int32_t pe)
+{
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    uint64_t copy_ub = device_state->rdma_config.aclshmem_ub;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub + UB_ALIGN_SIZE);
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    uint32_t sync_id = device_state->rdma_config.sync_id;
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    aclshmemi_roce_amo_cas<T, true>(
+        reinterpret_cast<__gm__ T*>(remote_ptr), nullptr, pe, 0, (uint64_t)value, 0, UINT64_MAX, 0, ub_tensor_64,
+        ub_tensor_32, sync_id);
+    aclshmemx_roce_quiet(pe, reinterpret_cast<__ubuf__ char*>(copy_ub), sync_id);
+    return aclshmemi_roce_get_atomic_fetch_data<T>(pe, 0);
+}
+
+template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_atomic_add(__gm__ T* dst, T value, int32_t pe)
 {
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();

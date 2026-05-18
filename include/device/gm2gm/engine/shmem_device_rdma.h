@@ -182,6 +182,47 @@ template <typename T>
 ACLSHMEM_DEVICE T aclshmemx_roce_atomic_fetch(__gm__ T* src, int32_t pe);
 
 /**
+ * @brief Atomic set operation. Sets the value at the destination address on the specified PE.
+ * Supported hardware platform: Ascend_950.
+ *        WARNING: Use sync_id in device_state.rdma_config for pipeline synchronization.
+ * @note T only supports 32-bit and 64-bit data types.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be set.
+ * @param pe                [in] PE number of the remote PE.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_atomic_set(__gm__ T* dst, T value, int32_t pe);
+
+/**
+ * @brief Atomic compare and swap operation. Conditionally updates the value at the destination address.
+ * Supported hardware platform: Ascend_950.
+ *        WARNING: Use sync_id in device_state.rdma_config for pipeline synchronization.
+ * @note T only supports 32-bit and 64-bit integers.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param cond              [in] Value to compare against.
+ * @param value             [in] Value to be written if comparison succeeds.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_roce_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe);
+
+/**
+ * @brief Atomic swap operation. Swaps the value at the destination address. Supported hardware platform: Ascend_950.
+ *        WARNING: Use sync_id in device_state.rdma_config for pipeline synchronization.
+ * @note T only supports 32-bit and 64-bit integers.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be swapped.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_roce_atomic_swap(__gm__ T* dst, T value, int32_t pe);
+
+/**
  * @brief Atomic increment operation. Increments the value at the destination address by 1.
  * Supported hardware platform: Ascend_950.
  *        WARNING: Use sync_id in device_state.rdma_config for pipeline synchronization.
@@ -230,5 +271,4 @@ ACLSHMEM_DEVICE T aclshmemx_roce_atomic_fetch_inc(__gm__ T* dst, int32_t pe);
  */
 template <typename T>
 ACLSHMEM_DEVICE T aclshmemx_roce_atomic_fetch_add(__gm__ T* dst, T value, int32_t pe);
-
 #endif

@@ -49,8 +49,28 @@ ACLSHMEM_DEVICE T aclshmemi_roce_atomic_compare_and_swap(
     uint64_t swap_mask, uint64_t comp_mask, AscendC::LocalTensor<uint64_t>& ub_local64,
     AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
 {
-    static_assert(
-        aclshmemi_rdma_backend_dependent_false<B>::value, "aclshmemi_roce_atomic_compare_and_swap not implemented\n");
-    return T(1);
+    __gm__ aclshmemi_rdma_info* rdma_info = aclshmemi_qp_info_fetch();
+    auto mem_info_table = rdma_info->mem_ptr;
+    uint32_t qp_num = rdma_info->qp_num;
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context =
+        (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    __gm__ aclshmemi_rdma_mem_info* remote_mem_info =
+        (__gm__ aclshmemi_rdma_mem_info*)(mem_info_table + sizeof(aclshmemi_rdma_mem_info) * pe);
+
+    aclshmemi_rdma_send_wr wr = {};
+    wr.remote_addr = (__gm__ uint8_t*)dst;
+    wr.local_addr = (__gm__ uint8_t*)sq_context->amo_addr;
+    wr.message_len = 0;
+    wr.atomic.masked_common.swap_add_data = swap_val;
+    wr.atomic.masked_common.compare_data = comp_val;
+    wr.atomic.masked_common.swap_add_mask = swap_mask;
+    wr.atomic.masked_common.compare_mask = comp_mask;
+    wr.rkey = remote_mem_info->rkey;
+    wr.lkey = sq_context->amo_lkey;
+
+    aclshmemi_backend_traits<B>::template atomic_op_traits<T, IS_MASKED>::template post_send<
+        aclshmemi_rdma_atomic_op_t::OP_ATOMIC_CAS>(wr, pe, qp_idx, ub_local64, ub_local32, sync_id);
+
+    return T(0);
 }
 #endif // ACLSHMEM_RDMA_DEVICE_BACKEND_BASE_HPP
