@@ -44,6 +44,11 @@ else()
 endif()
 
 add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FILES} ${CONFIG_STORE_FILES} ${TOPO_SOURCE_FILES} ${UNDER_API_FILES} ${MOCK_TOPO_FILES})
+
+if(ACLSHMEM_SIMT_SUPPORT)
+    target_compile_definitions(aclshmem_unittest_host PRIVATE USE_SIMT)
+endif()
+
 target_compile_options(aclshmem_unittest_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
 target_compile_options(aclshmem_unittest_host PRIVATE -g -fprofile-arcs -ftest-coverage)
 target_include_directories(aclshmem_unittest_host PRIVATE
@@ -78,4 +83,10 @@ target_include_directories(aclshmem_unittest_host PRIVATE
 )
 if(ACLSHMEM_UDMA_SUPPORT)
     target_include_directories(aclshmem_unittest_host PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
+endif()
+
+if(ACLSHMEM_SIMT_SUPPORT)
+    target_include_directories(aclshmem_unittest_host PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/device_simt/
+    )
 endif()

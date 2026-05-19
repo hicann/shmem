@@ -14,6 +14,11 @@ set(CMAKE_C_COMPILER bisheng)
 set(CMAKE_CXX_COMPILER bisheng)
 
 add_library(aclshmem_unittest_device SHARED ${TEST_KERNEL_FILES} $<TARGET_OBJECTS:aclshmem_device>)
+
+if(ACLSHMEM_SIMT_SUPPORT)
+    target_compile_definitions(aclshmem_unittest_device PRIVATE USE_SIMT)
+endif()
+
 target_link_options(aclshmem_unittest_device PRIVATE --cce-fatobj-link)
 target_compile_options(aclshmem_unittest_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH})
 target_include_directories(aclshmem_unittest_device PRIVATE
@@ -25,3 +30,8 @@ target_include_directories(aclshmem_unittest_device PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
     ${PROJECT_SOURCE_DIR}/src/host/utils
 )
+if (ACLSHMEM_SIMT_SUPPORT)
+    target_include_directories(aclshmem_unittest_device PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/device_simt/
+    )
+endif()

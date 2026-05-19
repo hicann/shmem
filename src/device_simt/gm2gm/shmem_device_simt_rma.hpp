@@ -41,15 +41,15 @@ namespace simt
 // ========================================================
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_SIMT(NAME, TYPE) \
-    __simt_callee__ inline void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)   \
+    __simt_callee__ inline void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)   \
     {                                                                                                                       \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);                                 \
     }                                                                                                                       \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                       \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);                                   \
     }                                                                                                                       \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_block(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                       \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);                                  \
     }
@@ -87,15 +87,15 @@ ACLSHMEM_TYPE_FUNC_SIMT(ACLSHMEM_PUT_TYPENAME_MEM_SIMT);
         ); \
     }
 
-ACLSHMEM_PUT_BITS_SIMT(8, int8_t);
-ACLSHMEM_PUT_BITS_SIMT(16, int16_t);
-ACLSHMEM_PUT_BITS_SIMT(32, int32_t);
-ACLSHMEM_PUT_BITS_SIMT(64, int64_t);
-ACLSHMEM_PUT_BITS_SIMT(128, int4);
+ACLSHMEM_PUT_BITS_SIMT(8, int8_t)
+ACLSHMEM_PUT_BITS_SIMT(16, int16_t)
+ACLSHMEM_PUT_BITS_SIMT(32, int32_t)
+ACLSHMEM_PUT_BITS_SIMT(64, int64_t)
+ACLSHMEM_PUT_BITS_SIMT(128, int4)
 
 // ========================================================
 
-__simt_callee__ inline void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_THREAD>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -105,7 +105,7 @@ __simt_callee__ inline void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, 
     );
 }
 
-__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_WARP>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -115,7 +115,7 @@ __simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __gm__ void 
     );
 }
 
-__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_BLOCK>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -141,15 +141,15 @@ ACLSHMEM_TYPE_FUNC_SIMT(ACLSHMEM_TYPENAME_P_AICORE_SIMT);
 // ========================================================
 
 #define ACLSHMEM_GET_TYPENAME_MEM_SIMT(NAME, TYPE)                                                                          \
-    __simt_callee__ inline void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)   \
+    __simt_callee__ inline void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)   \
     {                                                                                                                       \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);                                 \
     }                                                                                                                       \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                       \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);                                   \
     }                                                                                                                       \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_block(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                       \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);                                  \
     }
@@ -187,15 +187,15 @@ ACLSHMEM_TYPE_FUNC_SIMT(ACLSHMEM_GET_TYPENAME_MEM_SIMT);
         ); \
     }
 
-ACLSHMEM_GET_BITS_SIMT(8, int8_t);
-ACLSHMEM_GET_BITS_SIMT(16, int16_t);
-ACLSHMEM_GET_BITS_SIMT(32, int32_t);
-ACLSHMEM_GET_BITS_SIMT(64, int64_t);
-ACLSHMEM_GET_BITS_SIMT(128, int4);
+ACLSHMEM_GET_BITS_SIMT(8, int8_t)
+ACLSHMEM_GET_BITS_SIMT(16, int16_t)
+ACLSHMEM_GET_BITS_SIMT(32, int32_t)
+ACLSHMEM_GET_BITS_SIMT(64, int64_t)
+ACLSHMEM_GET_BITS_SIMT(128, int4)
 
 // ========================================================
 
-__simt_callee__ inline void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_THREAD>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -205,7 +205,7 @@ __simt_callee__ inline void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, 
     );
 }
 
-__simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_WARP>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -215,7 +215,7 @@ __simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void *dst, __gm__ void 
     );
 }
 
-__simt_callee__ inline void aclshmemx_getmem_block(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_getmem_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_BLOCK>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -241,15 +241,15 @@ ACLSHMEM_TYPE_FUNC_SIMT(ACLSHMEM_TYPENAME_G_AICORE_SIMT);
 // ========================================================
 
 #define ACLSHMEM_PUT_TYPENAME_MEM_NBI_SIMT(NAME, TYPE) \
-    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)   \
+    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)   \
     {                                                                                                                           \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);                                     \
     }                                                                                                                           \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                           \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);                                       \
     }                                                                                                                           \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                           \
         aclshmemi_mte_put_nbi<TYPE, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);                                      \
     }
@@ -295,7 +295,7 @@ ACLSHMEM_PUT_BITS_NBI_SIMT(128, int4);
 
 // ========================================================
 
-__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_THREAD>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -305,7 +305,7 @@ __simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *s
     );
 }
 
-__simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_WARP>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -315,7 +315,7 @@ __simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __gm__ v
     );
 }
 
-__simt_callee__ inline void aclshmemx_putmem_nbi_block(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_putmem_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_put_nbi<char, ACLSHMEMI_THREADGROUP_BLOCK>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -328,15 +328,15 @@ __simt_callee__ inline void aclshmemx_putmem_nbi_block(__gm__ void *dst, __gm__ 
 // ========================================================
 
 #define ACLSHMEM_GET_TYPENAME_MEM_NBI_SIMT(NAME, TYPE) \
-    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)   \
+    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)   \
     {                                                                                                                           \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);                                     \
     }                                                                                                                           \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                           \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);                                       \
     }                                                                                                                           \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe) \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe) \
     {                                                                                                                           \
         aclshmemi_mte_get_nbi<TYPE, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);                                      \
     }
@@ -382,7 +382,7 @@ ACLSHMEM_GET_BITS_NBI_SIMT(128, int4);
 
 // ========================================================
 
-__simt_callee__ inline void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_THREAD>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -392,7 +392,7 @@ __simt_callee__ inline void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *s
     );
 }
 
-__simt_callee__ inline void aclshmemx_getmem_nbi_warp(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_getmem_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_WARP>(
         reinterpret_cast<__gm__ char *>(dst),
@@ -402,7 +402,7 @@ __simt_callee__ inline void aclshmemx_getmem_nbi_warp(__gm__ void *dst, __gm__ v
     );
 }
 
-__simt_callee__ inline void aclshmemx_getmem_nbi_block(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+__simt_callee__ inline void aclshmemx_getmem_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
 {
     aclshmemi_mte_get_nbi<char, ACLSHMEMI_THREADGROUP_BLOCK>(
         reinterpret_cast<__gm__ char *>(dst),

@@ -12,7 +12,7 @@
 
 #include "shmemi_def.h"
 
-#include "shmemi_device_meta.h"
+#include "shmemi_device_simt_meta.h"
 
 namespace simt
 {
@@ -69,7 +69,7 @@ __simt_callee__ inline void aclshmemi_threadgroup_sync() {
 }
 
 template<thread_group_t scope>
-__simt_callee__ inline int32_t aclshmemi_thread_id_in_threadgroup() {
+__simt_callee__ inline size_t aclshmemi_thread_id_in_threadgroup() {
     if constexpr (scope == thread_group_t::ACLSHMEMI_THREADGROUP_THREAD) {
         return 0;
     } else if constexpr (scope == thread_group_t::ACLSHMEMI_THREADGROUP_WARP) {
@@ -80,11 +80,11 @@ __simt_callee__ inline int32_t aclshmemi_thread_id_in_threadgroup() {
 }
 
 template<thread_group_t scope>
-__simt_callee__ inline int32_t aclshmemi_threadgroup_size() {
+__simt_callee__ inline size_t aclshmemi_threadgroup_size() {
     if constexpr (scope == thread_group_t::ACLSHMEMI_THREADGROUP_THREAD) {
         return 1;
     } else if constexpr (scope == thread_group_t::ACLSHMEMI_THREADGROUP_WARP) {
-        int32_t actualWarpSize = blockDim.x * blockDim.y * blockDim.z;
+        size_t actualWarpSize = blockDim.x * blockDim.y * blockDim.z;
         return (actualWarpSize < warpSize ? actualWarpSize : warpSize);
     } else if constexpr (scope == thread_group_t::ACLSHMEMI_THREADGROUP_BLOCK) {
         return blockDim.x * blockDim.y * blockDim.z;

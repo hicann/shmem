@@ -68,16 +68,16 @@ __simt_callee__ inline __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe)
 
 template<typename T, thread_group_t scope>
 __simt_callee__ inline void aclshmemi_mte_get_nbi(
-    __gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe
+    __gm__ T *dst, __gm__ T *src, size_t elem_size, int pe
 ) 
 {
     aclshmemi_threadgroup_sync<scope>();
-    int32_t myIndex = aclshmemi_thread_id_in_threadgroup<scope>();
-    int32_t groupSize = aclshmemi_threadgroup_size<scope>();
+    size_t myIndex = aclshmemi_thread_id_in_threadgroup<scope>();
+    size_t groupSize = aclshmemi_threadgroup_size<scope>();
 
     __gm__ T* srcSym = (__gm__ T*)aclshmem_ptr(src, pe);
 
-    for (int32_t i = myIndex; i < elem_size; i += groupSize) {
+    for (size_t i = myIndex; i < elem_size; i += groupSize) {
         dst[i] = srcSym[i];
     }
     aclshmemi_threadgroup_sync<scope>();
@@ -85,54 +85,54 @@ __simt_callee__ inline void aclshmemi_mte_get_nbi(
 
 template <typename T, thread_group_t scope>
 __simt_callee__ inline void aclshmemi_mte_put_nbi(
-    __gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe
+    __gm__ T *dst, __gm__ T *src, size_t elem_size, int pe
 )
 {
     aclshmemi_threadgroup_sync<scope>();
 
-    int32_t myIndex = aclshmemi_thread_id_in_threadgroup<scope>();
-    int32_t groupSize = aclshmemi_threadgroup_size<scope>();
+    size_t myIndex = aclshmemi_thread_id_in_threadgroup<scope>();
+    size_t groupSize = aclshmemi_threadgroup_size<scope>();
 
     __gm__ T* dstSym = (__gm__ T*)aclshmem_ptr(dst, pe);
 
-    for (int32_t i = myIndex; i < elem_size; i += groupSize) {
+    for (size_t i = myIndex; i < elem_size; i += groupSize) {
         dstSym[i] = src[i];
     }
     aclshmemi_threadgroup_sync<scope>();
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_get_nbi<T, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi_block(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_get_nbi_block(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_get_nbi<T, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi_warp(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_get_nbi_warp(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_get_nbi<T, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_put_nbi<T, ACLSHMEMI_THREADGROUP_THREAD>(dst, src, elem_size, pe);
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi_block(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_put_nbi_block(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_put_nbi<T, ACLSHMEMI_THREADGROUP_BLOCK>(dst, src, elem_size, pe);
 }
 
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi_warp(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe)
+__simt_callee__ inline void aclshmemx_mte_put_nbi_warp(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe)
 {
     aclshmemi_mte_put_nbi<T, ACLSHMEMI_THREADGROUP_WARP>(dst, src, elem_size, pe);
 }

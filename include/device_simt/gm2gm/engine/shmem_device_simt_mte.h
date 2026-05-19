@@ -37,7 +37,7 @@ __simt_callee__ inline __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device, executed in block scope.
@@ -48,7 +48,7 @@ __simt_callee__ inline void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, 
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi_block(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_get_nbi_block(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device, executed in warp scope (usually 32 threads).
@@ -59,7 +59,7 @@ __simt_callee__ inline void aclshmemx_mte_get_nbi_block(__gm__ T *dst, __gm__ T 
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_get_nbi_warp(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_get_nbi_warp(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE, executed in thread scope (single thread).
@@ -70,7 +70,7 @@ __simt_callee__ inline void aclshmemx_mte_get_nbi_warp(__gm__ T *dst, __gm__ T *
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE, executed in block scope.
@@ -81,7 +81,7 @@ __simt_callee__ inline void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, 
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi_block(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_put_nbi_block(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE, executed in warp scope (usually 32 threads).
@@ -92,7 +92,7 @@ __simt_callee__ inline void aclshmemx_mte_put_nbi_block(__gm__ T *dst, __gm__ T 
  * @param pe                [in] PE number of the remote PE.
  */
 template<typename T>
-__simt_callee__ inline void aclshmemx_mte_put_nbi_warp(__gm__ T *dst, __gm__ T *src, uint32_t elem_size, int pe);
+__simt_callee__ inline void aclshmemx_mte_put_nbi_warp(__gm__ T *dst, __gm__ T *src, size_t elem_size, int pe);
 
 } // namespace simt
 
