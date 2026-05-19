@@ -174,6 +174,10 @@ foreach(EXAMPLE
     add_subdirectory(${EXAMPLE})
 endforeach()
 
+if(ACLSHMEM_HCCS_SIO_LINK)
+    add_subdirectory(hccs_sio_link)
+endif()
+
 
 if(ACLSHMEM_SIMT_SUPPORT)
 foreach(

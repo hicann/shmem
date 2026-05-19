@@ -191,12 +191,18 @@ if(ACLSHMEM_RDMA_SUPPORT)
         message(FATAL_ERROR "ACLSHMEM_RDMA_BACKEND can only be specified when SOC_TYPE is Ascend950.")
     endif()
 endif()
+
+option(ACLSHMEM_HCCS_SIO_LINK "ACLSHMEM_HCCS_SIO_LINK" OFF)
+
 option(ACLSHMEM_SIMT_SUPPORT "ACLSHMEM_SIMT_SUPPORT" OFF)
 message(STATUS "ACLSHMEM_SIMT_SUPPORT:${ACLSHMEM_SIMT_SUPPORT}")
+
 option(ACLSHMEM_UDMA_SUPPORT "ACLSHMEM_UDMA_SUPPORT" OFF)
 message(STATUS "ACLSHMEM_UDMA_SUPPORT:${ACLSHMEM_UDMA_SUPPORT}")
+
 option(PYEXPAND_EXAMPLE "PYEXPAND_EXAMPLE" OFF)
 message(STATUS "PYEXPAND_EXAMPLE:${PYEXPAND_EXAMPLE}")
+
 message(STATUS "CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE}")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -311,6 +317,33 @@ else()
     message(STATUS "aclrtMemExportToShareableHandleV2 symbol not found, disabling ACLRT_MEM_FABRIC_HANDLE support")
 endif()
 
+# Check if aclrtMemMapSelectedLink symbol exists in the ACL library
+file(WRITE ${CMAKE_BINARY_DIR}/check_aclrt_mem_map_selected_link.cpp "
+#include <acl/acl.h>
+int main() {
+    void *ptr = nullptr;
+    aclrtMemMapSelectedLink(ptr, 0, ptr, 0);
+    return 0;
+}")
+
+try_compile(HAS_ACLRT_MEM_MAP_SELECTED_LINK
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/check_aclrt_mem_map_selected_link.cpp
+    LINK_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES}
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CMAKE_REQUIRED_INCLUDES}" "-DLINK_DIRECTORIES=${ASCEND_HOME_PATH}/lib64"
+    OUTPUT_VARIABLE COMPILE_OUTPUT
+)
+
+file(REMOVE ${CMAKE_BINARY_DIR}/check_aclrt_mem_map_selected_link.cpp)
+
+if(HAS_ACLRT_MEM_MAP_SELECTED_LINK)
+    set(ACLSHMEM_HCCS_SIO_LINK ON)
+    message(STATUS "aclrtMemMapSelectedLink symbol found, enabling ACLSHMEM_HCCS_SIO_LINK support")
+else()
+    set(ACLSHMEM_HCCS_SIO_LINK OFF)
+    message(STATUS "aclrtMemMapSelectedLink symbol not found, disabling ACLSHMEM_HCCS_SIO_LINK support")
+endif()
+
 # 添加子目录
 add_subdirectory(src)
 add_subdirectory(tools)
@@ -319,6 +352,6 @@ if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
 endif()
 
-if(USE_EXAMPLES OR PYEXPAND_EXAMPLE)
+if(USE_EXAMPLES OR PYEXPAND_EXAMPLE OR ACLSHMEM_HCCS_SIO_LINK)
     add_subdirectory(examples)
 endif()
