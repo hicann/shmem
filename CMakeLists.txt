@@ -352,6 +352,6 @@ if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
 endif()
 
-if(USE_EXAMPLES OR PYEXPAND_EXAMPLE OR ACLSHMEM_HCCS_SIO_LINK)
+if(USE_EXAMPLES OR PYEXPAND_EXAMPLE)
     add_subdirectory(examples)
 endif()
