@@ -33,6 +33,8 @@ MAX_EXPONENT="17"
 LOOP_COUNT="1000"
 # 默认UB size(KB)
 UB_SIZE="16"
+# 默认SHMEM内存类型: hbm/dram
+MEMORY_TYPE="hbm"
 # 默认RANK配置
 PE_SIZE="2"
 IPPORT="tcp://127.0.0.1:8767"
@@ -78,6 +80,15 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo "Error: --ub-size requires a value."
+                exit 1
+            fi
+            ;;
+        --memory-type)
+            if [ -n "$2" ]; then
+                MEMORY_TYPE="$2"
+                shift 2
+            else
+                echo "Error: --memory-type requires a value."
                 exit 1
             fi
             ;;
@@ -195,6 +206,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
             echo "  --loop-count <count>            设置循环次数"
             echo "  --ub-size <size>                设置UB size(KB), 默认16"
+            echo "  --memory-type <hbm|dram>        设置SHMEM内存类型, 默认hbm"
             echo "  -pes <size>                     设置PE大小"
             echo "  -ipport <ip:port>               设置IP端口"
             echo "  -gnpus <num>                    设置NPU数量"
@@ -220,12 +232,19 @@ if [[ ! " $VALID_DATATYPES " =~ " $DATA_TYPE " ]]; then
     exit 1
 fi
 
+VALID_MEMORY_TYPES="hbm dram"
+if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
+    echo "错误: SHMEM内存类型必须是 'hbm' 或 'dram'"
+    exit 1
+fi
+
 echo "测试类型: $TEST_TYPE"
 echo "数据类型: $DATA_TYPE"
 echo "核数范围: $MIN_BLOCK_SIZE-$MAX_BLOCK_SIZE"
 echo "幂数范围: $MIN_EXPONENT-$MAX_EXPONENT"
 echo "循环次数: $LOOP_COUNT"
 echo "UB size(KB): $UB_SIZE"
+echo "SHMEM内存类型: $MEMORY_TYPE"
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
 echo "FIRST_NPU: $FIRST_NPU, FIRST_PE: $FIRST_PE"
 
@@ -238,7 +257,7 @@ run_test() {
     local test_type="$1"
     local data_type="$2"
     for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-        ${EXEC_BIN} --pes "$PE_SIZE" --pe-id "$idx" --ipport "$IPPORT" --gnpus "$GNPU_NUM" --fpe "$FIRST_PE" --fnpu "$FIRST_NPU" -t "$test_type" -d "$data_type" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --ub-size "$UB_SIZE" &
+        ${EXEC_BIN} --pes "$PE_SIZE" --pe-id "$idx" --ipport "$IPPORT" --gnpus "$GNPU_NUM" --fpe "$FIRST_PE" --fnpu "$FIRST_NPU" -t "$test_type" -d "$data_type" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE" &
     done
     wait
 }

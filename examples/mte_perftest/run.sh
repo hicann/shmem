@@ -27,6 +27,8 @@ MAX_EXPONENT="20"
 LOOP_COUNT="1000"
 # 默认UB size(KB)
 UB_SIZE="16"
+# 默认SHMEM内存类型: hbm/dram，仅shmem模式使用
+MEMORY_TYPE="hbm"
 # 默认运行模式: ascendc/shmem/all (all表示全跑)
 MODE="all"
 # 分析模式: none/plot/md (none表示都不生成, plot表示只生成图, md表示同时生成图和md), 默认none
@@ -50,6 +52,7 @@ function usage() {
     echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
     echo "  --loop-count <count>            设置循环次数"
     echo "  --ub-size <size>                设置UB size(KB), 默认16"
+    echo "  --memory-type <hbm|dram>        设置SHMEM内存类型, 默认hbm"
     echo "  -pes <size>                     设置PE大小"
     echo "  -ipport <ip:port>               设置IP端口"
     echo "  -gnpus <num>                   设置NPU数量"
@@ -142,6 +145,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --memory-type)
+            if [ -n "$2" ]; then
+                MEMORY_TYPE="$2"
+                shift 2
+            else
+                echo "Error: --memory-type requires a value."
+                exit 1
+            fi
+            ;;
         -pes)
             if [ -n "$2" ]; then
                 PE_SIZE="$2"
@@ -213,6 +225,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+VALID_MEMORY_TYPES="hbm dram"
+if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
+    echo "错误: SHMEM内存类型必须是 'hbm' 或 'dram'"
+    exit 1
+fi
+
 echo "=============================================="
 echo "example/mte_perftest"
 echo "=============================================="
@@ -222,6 +240,7 @@ echo "核数范围: $MIN_BLOCK_SIZE-$MAX_BLOCK_SIZE"
 echo "幂数范围: $MIN_EXPONENT-$MAX_EXPONENT"
 echo "循环次数: $LOOP_COUNT"
 echo "UB size(KB): $UB_SIZE"
+echo "SHMEM内存类型: $MEMORY_TYPE"
 echo "运行模式: $MODE"
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
 echo "FIRST_NPU: $FIRST_NPU, FIRST_PE: $FIRST_PE"
@@ -253,8 +272,8 @@ fi
 
 if [[ "$MODE" == "shmem" || "$MODE" == "all" ]]; then
     echo -e "\n========== Running shmem_perftest =========="
-    echo "Command: bash ${SCRIPT_DIR}/shmem_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\""
-    bash "${SCRIPT_DIR}/shmem_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE"
+    echo "Command: bash ${SCRIPT_DIR}/shmem_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
+    bash "${SCRIPT_DIR}/shmem_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
 fi
 
 # 拷贝output到外层output目录

@@ -48,6 +48,9 @@ shmem_perftest是一个用于**测试shmem MTE（Memory Transfer Engine）性能
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 bash scripts/build.sh -examples
+
+# 如需运行 --memory-type dram，需启用CANN模式编译
+bash scripts/build.sh -examples -cann
 ```
 
 ## 使用方法
@@ -73,11 +76,22 @@ cd examples/mte_perftest/shmem_perftest/
 | `--exponent <exponent>` | `-e <exponent>` | 设置数据量的幂数 (2^exponent) | - |
 | `--exponent-range <min> <max>` | - | 设置数据量的幂数范围 | 3-17 |
 | `--loop-count <count>` | - | 设置循环次数 | 1000 |
+| `--memory-type <hbm\|dram>` | - | 设置SHMEM内存类型，dram使用HOST_SIDE内存 | hbm |
 | `-pes <size>` | - | 设置PE数量，暂不支持修改 | 2 |
 | `-ipport <ip:port>` | - | 设置通信地址 | tcp://127.0.0.1:8764 |
 | `-gnpus <num>` | - | 设置NPU数量，暂不支持修改 | 2 |
 | `-fnpu <id>` | - | 设置首个NPU ID，控制起始NPU | 0 |
 | `-fpe <id>` | - | 设置首个PE ID，暂不支持修改 | 0 |
+
+### DRAM内存测试约束
+
+`--memory-type dram` 会使用 `aclshmemx_malloc(..., HOST_SIDE)` 分配Host侧DRAM内存。该功能依赖CANN模式，编译时必须使用：
+
+```bash
+bash scripts/build.sh -examples -cann
+```
+
+DRAM测试需要运行环境支持Host侧DRAM内存访问，相关硬件和可用内存约束可参考 [rma_d2h_demo](../../rma_d2h_demo/README.md) 的“约束限制”章节。shmem_perftest默认配置1GB本地内存；当测试参数需要更大本地内存时，程序会按数据量自动上调，运行前需确保可用DRAM空间大于实际本地内存配置。
 
 ### 使用示例
 

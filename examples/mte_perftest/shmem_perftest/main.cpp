@@ -40,10 +40,15 @@ static perftest::mte_mode_t get_mte_mode(const char *test_type_str) {
     return perftest::TEST_MODE_MTE_PUT;
 }
 
+static aclshmem_mem_type_t get_memory_type(const char *memory_type_str) {
+    if (strcmp(memory_type_str, "dram") == 0) return HOST_SIDE;
+    return DEVICE_SIDE;
+}
+
 template<typename T>
 int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size, 
                                    int min_block_size, int max_block_size,
-                                   int min_exponent, int max_exponent, int loop_count, perftest::mte_mode_t test_mode, perftest::perf_data_type_t data_type_enum, int prof_pe, int ub_size_kb, std::vector<std::vector<std::string>>& csv_data)
+                                   int min_exponent, int max_exponent, int loop_count, perftest::mte_mode_t test_mode, perftest::perf_data_type_t data_type_enum, int prof_pe, int ub_size_kb, aclshmem_mem_type_t memory_type, std::vector<std::vector<std::string>>& csv_data)
 {
     int32_t device_id = (pe_id % g_npus + f_npu);
     int status = 0;
@@ -63,8 +68,8 @@ int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
             int datasize = std::pow(2, exponent);
             std::cout << "pe: " << pe_id << " block_size: " << block_size << " size: " << datasize << " frame_id: " << frame_id << std::endl;
             
-            void *dst_ptr = aclshmem_malloc(datasize * block_size);
-            void *src_ptr = aclshmem_malloc(datasize * block_size);
+            void *dst_ptr = aclshmemx_malloc(datasize * block_size, memory_type);
+            void *src_ptr = aclshmemx_malloc(datasize * block_size, memory_type);
 
             int all_size = datasize * block_size;
             int trans_size = all_size / sizeof(T);
@@ -150,8 +155,8 @@ int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
             aclshmemx_show_prof(&out_profs, false);
             collect_prof_data_to_csv(out_profs, frame_id, block_size, datasize, g_npus, ub_size_kb, csv_data);
 
-            aclshmem_free(dst_ptr);
-            aclshmem_free(src_ptr);
+            aclshmemx_free(dst_ptr, memory_type);
+            aclshmemx_free(src_ptr, memory_type);
             status = aclrtSynchronizeStream(stream);
             
             frame_id++;
@@ -185,6 +190,7 @@ int main(int argc, char *argv[])
     f_npu = 4;
     const char *test_type = "put";
     fuc_data_type = "float";
+    const char *memory_type = "hbm";
     int min_block_size = 32;
     int max_block_size = 32;
     int min_exponent = 3;
@@ -207,6 +213,7 @@ int main(int argc, char *argv[])
         {"exponent-range", required_argument, 0, 0},
         {"loop-count", required_argument, 0, 0},
         {"ub-size", required_argument, 0, 0},
+        {"memory-type", required_argument, 0, 0},
         {0, 0, 0, 0}
     };
     
@@ -255,13 +262,20 @@ int main(int argc, char *argv[])
                     loop_count = std::atoi(optarg);
                 } else if (strcmp(long_options[option_index].name, "ub-size") == 0) {
                     ub_size_kb = std::atoi(optarg);
+                } else if (strcmp(long_options[option_index].name, "memory-type") == 0) {
+                    memory_type = optarg;
                 }
                 break;
             default:
                 std::cerr << "错误: 未知参数" << std::endl;
-                std::cerr << "使用方法: " << argv[0] << " --pes <n_pes> --pe-id <pe_id> --ipport <ip:port> --gnpus <gnpu_num> --fpe <first_pe> --fnpu <first_npu> [-t <put|bi_put|get|bi_get>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--loop-count <count>] [--ub-size <size>]" << std::endl;
+                std::cerr << "使用方法: " << argv[0] << " --pes <n_pes> --pe-id <pe_id> --ipport <ip:port> --gnpus <gnpu_num> --fpe <first_pe> --fnpu <first_npu> [-t <put|bi_put|get|bi_get>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--loop-count <count>] [--ub-size <size>] [--memory-type <hbm|dram>]" << std::endl;
                 return 1;
         }
+    }
+
+    if (strcmp(memory_type, "hbm") != 0 && strcmp(memory_type, "dram") != 0) {
+        std::cerr << "错误: memory-type 必须是 hbm 或 dram" << std::endl;
+        return 1;
     }
     
     std::cout << "[SUCCESS] demo run start in pe " << pe_id << ", test type: " << test_type << ", data type: " << fuc_data_type << std::endl;
@@ -270,10 +284,12 @@ int main(int argc, char *argv[])
     std::cout << "幂数范围: " << min_exponent << "-" << max_exponent << std::endl;
     std::cout << "循环次数: " << loop_count << std::endl;
     std::cout << "UB size (KB): " << ub_size_kb << std::endl;
+    std::cout << "Memory type: " << memory_type << std::endl;
     
     fuc_test_type = test_type;
     perftest::mte_mode_t test_mode = get_mte_mode(test_type);
     perftest::perf_data_type_t data_type_enum = get_data_type(fuc_data_type);
+    aclshmem_mem_type_t memory_type_enum = get_memory_type(memory_type);
     
     uint64_t max_datasize = (1ULL << max_exponent);
     uint64_t max_required_size = max_datasize * max_block_size * 2;
@@ -305,7 +321,7 @@ int main(int argc, char *argv[])
     #define TEST_IMPL_OP(type) \
         status = test_shmem_mte_perf_test_impl<type>(pe_id, n_pes, local_mem_size, \
                                                       min_block_size, max_block_size, \
-                                                      min_exponent, max_exponent, loop_count, test_mode, data_type_enum, prof_pe, ub_size_kb, csv_data)
+                                                      min_exponent, max_exponent, loop_count, test_mode, data_type_enum, prof_pe, ub_size_kb, memory_type_enum, csv_data)
     
     DISPATCH_BY_TYPE(fuc_data_type, TEST_IMPL_OP);
     

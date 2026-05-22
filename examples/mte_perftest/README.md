@@ -28,6 +28,9 @@ pip install pandas matplotlib seaborn numpy tabulate
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 bash scripts/build.sh -examples
 
+# 如需运行 --memory-type dram，需启用CANN模式编译
+bash scripts/build.sh -examples -cann
+
 # 运行两个示例（默认模式，仅生成CSV）
 cd examples/mte_perftest
 bash run.sh -m all -t put -d float -fpe 0
@@ -51,6 +54,7 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `--exponent-range <min> <max>` | 设置数据量的幂数范围 | 3-20 |
 | `--loop-count <count>` | 设置循环次数 | 1000 |
 | `--ub-size <size>` | 设置UB size(KB), 默认16 | 16 |
+| `--memory-type <hbm\|dram>` | 设置shmem_perftest使用的SHMEM内存类型 | hbm |
 | `-pes <size>` | 设置PE大小 | 2 |
 | `-ipport <ip:port>` | 设置IP端口 | tcp://127.0.0.1:8764 |
 | `-gnpus <num>` | 设置NPU数量 | 2 |
@@ -64,6 +68,16 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 - **all（默认）**：同时运行ascendc_perftest和shmem_perftest
 - **ascendc**：只运行ascendc_perftest
 - **shmem**：只运行shmem_perftest
+
+### DRAM内存测试约束
+
+`--memory-type dram` 仅作用于 shmem_perftest，会使用 `aclshmemx_malloc(..., HOST_SIDE)` 分配Host侧DRAM内存。该功能依赖CANN模式，编译时必须使用：
+
+```bash
+bash scripts/build.sh -examples -cann
+```
+
+DRAM测试需要运行环境支持Host侧DRAM内存访问，相关硬件和可用内存约束可参考 [rma_d2h_demo](../rma_d2h_demo/README.md) 的“约束限制”章节。mte_perftest默认配置1GB本地内存；当测试参数需要更大本地内存时，程序会按数据量自动上调，运行前需确保可用DRAM空间大于实际本地内存配置。
 
 ## 输出结果
 
