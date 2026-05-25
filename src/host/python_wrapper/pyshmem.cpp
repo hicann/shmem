@@ -244,6 +244,13 @@ void DefineShmemCmpOp(py::module_ &m)
         .value("CMP_LE", ACLSHMEM_CMP_LE);
 }
 
+void DefineShmemMemType(py::module_ &m)
+{
+ 	py::enum_<aclshmem_mem_type_t>(m, "MemType")
+ 	    .value("HOST_SIDE", HOST_SIDE)
+ 	    .value("DEVICE_SIDE", DEVICE_SIDE);
+}
+
 PYBIND11_MODULE(_pyshmem, m)
 {
     DefineShmemAttr(m);
@@ -251,6 +258,7 @@ PYBIND11_MODULE(_pyshmem, m)
     DefineShmemUniqueId(m);
     DefineShmemSignalOp(m);
     DefineShmemCmpOp(m);
+    DefineShmemMemType(m);
 
     m.def("aclshmem_init", &shm::aclshmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("attributes"), R"(
 Initialize share memory module.
@@ -410,7 +418,7 @@ Arguments:
 Returns the start address (heap_base) of the local symmetric memory heap.
 
 Arguments:
-    mem_type(int): Allocation location of symmetric memory (Host/Device), default is DEVICE_SIDE(0)
+    mem_type(MemType): Allocation location of symmetric memory (MemType.HOST_SIDE / MemType.DEVICE_SIDE), default is MemType.DEVICE_SIDE
 Returns:
     Pointer to the start address of the symmetric memory heap, or 0 if not initialized.
     )");
