@@ -107,7 +107,11 @@ source ${install_path}/ascend-toolkit/set_env.sh
 
 ### 3.4 Python 依赖安装
 ```bash
+# 基础依赖（构建期 + 运行期硬依赖）
 python3 -m pip install -r requirements.txt
+
+# 运行 Python 示例所需的额外依赖（按需安装）
+python3 -m pip install -r requirements-examples.txt
 ```
 
 ### 3.5 可选依赖
