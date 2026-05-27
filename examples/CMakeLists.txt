@@ -90,7 +90,7 @@ function(aclshmem_add_fusion_example NAME)
         if(DEFINED ENABLE_ASCENDC_DUMP AND ENABLE_ASCENDC_DUMP)
             target_link_libraries(${NAME}_kernel PRIVATE ascend_dump)
         endif()
-        target_link_libraries(${NAME}_kernel PRIVATE shmem)
+        target_link_libraries(${NAME}_kernel PRIVATE shmem unified_dlog)
         target_compile_options(${NAME}_kernel PRIVATE ${MPI_CXX_COMPILE_FLAGS})
         
         if(${NAME} STREQUAL "dispatch_gmm_combine")
@@ -121,6 +121,7 @@ function(aclshmem_add_collective_example NAME)
         $ENV{ASCEND_HOME_PATH}/tools/mssanitizer/include
     )
     target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link ${CCE_AICORE_ARCH_VEC} ${SANITIZER_FLAGS})
+    target_link_libraries(${NAME}_kernel PRIVATE unified_dlog)
     if(USE_EXAMPLES)
         add_executable(${NAME} main.cpp)
         target_compile_options(${NAME} PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
@@ -164,6 +165,7 @@ set(ACLSHMEM_CATLASS_FUSION_EXAMPLES
 
 foreach(EXAMPLE
     kv_shuffle
+    aclgraph_demo
     allgather
     allgather_matmul
     allgather_matmul_with_gather_result
@@ -208,6 +210,7 @@ if(ACLSHMEM_RDMA_SUPPORT)
     foreach(EXAMPLE
         rdma_perftest
         rdma_demo
+        rdma_aclgraph_demo
         rdma_handlewait_test/unuse_handlewait
         rdma_handlewait_test/use_handlewait
     )
