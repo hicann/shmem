@@ -234,13 +234,6 @@ void DefineShmemSignalOp(py::module_ &m)
         .value("SIGNAL_ADD", ACLSHMEM_SIGNAL_ADD);
 }
 
-void DefineShmemMemType(py::module_ &m)
-{
-    py::enum_<aclshmem_mem_type_t>(m, "MemType")
-        .value("HOST_SIDE", HOST_SIDE)
-        .value("DEVICE_SIDE", DEVICE_SIDE);
-}
-
 void DefineShmemCmpOp(py::module_ &m)
 {
     py::enum_<aclshmem_cmp_op_type_t>(m, "CmpOp")
@@ -265,7 +258,6 @@ PYBIND11_MODULE(_pyshmem, m)
     DefineShmemInitStatus(m);
     DefineShmemUniqueId(m);
     DefineShmemSignalOp(m);
-    DefineShmemMemType(m);
     DefineShmemCmpOp(m);
     DefineShmemMemType(m);
 
