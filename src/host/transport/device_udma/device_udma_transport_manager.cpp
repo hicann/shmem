@@ -9,8 +9,10 @@
  */
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <thread>
 #include <vector>
 
 #include "dl_acl_api.h"
@@ -453,6 +455,7 @@ bool UdmaTransportManager::RaInit(uint32_t deviceId)
         return true;
     }
 
+    const std::chrono::seconds WAIT_TIME(3);
     RaInitConfig initConfig{};
     initConfig.phyId = deviceId;
     initConfig.nicPosition = NETWORK_OFFLINE;
@@ -460,10 +463,14 @@ bool UdmaTransportManager::RaInit(uint32_t deviceId)
     initConfig.enableHdcAsync = 1;
 
     SHM_LOG_DEBUG("RaInit = " << initConfig);
+    std::this_thread::sleep_for(WAIT_TIME); // avoid hccl init conflict
     auto ret = shm::DlHccpV2Api::RaInit(&initConfig);
     if (ret != 0) {
-        SHM_LOG_ERROR("RaInit failed, ret = " << ret << ", device id: " << deviceId);
-        return false;
+        SHM_LOG_WARN("Hccp Init RA failed, ret = " << ret << ", device id: " << deviceId);
+        // maybe hccl have already initialized ra, wait 3s then return true.
+        std::this_thread::sleep_for(WAIT_TIME);
+        raInitialized_ = true;
+        return true;
     }
 
     SHM_LOG_DEBUG("RaInit for device id: " << deviceId << " success.");
