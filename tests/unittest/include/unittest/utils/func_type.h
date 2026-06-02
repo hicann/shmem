@@ -140,4 +140,45 @@ constexpr bool operator!=(const uint128_t& lhs, const uint128_t& rhs) { return !
 
 #define ACLSHMEM_PUT_GET_SIZE_FUNC ACLSHMEM_PUT_SIZE_FUNC
 
-#endif // UT_FUNC_TYPE_H
+/*****************************************************************************
+ *                    MTE Atomic Operation Type Macros                         *
+ *****************************************************************************/
+/* MTE arithmetic operations - full type support (amo_add supports all types) */
+
+#define ACLSHMEM_MTE_ATOMIC_SWAP_FUNC_TYPE(FUNC) \
+    FUNC(uint32, uint32_t);                      \
+    FUNC(uint64, uint64_t)
+
+#define ACLSHMEM_MTE_ATOMIC_ADD_FUNC_TYPE_HOST(FUNC) \
+    FUNC(bfloat16, op::bfloat16);                    \
+    FUNC(half, op::fp16_t);                          \
+    FUNC(float, float);                              \
+    FUNC(int8, int8_t);                              \
+    FUNC(int16, int16_t);                            \
+    FUNC(int32, int32_t)
+
+#define ACLSHMEM_MTE_ATOMIC_ADD_FUNC_TYPE_KERNEL(FUNC) \
+    FUNC(bfloat16, bfloat16_t);                        \
+    FUNC(half, half);                                  \
+    FUNC(float, float);                                \
+    FUNC(int8, int8_t);                                \
+    FUNC(int16, int16_t);                              \
+    FUNC(int32, int32_t)
+
+#define ACLSHMEM_MTE_ATOMIC_ADD_FUNC_EXT_TYPE(FUNC) \
+    FUNC(uint32, uint32_t);                         \
+    FUNC(uint64, uint64_t);                         \
+    FUNC(int64, int64_t)
+
+#define ACLSHMEM_MTE_ATOMIC_ADD_FUNC_TYPE(FUNC) \
+    FUNC(uint32, uint32_t);                     \
+    FUNC(uint64, uint64_t);                     \
+    FUNC(int32, int32_t);                       \
+    FUNC(int64, int64_t);                       \
+    FUNC(float, float)
+
+#define ACLSHMEM_MTE_ATOMIC_LOGIC_FUNC_TYPE(FUNC) \
+    FUNC(uint32, uint32_t);                       \
+    FUNC(uint64, uint64_t)
+
+#endif  // UT_FUNC_TYPE_H

@@ -156,4 +156,142 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
  */
 ACLSHMEM_DEVICE void aclshmemx_mte_quiet();
 
+/**
+ * @brief Atomic fetch operation. Returns the value at the source address on the specified PE.  
+ *        Supported hardware platform: Ascend950.
+ *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
+ *
+ * @param src               [in] Symmetric address of the source data.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The value at the source address.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch(__gm__ T *src, int32_t pe);
+
+/**
+ * @brief Atomic set operation. Sets the value at the destination address on the specified PE.
+ *        Supported hardware platform: Ascend950.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports uint32_t and uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be set.
+ * @param pe                [in] PE number of the remote PE.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_set(__gm__ T *dst, T value, int32_t pe);
+
+/**
+ * @brief Atomic compare and swap operation. Conditionally updates the value at the destination address.
+ *        Supported hardware platform: Ascend950.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports uint32_t and uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param cond              [in] Value to compare against.
+ * @param value             [in] Value to be written if comparison succeeds.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_compare_swap(__gm__ T *dst, T cond, T value, int32_t pe);
+
+/**
+ * @brief Atomic swap operation. Swaps the value at the destination address.
+ *        Supported hardware platform: Ascend950.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports uint32_t and uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be swapped.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_swap(__gm__ T *dst, T value, int32_t pe);
+
+/**
+ * @brief Atomic increment operation. Increments the value at the destination address by 1.
+ *        Supported hardware platform: Ascend950.
+ *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param pe                [in] PE number of the remote PE.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_inc(__gm__ T *dst, int32_t pe);
+
+/**
+ * @brief Atomic add operation. Adds the value to the destination address.
+ *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
+ *        NOTE: This is an asynchronous interface. The final operation differs by platform and type:
+ *              - On Ascend910B/Ascend910C: The atomic add is performed by MTE2 unit.
+ *              - On Ascend950:
+ *                - uint32_t/int64_t/uint64_t: scalar AtomicAdd (Scalar unit).
+ *                - Other types: UB + MTE3 (MTE3 atomic add).
+ *              If there are data dependencies, developers need to insert synchronization according
+ *              to actual situations. Scalar write to UB before MTE3 read requires S_MTE3 event
+ *              synchronization; MTE3 write to GM before subsequent reads requires MTE3_MTE2
+ *              event synchronization.
+ *
+ * | Data Type                      | Ascend910B/Ascend910C | Ascend950 |
+ * |--------------------------------|-----------------------|-----------|
+ * | int8_t/int16_t/half/bfloat16_t | ✓                     | ✓         |
+ * | int32_t/float                  | ✓                     | ✓         |
+ * | uint32_t/int64_t/uint64_t      | ✗                     | ✓         |
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be added.
+ * @param pe                [in] PE number of the remote PE.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_add(__gm__ T *dst, T value, int32_t pe);
+
+/**
+ * @brief Atomic fetch increment operation. Increments the value at the destination address by 1 and returns the old value.
+ *        Supported hardware platform: Ascend950.
+ *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address before increment.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_inc(__gm__ T *dst, int32_t pe);
+
+/**
+ * @brief Atomic fetch add operation. Adds the value to the destination address and returns the old value.
+ *        Supported hardware platform: Ascend950.
+ *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
+ *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
+ *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
+ *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
+ *
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param value             [in] Value to be added.
+ * @param pe                [in] PE number of the remote PE.
+ * @return The original value at the destination address before addition.
+ */
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_add(__gm__ T *dst, T value, int32_t pe);
+
 #endif

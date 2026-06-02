@@ -402,4 +402,136 @@ ACLSHMEM_DEVICE void aclshmemx_mte_quiet()
     dcci_entire_cache();
 }
 
+/* Supported data types: int8_t/int16_t/half/bfloat16_t/int32_t/float. Supported hardware platform:
+ * Ascend910B/Ascend910C/Ascend950.*/
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_mte_amo_add_via_ub(__gm__ T* dst, T value)
+{
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::TEventID sync_id = device_state->mte_config.sync_id;
+    __ubuf__ T* buf = reinterpret_cast<__ubuf__ T*>(device_state->mte_config.aclshmem_ub);
+    AscendC::LocalTensor<T> ub_tensor;
+    ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    ub_tensor.address_.dataLen = sizeof(T);
+    ub_tensor.SetValue(0, value);
+    AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::S_MTE3>(sync_id);
+    AscendC::SetAtomicAdd<T>();
+    aclshmemi_copy_ub2gm(dst, buf, sizeof(T));
+    AscendC::SetAtomicNone();
+}
+
+// Supported data types: int32_t/uint32_t/float/int64_t/uint64_t. Supported hardware platform: Ascend950.
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemi_mte_amo_add(__gm__ T* dst, T value)
+{
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::TEventID sync_id = device_state->mte_config.sync_id;
+    T ret = AscendC::AtomicAdd(dst, value);
+    return ret;
+#else
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "aclshmemi_mte_amo_add is supported only on Ascend950 or later\n");
+    return 0;
+#endif
+}
+
+// Supported data types: uint32_t/uint64_t. Supported hardware platform: Ascend950.
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemi_mte_amo_cas(__gm__ T* dst, T value1, T value2)
+{
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::TEventID sync_id = device_state->mte_config.sync_id;
+    T ret = AscendC::AtomicCas(dst, value1, value2);
+    return ret;
+#else
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "aclshmemi_mte_amo_cas is supported only on Ascend950 or later\n");
+    return 0;
+#endif
+}
+
+// Supported data types: uint32_t/uint64_t. Supported hardware platform: Ascend950.
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemi_mte_amo_swap(__gm__ T* dst, T value)
+{
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    AscendC::TEventID sync_id = device_state->mte_config.sync_id;
+    T ret = AscendC::AtomicExch(dst, value);
+    return ret;
+#else
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "aclshmemi_mte_amo_swap is supported only on Ascend950 or later\n");
+    return 0;
+#endif
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch(__gm__ T* src, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(src, pe);
+    return aclshmemi_mte_amo_add(reinterpret_cast<__gm__ T*>(remote_ptr), (T)0);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_set(__gm__ T* dst, T value, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    aclshmemi_mte_amo_swap(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    return aclshmemi_mte_amo_cas(reinterpret_cast<__gm__ T*>(remote_ptr), cond, value);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_swap(__gm__ T* dst, T value, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    return aclshmemi_mte_amo_swap(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_inc(__gm__ T* dst, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    aclshmemi_mte_amo_add(reinterpret_cast<__gm__ T*>(remote_ptr), (T)1);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_add(__gm__ T* dst, T value, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    constexpr bool need_atomic_add = std::is_same<T, uint32_t>::value ||
+                                     std::is_same<T, int64_t>::value ||
+                                     std::is_same<T, uint64_t>::value;
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+    if constexpr (need_atomic_add) {
+        aclshmemi_mte_amo_add(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+    } else {
+        aclshmemi_mte_amo_add_via_ub(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+    }
+#else
+    aclshmemi_mte_amo_add_via_ub(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+#endif
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_inc(__gm__ T* dst, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    return aclshmemi_mte_amo_add(reinterpret_cast<__gm__ T*>(remote_ptr), (T)1);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_add(__gm__ T* dst, T value, int32_t pe)
+{
+    auto remote_ptr = aclshmem_ptr(dst, pe);
+    return aclshmemi_mte_amo_add(reinterpret_cast<__gm__ T*>(remote_ptr), value);
+}
+
 #endif
