@@ -302,13 +302,16 @@ ACLSHMEM_DEVICE void aclshmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t 
     __gm__ int32_t* remote_ptr = reinterpret_cast<__gm__ int32_t*>(aclshmem_ptr(addr, pe));
     __ubuf__ int32_t* buf =(__ubuf__ int32_t*)(device_state->mte_config.aclshmem_ub);
     uint32_t sync_id = device_state->mte_config.sync_id;
-    *buf = val;
+    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::LocalTensor<int32_t> local_tensor(AscendC::TPosition::VECIN, device_state->mte_config.aclshmem_ub, 1);
+    local_tensor.SetValue(0, val);
+    AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::S_MTE3>(sync_id);
 
     AscendC::SetAtomicAdd<int32_t>();
     aclshmemi_copy_ub2gm(remote_ptr, buf, sizeof(int32_t));
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
     AscendC::SetAtomicNone();
+    AscendC::PipeBarrier<PIPE_ALL>();
 }
 
 ACLSHMEM_DEVICE int32_t aclshmemi_signal_wait_until_eq_for_barrier(__gm__ int32_t *sig_addr, int32_t cmp_val)

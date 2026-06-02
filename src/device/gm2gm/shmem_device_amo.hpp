@@ -21,12 +21,15 @@
         AscendC::TEventID my_sync_id = (AscendC::TEventID)device_state->mte_config.sync_id;                              \
         __gm__ TYPE *remote_ptr = reinterpret_cast<__gm__ TYPE *>(ptr);                                                  \
         __ubuf__ TYPE *buf = reinterpret_cast<__ubuf__ TYPE *>(device_state->mte_config.aclshmem_ub);                    \
-        *buf = value;                                                                                                    \
+        AscendC::PipeBarrier<PIPE_ALL>();                                                                                \
+        AscendC::LocalTensor<TYPE> local_tensor(AscendC::TPosition::VECIN, device_state->mte_config.aclshmem_ub, 1);     \
+        local_tensor.SetValue(0, value);                                                                                 \
+        AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(my_sync_id);                                                        \
+        AscendC::WaitFlag<AscendC::HardEvent::S_MTE3>(my_sync_id);                                                       \
         AscendC::SetAtomicAdd<TYPE>();                                                                                   \
         aclshmemi_copy_ub2gm(remote_ptr, buf, sizeof(TYPE));                                                             \
-        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(my_sync_id);                                                     \
-        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(my_sync_id);                                                    \
         AscendC::SetAtomicNone();                                                                                        \
+        AscendC::PipeBarrier<PIPE_ALL>();                                                                                \
     }
 
 ACLSHMEM_TYPE_FUNC_ATOMIC_ADD(ACLSHMEM_ATOMIC_ADD_TYPENAME);
