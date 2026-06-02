@@ -90,6 +90,14 @@ bash run.sh -pes 8 -size 8 -type fp32 -mode sio
 
 # SIO + HCCS 混合测试（3/5 数据走 SIO，2/5 数据走 HCCS）
 bash run.sh -mode mixed
+
+# 混合 Get 性能测试（PE 0 采集 cycle 数据）
+export SHMEM_CYCLE_PROF_PE=0
+bash run.sh -mode mixed_get_perf
+
+# 混合 Put 性能测试（PE 1 采集 cycle 数据）
+export SHMEM_CYCLE_PROF_PE=1
+bash run.sh -mode mixed_put_perf
 ```
 
 ## 参数说明
@@ -112,6 +120,56 @@ bash run.sh -mode mixed
 | `hccs` | HCCS 链路正确性测试 |
 | `all` | SIO + HCCS 全链路正确性测试 |
 | `mixed` | SIO + HCCS 混合正确性测试（3/5 数据走 SIO，2/5 数据走 HCCS） |
+| `mixed_get_perf` | SIO + HCCS 混合 Get 性能测试（3/5 数据走 SIO，2/5 数据走 HCCS） |
+| `mixed_put_perf` | SIO + HCCS 混合 Put 性能测试（3/5 数据走 SIO，2/5 数据走 HCCS） |
+
+## 性能测试
+
+`mixed_get_perf` 和 `mixed_put_perf` 模式用于测量 SIO + HCCS 双路并行传输的性能（cycle 数），分别测试 Get（远端读）和 Put（远端写）操作。
+
+### 工作原理
+
+- 数据按 3:5 比例分配到 SIO 和 HCCS 链路（3/5 数据走 SIO，2/5 数据走 HCCS）
+- Kernel 内部按 block 维度划分：部分 block 负责 SIO 链路传输，其余 block 负责 HCCS 链路传输
+- 使用 `aclshmemx_mte_get_nbi` / `aclshmemx_mte_put_nbi` 进行非阻塞 DMA 传输
+- 通过 cycle 计数器采集每次传输的耗时，并利用 shmem profiling 机制（`aclshmemx_show_prof`）输出统计结果
+
+### 环境变量
+
+| 环境变量 | 说明 |
+|----------|------|
+| `SHMEM_CYCLE_PROF_PE` | 指定进行性能采集的 PE 编号，默认为 `0`。仅该 PE 会执行 cycle 采集逻辑，其余 PE 仅参与 barrier 同步 |
+
+### 运行示例
+
+```bash
+# 混合 Get 性能测试，2 个 PE，4KB 数据，int 类型，PE 0 采集性能数据
+export SHMEM_CYCLE_PROF_PE=0
+bash run.sh -mode mixed_get_perf
+
+# 混合 Put 性能测试，2 个 PE，8KB 数据，fp32 类型，PE 1 采集性能数据
+export SHMEM_CYCLE_PROF_PE=1
+bash run.sh -pes 2 -size 8 -type fp32 -mode mixed_put_perf
+```
+
+### 内部参数
+
+性能测试内部参数定义在 `utils/hccs_sio_link_config.h` 中：
+
+| 参数 | 常量名 | 值 | 说明 |
+|------|--------|----|------|
+| kernel block 数 | `HCCS_SIO_BLOCK_DIM` | `32` | kernel 启动的 block 总数 |
+| UB 缓冲区大小 | `HCCS_SIO_UB_SIZE_KB` | `16` | 每个 block 的 Unified Buffer 大小（KB） |
+| SIO 比例分子 | `HCCS_SIO_RATIO_NUM` | `3` | SIO 数据量 = total × NUM / DEN |
+| SIO 比例分母 | `HCCS_SIO_RATIO_DEN` | `5` | HCCS 数据量 = total - SIO 数据量 |
+| 数据大小下限 | `HCCS_SIO_PERF_MIN_LOG2_BYTES` | `4` | 最小传输数据量的 log2(bytes)，4 = 16B |
+| 数据大小上限 | `HCCS_SIO_PERF_MAX_LOG2_BYTES` | `20` | 最大传输数据量的 log2(bytes)，20 = 1MB |
+| 数据大小步进 | `HCCS_SIO_PERF_STEP_LOG2` | `1` | log2 步进，1 = 每次翻倍 |
+| 预热轮次 | `HCCS_SIO_PERF_WARMUP` | `100` | 预热迭代次数（不计入统计） |
+| 测试轮次 | `HCCS_SIO_PERF_LOOP_COUNT` | `1000` | 正式测量迭代次数 |
+| 单向/双向模式 | `HCCS_SIO_PERF_IS_UNILATERAL` | `true` | `true`=单向（仅 prof_pe 执行），`false`=双向（所有 PE 执行） |
+
+> **注意**：性能采集受 `ACLSHMEM_CYCLE_PROF_MAX_BLOCK`（最大记录核数）和 `ACLSHMEM_CYCLE_PROF_FRAME_CNT`（最大记录帧数）限制，超出范围的 block 或帧不会被记录。
 
 ## 输出示例
 

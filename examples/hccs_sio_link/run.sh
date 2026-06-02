@@ -73,14 +73,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -mode)
             if [ -n "$2" ]; then
-                if [[ "$2" != "sio" && "$2" != "hccs" && "$2" != "all" && "$2" != "mixed" ]]; then
-                    echo "Error: -mode only supports 'sio', 'hccs', 'all' or 'mixed'."
+                if [[ "$2" != "sio" && "$2" != "hccs" && "$2" != "all" && "$2" != "mixed" && "$2" != "mixed_get_perf" && "$2" != "mixed_put_perf" ]]; then
+                    echo "Error: -mode only supports 'sio', 'hccs', 'all', 'mixed', 'mixed_get_perf' or 'mixed_put_perf'."
                     exit 1
                 fi
                 LINK_MODE="$2"
                 shift 2
             else
-                echo "Error: -mode requires a value (sio/hccs/all/mixed/perf_sio/perf_hccs/perf_all)."
+                echo "Error: -mode requires a value (sio/hccs/all/mixed/mixed_get_perf/mixed_put_perf)."
                 exit 1
             fi
             ;;
@@ -102,6 +102,14 @@ done
 
 export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
+
+IS_PERF_MODE=false
+PROF_PE=${SHMEM_CYCLE_PROF_PE:-${FIRST_PE}}
+if [[ "$LINK_MODE" == *_perf ]]; then
+    IS_PERF_MODE=true
+    export SHMEM_CYCLE_PROF_PE=${PROF_PE}
+    mkdir -p ${SCRIPT_DIR}/output
+fi
 
 echo "============================================"
 echo " HCCS Link Test"

@@ -9,6 +9,7 @@
  */
 
 #include "hccs_sio_link_kernel.h"
+#include "hccs_sio_link_config.h"
 #include "kernel_operator.h"
 #include "shmem.h"
 
@@ -74,6 +75,8 @@ __aicore__ inline void local_mte_get_hccs(__gm__ T *hccs_src, __gm__ T *local_ds
                                            __ubuf__ T *buf, uint32_t ub_size_bytes,
                                            uint32_t elem_size, uint32_t sync_id)
 {
+    // Precondition: ub_size_bytes >= sizeof(T). If violated, block_size becomes 0 and
+    // the function silently returns without transferring any data.
     uint64_t block_size = ub_size_bytes / sizeof(T) * sizeof(T);
     if (block_size == 0) {
         return;
@@ -141,7 +144,7 @@ template <typename T>
     int32_t total_blocks = AscendC::GetBlockNum();
     int ub_size_bytes = ub_size_kb * 1024;
 
-    int32_t sio_block_count = total_blocks * 3 / 5;
+    int32_t sio_block_count = total_blocks * HCCS_SIO_RATIO_NUM / HCCS_SIO_RATIO_DEN;
     if (sio_block_count == 0) sio_block_count = 1;
     if (sio_block_count > total_blocks) sio_block_count = total_blocks;
     int32_t hccs_block_count = total_blocks - sio_block_count;

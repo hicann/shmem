@@ -20,6 +20,9 @@
 #include "utils.h"
 #include "param.h"
 #include "hccs_sio_link_kernel.h"
+#include "hccs_sio_link_perf_kernel.h"
+#include "hccs_sio_link_config.h"
+#include "hccs_sio_link_perf_utils.h"
 
 const char *ipport = "tcp://127.0.0.1:8998";
 int f_pe = 0;
@@ -218,8 +221,8 @@ bool copy_and_verify(int pe_id, int peer, void *symm_addr, size_t data_elements,
         return false;
     }
 
-    constexpr uint32_t block_dim = 20;
-    constexpr int ub_size_kb = 16;
+    constexpr uint32_t block_dim = HCCS_SIO_BLOCK_DIM;
+    constexpr int ub_size_kb = HCCS_SIO_UB_SIZE_KB;
     if (hccs_base != nullptr) {
         void *heap_base = aclshmemx_get_heap_base();
         uint64_t offset = reinterpret_cast<uintptr_t>(symm_addr) -
@@ -302,7 +305,7 @@ int test_hccs_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_me
 template <class T>
 int test_mixed_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_mem_size)
 {
-    size_t sio_elements = data_elements * 3 / 5;
+    size_t sio_elements = calc_sio_elements(data_elements);
     size_t hccs_elements = data_elements - sio_elements;
     size_t sio_bytes = sio_elements * sizeof(T);
     size_t hccs_bytes = hccs_elements * sizeof(T);
@@ -355,8 +358,8 @@ int test_mixed_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_m
         return -1;
     }
 
-    constexpr uint32_t block_dim = 20;
-    constexpr int ub_size_kb = 16;
+    constexpr uint32_t block_dim = HCCS_SIO_BLOCK_DIM;
+    constexpr int ub_size_kb = HCCS_SIO_UB_SIZE_KB;
     int sio_elements_int = static_cast<int>(sio_elements);
     int hccs_elements_int = static_cast<int>(hccs_elements);
 
@@ -380,6 +383,184 @@ int test_mixed_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_m
         aclshmem_barrier_all();
         return result;
     }
+}
+
+template <class T>
+int test_mixed_get_perf_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_mem_size,
+                          int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count,
+                          size_t per_block_bytes, std::vector<std::vector<std::string>> &csv_data)
+{
+    size_t sio_elements = calc_sio_elements(data_elements);
+    size_t hccs_elements = data_elements - sio_elements;
+    size_t sio_bytes = sio_elements * sizeof(T);
+    size_t hccs_bytes = hccs_elements * sizeof(T);
+
+    void *local_addr = nullptr;
+    T *init_host = nullptr;
+    if (alloc_and_init_symmem<T>(pe_id, data_elements, local_addr, init_host) != 0) {
+        return -1;
+    }
+    ShmemUniquePtr local_addr_guard(local_addr);
+    HostUniquePtr init_host_guard(init_host);
+
+    void *hccs_symm_addr = reinterpret_cast<void *>(
+        reinterpret_cast<uintptr_t>(local_addr) + sio_bytes);
+
+    int peer = get_peer_pe(pe_id, n_pes);
+    if (peer < 0) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PERF] no valid peer" << std::endl;
+        return -1;
+    }
+
+    HccsMappingGuard hccs;
+    hccs.mapped = setup_hccs_mapping(peer, local_mem_size, &hccs.ptr);
+    if (!hccs.mapped) {
+        return -1;
+    }
+
+    void *heap_base = aclshmemx_get_heap_base();
+    uint64_t hccs_offset = reinterpret_cast<uintptr_t>(hccs_symm_addr) -
+                           reinterpret_cast<uintptr_t>(heap_base);
+    void *hccs_src = reinterpret_cast<void *>(
+        reinterpret_cast<uintptr_t>(hccs.ptr) + hccs_offset);
+
+    ShmemUniquePtr sio_buf(aclshmem_malloc(sio_bytes));
+    if (sio_buf.get() == nullptr) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PERF] aclshmem_malloc for SIO buf failed" << std::endl;
+        return -1;
+    }
+
+    ShmemUniquePtr hccs_buf(aclshmem_malloc(hccs_bytes));
+    if (hccs_buf.get() == nullptr) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PERF] aclshmem_malloc for HCCS buf failed" << std::endl;
+        return -1;
+    }
+
+    AclStreamGuard stream;
+    aclError ret = aclrtCreateStream(stream.addr());
+    if (ret != ACL_ERROR_NONE) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PERF] aclrtCreateStream failed" << std::endl;
+        return -1;
+    }
+
+    constexpr uint32_t block_dim = HCCS_SIO_BLOCK_DIM;
+    constexpr int ub_size_kb = HCCS_SIO_UB_SIZE_KB;
+    int sio_elements_int = static_cast<int>(sio_elements);
+    int hccs_elements_int = static_cast<int>(hccs_elements);
+
+    launch_mte_get_mixed_perf<T>(block_dim, stream.get(),
+                                  reinterpret_cast<uint8_t *>(sio_buf.get()),
+                                  reinterpret_cast<uint8_t *>(local_addr), sio_elements_int, peer,
+                                  reinterpret_cast<uint8_t *>(hccs_buf.get()),
+                                  reinterpret_cast<uint8_t *>(hccs_src), hccs_elements_int,
+                                  ub_size_kb, frame_id, prof_pe_val, warmup, loop_count, HCCS_SIO_PERF_IS_UNILATERAL);
+
+    ret = aclrtSynchronizeStream(stream.get());
+    if (ret != ACL_ERROR_NONE) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PERF] aclrtSynchronizeStream failed, ret=" << ret << std::endl;
+        return -1;
+    }
+
+    aclshmemx_show_prof(nullptr, true);
+    aclshmem_prof_pe_t *out_profs = nullptr;
+    aclshmemx_show_prof(&out_profs, false);
+    if (pe_id == prof_pe_val && out_profs != nullptr) {
+        int64_t cycle2us = get_cycle2us();
+        print_perf_result(out_profs, frame_id, block_dim, data_elements * sizeof(T), per_block_bytes,
+                          "MIXED-GET-PERF", cycle2us, csv_data);
+    }
+
+    aclshmem_barrier_all();
+    return 0;
+}
+
+template <class T>
+int test_mixed_put_perf_path(int pe_id, int n_pes, size_t data_elements, uint64_t local_mem_size,
+                              int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count,
+                              size_t per_block_bytes, std::vector<std::vector<std::string>> &csv_data)
+{
+    size_t sio_elements = calc_sio_elements(data_elements);
+    size_t hccs_elements = data_elements - sio_elements;
+    size_t sio_bytes = sio_elements * sizeof(T);
+    size_t hccs_bytes = hccs_elements * sizeof(T);
+
+    void *local_addr = nullptr;
+    T *init_host = nullptr;
+    if (alloc_and_init_symmem<T>(pe_id, data_elements, local_addr, init_host) != 0) {
+        return -1;
+    }
+    ShmemUniquePtr local_addr_guard(local_addr);
+    HostUniquePtr init_host_guard(init_host);
+
+    void *hccs_symm_addr = reinterpret_cast<void *>(
+        reinterpret_cast<uintptr_t>(local_addr) + sio_bytes);
+
+    int peer = get_peer_pe(pe_id, n_pes);
+    if (peer < 0) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PUT-PERF] no valid peer" << std::endl;
+        return -1;
+    }
+
+    HccsMappingGuard hccs;
+    hccs.mapped = setup_hccs_mapping(peer, local_mem_size, &hccs.ptr);
+    if (!hccs.mapped) {
+        return -1;
+    }
+
+    ShmemUniquePtr sio_buf(aclshmem_malloc(sio_bytes));
+    if (sio_buf.get() == nullptr) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PUT-PERF] aclshmem_malloc for SIO buf failed" << std::endl;
+        return -1;
+    }
+
+    ShmemUniquePtr hccs_buf(aclshmem_malloc(hccs_bytes));
+    if (hccs_buf.get() == nullptr) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PUT-PERF] aclshmem_malloc for HCCS buf failed" << std::endl;
+        return -1;
+    }
+
+    void *heap_base = aclshmemx_get_heap_base();
+    uint64_t hccs_buf_offset = reinterpret_cast<uintptr_t>(hccs_buf.get()) -
+                               reinterpret_cast<uintptr_t>(heap_base);
+    void *hccs_remote = reinterpret_cast<void *>(
+        reinterpret_cast<uintptr_t>(hccs.ptr) + hccs_buf_offset);
+
+    AclStreamGuard stream;
+    aclError ret = aclrtCreateStream(stream.addr());
+    if (ret != ACL_ERROR_NONE) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PUT-PERF] aclrtCreateStream failed" << std::endl;
+        return -1;
+    }
+
+    constexpr uint32_t block_dim = HCCS_SIO_BLOCK_DIM;
+    constexpr int ub_size_kb = HCCS_SIO_UB_SIZE_KB;
+    int sio_elements_int = static_cast<int>(sio_elements);
+    int hccs_elements_int = static_cast<int>(hccs_elements);
+
+    launch_mte_put_mixed_perf<T>(block_dim, stream.get(),
+                                  reinterpret_cast<uint8_t *>(sio_buf.get()),
+                                  reinterpret_cast<uint8_t *>(local_addr), sio_elements_int, peer,
+                                  reinterpret_cast<uint8_t *>(hccs_remote),
+                                  reinterpret_cast<uint8_t *>(hccs_symm_addr), hccs_elements_int,
+                                  ub_size_kb, frame_id, prof_pe_val, warmup, loop_count, HCCS_SIO_PERF_IS_UNILATERAL);
+
+    ret = aclrtSynchronizeStream(stream.get());
+    if (ret != ACL_ERROR_NONE) {
+        std::cerr << "PE " << pe_id << ": [MIXED-PUT-PERF] aclrtSynchronizeStream failed, ret=" << ret << std::endl;
+        return -1;
+    }
+    
+    aclshmemx_show_prof(nullptr, true);
+    aclshmem_prof_pe_t *out_profs = nullptr;
+    aclshmemx_show_prof(&out_profs, false);
+    if (pe_id == prof_pe_val && out_profs != nullptr) {
+        int64_t cycle2us = get_cycle2us();
+        print_perf_result(out_profs, frame_id, block_dim, data_elements * sizeof(T), per_block_bytes,
+                          "MIXED-PUT-PERF", cycle2us, csv_data);
+    }
+
+    aclshmem_barrier_all();
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -490,9 +671,93 @@ int main(int argc, char *argv[])
             std::cerr << "Unsupported data_type: " << data_type << std::endl;
             status = -1;
         }
+    } else if (std::string(link_mode) == "mixed_get_perf") {
+        const char *prof_pe_env = std::getenv("SHMEM_CYCLE_PROF_PE");
+        int64_t prof_pe_val = 0;
+        if (prof_pe_env != nullptr) {
+            char *end = nullptr;
+            long v = std::strtol(prof_pe_env, &end, 10);
+            if (end == prof_pe_env || *end != '\0' || v < 0 || v >= n_pes) {
+                std::cerr << "Invalid SHMEM_CYCLE_PROF_PE=" << prof_pe_env << std::endl;
+                return -1;
+            }
+            prof_pe_val = v;
+        }
+        int32_t frame_id = 0;
+        int warmup = HCCS_SIO_PERF_WARMUP;
+        int loop_count = HCCS_SIO_PERF_LOOP_COUNT;
+        std::vector<std::vector<std::string>> csv_data;
+        csv_data.push_back({"B/PerBlock", "DataSize/B", "Blocks", "UBsize/KB", "Bandwidth/GB/s", "CoreMaxTime/us", "CoreAvgTime/us"});
+        for (int32_t log2b = HCCS_SIO_PERF_MIN_LOG2_BYTES; log2b <= HCCS_SIO_PERF_MAX_LOG2_BYTES; log2b += HCCS_SIO_PERF_STEP_LOG2) {
+            size_t per_block_bytes = 1ULL << log2b;
+            size_t total_bytes = per_block_bytes * HCCS_SIO_BLOCK_DIM;
+            size_t data_elements = total_bytes / type_size;
+            if (std::string(data_type) == "int") {
+                status = test_mixed_get_perf_path<int>(pe_id, n_pes, data_elements, local_mem_size,
+                                                   frame_id, prof_pe_val, warmup, loop_count,
+                                                   per_block_bytes, csv_data);
+            } else if (std::string(data_type) == "int64") {
+                status = test_mixed_get_perf_path<int64_t>(pe_id, n_pes, data_elements, local_mem_size,
+                                                        frame_id, prof_pe_val, warmup, loop_count,
+                                                        per_block_bytes, csv_data);
+            } else if (std::string(data_type) == "fp32") {
+                status = test_mixed_get_perf_path<float>(pe_id, n_pes, data_elements, local_mem_size,
+                                                     frame_id, prof_pe_val, warmup, loop_count,
+                                                     per_block_bytes, csv_data);
+            } else {
+                std::cerr << "Unsupported data_type: " << data_type << std::endl;
+                status = -1;
+            }
+            frame_id++;
+        }
+        if (pe_id == prof_pe_val && csv_data.size() > 1) {
+            write_perf_csv("output/hccs_sio_link_perf_mixed_get_perf_pe" + std::to_string(pe_id) + ".csv", csv_data);
+        }
+    } else if (std::string(link_mode) == "mixed_put_perf") {
+        const char *prof_pe_env = std::getenv("SHMEM_CYCLE_PROF_PE");
+        int64_t prof_pe_val = 0;
+        if (prof_pe_env != nullptr) {
+            char *end = nullptr;
+            long v = std::strtol(prof_pe_env, &end, 10);
+            if (end == prof_pe_env || *end != '\0' || v < 0 || v >= n_pes) {
+                std::cerr << "Invalid SHMEM_CYCLE_PROF_PE=" << prof_pe_env << std::endl;
+                return -1;
+            }
+            prof_pe_val = v;
+        }
+        int32_t frame_id = 0;
+        int warmup = HCCS_SIO_PERF_WARMUP;
+        int loop_count = HCCS_SIO_PERF_LOOP_COUNT;
+        std::vector<std::vector<std::string>> csv_data;
+        csv_data.push_back({"B/PerBlock", "DataSize/B", "Blocks", "UBsize/KB", "Bandwidth/GB/s", "CoreMaxTime/us", "CoreAvgTime/us"});
+        for (int32_t log2b = HCCS_SIO_PERF_MIN_LOG2_BYTES; log2b <= HCCS_SIO_PERF_MAX_LOG2_BYTES; log2b += HCCS_SIO_PERF_STEP_LOG2) {
+            size_t per_block_bytes = 1ULL << log2b;
+            size_t total_bytes = per_block_bytes * HCCS_SIO_BLOCK_DIM;
+            size_t data_elements = total_bytes / type_size;
+            if (std::string(data_type) == "int") {
+                status = test_mixed_put_perf_path<int>(pe_id, n_pes, data_elements, local_mem_size,
+                                                        frame_id, prof_pe_val, warmup, loop_count,
+                                                        per_block_bytes, csv_data);
+            } else if (std::string(data_type) == "int64") {
+                status = test_mixed_put_perf_path<int64_t>(pe_id, n_pes, data_elements, local_mem_size,
+                                                             frame_id, prof_pe_val, warmup, loop_count,
+                                                             per_block_bytes, csv_data);
+            } else if (std::string(data_type) == "fp32") {
+                status = test_mixed_put_perf_path<float>(pe_id, n_pes, data_elements, local_mem_size,
+                                                          frame_id, prof_pe_val, warmup, loop_count,
+                                                          per_block_bytes, csv_data);
+            } else {
+                std::cerr << "Unsupported data_type: " << data_type << std::endl;
+                status = -1;
+            }
+            frame_id++;
+        }
+        if (pe_id == prof_pe_val && csv_data.size() > 1) {
+            write_perf_csv("output/hccs_sio_link_perf_mixed_put_perf_pe" + std::to_string(pe_id) + ".csv", csv_data);
+        }
     } else {
         std::cerr << "Unknown link_mode: " << link_mode
-                  << ". Supported: sio, hccs, all, mixed" << std::endl;
+                  << ". Supported: sio, hccs, all, mixed, mixed_get_perf, mixed_put_perf" << std::endl;
         status = -1;
     }
 
