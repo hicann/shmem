@@ -10,31 +10,62 @@
 #ifndef ACLSHMEM_RDMA_DEVICE_BACKEND_XSCALE_HPP
 #define ACLSHMEM_RDMA_DEVICE_BACKEND_XSCALE_HPP
 
+#include <type_traits>
 #include "rdma_device_backend_base.h"
 
-struct aclshmemi_xscdv_wqe_ctrl_seg_t {
+constexpr int ACLSHMEMI_XSCALE_API_VERSION_VAR = 2;
+
+static_assert(
+    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1 || ACLSHMEMI_XSCALE_API_VERSION_VAR == 2,
+    "ACLSHMEMI_XSCALE_API_VERSION must be 1 or 2");
+
+struct aclshmemi_xscdv_wqe_ctrl_seg_v1 {
     uint8_t msg_opcode;
     uint8_t with_imm : 1;
     uint8_t csum_en : 2;
     uint8_t ds_data_num : 5;
-    uint16_t wqe_id; // Index of the current WQE being sent, e.g., the first WQE has index 0
+    uint16_t wqe_id; // wqe ds index = wqe_idx << 3 (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT)
     uint32_t msg_len;
     /**** 8 bytes ****/
     uint32_t opcode_data;
     /**** 12 bytes ****/
-    uint8_t se : 1;
-    uint8_t ce : 1; // If set to 1, a CQE will be generated
-    uint8_t in_line : 1;
-    uint8_t fence_mode : 2;
-    uint8_t mask : 2;
+    uint32_t se : 1;
+    uint32_t ce : 1; // If set to 1, a CQE will be generated
+    uint32_t in_line : 1;
+    uint32_t fence_mode : 2;
+    uint32_t mask : 2;
     uint32_t rsv : 25;
     /**** 16 bytes ****/
 };
 
+struct aclshmemi_xscdv_wqe_ctrl_seg_v2 {
+    uint8_t msg_opcode;
+    uint8_t with_imm : 1;
+    uint8_t csum_en : 2;
+    uint8_t ds_data_num : 5;
+    uint16_t rsv1;
+    uint32_t msg_len;
+    /**** 8 bytes ****/
+    uint32_t opcode_data;
+    /**** 12 bytes ****/
+    uint32_t se : 1;
+    uint32_t ce : 1; // If set to 1, a CQE will be generated
+    uint32_t in_line : 1;
+    uint32_t fence_mode : 2;
+    uint32_t mask : 2;
+    uint32_t rsv : 5;
+    uint32_t wqe_id : 20; // wqe ds index = wqe_idx << 3
+                          // (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT)
+    /**** 16 bytes ****/
+};
+
+using aclshmemi_xscdv_wqe_ctrl_seg_t = std::conditional_t<
+    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1, aclshmemi_xscdv_wqe_ctrl_seg_v1, aclshmemi_xscdv_wqe_ctrl_seg_v2>;
+
 struct aclshmemi_xscdv_wqe_data_seg_t {
     union {
         struct {
-            uint8_t : 1;
+            uint32_t rsv : 1;
             uint32_t seg_len : 31;
             uint32_t m_key; // Use lkey for local address, rkey for remote address
             /**** 8 bytes ****/
@@ -48,15 +79,15 @@ struct aclshmemi_xscdv_wqe_data_seg_t {
     /**** 16 bytes ****/
 };
 
-struct aclshmemi_xscdv_diamond_cqe_t {
-    uint8_t error_code;
+struct aclshmemi_xscdv_diamond_cqe_v1 {
+    uint32_t error_code : 8;
     uint32_t qp_id : 15; // Corresponds to the QP's qpn
-    uint8_t : 1;
-    uint8_t se : 1;
-    uint8_t has_pph : 1;
-    uint8_t type : 1;
-    uint8_t with_imm : 1;
-    uint8_t csum_err : 4;
+    uint32_t rsv : 1;
+    uint32_t se : 1;
+    uint32_t has_pph : 1;
+    uint32_t type : 1;
+    uint32_t with_imm : 1;
+    uint32_t csum_err : 4;
     /**** 4 bytes ****/
     uint32_t imm_data;
     /**** 8 bytes ****/
@@ -64,15 +95,65 @@ struct aclshmemi_xscdv_diamond_cqe_t {
     uint32_t vni;
     /**** 16 bytes ****/
     uint64_t ts : 48;
-    uint16_t wqe_id; // Corresponds to wqe_id << 3 in the WQE
+    uint64_t wqe_id : 16; // Corresponds to wqe_id << 3 in the WQE
+                          // (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT)
     /**** 24 bytes ****/
     uint8_t msg_opcode;
-    uint8_t rsv;
+    uint8_t rsv0;
     uint16_t rsv1[2];
     uint16_t rsv2 : 15;
-    uint8_t owner : 1; // Checking the owner bit confirms whether the current CQE can be parsed by software
+    uint16_t owner : 1; // Checking the owner bit confirms whether the current CQE can be parsed by software
     /**** 32 bytes ****/
 };
+
+struct aclshmemi_xscdv_diamond_cqe_v2 {
+    union {
+        struct {
+            uint32_t error_code : 8; // [0:7]
+            uint32_t qp_id : 15;     // [8:22] Corresponds to the QP's qpn
+            // [23:31] flags
+            uint32_t rsv : 1;
+            uint32_t se : 1;
+            uint32_t has_pph : 1;
+            uint32_t type : 1;
+            uint32_t with_imm : 1;
+            uint32_t csum_err : 4;
+        };
+        uint32_t flags_qp_id_err_code;
+    };
+    /**** 4 bytes ****/
+    uint32_t imm_data; // immediate value
+    /**** 8 bytes ****/
+    uint32_t msg_len; // message length
+    /**** 12 bytes ****/
+    uint32_t vni;
+    /**** 16 bytes ****/
+    uint32_t ts_l;
+    /**** 20 bytes ****/
+    uint32_t ts_h;
+    /**** 24 bytes ****/
+    union {
+        struct {
+            uint32_t msg_opcode : 8; // [0:7] msg_opcode of corresponding finished wqe, check aclshmemi_xscdv_msg_type_t
+            uint32_t rsv1 : 4;       // [8:11]
+            uint32_t wqe_id : 20;    // [12:31] Corresponds to wqe_id << 3 in the WQE
+        };
+        uint32_t wqe_id_rsv_opcode;
+    };
+    /**** 28 bytes ****/
+    union {
+        struct {
+            uint32_t rsv2 : 31;
+            uint32_t owner : 1; // Owner bit, checking the owner bit confirms whether the current CQE can be parsed by
+                                // software
+        };
+        uint32_t owner_rsv;
+    };
+    /**** 32 bytes ****/
+};
+
+using aclshmemi_xscdv_diamond_cqe_t = std::conditional_t<
+    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1, aclshmemi_xscdv_diamond_cqe_v1, aclshmemi_xscdv_diamond_cqe_v2>;
 
 struct aclshmemi_xscdv_cqe64_t {
     aclshmemi_xscdv_diamond_cqe_t cqe;
@@ -102,7 +183,7 @@ union aclshmemi_xscdv_diamond_recv_doorbell_t {
     uint64_t raw;
 };
 
-union aclshmemi_xscdv_diamond_send_doorbell_t {
+union aclshmemi_xscdv_diamond_send_doorbell_v1 {
     struct {
         uint64_t next_pid : 17; // ID of the next WQE to be processed in the SQ, e.g., if WQEs 0-3 are to be sent,
                                 // next_pid is 4
@@ -111,6 +192,20 @@ union aclshmemi_xscdv_diamond_send_doorbell_t {
     };
     uint64_t raw;
 };
+
+union aclshmemi_xscdv_diamond_send_doorbell_v2 {
+    struct {
+        uint64_t next_pid : 21; // ID of the next WQE to be processed in the SQ, e.g., if WQEs 0-3 are to be sent,
+                                // next_pid is 4
+        uint64_t qp_id : 16;    // Corresponds to the SQ's qpn
+        /**** 8 bytes ****/
+    };
+    uint64_t raw;
+};
+
+using aclshmemi_xscdv_diamond_send_doorbell_t = std::conditional_t<
+    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1, aclshmemi_xscdv_diamond_send_doorbell_v1,
+    aclshmemi_xscdv_diamond_send_doorbell_v2>;
 
 struct aclshmemi_xscdv_diamond_data_seg_t {
     uint32_t length;
@@ -341,6 +436,7 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
     uint32_t original_cur_tail = cur_tail;
     uint64_t run_cycles = 0;
     uint32_t status = 0;
+    uint32_t wqn = 0;
 
     while (cur_tail != target_idx) {
         run_cycles = 0;
@@ -361,7 +457,7 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
             break;
         }
         cur_tail++;
-        uint32_t wqn = cqe_addr->cqe.qp_id & 0xFFFF; // reserved for multi WQ share the same CQ
+        wqn = cqe_addr->cqe.qp_id & 0x7FFF; // reserved for multi WQ share the same CQ
         // Check CQE status
         status = cqe_addr->cqe.error_code;
         if (status) {
@@ -385,8 +481,12 @@ ACLSHMEM_DEVICE __gm__ uint8_t* aclshmemi_roce_xscale_fill_wqe_ctrl_seg(
     uint32_t msg_len, uint32_t inline_mode)
 {
     __gm__ aclshmemi_xscdv_wqe_ctrl_seg_t* ctrl_seg = (__gm__ aclshmemi_xscdv_wqe_ctrl_seg_t*)wqe_addr;
-
-    ctrl_seg->wqe_id = (uint16_t)(cur_head << (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT));
+    uint32_t wqe_id = cur_head << (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT);
+    if constexpr (ACLSHMEMI_XSCALE_API_VERSION_VAR == 1) {
+        ctrl_seg->wqe_id = wqe_id & 0xFFFF;
+    } else {
+        ctrl_seg->wqe_id = wqe_id & 0xFFFFF;
+    }
     ctrl_seg->with_imm = 0;
     ctrl_seg->ds_data_num = ds_data_num;
     ctrl_seg->ce = 1;
