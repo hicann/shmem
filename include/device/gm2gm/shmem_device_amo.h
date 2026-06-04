@@ -44,6 +44,23 @@
  * Asynchronous interface. Perform contiguous data atomic add operation on
  * symmetric memory from the specified PE to address on the local PE.
  *
+ * The implementation writes operands to UB via Scalar, then the MTE3 unit
+ * reads UB and performs the remote atomic add to GM. Callers must ensure
+ * pipeline synchronization externally to avoid data hazards:
+ * - Before calling: if another unit (e.g. MTE2) is also writing to the same UB
+ *   region, the caller must fence those writes before Scalar writes to UB
+ *   (e.g. SetFlag/WaitFlag on MTE2_S event), otherwise UB data may be
+ *   corrupted.
+ * - After calling: if there is a data dependency on the atomic add result, the
+ *   caller must fence MTE3 before reading GM (e.g. SetFlag/WaitFlag on
+ *   MTE3_MTE2 event). Likewise, if new values will be written to the same UB
+ *   region, the caller must fence MTE3 before overwriting UB (e.g. SetFlag/
+ *   WaitFlag on MTE3_S event), otherwise UB data may be overwritten before
+ *   MTE3 has finished reading.
+ *
+ * The UB buffer offset for temporary operands defaults to 0 and can be
+ * adjusted via aclshmemx_set_mte_config(offset, ub_size, sync_id).
+ *
  * @par Parameters
  * - **dst**    - [in] Pointer on local device of the destination data.
  * - **value**  - [in] Value atomic add to destination.
