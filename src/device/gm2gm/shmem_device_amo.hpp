@@ -28,7 +28,6 @@
                 auto ptr = aclshmem_ptr(dst, pe);                                                                      \
                 __gm__ TYPE* remote_ptr = reinterpret_cast<__gm__ TYPE*>(ptr);                                         \
                 __ubuf__ TYPE* buf = reinterpret_cast<__ubuf__ TYPE*>(device_state->mte_config.aclshmem_ub);           \
-                aclshmemx_mte_quiet();                                                                                 \
                 AscendC::LocalTensor<TYPE> ub_tensor(                                                                  \
                     AscendC::TPosition::VECIN, device_state->mte_config.aclshmem_ub, 1);                               \
                 ub_tensor.SetValue(0, value);                                                                          \
@@ -38,7 +37,6 @@
                 AscendC::SetAtomicAdd<TYPE>();                                                                         \
                 aclshmemi_copy_ub2gm(remote_ptr, buf, sizeof(TYPE));                                                   \
                 AscendC::SetAtomicNone();                                                                              \
-                aclshmemx_mte_quiet();                                                                                 \
             }                                                                                                          \
         } else if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_UDMA) {                                            \
             aclshmemx_udma_atomic_add(dst, value, pe);                                                                 \
