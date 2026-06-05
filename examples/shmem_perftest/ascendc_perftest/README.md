@@ -64,7 +64,7 @@ make -j
 
 ```bash
 # 进入示例目录
-cd examples//mte_perftest/ascendc_perftest
+cd examples/shmem_perftest/ascendc_perftest
 
 # 运行测试脚本
 source /usr/local/Ascend/ascend-toolkit/set_env.sh

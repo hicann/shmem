@@ -1,8 +1,8 @@
-# shmem_perftest
+# mte_perftest
 
 ## 示例概述
 
-shmem_perftest是一个用于**测试shmem MTE（Memory Transfer Engine）性能**的参数化测试示例，支持多种测试类型、多种数据类型和灵活的参数配置。该示例通过[SHMEMI_PROF_START/END](../../../src/device/utils/prof/shmemi_prof.h)宏采集性能数据，测试不同核数和数据量下的MTE传输带宽，帮助用户评估MTE数据传输性能。**该脚本测试结果仅做参考，性能以实际场景为准**
+mte_perftest是一个用于**测试shmem MTE（Memory Transfer Engine）性能**的参数化测试示例，支持多种测试类型、多种数据类型和灵活的参数配置。该示例通过[SHMEMI_PROF_START/END](../../../src/device/utils/prof/shmemi_prof.h)宏采集性能数据，测试不同核数和数据量下的MTE传输带宽，帮助用户评估MTE数据传输性能。**该脚本测试结果仅做参考，性能以实际场景为准**
 
 ## 测试目的
 
@@ -59,7 +59,7 @@ bash scripts/build.sh -examples -cann
 
 ```bash
 # 进入示例目录
-cd examples/mte_perftest/shmem_perftest/
+cd examples/shmem_perftest/mte_perftest/
 
 # 运行测试脚本
 ./run.sh [选项]
@@ -91,7 +91,7 @@ cd examples/mte_perftest/shmem_perftest/
 bash scripts/build.sh -examples -cann
 ```
 
-DRAM测试需要运行环境支持Host侧DRAM内存访问，相关硬件和可用内存约束可参考 [rma_d2h_demo](../../rma_d2h_demo/README.md) 的“约束限制”章节。shmem_perftest默认配置1GB本地内存；当测试参数需要更大本地内存时，程序会按数据量自动上调，运行前需确保可用DRAM空间大于实际本地内存配置。
+DRAM测试需要运行环境支持Host侧DRAM内存访问，相关硬件和可用内存约束可参考 [rma_d2h_demo](../../rma_d2h_demo/README.md) 的“约束限制”章节。mte_perftest默认配置1GB本地内存；当测试参数需要更大本地内存时，程序会按数据量自动上调，运行前需确保可用DRAM空间大于实际本地内存配置。
 
 ### 使用示例
 

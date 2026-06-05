@@ -12,6 +12,8 @@
 
 namespace perftest {
 
+constexpr int PERFTEST_WARMUP_ITERS = 100;
+
 typedef enum {
     DATA_TYPE_FLOAT,
     DATA_TYPE_INT8,
@@ -40,6 +42,19 @@ typedef enum {
     TEST_MODE_MTE_GET,
     TEST_MODE_BI_GET
 } mte_mode_t;
+
+typedef enum {
+    TEST_MODE_UDMA_PUT,
+    TEST_MODE_UDMA_BI_PUT,
+    TEST_MODE_UDMA_GET,
+    TEST_MODE_UDMA_BI_GET,
+    TEST_MODE_UDMA_PUT_SIGNAL
+} udma_mode_t;
+
+typedef enum {
+    PERF_METRIC_BW,
+    PERF_METRIC_LAT
+} perf_metric_t;
 
 } // namespace perftest
 

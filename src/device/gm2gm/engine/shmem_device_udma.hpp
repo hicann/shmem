@@ -529,7 +529,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
         aclshmemi_udma_params_t<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY> signal_params{
             .sig_addr = (__gm__ uint64_t*)(sig_addr_dst), .signal = signal};
         aclshmemi_udma_write_notify<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY>(
-            (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src, pe, 0, elem_size * sizeof(T), signal_params);
+            (__gm__ T*)ptr, src, pe, 0, elem_size * sizeof(T), signal_params);
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }

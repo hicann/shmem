@@ -17,7 +17,7 @@ cd ${SCRIPT_DIR}
 
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 
-EXEC_BIN=${PROJECT_ROOT}/build/bin/shmem_perftest
+EXEC_BIN=${PROJECT_ROOT}/build/bin/mte_perftest
 
 # 默认测试类型为put
 TEST_TYPE="put"

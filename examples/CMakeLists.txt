@@ -189,7 +189,7 @@ foreach(EXAMPLE
     sdma
     notifywait
     cmo
-    mte_perftest
+    shmem_perftest
     udma_demo
     udma_atomic_add
 )

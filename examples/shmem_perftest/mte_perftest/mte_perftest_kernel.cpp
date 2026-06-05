@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef _MTEPERF_KERNEL_SHMEM_PERFTEST_
-#define _MTEPERF_KERNEL_SHMEM_PERFTEST_
+#ifndef _MTEPERF_KERNEL_MTE_PERFTEST_
+#define _MTEPERF_KERNEL_MTE_PERFTEST_
 
 #include <cstring>
 #include "kernel_operator.h"
@@ -197,4 +197,4 @@ extern "C" void launch_mte_perf_kernel(uint32_t block_dim, void *stream, uint8_t
     }
 }
 
-#endif  // _MTEPERF_KERNEL_SHMEM_PERFTEST_
+#endif  // _MTEPERF_KERNEL_MTE_PERFTEST_

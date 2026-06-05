@@ -29,6 +29,8 @@ LOOP_COUNT="1000"
 UB_SIZE="16"
 # 默认SHMEM内存类型: hbm/dram，仅shmem模式使用
 MEMORY_TYPE="hbm"
+# 批量提交粒度（仅 BW 路径，当前仅支持 udma_perftest）：0=全异步(默认)，1=同步
+BATCH="0"
 # 默认运行模式: ascendc/shmem/all (all表示全跑)
 MODE="all"
 # 分析模式: none/plot/md (none表示都不生成, plot表示只生成图, md表示同时生成图和md), 默认none
@@ -53,12 +55,13 @@ function usage() {
     echo "  --loop-count <count>            设置循环次数"
     echo "  --ub-size <size>                设置UB size(KB), 默认16"
     echo "  --memory-type <hbm|dram>        设置SHMEM内存类型, 默认hbm"
+    echo "  --batch <N>                     BW 路径下每 N 次 *_nbi 后 quiet (0=loop_count 全异步, 1=同步, 默认 0；当前仅支持 udma_perftest)"
     echo "  -pes <size>                     设置PE大小"
     echo "  -ipport <ip:port>               设置IP端口"
     echo "  -gnpus <num>                   设置NPU数量"
     echo "  -fnpu <id>                     设置首个NPU ID"
     echo "  -fpe <id>                      设置首个PE ID"
-    echo "  -m|--mode <ascendc|shmem|all>  设置运行模式 (ascendc=只跑ascendc, shmem=只跑shmem, all=全跑), 默认all"
+    echo "  -m|--mode <ascendc|mte|udma|all>    设置运行模式 (ascendc=只跑ascendc, mte=只跑mte, udma=只跑udma, all=全跑), 默认all"
     echo "  -a|--analyse <none|plot|md>    设置分析模式 (none=不生成, plot=只生成图, md=同时生成图和md), 默认none"
     exit 1
 }
@@ -154,6 +157,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --batch)
+            if [ -n "$2" ]; then
+                BATCH="$2"
+                shift 2
+            else
+                echo "Error: --batch requires a value."
+                exit 1
+            fi
+            ;;
         -pes)
             if [ -n "$2" ]; then
                 PE_SIZE="$2"
@@ -232,7 +244,7 @@ if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
 fi
 
 echo "=============================================="
-echo "example/mte_perftest"
+echo "example/shmem_perftest"
 echo "=============================================="
 echo "测试类型: $TEST_TYPE"
 echo "数据类型: $DATA_TYPE"
@@ -255,9 +267,13 @@ if [[ "$MODE" == "ascendc" || "$MODE" == "all" ]]; then
     rm -rf "${SCRIPT_DIR}/ascendc_perftest/output"
     echo "Cleaned: ${SCRIPT_DIR}/ascendc_perftest/output"
 fi
-if [[ "$MODE" == "shmem" || "$MODE" == "all" ]]; then
-    rm -rf "${SCRIPT_DIR}/shmem_perftest/output"
-    echo "Cleaned: ${SCRIPT_DIR}/shmem_perftest/output"
+if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
+    rm -rf "${SCRIPT_DIR}/mte_perftest/output"
+    echo "Cleaned: ${SCRIPT_DIR}/mte_perftest/output"
+fi
+if [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
+    rm -rf "${SCRIPT_DIR}/udma_perftest/output"
+    echo "Cleaned: ${SCRIPT_DIR}/udma_perftest/output"
 fi
 
 # 清理外层output目录
@@ -265,15 +281,39 @@ rm -rf "${SCRIPT_DIR}/output"
 echo "Cleaned: ${SCRIPT_DIR}/output"
 
 if [[ "$MODE" == "ascendc" || "$MODE" == "all" ]]; then
-    echo -e "\n========== Running ascendc_perftest =========="
-    echo "Command: bash ${SCRIPT_DIR}/ascendc_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" --device1 \"$DEVICE1\" --device2 \"$DEVICE2\" --ub-size \"$UB_SIZE\""
-    bash "${SCRIPT_DIR}/ascendc_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --device1 "$DEVICE1" --device2 "$DEVICE2" --ub-size "$UB_SIZE"
+    ASCENDC_VALID_TT="put get ub2gm_local ub2gm_remote gm2ub_local gm2ub_remote all"
+    if [[ ! " $ASCENDC_VALID_TT " =~ " $TEST_TYPE " ]]; then
+        echo "WARN: ascendc_perftest does not support -t $TEST_TYPE (supports: $ASCENDC_VALID_TT). Skipping ascendc_perftest."
+    else
+        echo -e "\n========== Running ascendc_perftest =========="
+        echo "Command: bash ${SCRIPT_DIR}/ascendc_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" --device1 \"$DEVICE1\" --device2 \"$DEVICE2\" --ub-size \"$UB_SIZE\""
+        bash "${SCRIPT_DIR}/ascendc_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --device1 "$DEVICE1" --device2 "$DEVICE2" --ub-size "$UB_SIZE"
+    fi
 fi
 
-if [[ "$MODE" == "shmem" || "$MODE" == "all" ]]; then
-    echo -e "\n========== Running shmem_perftest =========="
-    echo "Command: bash ${SCRIPT_DIR}/shmem_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
-    bash "${SCRIPT_DIR}/shmem_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
+if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
+    MTE_VALID_TT="put bi_put get bi_get all"
+    if [[ ! " $MTE_VALID_TT " =~ " $TEST_TYPE " ]]; then
+        echo "WARN: mte_perftest does not support -t $TEST_TYPE (supports: $MTE_VALID_TT). Skipping mte_perftest."
+    else
+        echo -e "\n========== Running mte_perftest =========="
+        echo "Command: bash ${SCRIPT_DIR}/mte_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
+        bash "${SCRIPT_DIR}/mte_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
+    fi
+fi
+
+if [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
+    UDMA_VALID_TT="put bi_put get bi_get put_signal all"
+    if [[ ! " $UDMA_VALID_TT " =~ " $TEST_TYPE " ]]; then
+        echo "WARN: udma_perftest does not support -t $TEST_TYPE (supports: $UDMA_VALID_TT). Skipping udma_perftest."
+    else
+        if [[ "$MEMORY_TYPE" != "hbm" ]]; then
+            echo "WARN: udma_perftest only operates on HBM symmetric memory; --memory-type=$MEMORY_TYPE is not forwarded to it."
+        fi
+        echo -e "\n========== Running udma_perftest =========="
+        echo "Command: bash ${SCRIPT_DIR}/udma_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --batch \"$BATCH\""
+        bash "${SCRIPT_DIR}/udma_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --batch "$BATCH"
+    fi
 fi
 
 # 拷贝output到外层output目录
@@ -288,11 +328,19 @@ if [[ "$MODE" == "ascendc" || "$MODE" == "all" ]]; then
     fi
 fi
 
-if [[ "$MODE" == "shmem" || "$MODE" == "all" ]]; then
-    if [ -d "${SCRIPT_DIR}/shmem_perftest/output" ]; then
-        mkdir -p "${SCRIPT_DIR}/output/shmem_perftest"
-        cp -r "${SCRIPT_DIR}/shmem_perftest/output"/* "${SCRIPT_DIR}/output/shmem_perftest/"
-        echo "Copied: shmem_perftest -> ${SCRIPT_DIR}/output/shmem_perftest"
+if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
+    if [ -d "${SCRIPT_DIR}/mte_perftest/output" ]; then
+        mkdir -p "${SCRIPT_DIR}/output/mte_perftest"
+        cp -r "${SCRIPT_DIR}/mte_perftest/output"/* "${SCRIPT_DIR}/output/mte_perftest/"
+        echo "Copied: mte_perftest -> ${SCRIPT_DIR}/output/mte_perftest"
+    fi
+fi
+
+if [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
+    if [ -d "${SCRIPT_DIR}/udma_perftest/output" ]; then
+        mkdir -p "${SCRIPT_DIR}/output/udma_perftest"
+        cp -r "${SCRIPT_DIR}/udma_perftest/output"/* "${SCRIPT_DIR}/output/udma_perftest/"
+        echo "Copied: udma_perftest -> ${SCRIPT_DIR}/output/udma_perftest"
     fi
 fi
 
