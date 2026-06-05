@@ -47,6 +47,100 @@ Result HybmVmmBasedSegment::ValidateOptions() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
+static Result CheckVirtualMemoryAvailable(size_t size, uint32_t rankCnt)
+{
+    void *base = nullptr;
+    std::vector<uint64_t> tempAddrs;
+
+    for (uint32_t i = 0; i < rankCnt; i++) {
+        auto ret = aclrtReserveMemAddress(&base, size, 0, nullptr, 1);
+        if (ret != 0 || base == 0) {
+            SHM_LOG_ERROR("prepare virtual memory size(" << size << ") failed. ret: " << ret);
+            for (auto &va : tempAddrs) {
+                aclrtReleaseMemAddress(reinterpret_cast<void *>(va));
+            }
+            return ACLSHMEM_MALLOC_FAILED;
+        }
+        tempAddrs.emplace_back(reinterpret_cast<uint64_t>(base));
+    }
+
+    for (auto &va : tempAddrs) {
+        aclrtReleaseMemAddress(reinterpret_cast<void *>(va));
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+Result HybmVmmBasedSegment::ReserveEachPeMemorySpace(size_t reserveAlignedSize, size_t totalReservedSize, uint64_t expectSt) noexcept
+{
+    if (expectSt + totalReservedSize > HYBM_DEVICE_META_ADDR) {
+        SHM_LOG_ERROR("total reserved size(" << totalReservedSize << ") exceeds available virtual address range, "
+                      << "expectSt=0x" << std::hex << expectSt << ", HYBM_DEVICE_META_ADDR=0x" << HYBM_DEVICE_META_ADDR << std::dec);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    void *base = nullptr;
+
+    // Less than 128GB prefers single allocation; 950 does not support specified address allocation
+    if (socType_ == AscendSocType::ASCEND_950 || totalReservedSize < HYBM_MAX_SINGLE_RESERVE_SIZE) {
+        auto ret = aclrtReserveMemAddress(&base, totalReservedSize, 0, nullptr, 1);
+        if (ret != 0 || base == 0) {
+            SHM_LOG_ERROR("aclrtReserveMemAddress prepare virtual memory size(" << totalReservedSize << ") failed. ret: " << ret);
+            return ACLSHMEM_MALLOC_FAILED;
+        }
+        uint8_t* currentAddr = static_cast<uint8_t*>(base);
+        for (uint32_t i = 0; i < options_.rankCnt; i++) {
+            reservedVirtualAddresses_.emplace_back(reinterpret_cast<uint64_t>(currentAddr));
+            SHM_LOG_INFO("rankId: " << i << ", vaddr: " << (void*)currentAddr << " size: " << options_.size << " align_size: " << reserveAlignedSize);
+            currentAddr += reserveAlignedSize;
+        }
+        singleReservation_ = true;
+        return ACLSHMEM_SUCCESS;
+    }
+
+    if (CheckVirtualMemoryAvailable(reserveAlignedSize, options_.rankCnt) != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("CheckVirtualMemoryAvailable failed, size: " << reserveAlignedSize << ", rankCnt: " << options_.rankCnt);
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+
+    uint64_t curStartAddr = expectSt;
+    while (true) {
+        if (curStartAddr + totalReservedSize > HYBM_DEVICE_META_ADDR) {
+            SHM_LOG_ERROR("total reserved size(" << totalReservedSize << ") exceeds available virtual address range, "
+                          << "curStartAddr=0x" << std::hex << curStartAddr << ", HYBM_DEVICE_META_ADDR=0x" << HYBM_DEVICE_META_ADDR << std::dec);
+            return ACLSHMEM_MALLOC_FAILED;
+        }
+
+        bool allSuccess = true;
+        uint8_t *curBase = reinterpret_cast<uint8_t*>(curStartAddr);
+
+        for (uint32_t i = 0; i < options_.rankCnt; i++) {
+            auto ret = aclrtReserveMemAddress(&base, reserveAlignedSize, 0, curBase, 1);
+            if (ret != 0 || base == 0) {
+                SHM_LOG_WARN("aclrtReserveMemAddress reserve at specified address failed, offset and retry. ret: " << ret);
+                allSuccess = false;
+                break;
+            }
+            SHM_LOG_DEBUG("reserve memory success, rankId: " << i << ", size: " << reserveAlignedSize
+                         << ", expect addr: " << (void*)curBase << ", actual addr: " << (void*)base);
+            reservedVirtualAddresses_.emplace_back(reinterpret_cast<uint64_t>(base));
+            curBase = reinterpret_cast<uint8_t*>(base) + reserveAlignedSize;
+        }
+
+        if (allSuccess) {
+            SHM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_
+                         << ", start addr: " << (void*)curStartAddr << ", total size: " << totalReservedSize);
+            totalVirtualSize_ += totalReservedSize;
+            return ACLSHMEM_SUCCESS;
+        }
+
+        for (auto &va : reservedVirtualAddresses_) {
+            aclrtReleaseMemAddress(reinterpret_cast<void *>(va));
+        }
+        reservedVirtualAddresses_.clear();
+        curStartAddr += reserveAlignedSize;
+    }
+}
+
 Result HybmVmmBasedSegment::ReserveMemorySpace(void **address) noexcept
 {
     SHM_ASSERT_RETURN(address != nullptr, ACLSHMEM_INVALID_PARAM);
@@ -61,29 +155,15 @@ Result HybmVmmBasedSegment::ReserveMemorySpace(void **address) noexcept
         return ACLSHMEM_INVALID_PARAM;
     }
 
-    void *base = nullptr;
-    uint64_t expectSt = HYBM_GVM_START_ADDR;
     size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
     size_t totalReservedSize = options_.rankCnt * reserveAlignedSize;
-    uint64_t flag = MEM_RSV_TYPE_REMOTE_MAP;
-    flag |= options_.shared ? MEM_RSV_TYPE_DEVICE_SHARE : 0U;
-    auto ret = DlHalApi::HalMemAddressReserve(&base, totalReservedSize, 0, reinterpret_cast<void *>(expectSt), flag);
-    if (ret != 0 || base == nullptr) {
-        SHM_LOG_ERROR("prepare virtual memory total size(" << totalReservedSize << ") failed. ret: " << ret);
+    uint64_t expectSt = HYBM_GVM_START_ADDR;
+    if (ReserveEachPeMemorySpace(reserveAlignedSize, totalReservedSize, expectSt) != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("ReserveEachPeMemorySpace virtual memory size(" << totalReservedSize << ") failed.");
         return ACLSHMEM_MALLOC_FAILED;
     }
 
-    SHM_LOG_INFO("success to reserve total memory space for logic deviceid " << logicDeviceId_ 
-                << ", vaddr: " << base << " total size: " << totalReservedSize);
-
-    uint8_t* currentAddr = static_cast<uint8_t*>(base);
-    for (uint32_t i = 0; i < options_.rankCnt; i++) {
-        reservedVirtualAddresses_.emplace_back(reinterpret_cast<uint64_t>(currentAddr));
-        SHM_LOG_INFO("rankId: " << i << ", vaddr: " << (void*)currentAddr << " size: " << options_.size << " align_size: " << reserveAlignedSize);
-        currentAddr += reserveAlignedSize;
-    }
-
-    globalVirtualAddress_ = reinterpret_cast<uint8_t*>(reservedVirtualAddresses_[0]);
+    globalVirtualAddress_ = reinterpret_cast<uint8_t *>(reservedVirtualAddresses_[0]);
     allocatedSize_ = 0UL;
     sliceCount_ = 0;
     *address = reinterpret_cast<void *>(reservedVirtualAddresses_[0]);
@@ -98,12 +178,17 @@ Result HybmVmmBasedSegment::UnReserveMemorySpace() noexcept
     }
     allocatedSize_ = 0;
     sliceCount_ = 0;
-    if (globalVirtualAddress_ != nullptr) {
-        DlHalApi::HalMemAddressFree(reinterpret_cast<void *>(globalVirtualAddress_));
-        reservedVirtualAddresses_.clear();
-        totalVirtualSize_ = 0;
-        globalVirtualAddress_ = nullptr;
+    if (singleReservation_ && !reservedVirtualAddresses_.empty()) {
+        aclrtReleaseMemAddress(reinterpret_cast<void *>(reservedVirtualAddresses_[0]));
+    } else {
+        for (auto &va : reservedVirtualAddresses_) {
+            aclrtReleaseMemAddress(reinterpret_cast<void *>(va));
+        }
     }
+    reservedVirtualAddresses_.clear();
+    totalVirtualSize_ = 0;
+    globalVirtualAddress_ = nullptr;
+    singleReservation_ = false;
     return ACLSHMEM_SUCCESS;
 }
 
