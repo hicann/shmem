@@ -7,7 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <gtest/gtest.h>
@@ -20,6 +22,71 @@
 
 constexpr int32_t kRelayRounds = 3;
 constexpr int32_t kPerfIters = 50;
+constexpr int32_t kPerfBlockNum = 16;
+constexpr int32_t kStripKMax = 8;
+constexpr double kFitIntercept = -0.68265914;
+constexpr double kFitIntraCoef = 0.267035791;
+constexpr double kFitInterCoef = 0.949747778;
+
+struct BarrierVisitModel {
+    int32_t remote_rd;
+    int32_t remote_wr;
+    int32_t local_rd;
+    int32_t local_wr;
+    int32_t inter_rounds;
+    int32_t intra_rounds;
+    double fit_us;
+};
+
+static int32_t effective_k(int32_t n_ranks, int32_t block_num)
+{
+    return std::min({kStripKMax, block_num, n_ranks});
+}
+
+static int32_t inter_rounds(int32_t n_ranks, int32_t block_num)
+{
+    const int32_t k = effective_k(n_ranks, block_num);
+    return (k <= 1) ? (n_ranks - 1) : ((n_ranks - 1 + k - 1) / k);
+}
+
+static int32_t intra_core_rounds(int32_t n_ranks, int32_t block_num)
+{
+    const int32_t k = effective_k(n_ranks, block_num);
+    if (k <= 1) {
+        return 0;
+    }
+    int32_t intra = 4 * static_cast<int32_t>(std::log2(k));
+    if (block_num > 8) {
+        intra += 4 * ((std::min(block_num, 32) - 8) / 8);
+    }
+    return intra;
+}
+
+static BarrierVisitModel model_v3(int32_t n_ranks, int32_t block_num = kPerfBlockNum)
+{
+    BarrierVisitModel m{};
+    m.remote_rd = n_ranks - 1;
+    m.remote_wr = 0;
+    m.local_rd = 0;
+    m.local_wr = 2;
+    m.inter_rounds = inter_rounds(n_ranks, block_num);
+    m.intra_rounds = intra_core_rounds(n_ranks, block_num) + 1;
+    m.fit_us = kFitIntercept + kFitIntraCoef * m.intra_rounds + kFitInterCoef * m.inter_rounds;
+    return m;
+}
+
+static BarrierVisitModel model_relay(int32_t n_ranks, int32_t block_num = kPerfBlockNum)
+{
+    BarrierVisitModel m{};
+    m.remote_rd = 0;
+    m.remote_wr = n_ranks - 1;
+    m.local_rd = n_ranks - 1;
+    m.local_wr = 1;
+    m.inter_rounds = inter_rounds(n_ranks, block_num);
+    m.intra_rounds = intra_core_rounds(n_ranks, block_num) + m.inter_rounds;
+    m.fit_us = kFitIntercept + kFitIntraCoef * m.intra_rounds + kFitInterCoef * m.inter_rounds;
+    return m;
+}
 
 static void test_relay_put_barrier(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
 {
@@ -119,8 +186,26 @@ static void test_barrier_relay_perf(int32_t rank_id, int32_t n_ranks, uint64_t l
         std::cout << "  (N-1) put + barrier_all_vec_relay: " << per_put_relay << " ms/iter (total "
                   << ms_put_relay << " ms)" << std::endl;
         std::cout << "  relay/v3 barrier ratio:            " << ratio << std::endl;
+        const BarrierVisitModel v3m = model_v3(n_ranks);
+        const BarrierVisitModel rlym = model_relay(n_ranks);
         std::cout << "[PERF_CSV] npes=" << n_ranks << ",v3_ms=" << per_v3 << ",relay_ms=" << per_relay
                   << ",put_relay_ms=" << per_put_relay << ",ratio=" << ratio << std::endl;
+        std::cout << "[PERF_OPS] npes=" << n_ranks << " block_num=" << kPerfBlockNum
+                  << " K=" << effective_k(n_ranks, kPerfBlockNum) << std::endl;
+        std::cout << "  v3    remote_rd=" << v3m.remote_rd << " remote_wr=" << v3m.remote_wr
+                  << " local_rd=" << v3m.local_rd << " local_wr=" << v3m.local_wr
+                  << " inter_rounds=" << v3m.inter_rounds << " intra_rounds=" << v3m.intra_rounds
+                  << " fit_us=" << v3m.fit_us << std::endl;
+        std::cout << "  relay remote_rd=" << rlym.remote_rd << " remote_wr=" << rlym.remote_wr
+                  << " local_rd=" << rlym.local_rd << " local_wr=" << rlym.local_wr
+                  << " inter_rounds=" << rlym.inter_rounds << " intra_rounds=" << rlym.intra_rounds
+                  << " fit_us=" << rlym.fit_us << std::endl;
+        std::cout << "[PERF_OPS_CSV] npes=" << n_ranks << ",v3_rr=" << v3m.remote_rd << ",v3_rw="
+                  << v3m.remote_wr << ",v3_lr=" << v3m.local_rd << ",v3_lw=" << v3m.local_wr
+                  << ",relay_rr=" << rlym.remote_rd << ",relay_rw=" << rlym.remote_wr << ",relay_lr="
+                  << rlym.local_rd << ",relay_lw=" << rlym.local_wr << ",v3_fit_us=" << v3m.fit_us
+                  << ",relay_fit_us=" << rlym.fit_us << ",v3_wall_us=" << (per_v3 * 1000.0)
+                  << ",relay_wall_us=" << (per_relay * 1000.0) << std::endl;
     }
 
     aclshmem_free(slots_dev);
