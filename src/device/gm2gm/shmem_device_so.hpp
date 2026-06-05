@@ -270,6 +270,11 @@ ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int32_t val)
     MSTX_SIGNAL_SET_REPORT(addr, val);
 }
 
+ACLSHMEM_DEVICE void aclshmemi_completion_flag_set(__gm__ int32_t *slot, int pe, int32_t epoch)
+{
+    aclshmemi_signal_set(slot, pe, epoch);
+}
+
 ACLSHMEM_DEVICE void aclshmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t val)
 {
     __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();

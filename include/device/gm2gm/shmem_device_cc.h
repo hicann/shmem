@@ -95,6 +95,17 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
 #define shmemx_barrier_all_vec aclshmemx_barrier_all_vec
 
 /**
+ * @brief Vector-team barrier for FullMesh relay (950): writes completion flags to each remote peer's
+ *        sync_pool[my_team_index] and polls local sync_pool slots. Use after relay-mode puts.
+ *        LEGACY aclshmemx_barrier_all_vec (v3) writes local sync_pool[0] only.
+ */
+ACLSHMEM_DEVICE void aclshmemx_barrier_vec_relay(aclshmem_team_t team);
+#define shmemx_barrier_vec_relay aclshmemx_barrier_vec_relay
+
+ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec_relay(void);
+#define shmemx_barrier_all_vec_relay aclshmemx_barrier_all_vec_relay
+
+/**
  * @brief Similar to aclshmem_barrier. In contrast with the aclshmem_barrier routine, aclshmem_sync only ensures
  *        completion and visibility of previously issued memory stores and does not ensure completion of remote memory
  *        updates issued via ACLSHMEM routines.

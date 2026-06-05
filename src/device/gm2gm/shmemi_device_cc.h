@@ -329,6 +329,50 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_npu_v3(aclshmem_team_t team_idx)
     MSTX_BARRIER_NPU_REPORT(size, vec_size);
 }
 
+/** Centralized relay barrier (push mode): remote sync_pool flag write, local poll. */
+template<bool IS_AIV_ONLY = true>
+ACLSHMEM_DEVICE void aclshmemi_barrier_npu_relay(aclshmem_team_t team_idx)
+{
+    aclshmemx_team_t *team = aclshmemi_get_state()->team_pools[team_idx];
+    int32_t vec_id = AscendC::GetBlockIdx();
+    int32_t vec_size = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+
+    int32_t my_pe = aclshmemi_get_state()->team_pools[ACLSHMEM_TEAM_WORLD]->mype;
+    int32_t start = team->start;
+    int32_t stride = team->stride;
+    int32_t size = team->size;
+    auto sync_pool = aclshmemi_get_team_sync_pool(team->team_idx);
+    auto sync_counter = aclshmemi_get_team_sync_counter(team->team_idx);
+
+    int32_t k = ACLSHMEM_BARRIER_TG_DISSEM_KVAL;
+    k = k < size ? k : size;
+    k = k < vec_size ? k : vec_size;
+    int32_t my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = aclshmemi_load((__gm__ int32_t *)sync_counter) + 1;
+
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
+
+    if ASCEND_IS_AIV {
+        for (int32_t i = vec_id; i < size; i += k) {
+            if (i == my_pe_in_team) {
+                continue;
+            }
+            int32_t remote_pe = start + i * stride;
+            aclshmemi_completion_flag_set((__gm__ int32_t *)(sync_pool + my_pe_in_team), remote_pe, count);
+        }
+
+        for (int32_t i = vec_id; i < size; i += k) {
+            if (i == my_pe_in_team) {
+                continue;
+            }
+            aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + i), count);
+        }
+
+        aclshmemi_store((__gm__ int32_t *)sync_counter, count);
+    }
+    aclshmemi_barrier_core<IS_AIV_ONLY>();
+}
+
 template<bool IS_AIV_ONLY = true>
 ACLSHMEM_DEVICE void aclshmemi_barrier(aclshmem_team_t team)
 {
@@ -336,6 +380,15 @@ ACLSHMEM_DEVICE void aclshmemi_barrier(aclshmem_team_t team)
         return; // not in team
     }
     aclshmemi_barrier_npu_v3<IS_AIV_ONLY>(team);
+}
+
+template<bool IS_AIV_ONLY = true>
+ACLSHMEM_DEVICE void aclshmemi_barrier_relay(aclshmem_team_t team)
+{
+    if (team == -1) {
+        return; // not in team
+    }
+    aclshmemi_barrier_npu_relay<IS_AIV_ONLY>(team);
 }
 
 ACLSHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t * addr)
@@ -489,6 +542,16 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t tid)
 ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec()
 {
     aclshmemx_barrier_vec(ACLSHMEM_TEAM_WORLD);
+}
+
+ACLSHMEM_DEVICE void aclshmemx_barrier_vec_relay(aclshmem_team_t tid)
+{
+    aclshmemi_barrier_relay<true>(tid);
+}
+
+ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec_relay()
+{
+    aclshmemx_barrier_vec_relay(ACLSHMEM_TEAM_WORLD);
 }
 
 #ifdef __cplusplus
