@@ -230,7 +230,7 @@ function fn_build_nlohmann_json()
 
     cd $THIRD_PARTY_DIR
     rm -rf json
-    git clone --branch v3.11.3 --depth 1 https://github.com/nlohmann/json.git json
+    git clone --branch v3.11.3 --depth 1 https://gitcode.com/GitHub_Trending/js/json.git json
     cd ${PROJECT_ROOT}
 }
 
@@ -240,7 +240,7 @@ function fn_build_doxygen()
         return 0
     fi
     cd $THIRD_PARTY_DIR
-    wget --no-check-certificate https://github.com/doxygen/doxygen/releases/download/Release_1_9_6/doxygen-1.9.6.src.tar.gz
+    wget --no-check-certificate https://gitcode.com/gh_mirrors/do/doxygen/releases/download/Release_1_9_6/doxygen-1.9.6.src.tar.gz
     tar -xzvf doxygen-1.9.6.src.tar.gz
     cd doxygen-1.9.6
     mkdir -p build && cd build
