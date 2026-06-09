@@ -13,6 +13,7 @@
 #include "shmemi_logger.h"
 #include "dl_acl_api.h"
 #include "dl_hccp_api.h"
+#include "device_rdma_helper.h"
 #include "fixed_ranks_qp_manager.h"
 
 namespace shm {
@@ -28,6 +29,10 @@ FixedRanksQpManager::FixedRanksQpManager(uint32_t userDeviceId, uint32_t deviceI
     : DeviceQpManager(deviceId, rankId, rankCount, devNet, HYBM_ROLE_PEER)
 {
     userDeviceId_ = userDeviceId;
+    trafficClass_ = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
+    serviceLevel_ = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
+    SHM_LOG_INFO("rankId: " << rankId_ << ", init with trafficClass = " << static_cast<int>(trafficClass_)
+                            << ", serviceLevel = " << static_cast<int>(serviceLevel_));
 }
 
 FixedRanksQpManager::~FixedRanksQpManager() noexcept
@@ -548,6 +553,16 @@ int FixedRanksQpManager::CreateOneQp(ConnQpType qpType, ConnectionChannel &chann
     } else {
         ret = DlHccpApi::RaQpCreate(rdmaHandle_, 0, QP_MODE, channel.qpHandles[qpType]);
     }
+
+    if (ret == 0) {
+        QosAttr qosAttr{};
+        qosAttr.tc = trafficClass_;
+        qosAttr.sl = serviceLevel_;
+        int qos_ret = DlHccpApi::RaSetQpAttrQos(channel.qpHandles[qpType], qosAttr);
+        if (qos_ret != 0) {
+            SHM_LOG_WARN("rankId: " << rankId_ << ", set QP QoS attr failed: " << qos_ret);
+        }
+ 	}
     return ret;
 }
 
@@ -586,7 +601,6 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
         return ACLSHMEM_SUCCESS;
     }
 
-    const uint32_t slevel = 4;
     std::vector<uint8_t> qpInfoBuffer(qpInfoSize_);
     auto copyInfo = (AiQpRMAQueueInfo *)(void *)qpInfoBuffer.data();
     FillQpPreSettingCopyInfo(copyInfo);
@@ -616,8 +630,8 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
             return ACLSHMEM_INNER_ERROR;
         }
 
-        CopyAiWQInfo(copyInfo->sq[it->first], pos->second.aiQpInfo.data_plane_info.sq, DBMode::HW_DB, slevel);
-        CopyAiWQInfo(copyInfo->rq[it->first], pos->second.aiQpInfo.data_plane_info.rq, DBMode::SW_DB, slevel);
+        CopyAiWQInfo(copyInfo->sq[it->first], pos->second.aiQpInfo.data_plane_info.sq, DBMode::HW_DB, serviceLevel_);
+        CopyAiWQInfo(copyInfo->rq[it->first], pos->second.aiQpInfo.data_plane_info.rq, DBMode::SW_DB, serviceLevel_);
         CopyAiCQInfo(copyInfo->scq[it->first], pos->second.aiQpInfo.data_plane_info.scq, DBMode::HW_DB);
         CopyAiCQInfo(copyInfo->rcq[it->first], pos->second.aiQpInfo.data_plane_info.rcq, DBMode::SW_DB);
     }
