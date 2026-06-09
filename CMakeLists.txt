@@ -217,6 +217,10 @@ if(ACLSHMEM_UDMA_SUPPORT)
     add_compile_definitions(ACLSHMEM_UDMA_SUPPORT)
 endif()
 
+if(ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950")
+    add_compile_definitions(ACLSHMEM_RDMA_V2_SUPPORT)
+endif()
+
 add_compile_options(
     -D_FORTIFY_SOURCE=2
     -O2 -std=c++17
@@ -275,6 +279,10 @@ include_directories(
     ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/tikcpp/tikcfw/impl
     ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/tikcpp/tikcfw/interface
 )
+
+if(ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950")
+    include_directories(${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/hcomm)
+endif()
 
 link_directories(
     ${ASCEND_HOME_PATH}/lib64

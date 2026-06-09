@@ -24,16 +24,14 @@ static constexpr uint32_t RECV_CQ_DEPTH = 128;
 static constexpr uint32_t MAX_SEND_WR = 8192;
 static constexpr uint32_t MAX_RECV_WR = 128;
 static constexpr uint32_t QP_MODE = 2;
-static constexpr uint8_t DEFAULT_TC = 132;
-static constexpr uint8_t DEFAULT_SL = 4;
 
 FixedRanksQpManager::FixedRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
                                          mf_sockaddr devNet) noexcept
     : DeviceQpManager(deviceId, rankId, rankCount, devNet, HYBM_ROLE_PEER)
 {
     userDeviceId_ = userDeviceId;
-    trafficClass_ = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_TC, 0, 255, true);
-    serviceLevel_ = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_SL, 0, 7);
+    trafficClass_ = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
+    serviceLevel_ = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
     SHM_LOG_INFO("rankId: " << rankId_ << ", init with trafficClass = " << static_cast<int>(trafficClass_)
                             << ", serviceLevel = " << static_cast<int>(serviceLevel_));
 }

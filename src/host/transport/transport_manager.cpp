@@ -12,6 +12,9 @@
 #include "shmemi_logger.h"
 #include "transport_def.h"
 #include "device_rdma_transport_manager.h"
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
+#include "device_rdma_transport_manager_v2.h"
+#endif
 #include "device_sdma_transport_manager.h"
 #if defined(ACLSHMEM_UDMA_SUPPORT)
 #include "device_udma_transport_manager.h"
@@ -24,7 +27,11 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
 {
     switch (type) {
         case TT_HCCP:
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
+            return std::make_shared<device::RdmaTransportManagerV2>();
+#else
             return std::make_shared<device::RdmaTransportManager>();
+#endif
         case TT_SDMA:
             return std::make_shared<device::SdmaTransportManager>();
 #if defined(ACLSHMEM_UDMA_SUPPORT)

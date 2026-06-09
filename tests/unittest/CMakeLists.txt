@@ -38,4 +38,8 @@ else()
     set(UT_LIBRARIES "")
 endif()
 
+if(ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950")
+    list(APPEND UT_LIBRARIES hcomm)
+endif()
+
 target_link_libraries(aclshmem_unittest PRIVATE ${UT_LIBRARIES} aclshmem_unittest_device gtest gmock gcov aclshmem_unittest_include shmem_utils)

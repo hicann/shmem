@@ -16,6 +16,9 @@ if(NOT ACLSHMEM_UDMA_SUPPORT)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_udma")
 endif()
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
+if(NOT (ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950"))
+    list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_rdma/device_rdma_transport_manager_v2")
+endif()
 if(USE_MSSANITIZER)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
     message(STATUS "USE_MSSANITIZER=ON")
@@ -81,7 +84,7 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )
-if(ACLSHMEM_UDMA_SUPPORT)
+if(ACLSHMEM_UDMA_SUPPORT OR (ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950"))
     target_include_directories(aclshmem_unittest_host PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
 endif()
 

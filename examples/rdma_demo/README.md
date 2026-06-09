@@ -2,7 +2,7 @@
 
 - 运行本示例需要机器具备RDMA环境（RDMA网卡及驱动已正确安装配置）。
 
-### 检查RDMA环境
+### 检查RDMA环境（适用于Ascend910B/C平台）
 ```bash
 lspci | grep -i RDMA
 for i in {0..7}; do hccn_tool -i $i -net_health -g; done
@@ -12,13 +12,19 @@ for i in {0..7}; do hccn_tool -i $i -net_health -g; done
 
 ## 使用方式
 1.在shmem/目录编译:
+- Ascend910B/C 平台:
 ```bash
 bash scripts/build.sh -enable_rdma -examples
 ```
-2.直接在`examples/rdma_demo`目录下执行`bash run.sh`；或者在shmem/目录运行:
+- Ascend950 平台:
+```bash
+bash scripts/build.sh -soc_type Ascend950 -enable_rdma -rdma_backend XSCALE -examples
+```
+2.直接在`examples/rdma_demo`目录下执行`bash run.sh`（Ascend950平台需要在`run.sh`中设置`IBV_EXTEND_DRIVERS`）；或者在shmem/目录运行:
 - 单机2卡执行命令
     ```bash
     export PROJECT_ROOT=<shmem-root-directory>
+    export IBV_EXTEND_DRIVERS=<path_to_libxscale_nda.so> # 仅Ascend950平台需要
     export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
     ./build/bin/rdma_demo 2 0 tcp://127.0.0.1:8765 2 0 0 & # PE 0
     ./build/bin/rdma_demo 2 1 tcp://127.0.0.1:8765 2 0 0 & # PE 1
@@ -30,12 +36,14 @@ bash scripts/build.sh -enable_rdma -examples
     在机器A执行如下命令：
     ```bash
     export PROJECT_ROOT=<shmem-root-directory>
+    export IBV_EXTEND_DRIVERS=<path_to_libxscale_nda.so> # 仅Ascend950平台需要
     export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
     ./build/bin/rdma_demo 2 0 tcp://ip1:8765 1 0 0 # PE 0
     ```
     同时，在机器B执行如下命令：
     ```bash
     export PROJECT_ROOT=<shmem-root-directory>
+    export IBV_EXTEND_DRIVERS=<path_to_libxscale_nda.so> # 仅Ascend950平台需要
     export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
     ./build/bin/rdma_demo 2 1 tcp://ip1:8765 1 1 0 # PE 1
     ```

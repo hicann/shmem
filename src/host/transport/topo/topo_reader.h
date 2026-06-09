@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "sotre_net.h"
 
 namespace shm {
 namespace transport {
@@ -70,7 +71,10 @@ public:
 
     static bool GetEidCount(const RootInfo& root, uint32_t& count);
 
+    static bool ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp);
+
 private:
+    static bool LoadRootInfoJson(uint32_t phyId, nlohmann::json& out);
     static bool ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t phyId, RootInfo& out);
     static bool ParseRankAddrRaw(
         const nlohmann::json& rankAddrJson, uint32_t localId, uint32_t eidIndex,

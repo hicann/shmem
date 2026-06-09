@@ -21,6 +21,10 @@
 namespace shm {
 namespace transport {
 namespace device {
+
+constexpr uint8_t DEFAULT_RDMA_TC = 132;
+constexpr uint8_t DEFAULT_RDMA_SL = 4;
+
 Result ParseDeviceNic(const std::string &nic, uint16_t &port);
 Result ParseDeviceNic(const std::string &nic, mf_sockaddr &address);
 std::string GenerateDeviceNic(net_addr_t ip, uint16_t port);

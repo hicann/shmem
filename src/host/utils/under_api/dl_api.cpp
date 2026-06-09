@@ -44,7 +44,11 @@ void DlApi::CleanupLibrary()
 Result DlApi::LoadExtendLibrary(DlApiExtendLibraryType libraryType)
 {
     if (libraryType == DL_EXT_LIB_DEVICE_RDMA) {
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
+        return ACLSHMEM_SUCCESS;
+#else
         return DlHccpApi::LoadLibrary();
+#endif
     }
     if (libraryType == DL_EXT_LIB_DEVICE_SDMA) {
         auto result = DlRtApi::LoadLibrary();
