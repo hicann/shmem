@@ -22,7 +22,9 @@ void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *s
 int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st);
+void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st, int inst_count);
 void test_finalize(aclrtStream stream, int device_id);
+void test_multi_instance_finalize(aclrtStream stream, int device_id, int inst_count);
 void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
 void test_mutil_task_with_uid(
     std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func,

@@ -19,6 +19,7 @@
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 #include "unittest_main_test.h"
+#include "unittest/utils/scope_env.h"
 
 namespace shm {
 constexpr uint32_t timeout = 50;
@@ -345,6 +346,178 @@ void test_aclshmem_init_cant_access(int rank_id, int n_ranks, uint64_t local_mem
     }
 }
 
+// =============================== Multi-Instance UT ===============================
+// 多实例初始化公共逻辑：
+// 返回 0 表示当前 pe 在 dev_list 中且初始化成功; 返回 -1 表示当前 pe 不参与该实例
+static int multi_instance_init(int rank_id, uint64_t local_mem_size, uint64_t instance_id,
+                               std::vector<int> &dev_list, aclshmemx_init_attr_t &attr, bool &joined)
+{
+    auto it = std::find(dev_list.begin(), dev_list.end(), rank_id);
+    if (it == dev_list.end()) {
+        joined = false;
+        return ACLSHMEM_SUCCESS; // 当前 pe 不在该实例的设备列表中, 不做初始化
+    }
+    joined = true;
+
+    // 默认模式下 port 必须为 0
+    const char *ipport = "tcp://127.0.0.1:0";
+    int local_pe_id = static_cast<int>(std::distance(dev_list.begin(), it));
+
+    int status = test_set_attr(local_pe_id, static_cast<int>(dev_list.size()), local_mem_size, ipport, &attr);
+    // 多实例默认模式要求 comm_args 为 nullptr
+    attr.instance_id = instance_id;
+    attr.comm_args = nullptr;
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attr);
+    return status;
+}
+
+// 全部 rank 单实例创建 -> 校验状态 -> 销毁
+void test_aclshmem_multi_instance_single(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+
+    uint64_t INSTANCE_ID = 1;
+    aclshmemx_init_attr_t attr;
+    std::vector<int> dev_list;
+    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i); // {0,1,...,n_ranks-1}
+
+    bool joined = false;
+    int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
+    EXPECT_EQ(ret, ACLSHMEM_SUCCESS);
+
+    if (joined) {
+        EXPECT_EQ(aclshmemx_init_status(), ACLSHMEM_STATUS_IS_INITIALIZED);
+        EXPECT_EQ(attr.instance_id, INSTANCE_ID);
+        EXPECT_EQ(aclshmem_finalize(attr.instance_id), ACLSHMEM_SUCCESS);
+    }
+
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
+// 实例内 malloc/free (设备子集 {max(2, n_ranks/2)})
+void test_aclshmem_multi_instance_malloc(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+
+    uint64_t INSTANCE_ID = 1;
+    aclshmemx_init_attr_t attr;
+    int subset = std::max(2, n_ranks / 2); // n_ranks=2->2, 4->2, 8->4
+    std::vector<int> dev_list;
+    for (int i = 0; i < subset; ++i) dev_list.push_back(i);
+
+    bool joined = false;
+    int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
+    EXPECT_EQ(ret, ACLSHMEM_SUCCESS);
+
+    if (joined) {
+        void *ptr = aclshmem_malloc(1024);
+        EXPECT_NE(ptr, nullptr);
+        std::vector<uint64_t> host_buf(1024 / sizeof(uint64_t), INSTANCE_ID);
+        EXPECT_EQ(aclrtMemcpy(ptr, 1024, host_buf.data(), 1024, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+        aclshmem_free(ptr);
+
+        EXPECT_EQ(aclshmem_finalize(attr.instance_id), ACLSHMEM_SUCCESS);
+    }
+
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
+// 同一进程同时归属两个设备重叠的实例
+// instance 2 -> 首尾, instance 4 -> 末两个, pe n_ranks-1 同时属于这两个实例
+void test_aclshmem_multi_instance_overlap(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    // 若总rank小于1, 不执行该UT
+    if (n_ranks <= 1) {
+        return;
+    }
+
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+
+    uint64_t INSTANCE_ID2 = 2;
+    aclshmemx_init_attr_t inst2_attr;
+    std::vector<int> inst2_dev = {0, n_ranks - 1}; // 首 + 尾
+    bool joined2 = false;
+    int ret2 = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID2, inst2_dev, inst2_attr, joined2);
+    EXPECT_EQ(ret2, ACLSHMEM_SUCCESS);
+    if (joined2) {
+        EXPECT_EQ(inst2_attr.instance_id, INSTANCE_ID2);
+    }
+
+    uint64_t INSTANCE_ID4 = 4;
+    aclshmemx_init_attr_t inst4_attr;
+    std::vector<int> inst4_dev = {n_ranks - 2, n_ranks - 1}; // 末尾两个
+    bool joined4 = false;
+    int ret4 = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID4, inst4_dev, inst4_attr, joined4);
+    EXPECT_EQ(ret4, ACLSHMEM_SUCCESS);
+    if (joined4) {
+        EXPECT_EQ(inst4_attr.instance_id, INSTANCE_ID4);
+    }
+
+    // pe(n_ranks-1) 此时同时持有 instance 2 与 instance 4，分别做一次内存操作后再销毁
+    if (joined2) {
+        // 需要先切换context为instance 2
+        int status = aclshmemx_instance_ctx_set(INSTANCE_ID2);
+        EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+
+        void *ptr = aclshmem_malloc(1024);
+        EXPECT_NE(ptr, nullptr);
+        aclshmem_free(ptr);
+        EXPECT_EQ(aclshmem_finalize(inst2_attr.instance_id), ACLSHMEM_SUCCESS);
+    }
+
+    if (joined4) {
+        // 需要先切换context为instance 4
+        int status = aclshmemx_instance_ctx_set(INSTANCE_ID4);
+        EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+
+        void *ptr = aclshmem_malloc(1024);
+        EXPECT_NE(ptr, nullptr);
+        aclshmem_free(ptr);
+        EXPECT_EQ(aclshmem_finalize(inst4_attr.instance_id), ACLSHMEM_SUCCESS);
+    }
+
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
+// 错误用例 —— 多实例下传入非法 instance_id（0 视为非法 / 未占用）
+void test_aclshmem_multi_instance_invalid_id(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(aclrtSetDevice(device_id), 0);
+    aclshmemx_set_conf_store_tls(false, nullptr, 0);
+
+    aclshmemx_init_attr_t attr;
+    std::vector<int> dev_list;
+    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i); // {0,1,...,n_ranks-1}
+    auto it = std::find(dev_list.begin(), dev_list.end(), rank_id);
+    if (it != dev_list.end()) {
+        const char *ipport = "tcp://127.0.0.1:0";
+        int local_pe_id = static_cast<int>(std::distance(dev_list.begin(), it));
+        attr.instance_id = 1025; // 非法 instance_id
+        test_set_attr(local_pe_id, static_cast<int>(dev_list.size()), local_mem_size, ipport, &attr);
+        attr.comm_args = nullptr;
+        int status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attr);
+        EXPECT_EQ(status, ACLSHMEM_INVALID_VALUE);
+        EXPECT_EQ(aclshmemx_init_status(), ACLSHMEM_STATUS_NOT_INITIALIZED);
+    }
+
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
 TEST(TestInitAPI, TestShmemInit)
 {
     const int process_count = test_gnpu_num;
@@ -522,4 +695,45 @@ TEST(TestInitAPI, TestShmemCantAccess)
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_aclshmem_init_cant_access, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemMultiInstanceSingle)
+{
+    // 多实例默认模式所需环境变量，作用域结束自动还原
+    const char* fix_port_range = "20000:21023";
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_multi_instance_single, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemMultiInstanceMalloc)
+{
+    const char* fix_port_range = "20000:21023";
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_multi_instance_malloc, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemMultiInstanceOverlap)
+{
+    const char* fix_port_range = "20000:21023";
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_multi_instance_overlap, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestShmemMultiInstanceInvalidId)
+{
+    const char* fix_port_range = "20000:21023";
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_multi_instance_invalid_id, local_mem_size, process_count);
 }
