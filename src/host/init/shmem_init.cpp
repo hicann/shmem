@@ -380,7 +380,7 @@ static int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t* attributes)
     }
     aclshmem_resource_domain[attributes->instance_id] = aclshmem_resource_ctx;
 
-    SHM_LOG_WARN(
+    SHM_LOG_INFO(
         "PE: " << attributes->my_pe << " USING SHMEM Multi-Instance Mode ! Now Ctx set to Instance " << instance_id
                << " !");
     return ACLSHMEM_SUCCESS;

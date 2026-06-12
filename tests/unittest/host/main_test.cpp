@@ -111,6 +111,41 @@ void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream 
     *st = stream;
 }
 
+void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st, int inst_count)
+{
+    *st = nullptr;
+    int status = 0;
+    if (n_pes != (n_pes & (~(static_cast<unsigned int>(n_pes) - 1)))) {
+        std::cout << "[TEST] input pe_size: "<< n_pes << " is not the power of 2" << std::endl;
+        status = -1;
+    }
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(aclInit(nullptr), 0);
+    int32_t device_id = pe_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
+    aclrtStream stream = nullptr;
+    EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
+    EXPECT_EQ(status = aclshmemx_set_conf_store_tls(false, nullptr, 0), 0);
+
+    // 创建inst_count个shmem实例，用于UT内切换
+    for (int i = 0; i < inst_count; i++) {
+        aclshmemx_init_attr_t attributes;
+        const char *ipport = "tcp://127.0.0.1:0";
+        test_set_attr(pe_id, n_pes, local_mem_size, ipport, &attributes);
+        attributes.option_attr.data_op_engine_type = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE);
+
+        // 起始ID为1
+        uint64_t INSTANCE_ID = (1 + i);
+        attributes.instance_id = INSTANCE_ID;
+        attributes.comm_args = nullptr;
+        status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+
+        EXPECT_EQ(status, 0);
+    }
+
+    *st = stream;
+}
+
 int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
 {
     *st = nullptr;
@@ -197,6 +232,20 @@ void test_finalize(aclrtStream stream, int device_id)
 {
     int status = aclshmem_finalize();
     EXPECT_EQ(status, 0);
+    EXPECT_EQ(aclrtDestroyStream(stream), 0);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
+    EXPECT_EQ(aclFinalize(), 0);
+}
+
+void test_multi_instance_finalize(aclrtStream stream, int device_id, int inst_count)
+{
+    // 多实例销毁
+    for (int i = 0; i < inst_count; i++) {
+        uint64_t INSTANCE_ID = (1 + i);
+        int status = aclshmem_finalize(INSTANCE_ID);
+        EXPECT_EQ(status, 0);
+    }
+
     EXPECT_EQ(aclrtDestroyStream(stream), 0);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
