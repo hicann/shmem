@@ -113,6 +113,8 @@ void DeviceQpManager::DestroyServerSocket() noexcept
     if (ret != 0) {
         SHM_LOG_INFO("stop to listen on port: " << listenInfo.port << " return: " << ret);
     }
+    (void)DlHccpApi::RaSocketDeinit(serverSocketHandle_);
+    serverSocketHandle_ = nullptr;
 }
 }
 }

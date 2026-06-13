@@ -168,10 +168,14 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size)
     g_team_mask |= 1ULL << ACLSHMEM_TEAM_WORLD;
 
     aclshmemi_team_populate_pe_mappings_from_constant_stride(&aclshmem_team_world);
-    ACLSHMEM_CHECK_RET(device_team_update(ACLSHMEM_TEAM_WORLD, &aclshmem_team_world));
+    int ret = device_team_update(ACLSHMEM_TEAM_WORLD, &aclshmem_team_world);
+    if (ret != 0) {
+        aclshmemi_team_finalize();
+        return ret;
+    }
 
     /* Initialize TEAM SYNC */
-    auto ret = aclshmemi_team_init_sync_pool();
+    ret = aclshmemi_team_init_sync_pool();
     if (ret != 0) {
         return ret;
     }

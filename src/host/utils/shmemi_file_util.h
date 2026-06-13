@@ -55,7 +55,7 @@ public:
     /**
      * @brief Remove the dir without sub dirs
      */
-    static bool Remove(const std::string &path, bool canonicalPath = true);
+    static bool Remove(const std::string &path);
 
     /**
      * @brief Remove the dir recursively, its sub dir will be removed
@@ -169,14 +169,14 @@ inline bool FileUtil::MakeDir(const std::string &path, uint32_t mode)
     return ::mkdir(path.c_str(), mode) == 0;
 }
 
-inline bool FileUtil::Remove(const std::string &path, bool canonicalPath)
+inline bool FileUtil::Remove(const std::string &path)
 {
     if (path.empty() || path.size() > PATH_MAX_LIMIT) {
         return false;
     }
 
     std::string realPath = path;
-    if (canonicalPath && !Realpath(realPath)) {
+    if (!Realpath(realPath)) {
         return false;
     }
 

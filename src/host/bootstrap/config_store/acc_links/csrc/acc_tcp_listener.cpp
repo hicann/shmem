@@ -54,7 +54,10 @@ bool AccTcpListener::PrepareSockAddr(mf_sockaddr& addr) noexcept
 
 Result AccTcpListener::CreateSocketForStrat(mf_sockaddr &addr, int &tmpFD) noexcept
 {
-    if (listenIp_.find(':') != std::string::npos) {
+    if (AccCommonUtil::IsValidIPv4(listenIp_)) {
+        tmpFD = ::socket(AF_INET, SOCK_STREAM, 0);
+        addr.type = IpV4;
+    } else if (AccCommonUtil::IsValidIPv6(listenIp_)) {
         tmpFD = ::socket(AF_INET6, SOCK_STREAM, 0);
         addr.type = IpV6;
     } else {
@@ -127,7 +130,6 @@ Result AccTcpListener::Start() noexcept
     /* assign address */
     if (!PrepareSockAddr(addr)) {
         SafeCloseFd(tmpFD);
-        LOG_ERROR("Failed to prepare socket address for " << NameAndPort());
         return ACC_ERROR;
     }
     int result_bind = -1;

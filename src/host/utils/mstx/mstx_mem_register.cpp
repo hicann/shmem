@@ -46,6 +46,10 @@ public:
         CHECK_MSTX_ENABLE();
         mstx_mem_regions_unregister(-1);
         clear_mstx_mem_regions(-1);
+        if (domain_ != nullptr) {
+            mstxDomainDestroy(domain_);
+            domain_ = nullptr;
+        }
     }
 
     void mstx_mem_regions_register(int group = 0) override

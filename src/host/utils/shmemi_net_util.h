@@ -108,8 +108,8 @@ inline std::vector<uint32_t> NetworkGetIpAddresses() noexcept
             inet_ntop(AF_INET6, &(sin6->sin6_addr), addr_str, INET6_ADDRSTRLEN);
             auto ip_address = addr_str;
 
-            const uint64_t* latter_ptr = reinterpret_cast<const uint64_t*>(&(sin6->sin6_addr.s6_addr[8]));
-            uint64_t latter_id = *latter_ptr;
+            uint64_t latter_id = 0;
+            std::copy_n(&(sin6->sin6_addr.s6_addr[8]), sizeof(latter_id), reinterpret_cast<uint8_t*>(&latter_id));
             std::hash<uint64_t> hasher;
             uint32_t ipv6_derived_id = static_cast<uint32_t>(hasher(latter_id));
 

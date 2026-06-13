@@ -32,15 +32,19 @@ bool AccCommonUtil::IsValidIPv4(const std::string& ip) {
 }
 
 bool AccCommonUtil::IsValidIPv6(const std::string& ip) {
+    // :: abbreviation must appear at most once
+    auto firstAbbr = ip.find("::");
+    if (firstAbbr != std::string::npos && ip.find("::", firstAbbr + 2) != std::string::npos) {
+        return false;
+    }
     std::vector<std::string> parts = utils::StringUtil::Split(ip, ':');
-    int empty_parts = 0;
+    // max 9 parts possible with leading/trailing :: (e.g. ::1 produces 3 parts)
+    if (parts.empty() || parts.size() > 9) {
+        return false;
+    }
     for (const auto& part : parts) {
         if (part.empty()) {
-            empty_parts++;
-            if (empty_parts > 1) {
-                return false;
-            }
-            continue;
+            continue;  // part of :: abbreviation
         }
         if (part.length() > 4) {
             return false;
@@ -51,8 +55,7 @@ bool AccCommonUtil::IsValidIPv6(const std::string& ip) {
             }
         }
     }
-    int total_parts = parts.size() + (empty_parts ? (8 - (parts.size() - 1)) : 0);
-    return total_parts <= 8;
+    return true;
 }
 
 Result AccCommonUtil::SslShutdownHelper(SSL *ssl)

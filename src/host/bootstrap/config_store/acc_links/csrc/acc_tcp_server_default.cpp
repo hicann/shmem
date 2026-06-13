@@ -547,7 +547,6 @@ Result AccTcpServerDefault::ConnectToPeerServer(const std::string &peerIp, uint1
     mf_sockaddr addr {};
     if (!ConstructSocketAddress(ipType, addr, peerIp, port)) {
         SafeCloseFd(tmpFD);
-        LOG_ERROR("Failed to construct socket address for " << ipAndPort);
         return ACC_ERROR;
     }
 

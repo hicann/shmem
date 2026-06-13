@@ -498,6 +498,8 @@ std::shared_ptr<shm::acc::AccTcpRequestContext> TcpConfigStore::SendMessageBlock
     auto ret = accClientLink_->NonBlockSend(0, seqNo, dataBuf, nullptr);
     if (ret != SM_OK) {
         SHM_LOG_ERROR("send message failed, result: " << ret);
+        std::unique_lock<std::mutex> locker{msgCtxMutex_};
+        msgClientContext_.erase(seqNo);
         return nullptr;
     }
 
@@ -557,6 +559,8 @@ Result TcpConfigStore::SendWatchRequest(const std::vector<uint8_t> &reqBody,
     auto ret = accClientLink_->NonBlockSend(0, seqNo, dataBuf, nullptr);
     if (ret != SM_OK) {
         SHM_LOG_ERROR("send message failed, result: " << ret);
+        std::unique_lock<std::mutex> locker{msgCtxMutex_};
+        msgClientContext_.erase(seqNo);
         return ret;
     }
 

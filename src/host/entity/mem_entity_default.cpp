@@ -218,6 +218,7 @@ int32_t MemEntityDefault::RegisterLocalMemory(const void *ptr, uint64_t size, ui
         ret = transportManager_->RegisterMemoryRegion(mr);
         if (ret != 0) {
             SHM_LOG_ERROR("register MR: " << mr << " to transport failed: " << ret);
+            segment->ReleaseSliceMemory(realSlice);
             return ret;
         }
     }

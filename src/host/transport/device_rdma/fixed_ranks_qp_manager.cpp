@@ -476,12 +476,23 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
 {
     const int accessLevel = 7;
     std::string sideName = (side == CONN_CLIENT_SIDE) ? "client" : "server";
+
+    auto cleanupQps = [&](decltype(connections.begin()) endIt) {
+        for (auto it = connections.begin(); it != endIt; ++it) {
+            if (it->second.qpHandles[qpType] != nullptr) {
+                (void)DlHccpApi::RaQpDestroy(it->second.qpHandles[qpType]);
+                it->second.qpHandles[qpType] = nullptr;
+            }
+        }
+    };
+
     SHM_LOG_DEBUG(rankId_ << ":" << sideName << " begin create qp and register mr");
     for (auto it = connections.begin(); it != connections.end(); ++it) {
         auto ret = CreateOneQp(qpType, it->second);
         if (ret != 0) {
             SHM_LOG_ERROR(rankId_ << ":" << sideName << " create QP type:" << qpType <<
                 " to " << it->first << " failed: " << ret);
+            cleanupQps(it);
             return ACLSHMEM_DL_FUNC_FAILED;
         }
 
@@ -495,6 +506,11 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
             ret = DlHccpApi::RaMrReg(it->second.qpHandles[qpType], info);
             if (ret != 0) {
                 SHM_LOG_ERROR(rankId_ << ":" << sideName << " register MR failed: " << ret);
+                if (it->second.qpHandles[qpType] != nullptr) {
+                    (void)DlHccpApi::RaQpDestroy(it->second.qpHandles[qpType]);
+                    it->second.qpHandles[qpType] = nullptr;
+                }
+                cleanupQps(it);
                 return ACLSHMEM_DL_FUNC_FAILED;
             }
             SHM_LOG_DEBUG(rankId_ << ":" << sideName << " register mr size:" << pos->second.size << " success");
@@ -503,6 +519,11 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
         ret = DlHccpApi::RaQpConnectAsync(it->second.qpHandles[qpType], it->second.socketFd);
         if (ret != 0) {
             SHM_LOG_ERROR(rankId_ << ":" << sideName << " connect AI QP to " << it->first << " failed: " << ret);
+            if (it->second.qpHandles[qpType] != nullptr) {
+                (void)DlHccpApi::RaQpDestroy(it->second.qpHandles[qpType]);
+                it->second.qpHandles[qpType] = nullptr;
+            }
+            cleanupQps(it);
             return ACLSHMEM_DL_FUNC_FAILED;
         }
     }
@@ -517,6 +538,7 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
             auto ret = DlHccpApi::RaGetQpStatus(it->second.qpHandles[qpType], status);
             if (ret != 0) {
                 SHM_LOG_ERROR(rankId_ << ":" << sideName << " get AI QP status to " << it->first << " failed: " << ret);
+                cleanupQps(connections.end());
                 return ACLSHMEM_DL_FUNC_FAILED;
             }
 
@@ -532,6 +554,7 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     SHM_LOG_ERROR(rankId_ << ":" << sideName << " wait create qp ready timeout");
+    cleanupQps(connections.end());
     return ACLSHMEM_INNER_TIMEOUT;
 }
 

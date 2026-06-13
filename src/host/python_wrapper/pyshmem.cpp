@@ -1160,11 +1160,11 @@ Arguments:
 
 m.def("aclshmem_signal_wait_until",
     [](intptr_t sig_addr, int cmp, int cmp_val) {
-        aclshmem_signal_wait_until(
-            reinterpret_cast<int32_t*>(sig_addr),
-            cmp,
-            static_cast<int32_t>(cmp_val)
-        );
+        auto *ptr = reinterpret_cast<int32_t*>(sig_addr);
+        if (ptr == nullptr) {
+            throw std::invalid_argument("sig_addr must not be null");
+        }
+        aclshmem_signal_wait_until(ptr, cmp, static_cast<int32_t>(cmp_val));
     },
     py::call_guard<py::gil_scoped_release>(),
     py::arg("sig_addr"),

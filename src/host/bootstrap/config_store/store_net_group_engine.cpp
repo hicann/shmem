@@ -281,6 +281,9 @@ Result SmemNetGroupEngine::GroupAllGather(const char *sendBuf, uint32_t sendSize
 
 bool SmemNetGroupEngine::DealWithListenEvent(std::string& getVal, std::string& prevEvent)
 {
+    if (getVal.empty()) {
+        return false;
+    }
     char opt = getVal[0];
     if (!utils::NumUtil::IsDigit(getVal.substr(1))) {
         SHM_LOG_INFO("value is not digit");

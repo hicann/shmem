@@ -24,7 +24,19 @@ namespace store {
 class SmemTimedwait {    // wait signal or overtime, instead of sem_timedwait
 public:
     SmemTimedwait() = default;
-    ~SmemTimedwait() = default;
+    SmemTimedwait(const SmemTimedwait &) = delete;
+    SmemTimedwait &operator=(const SmemTimedwait &) = delete;
+    SmemTimedwait(SmemTimedwait &&) = delete;
+    SmemTimedwait &operator=(SmemTimedwait &&) = delete;
+    ~SmemTimedwait()
+    {
+        if (!initialized_) {
+            return;
+        }
+        (void)pthread_cond_destroy(&condTimeChecker_);
+        (void)pthread_mutex_destroy(&timeCheckerMutex_);
+        (void)pthread_condattr_destroy(&cattr_);
+    }
 
     Result Initialize()
     {
@@ -54,6 +66,7 @@ public:
             return SM_ERROR;
         }
 
+        initialized_ = true;
         return SM_OK;
     }
 
@@ -106,6 +119,7 @@ private:
     pthread_cond_t condTimeChecker_;
     pthread_mutex_t timeCheckerMutex_;
     bool signalFlag { false };  // signal will NOT lost when call PthreadSignal before PthreadTimedwaitMillsecs
+    bool initialized_ { false };
 };
 
 }

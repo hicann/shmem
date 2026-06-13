@@ -242,10 +242,28 @@ Result DeviceJettyManager::JFCCreate(PerEidJettyState& state) noexcept
     state.localCq.bufAddr = state.cqInfo.out.bufAddr;
     state.localCq.cqeShiftSize = log2(state.cqInfo.out.cqeSize); // cqeSize = 64 = 2^6, cqeShiftSize此处取6
     state.localCq.depth = state.cqInfo.in.depth;
-    aclrtMalloc(&state.cqPiAddr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    auto mallocRet = aclrtMalloc(&state.cqPiAddr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    if (mallocRet != 0 || state.cqPiAddr == nullptr) {
+        SHM_LOG_ERROR("malloc cqPiAddr failed");
+        (void)DlHccpV2Api::RaCtxCqDestroy(state.ctxHandle, state.cqHandle);
+        state.cqHandle = nullptr;
+        (void)DlHccpV2Api::RaCtxChanDestroy(state.ctxHandle, state.chanHandle);
+        state.chanHandle = nullptr;
+        return ACLSHMEM_MALLOC_FAILED;
+    }
     aclrtMemset(state.cqPiAddr, sizeof(uint32_t), 0, sizeof(uint32_t));
     state.localCq.headAddr = reinterpret_cast<uintptr_t>(state.cqPiAddr);
-    aclrtMalloc(&state.cqCiAddr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    mallocRet = aclrtMalloc(&state.cqCiAddr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    if (mallocRet != 0 || state.cqCiAddr == nullptr) {
+        SHM_LOG_ERROR("malloc cqCiAddr failed");
+        aclrtFree(state.cqPiAddr);
+        state.cqPiAddr = nullptr;
+        (void)DlHccpV2Api::RaCtxCqDestroy(state.ctxHandle, state.cqHandle);
+        state.cqHandle = nullptr;
+        (void)DlHccpV2Api::RaCtxChanDestroy(state.ctxHandle, state.chanHandle);
+        state.chanHandle = nullptr;
+        return ACLSHMEM_MALLOC_FAILED;
+    }
     aclrtMemset(state.cqCiAddr, sizeof(uint32_t), 0, sizeof(uint32_t));
     state.localCq.tailAddr = reinterpret_cast<uintptr_t>(state.cqCiAddr);
     state.localCq.dbMode = ACLSHMEMUDMADBMode::SW_DB;

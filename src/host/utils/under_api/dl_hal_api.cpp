@@ -142,6 +142,8 @@ Result DlHalApi::LoadLibrary(AscendSocType socType)
         ret = DlHalApi::LoadLegacyLibrary();
     }
     if (ret != 0) {
+        // DL_LOAD_SYM macro already called dlclose(halHandle) on failure
+        halHandle = nullptr;
         return ret;
     }
 

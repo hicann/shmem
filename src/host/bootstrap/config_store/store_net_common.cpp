@@ -38,6 +38,9 @@ static PROTOCOLTYPE type = PROTOCOLTYPE::IPNONE;
 
 inline void Split(const std::string &src, const std::string &sep, std::vector<std::string> &out)
 {
+    if (src.empty() || sep.empty()) {
+        return;
+    }
     int COUNT = 1;
     std::string::size_type pos1 = 0;
     std::string::size_type pos2 = src.find_last_of(sep);

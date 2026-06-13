@@ -77,6 +77,7 @@ Result UdmaTransportManager::OpenDevice(const TransportOptions& options)
 
     if (!PrepareOpenDevice(deviceId_, rankCount_)) {
         SHM_LOG_ERROR("PrepareOpenDevice failed.");
+        CleanupResources();
         return ACLSHMEM_INNER_ERROR;
     }
 
@@ -97,6 +98,8 @@ Result UdmaTransportManager::CloseDevice()
 Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& mr)
 {
     std::map<uint32_t, RegMemResultInfo> regResultMap;
+    auto savedLmemHandleMap = lmemHandleMap_;
+    auto savedLocalMemInfoMap = localMemInfoMap_;
     for (const auto& ctxEntry : storedCtxHandleMap_) {
         const uint32_t eidIndex = ctxEntry.first;
         void* ctxHandle = ctxEntry.second;
@@ -123,6 +126,14 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
         auto ret = shm::DlHccpV2Api::RaCtxLmemRegister(ctxHandle, &mrInfo, &lmemHandle);
         if (ret != 0) {
             SHM_LOG_ERROR("Failed to register the memory region for EID index " << eidIndex << ", ret = " << ret);
+            for (auto &entry : regResultMap) {
+                auto it = storedCtxHandleMap_.find(entry.first);
+                if (it != storedCtxHandleMap_.end() && entry.second.lmemHandle != nullptr) {
+                    (void)shm::DlHccpV2Api::RaCtxLmemUnregister(it->second, entry.second.lmemHandle);
+                }
+            }
+            lmemHandleMap_ = std::move(savedLmemHandleMap);
+            localMemInfoMap_ = std::move(savedLocalMemInfoMap);
             return ACLSHMEM_INNER_ERROR;
         }
         lmemHandleMap_[eidIndex] = lmemHandle;
@@ -567,6 +578,7 @@ bool UdmaTransportManager::RaCtxInit(
     }
     void* tokenIdHandle = nullptr;
     if (!RaCtxTokenId(ctxHandle, tokenIdHandle)) {
+        (void)shm::DlHccpV2Api::RaCtxDeinit(ctxHandle);
         return false;
     }
     tokenIdHandleMap_[eidIndex] = tokenIdHandle;
@@ -685,6 +697,7 @@ void UdmaTransportManager::CleanupResources()
             SHM_LOG_WARN("RaDeinit failed, ret = " << ret << ", phy id: " << phyId_);
         }
         SHM_LOG_INFO("RaDeinit success.");
+        raInitialized_ = false;
     }
 
     if (tsdOpened_ && subPid_ > 0) {
@@ -694,6 +707,8 @@ void UdmaTransportManager::CleanupResources()
                 "TsdProcessClose failed, device id: " << deviceId_ << ", subPid: " << subPid_ << ", ret = " << ret);
         }
         SHM_LOG_INFO("TsdProcessClose success.");
+        tsdOpened_ = false;
+        subPid_ = 0;
     }
 
     storedCtxHandleMap_.clear();

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 #include <vector>
 #include <iostream>
 #include <sstream>
@@ -22,6 +23,7 @@
 #include "shmemi_init.h"
 #include "host/shmem_host_def.h"
 #include "prof/prof_util.h"
+#include "shmemi_scope_guard.h"
 
 #define DEFAULT_MY_PE (-1)
 #define DEFAULT_N_PES (-1)
@@ -374,16 +376,18 @@ static int aclshmemi_instance_ctx_create(aclshmemx_init_attr_t* attributes)
     }
 
     // Create aclshmem_instance_ctx
-    aclshmem_instance_ctx* aclshmem_ctx = new aclshmem_instance_ctx{attributes->instance_id, nullptr};
+    aclshmem_instance_ctx* aclshmem_ctx = new (std::nothrow) aclshmem_instance_ctx{attributes->instance_id, nullptr};
     if (aclshmem_ctx == nullptr) {
         SHM_LOG_ERROR("Failed to allocate memory for aclshmem_instance_ctx.");
         return ACLSHMEM_INNER_ERROR;
     }
     aclshmem_ctx_domain[attributes->instance_id] = aclshmem_ctx;
 
-    aclshmem_context* aclshmem_resource_ctx = new aclshmem_context(attributes->instance_id);
+    aclshmem_context* aclshmem_resource_ctx = new (std::nothrow) aclshmem_context(attributes->instance_id);
     if (aclshmem_resource_ctx == nullptr) {
         SHM_LOG_ERROR("Failed to allocate memory for aclshmem_context.");
+        aclshmem_ctx_domain.erase(attributes->instance_id);
+        delete aclshmem_ctx;
         return ACLSHMEM_INNER_ERROR;
     }
     aclshmem_resource_domain[attributes->instance_id] = aclshmem_resource_ctx;
@@ -475,15 +479,22 @@ int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
 int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
     int32_t ret;
     uint64_t id = attributes->instance_id;
 
-    // Multi-instance create ctx
+    // Multi-instance create ctx. Only install rollback for newly created
+    // instances — re-init of an existing instance must not destroy it on failure.
+    bool is_new_instance = (id != 0 && aclshmem_ctx_domain.find(id) == aclshmem_ctx_domain.end());
     ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_create(attributes));
+    auto ctx_guard = shm::utils::make_scope_guard(static_cast<void*>(nullptr), [id, is_new_instance](void*) {
+        if (is_new_instance) {
+            (void)aclshmemi_instance_ctx_destroy(id);
+        }
+    });
     ACLSHMEM_CHECK_RET(aclshmemx_instance_ctx_set_impl(id));
 
     // config init
-    SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
     ACLSHMEM_CHECK_RET(
         aclshmemx_init_status() != ACLSHMEM_STATUS_NOT_INITIALIZED,
         "SHMEM has been initialized, do not call init interface repeatedly!", ACLSHMEM_INNER_ERROR);
@@ -527,6 +538,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
+    ctx_guard.release();
     return ACLSHMEM_SUCCESS;
 }
 

@@ -63,6 +63,11 @@ Result MemSegmentDevice::ReserveEachPeMemorySpace(size_t reserveAlignedSize, siz
         auto ret = aclrtReserveMemAddress(&base, reserveAlignedSize, 0, curBase, 1);
         if (ret != 0 || base == 0) {
             SHM_LOG_ERROR("prepare virtual memory size(" << totalVirtualSize_ << ") failed. ret: " << ret);
+            for (auto &reserved : reservedVirtualAddresses_) {
+                aclrtReleaseMemAddress(reinterpret_cast<void *>(reserved));
+            }
+            reservedVirtualAddresses_.clear();
+            totalVirtualSize_ = 0;
             return ACLSHMEM_MALLOC_FAILED;
         }
         SHM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << " size: " << options_.size << ", rankId: " << i);
@@ -144,6 +149,8 @@ Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlic
                                                        << options_.size);
         return ACLSHMEM_INVALID_PARAM;
     }
+    // VA is pre-reserved by ReserveMemorySpace and released by UnReserveMemorySpace/FreeMemory.
+    // AllocLocalMemory does not own the VA — failure paths must not call aclrtReleaseMemAddress on it.
     auto localVirtualBase = reservedVirtualAddresses_[options_.rankId];
     aclrtPhysicalMemProp prop;
     prop.handleType = ACL_MEM_HANDLE_TYPE_NONE;
@@ -158,9 +165,18 @@ Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlic
         return ACLSHMEM_DL_FUNC_FAILED;
     }
     SHM_LOG_DEBUG(options_.rankId << " aclrtMallocPhysical memory success size: " << size << " vaddr: " << reinterpret_cast<void *>(localVirtualBase) << " segType: " << (int)options_.segType);
-    ACLSHMEM_CHECK_RET(aclrtMapMem(reinterpret_cast<void *>(localVirtualBase), size, 0, local_handle_, 0));
+    ret = aclrtMapMem(reinterpret_cast<void *>(localVirtualBase), size, 0, local_handle_, 0);
+    if (ret != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("aclrtMapMem failed: " << ret);
+        (void)aclrtFreePhysical(local_handle_);
+        local_handle_ = nullptr;
+        return ACLSHMEM_DL_FUNC_FAILED;
+    }
 
     if (SetMemAccess() != ACLSHMEM_SUCCESS) {
+        (void)aclrtUnmapMem(reinterpret_cast<void *>(localVirtualBase));
+        (void)aclrtFreePhysical(local_handle_);
+        local_handle_ = nullptr;
         return ACLSHMEM_SMEM_ERROR;
     }
 

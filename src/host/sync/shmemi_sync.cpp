@@ -145,6 +145,10 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY);
     ACLSHMEM_HOST_API void aclshmem_##NAME##_wait_until_some(TYPE *ivars, size_t nelems, size_t *indices,              \
         const int *status, int cmp, TYPE cmp_value, size_t *res_out)                                                   \
     {                                                                                                                  \
+        if (res_out == nullptr) {                                                                                      \
+            SHM_LOG_ERROR("res_out is null");                                                                          \
+            return;                                                                                                    \
+        }                                                                                                              \
         if (cmp < 0 || cmp > 5) {                                                                                      \
             SHM_LOG_ERROR("compare op is invalid.");                                                                   \
             *res_out = 0;                                                                                              \
@@ -211,6 +215,10 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
 #define ACLSHMEM_TEST(NAME, TYPE)                                                                                      \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_test(TYPE *ivars, int cmp, TYPE cmp_value, int *res_out)                  \
     {                                                                                                                  \
+        if (res_out == nullptr) {                                                                                      \
+            SHM_LOG_ERROR("res_out is null");                                                                          \
+            return;                                                                                                    \
+        }                                                                                                              \
         if (cmp < 0 || cmp > 5) {                                                                                      \
             SHM_LOG_ERROR("compare op is invalid.");                                                                   \
             *res_out = 0;                                                                                              \
@@ -229,6 +237,10 @@ ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
         TYPE *ivars, size_t nelems, const int *status, int cmp, TYPE cmp_value, size_t *res_out                        \
     )                                                                                                                  \
     {                                                                                                                  \
+        if (res_out == nullptr) {                                                                                      \
+            SHM_LOG_ERROR("res_out is null");                                                                          \
+            return;                                                                                                    \
+        }                                                                                                              \
         if (cmp < 0 || cmp > 5) {                                                                                      \
             SHM_LOG_ERROR("compare op is invalid.");                                                                   \
             *res_out = SIZE_MAX;                                                                                       \

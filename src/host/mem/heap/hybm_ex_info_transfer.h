@@ -154,8 +154,9 @@ public:
     inline int Append(const void *data, size_t length) noexcept
     {
         SHM_ASSERT_RETURN(exchangeInfo_ != nullptr, -1);
-        if (exchangeInfo_->descLen > sizeof(exchangeInfo_->desc)) {
-            SHM_LOG_ERROR("write data size: " << length << " too long");
+        if (exchangeInfo_->descLen + length > sizeof(exchangeInfo_->desc)) {
+            SHM_LOG_ERROR("append " << length << " bytes overflows desc(used=" << exchangeInfo_->descLen
+                << ", capacity=" << sizeof(exchangeInfo_->desc) << ")");
             return -1;
         }
 

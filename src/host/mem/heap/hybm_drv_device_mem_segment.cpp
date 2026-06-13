@@ -55,6 +55,11 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
         auto ret = drv::HalGvaReserveMemory(&base, options_.size, logicDeviceId_, 0ULL);
         if (ret != 0 || base == 0) {
             SHM_LOG_ERROR("prepare virtual memory size to (" << totalVirtualSize_ << ") failed. ret: " << ret);
+            for (auto &reserved : reservedVirtualAddresses_) {
+                drv::HalGvaUnreserveMemory((uint64_t)reserved);
+            }
+            reservedVirtualAddresses_.clear();
+            totalVirtualSize_ = 0;
             return ACLSHMEM_MALLOC_FAILED;
         }
         SHM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << ", size: " << options_.size << ", rankId: " << i);
