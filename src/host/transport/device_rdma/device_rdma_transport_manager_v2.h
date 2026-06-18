@@ -59,6 +59,7 @@ private:
     Result BuildEndpointDesc(EndpointDesc& desc);
     void ClearAllRegisterMRs();
     int CheckPrepareOptions(const HybmTransPrepareOptions& options);
+    int ValidateRanksPerNic() const;
     void PrintHostInfo(AiQpRMAQueueInfo& copyInfo);
     Result FillRdmaInfo();
     void CopyAiWQInfo(struct AiQpRMAWQ& dest, const SqContext& src) noexcept;

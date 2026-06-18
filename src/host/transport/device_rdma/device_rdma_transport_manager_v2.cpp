@@ -22,8 +22,8 @@ namespace shm {
 namespace transport {
 namespace device {
 
-constexpr uint32_t RDMA_PORT_PREFIX = 60132;
-constexpr uint32_t MAX_RANKS_PER_NIC = 128;
+constexpr uint32_t RDMA_PORT_PREFIX = 60032;
+constexpr uint32_t MAX_RANKS_PER_NIC = 16;
 constexpr uint32_t ATOMIC_MAX_NUM = 128;
 
 RdmaTransportManagerV2::~RdmaTransportManagerV2()
@@ -66,7 +66,7 @@ Result RdmaTransportManagerV2::OpenDevice(const TransportOptions& options)
         deviceIp_.type = IpV6;
     }
 
-    devicePort_ = RDMA_PORT_PREFIX;
+    devicePort_ = RDMA_PORT_PREFIX + (rankId_ % MAX_RANKS_PER_NIC);
     if (!TopoReader::ParseRdmaNetAddr(phyId_, deviceIp_)) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] ParseRdmaNetAddr failed for phyId " << phyId_);
         return ACLSHMEM_INNER_ERROR;
@@ -275,6 +275,11 @@ Result RdmaTransportManagerV2::Connect()
         return ACLSHMEM_INNER_ERROR;
     }
 
+    auto validateRet = ValidateRanksPerNic();
+    if (validateRet != ACLSHMEM_SUCCESS) {
+        return static_cast<Result>(validateRet);
+    }
+
     uint32_t channelNum = rankCount_ - 1;
 
     std::vector<HcommChannelDesc> channelDescs(channelNum);
@@ -310,7 +315,12 @@ Result RdmaTransportManagerV2::Connect()
         channelDescs[chIdx].roceAttr.tc = roceTc;
         channelDescs[chIdx].roceAttr.sl = roceSl;
         channelDescs[chIdx].socket = nullptr;
-        channelDescs[chIdx].port = RDMA_PORT_PREFIX;
+        bool isServer = (rankId_ < remoteRank);
+        channelDescs[chIdx].role = isServer ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
+        uint32_t serverRank = isServer ? rankId_ : remoteRank;
+        uint32_t clientRank = isServer ? remoteRank : rankId_;
+        channelDescs[chIdx].port = static_cast<uint16_t>(RDMA_PORT_PREFIX +
+            (serverRank % MAX_RANKS_PER_NIC) * MAX_RANKS_PER_NIC + (clientRank % MAX_RANKS_PER_NIC));
         ++chIdx;
     }
 
@@ -367,6 +377,38 @@ int RdmaTransportManagerV2::CheckPrepareOptions(const shm::transport::HybmTransP
         }
     }
 
+    return ACLSHMEM_SUCCESS;
+}
+
+int RdmaTransportManagerV2::ValidateRanksPerNic() const
+{
+    uint32_t sameIpCount = 1;
+    for (const auto& entry : rankInfo_) {
+        if (entry.first == rankId_) {
+            continue;
+        }
+        const auto& network = entry.second.network;
+        if (network.type != deviceIp_.type) {
+            continue;
+        }
+        bool sameIp = false;
+        if (network.type == IpV4) {
+            sameIp = (network.ip.ipv4.sin_addr.s_addr == deviceIp_.ip.ipv4.s_addr);
+        } else {
+            sameIp = (memcmp(&network.ip.ipv6.sin6_addr, &deviceIp_.ip.ipv6,
+                             sizeof(deviceIp_.ip.ipv6)) == 0);
+        }
+        if (sameIp) {
+            sameIpCount++;
+            if (sameIpCount > MAX_RANKS_PER_NIC) {
+                SHM_LOG_ERROR("rank[" << rankId_ << "] ranks per NIC/IP exceeded: " << sameIpCount
+                                       << " > " << MAX_RANKS_PER_NIC << ", conflict rank: " << entry.first);
+                return ACLSHMEM_INVALID_PARAM;
+            }
+        }
+    }
+    SHM_LOG_DEBUG("rank[" << rankId_ << "] ranks on same NIC/IP: " << sameIpCount
+                          << ", max allowed: " << MAX_RANKS_PER_NIC);
     return ACLSHMEM_SUCCESS;
 }
 

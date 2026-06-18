@@ -76,7 +76,12 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
         for (int j = 0; j < block_size; j++) {
             if (y_host[trans_size * i + trans_size / block_size * j] != num10 + i) {
                 std::cout << y_host[trans_size * i + trans_size / block_size * j] << " != " << num10 + i << std::endl;
-                // std::exit(EXIT_FAILURE);
+                status |= aclrtFreeHost(y_host);
+                aclshmem_free(ptr);
+                status |= aclshmem_finalize();
+                status |= aclrtDestroyStream(stream);
+                status |= aclrtResetDevice(device_id);
+                status |= aclFinalize();
                 return -1;
             }
         }
@@ -89,7 +94,7 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     status |= aclrtDestroyStream(stream);
     status |= aclrtResetDevice(device_id);
     status |= aclFinalize();
-    return 0;
+    return status;
 }
 
 int main(int argc, char *argv[])
@@ -104,7 +109,10 @@ int main(int argc, char *argv[])
     f_npu = atoi(argv[argIdx++]);
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     status = test_aclshmem_team_all_gather(pe_id, n_pes, local_mem_size);
-
+    if (status != 0) {
+        std::cout << "[ERROR] demo run failed in relative pe " << pe_id << std::endl;
+        return -1;
+    }
     std::cout << "[SUCCESS] demo run success in relative pe " << pe_id << std::endl;
     return 0;
 }

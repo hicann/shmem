@@ -135,7 +135,7 @@ A：确认已执行 `source /usr/local/Ascend/ascend-toolkit/set_env.sh`，且 C
 
 **Q2：运行示例时报「卡间通信超时」？**
 
-A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8666）、各节点时钟是否同步。
+A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8666，RDMA 建链端口范围见 [Troubleshooting - RDMA 端口分配规则](docs/debug/Troubleshooting_FAQs.md#rdma-端口分配规则)）、各节点时钟是否同步。
 
 **Q3：Python 导入 shmem 时报「找不到模块」？**
 
