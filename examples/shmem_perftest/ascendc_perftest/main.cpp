@@ -14,6 +14,7 @@
 #include <cstring>
 #include <cmath>
 #include <vector>
+#include <string>
 #include <getopt.h>
 #include <fstream>
 
@@ -85,7 +86,9 @@ static void print_last_element(uint8_t *data, const char *data_type, uint64_t al
 }
 
 
-static int run_rma_performance_test(const char *test_type, int min_block_size, int max_block_size, int min_exponent, int max_exponent, int device1, int device2, int loop_count, const char *data_type)
+static int run_rma_performance_test(const char *test_type, const std::vector<int> &block_sizes,
+                                    int min_exponent, int max_exponent, int device1, int device2,
+                                    int loop_count, const char *data_type)
 {
     perftest::ascendc_mode_t test_type_enum = get_test_type(test_type);
     perftest::perf_data_type_t data_type_enum = get_data_type(data_type);
@@ -118,7 +121,7 @@ static int run_rma_performance_test(const char *test_type, int min_block_size, i
     }
     size_t datatype_size = get_datatype_size(data_type);
 
-     for (int block_size = min_block_size; block_size <= max_block_size; block_size++) {
+     for (int block_size : block_sizes) {
         for (int datasize : powers_of_two) {
             std::cout << "\n========== [LOOP START] block_size=" << block_size << ", datasize=" << datasize << " ==========" << std::endl;
             
@@ -318,12 +321,14 @@ int main(int argc, char *argv[])
     int device2 = 2;
     int loop_count = 50;
     int ub_size_kb = 16;
+    std::vector<int> block_sizes;
     
     static struct option long_options[] = {
         {"test-type", required_argument, 0, 't'},
         {"datatype", required_argument, 0, 'd'},
         {"block-size", required_argument, 0, 'b'},
         {"block-range", required_argument, 0, 0},
+        {"block-list", required_argument, 0, 0},
         {"exponent", required_argument, 0, 'e'},
         {"exponent-range", required_argument, 0, 0},
         {"device1", required_argument, 0, 0},
@@ -356,6 +361,12 @@ int main(int argc, char *argv[])
                         max_block_size = std::atoi(argv[optind]);
                         optind++;
                     }
+                } else if (strcmp(long_options[option_index].name, "block-list") == 0) {
+                    block_sizes = parse_block_list(optarg);
+                    if (block_sizes.empty()) {
+                        std::cerr << "错误: --block-list 格式无效，示例: --block-list 2,4,6,8" << std::endl;
+                        return 1;
+                    }
                 } else if (strcmp(long_options[option_index].name, "exponent-range") == 0) {
                     min_exponent = std::atoi(optarg);
                     if (optind < argc) {
@@ -374,16 +385,26 @@ int main(int argc, char *argv[])
                 break;
             default:
                 std::cerr << "错误: 未知参数" << std::endl;
-                std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
+                std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--block-list <b1,b2,...>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
                 return 1;
         }
     }
-    
+
+    if (block_sizes.empty()) {
+        if (min_block_size <= 0 || max_block_size < min_block_size) {
+            std::cerr << "错误: block-range 无效，min 必须 > 0 且 max >= min" << std::endl;
+            return 1;
+        }
+        for (int block_size = min_block_size; block_size <= max_block_size; block_size++) {
+            block_sizes.push_back(block_size);
+        }
+    }
+
     if (strcmp(test_type, "put") != 0 && strcmp(test_type, "get") != 0 && 
         strcmp(test_type, "ub2gm_local") != 0 && strcmp(test_type, "ub2gm_remote") != 0 &&
         strcmp(test_type, "gm2ub_local") != 0 && strcmp(test_type, "gm2ub_remote") != 0) {
         std::cerr << "错误: 测试类型必须是 'put'、'get'、'ub2gm_local'、'ub2gm_remote'、'gm2ub_local' 或 'gm2ub_remote'" << std::endl;
-        std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
+        std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--block-list <b1,b2,...>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
         return 1;
     }
     
@@ -393,18 +414,18 @@ int main(int argc, char *argv[])
         strcmp(data_type, "uint16") != 0 && strcmp(data_type, "uint32") != 0 && 
         strcmp(data_type, "uint64") != 0 && strcmp(data_type, "char") != 0) {
         std::cerr << "错误: 数据类型必须是 'float'、'int8'、'int16'、'int32'、'int64'、'uint8'、'uint16'、'uint32'、'uint64' 或 'char'" << std::endl;
-        std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
+        std::cerr << "使用方法: " << argv[0] << " [-t <put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--block-list <b1,b2,...>] [--exponent-range <min> <max>] [--device1 <device_id>] [--device2 <device_id>] [--loop-count <count>]" << std::endl;
         return 1;
     }
     
     std::cout << "[SUCCESS] demo run start in rank, test type: " << test_type << ", data type: " << data_type << std::endl;
-    std::cout << "核数范围: " << min_block_size << "-" << max_block_size << std::endl;
+    print_block_sizes(block_sizes);
     std::cout << "幂数范围: " << min_exponent << "-" << max_exponent << std::endl;
     std::cout << "设备ID: " << device1 << ", " << device2 << std::endl;
     std::cout << "循环次数: " << loop_count << std::endl;
     std::cout << "UB size (KB): " << ub_size_kb << std::endl;
     ub_size = ub_size_kb;
-    status = run_rma_performance_test(test_type, min_block_size, max_block_size, min_exponent, max_exponent, device1, device2, loop_count, data_type);
+    status = run_rma_performance_test(test_type, block_sizes, min_exponent, max_exponent, device1, device2, loop_count, data_type);
     std::cout << "[SUCCESS] demo run success in rank " << std::endl;
     
     return 0;

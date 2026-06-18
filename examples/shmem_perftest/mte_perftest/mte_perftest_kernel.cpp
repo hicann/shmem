@@ -47,11 +47,7 @@ __aicore__ inline void mte_perf_test_put_impl(GM_ADDR dst_gva, GM_ADDR src_gva, 
     }
     int ub_size_bytes = ub_size_kb * 1024;
     AscendC::PipeBarrier<PIPE_ALL>();
-    for (int i = 0; i < (warmup + loop_test); ++i) {
-        if (i >= warmup) {
-            SHMEMI_PROF_START(frame_id);
-        }
-
+    for (int i = 0; i < warmup; ++i) {
         AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(0);
         AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(0);
 
@@ -59,11 +55,23 @@ __aicore__ inline void mte_perf_test_put_impl(GM_ADDR dst_gva, GM_ADDR src_gva, 
 
         AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(0);
-
-        if (i >= warmup) {
-            SHMEMI_PROF_END(frame_id);
-        }
     }
+
+    AscendC::PipeBarrier<PIPE_ALL>();
+    SHMEMI_PROF_START(frame_id);
+    AscendC::PipeBarrier<PIPE_ALL>();
+    for (int i = 0; i < loop_test; ++i) {
+        AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(0);
+        AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(0);
+
+        aclshmemx_mte_put_nbi(dst_gm + offset, src_gm + offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes, block_elements, peer_pe, 0);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(0);
+    }
+    AscendC::PipeBarrier<PIPE_ALL>();
+    SHMEMI_PROF_END(frame_id);
+    AscendC::PipeBarrier<PIPE_ALL>();
     aclshmemx_barrier_all_vec();
 }
 
@@ -97,11 +105,7 @@ __aicore__ inline void mte_perf_test_get_impl(GM_ADDR dst_gva, GM_ADDR src_gva, 
     }
     int ub_size_bytes = ub_size_kb * 1024;
     AscendC::PipeBarrier<PIPE_ALL>();
-    for (int i = 0; i < (warmup + loop_test); ++i) {
-        if (i >= warmup) {
-            SHMEMI_PROF_START(frame_id);
-        }
-
+    for (int i = 0; i < warmup; ++i) {
         AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(0);
         AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(0);
 
@@ -109,11 +113,23 @@ __aicore__ inline void mte_perf_test_get_impl(GM_ADDR dst_gva, GM_ADDR src_gva, 
 
         AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(0);
-
-        if (i >= warmup) {
-            SHMEMI_PROF_END(frame_id);
-        }
     }
+
+    AscendC::PipeBarrier<PIPE_ALL>();
+    SHMEMI_PROF_START(frame_id);
+    AscendC::PipeBarrier<PIPE_ALL>();
+    for (int i = 0; i < loop_test; ++i) {
+        AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(0);
+        AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(0);
+
+        aclshmemx_mte_get_nbi(src_gm + offset, dst_gm + offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes, block_elements, peer_pe, 0);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(0);
+    }
+    AscendC::PipeBarrier<PIPE_ALL>();
+    SHMEMI_PROF_END(frame_id);
+    AscendC::PipeBarrier<PIPE_ALL>();
     aclshmemx_barrier_all_vec();
 }
 

@@ -14,6 +14,7 @@
 #include <cstring>
 #include <cmath>
 #include <vector>
+#include <string>
 #include <iomanip>
 #include <getopt.h>
 #include <iomanip>
@@ -46,8 +47,8 @@ static aclshmem_mem_type_t get_memory_type(const char *memory_type_str) {
 }
 
 template<typename T>
-int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size, 
-                                   int min_block_size, int max_block_size,
+int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
+                                   const std::vector<int> &block_sizes,
                                    int min_exponent, int max_exponent, int loop_count, perftest::mte_mode_t test_mode, perftest::perf_data_type_t data_type_enum, int prof_pe, int ub_size_kb, aclshmem_mem_type_t memory_type, std::vector<std::vector<std::string>>& csv_data)
 {
     int32_t device_id = (pe_id % g_npus + f_npu);
@@ -63,7 +64,7 @@ int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
     int frame_id = 0;
-    for (int block_size = min_block_size; block_size <= max_block_size; block_size++) {
+    for (int block_size : block_sizes) {
         for (int exponent = min_exponent; exponent <= max_exponent; exponent++) {
             int datasize = std::pow(2, exponent);
             std::cout << "pe: " << pe_id << " block_size: " << block_size << " size: " << datasize << " frame_id: " << frame_id << std::endl;
@@ -108,8 +109,6 @@ int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
             status = aclrtMemcpy(src_host.data(), all_size, src_ptr, all_size, ACL_MEMCPY_DEVICE_TO_HOST);
 
             int peer_pe = (pe_id + 1) % n_pes;
-            bool is_unilateral = (test_mode == perftest::TEST_MODE_MTE_PUT || test_mode == perftest::TEST_MODE_MTE_GET);
-            bool is_put = (test_mode == perftest::TEST_MODE_MTE_PUT || test_mode == perftest::TEST_MODE_BI_PUT);
 
             if (test_mode == perftest::TEST_MODE_MTE_PUT) {
                 std::cout << "\n[Verification] put operation: Checking data transfer..." << std::endl;
@@ -153,7 +152,8 @@ int test_shmem_mte_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
             std::cout << "" << std::endl;
 
             aclshmemx_show_prof(&out_profs, false);
-            collect_prof_data_to_csv(out_profs, frame_id, block_size, datasize, g_npus, ub_size_kb, csv_data);
+            collect_prof_data_to_csv_v2(out_profs, frame_id, datasize, block_size, g_npus, ub_size_kb, loop_count,
+                                        true, csv_data);
 
             aclshmemx_free(dst_ptr, memory_type);
             aclshmemx_free(src_ptr, memory_type);
@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
     int max_exponent = 17;
     int loop_count = 1000;
     int ub_size_kb = 16;
+    std::vector<int> block_sizes;
     
     static struct option long_options[] = {
         {"pes", required_argument, 0, 0},
@@ -209,6 +210,7 @@ int main(int argc, char *argv[])
         {"datatype", required_argument, 0, 'd'},
         {"block-size", required_argument, 0, 'b'},
         {"block-range", required_argument, 0, 0},
+        {"block-list", required_argument, 0, 0},
         {"exponent", required_argument, 0, 'e'},
         {"exponent-range", required_argument, 0, 0},
         {"loop-count", required_argument, 0, 0},
@@ -252,6 +254,12 @@ int main(int argc, char *argv[])
                         max_block_size = std::atoi(argv[optind]);
                         optind++;
                     }
+                } else if (strcmp(long_options[option_index].name, "block-list") == 0) {
+                    block_sizes = parse_block_list(optarg);
+                    if (block_sizes.empty()) {
+                        std::cerr << "错误: --block-list 格式无效，示例: --block-list 2,4,6,8" << std::endl;
+                        return 1;
+                    }
                 } else if (strcmp(long_options[option_index].name, "exponent-range") == 0) {
                     min_exponent = std::atoi(optarg);
                     if (optind < argc) {
@@ -268,8 +276,18 @@ int main(int argc, char *argv[])
                 break;
             default:
                 std::cerr << "错误: 未知参数" << std::endl;
-                std::cerr << "使用方法: " << argv[0] << " --pes <n_pes> --pe-id <pe_id> --ipport <ip:port> --gnpus <gnpu_num> --fpe <first_pe> --fnpu <first_npu> [-t <put|bi_put|get|bi_get>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--exponent-range <min> <max>] [--loop-count <count>] [--ub-size <size>] [--memory-type <hbm|dram>]" << std::endl;
+                std::cerr << "使用方法: " << argv[0] << " --pes <n_pes> --pe-id <pe_id> --ipport <ip:port> --gnpus <gnpu_num> --fpe <first_pe> --fnpu <first_npu> [-t <put|bi_put|get|bi_get>] [-d <float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char>] [-b <block_size>] [-e <exponent>] [--block-range <min> <max>] [--block-list <b1,b2,...>] [--exponent-range <min> <max>] [--loop-count <count>] [--ub-size <size>] [--memory-type <hbm|dram>]" << std::endl;
                 return 1;
+        }
+    }
+
+    if (block_sizes.empty()) {
+        if (min_block_size <= 0 || max_block_size < min_block_size) {
+            std::cerr << "错误: block-range 无效，min 必须 > 0 且 max >= min" << std::endl;
+            return 1;
+        }
+        for (int block_size = min_block_size; block_size <= max_block_size; block_size++) {
+            block_sizes.push_back(block_size);
         }
     }
 
@@ -280,7 +298,7 @@ int main(int argc, char *argv[])
     
     std::cout << "[SUCCESS] demo run start in pe " << pe_id << ", test type: " << test_type << ", data type: " << fuc_data_type << std::endl;
     std::cout << "n_pes: " << n_pes << ", pe_id: " << pe_id << ", g_npus: " << g_npus << std::endl;
-    std::cout << "核数范围: " << min_block_size << "-" << max_block_size << std::endl;
+    print_block_sizes(block_sizes);
     std::cout << "幂数范围: " << min_exponent << "-" << max_exponent << std::endl;
     std::cout << "循环次数: " << loop_count << std::endl;
     std::cout << "UB size (KB): " << ub_size_kb << std::endl;
@@ -292,7 +310,8 @@ int main(int argc, char *argv[])
     aclshmem_mem_type_t memory_type_enum = get_memory_type(memory_type);
     
     uint64_t max_datasize = (1ULL << max_exponent);
-    uint64_t max_required_size = max_datasize * max_block_size * 2;
+    int max_block_size_cfg = block_sizes.empty() ? 0 : *std::max_element(block_sizes.begin(), block_sizes.end());
+    uint64_t max_required_size = max_datasize * max_block_size_cfg * 2;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     const uint64_t ONE_GB = 1024UL * 1024UL * 1024;
     const uint64_t MAX_GB = 40;
@@ -301,7 +320,7 @@ int main(int argc, char *argv[])
         uint64_t gb_needed = (max_required_size + ONE_GB - 1) / ONE_GB;
         if (gb_needed > MAX_GB) {
             std::cerr << "Error: Required memory exceeds 40GB! Max need " << gb_needed << " GB" << std::endl;
-            std::cerr << "Please adjust block-range or exponent-range parameters" << std::endl;
+            std::cerr << "Please adjust block-list/block-range or exponent-range parameters" << std::endl;
             return 1;
         }
         local_mem_size = gb_needed * ONE_GB;
@@ -315,12 +334,12 @@ int main(int argc, char *argv[])
     }
     
     std::vector<std::vector<std::string>> csv_data = {
-        {"DataSize/B", "Npus", "Blocks", "UBsize/KB", "Bandwidth/GB/s", "CoreMaxTime/us", "SingleCoreTime/us"},
+        {"DataSize/B", "Npus", "Blocks", "UBsize/KB", "Bandwidth/GB/s (1000)", "Bandwidth/GiB/s (1024)", "CoreMaxTime/us", "SingleCoreTime/us"},
     };
     
     #define TEST_IMPL_OP(type) \
         status = test_shmem_mte_perf_test_impl<type>(pe_id, n_pes, local_mem_size, \
-                                                      min_block_size, max_block_size, \
+                                                      block_sizes, \
                                                       min_exponent, max_exponent, loop_count, test_mode, data_type_enum, prof_pe, ub_size_kb, memory_type_enum, csv_data)
     
     DISPATCH_BY_TYPE(fuc_data_type, TEST_IMPL_OP);

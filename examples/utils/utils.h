@@ -21,11 +21,14 @@
 #include <string>
 #include <iomanip>
 #include <cstring>
+#include <stdexcept>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <runtime/rt_ffts.h>
 #include "shmem.h"
+
+using CsvDataTable = std::vector<std::vector<std::string>>;
 
 #define INFO_LOG(fmt, args...) fprintf(stdout, "[INFO] " fmt "\n", ##args)
 #define WARN_LOG(fmt, args...) fprintf(stdout, "[WARN] " fmt "\n", ##args)
@@ -226,6 +229,12 @@ inline std::string int_to_string(int value) {
     return oss.str();
 }
 
+inline std::string uint64_to_string(uint64_t value) {
+    std::ostringstream oss;
+    oss << value;
+    return oss.str();
+}
+
 inline std::string float_to_string(float value) {
     std::ostringstream oss;
     oss << value;
@@ -296,6 +305,108 @@ inline void collect_prof_data_to_csv(aclshmem_prof_pe_t *out_profs, int frame_id
     }
     
     prof_csv_data.push_back(sub_data);
+}
+
+inline void collect_prof_data_to_csv_v2(const aclshmem_prof_pe_t *out_profs, int frame_id,
+                                        uint64_t datasize, int block_size, int g_npus_arg,
+                                        int ub_size, int loop_count, bool compute_bandwidth,
+                                        std::vector<std::vector<std::string>> &prof_csv_data)
+{
+    if (out_profs == nullptr) {
+        return;
+    }
+
+    const char *soc_name = aclrtGetSocName();
+    int64_t cycle2us = 50;
+    if (soc_name != nullptr && std::string(soc_name).find("Ascend950") != std::string::npos) {
+        cycle2us = 1000;
+    }
+
+    double max_core_time = 0.0;
+    std::vector<double> core_times;
+    const int actual_blocks = std::min(block_size, ACLSHMEM_CYCLE_PROF_MAX_BLOCK);
+
+    for (int32_t block_id = 0; block_id < actual_blocks; block_id++) {
+        const aclshmem_prof_block_t *prof = &out_profs->block_prof[block_id];
+        if (prof->ccount[frame_id] == 0) {
+            continue;
+        }
+
+        const double window_us = static_cast<double>(prof->cycles[frame_id]) / prof->ccount[frame_id] / cycle2us;
+        const double per_iter_us = (loop_count > 0) ? window_us / static_cast<double>(loop_count) : window_us;
+
+        if (per_iter_us > max_core_time) {
+            max_core_time = per_iter_us;
+        }
+        core_times.push_back(per_iter_us);
+    }
+
+    if (core_times.empty()) {
+        return;
+    }
+
+    double bandwidth_gb = 0.0;
+    double bandwidth_gib = 0.0;
+    if (compute_bandwidth && max_core_time > 0) {
+        const double bytes_per_sec = static_cast<double>(datasize) * static_cast<double>(block_size)
+                                     / max_core_time * 1000000.0;
+        bandwidth_gb = bytes_per_sec / 1000.0 / 1000.0 / 1000.0;
+        bandwidth_gib = bytes_per_sec / 1024.0 / 1024.0 / 1024.0;
+    }
+
+    std::vector<std::string> row = {
+        uint64_to_string(datasize),
+        int_to_string(g_npus_arg),
+        int_to_string(block_size),
+        int_to_string(ub_size),
+        double_to_string(bandwidth_gb),
+        double_to_string(bandwidth_gib),
+        double_to_string(max_core_time),
+    };
+    for (double core_time : core_times) {
+        row.push_back(double_to_string(core_time));
+    }
+    prof_csv_data.push_back(row);
+}
+
+inline std::vector<int> parse_block_list(const char *block_list_str)
+{
+    std::vector<int> block_sizes;
+    if (block_list_str == nullptr || block_list_str[0] == '\0') {
+        return block_sizes;
+    }
+
+    std::string list_str(block_list_str);
+    size_t start = 0;
+    while (start < list_str.size()) {
+        size_t comma_pos = list_str.find(',', start);
+        std::string token = list_str.substr(start, comma_pos == std::string::npos ? std::string::npos : comma_pos - start);
+        if (!token.empty()) {
+            int block_size = std::atoi(token.c_str());
+            if (block_size <= 0) {
+                std::cerr << "错误: block-list 中的核数必须为正整数: " << token << std::endl;
+                return {};
+            }
+            block_sizes.push_back(block_size);
+        }
+        if (comma_pos == std::string::npos) {
+            break;
+        }
+        start = comma_pos + 1;
+    }
+    return block_sizes;
+}
+
+inline void print_block_sizes(const std::vector<int> &block_sizes_arg)
+{
+    std::cout << "核数列表: ";
+    for (size_t i = 0; i < block_sizes_arg.size(); ++i) {
+        if (i > 0) {
+            std::cout << ",";
+        }
+        std::cout << block_sizes_arg[i];
+    }
+    std::cout << std::endl;
 }
 
 #endif // UTILS_H

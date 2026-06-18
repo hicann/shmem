@@ -51,43 +51,6 @@ static perftest::perf_metric_t get_perf_metric(const char *metric_str)
     return perftest::PERF_METRIC_BW;
 }
 
-// UDMA prof window covers (loop_count put_nbi submits + final quiet) for BW, or just
-// loop_count put_nbi submits for LAT (quiet moved outside the window). In both cases
-// the window holds loop_count iterations, so divide by loop_count for the per-iter time.
-static void udma_collect_csv(aclshmem_prof_pe_t *out_profs, int frame_id, uint64_t datasize,
-                              int g_npus_arg, int ub_size, int loop_count, perftest::perf_metric_t metric,
-                              std::vector<std::vector<std::string>> &csv_data)
-{
-    if (out_profs == nullptr) return;
-    const char *soc_name = aclrtGetSocName();
-    int64_t cycle2us = 50;
-    if (soc_name != nullptr && std::string(soc_name).find("Ascend950") != std::string::npos) {
-        cycle2us = 1000;
-    }
-
-    aclshmem_prof_block_t *prof = &out_profs->block_prof[0];
-    if (prof->ccount[frame_id] == 0) return;
-
-    double window_us = (double)prof->cycles[frame_id] / prof->ccount[frame_id] / cycle2us;
-    double per_iter_us = (loop_count > 0) ? window_us / static_cast<double>(loop_count) : window_us;
-
-    double bandwidth = 0.0;
-    if (metric == perftest::PERF_METRIC_BW && per_iter_us > 0) {
-        bandwidth = (double)datasize / per_iter_us * 1000000.0 / 1024.0 / 1024.0 / 1024.0;
-    }
-
-    std::vector<std::string> row = {
-        int_to_string(datasize),
-        int_to_string(g_npus_arg),
-        int_to_string(1),
-        int_to_string(ub_size),
-        double_to_string(bandwidth),
-        double_to_string(per_iter_us),
-        double_to_string(per_iter_us),
-    };
-    csv_data.push_back(row);
-}
-
 template <typename T>
 int test_udma_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
                               int min_exponent, int max_exponent, int loop_count,
@@ -216,7 +179,8 @@ int test_udma_perf_test_impl(int pe_id, int n_pes, uint64_t local_mem_size,
         }
 
         aclshmemx_show_prof(&out_profs, false);
-        udma_collect_csv(out_profs, frame_id, datasize, g_npus, ub_size_kb, loop_count, metric, csv_data);
+        collect_prof_data_to_csv_v2(out_profs, frame_id, datasize, 1, g_npus, ub_size_kb, loop_count,
+                                    metric == perftest::PERF_METRIC_BW, csv_data);
 
         aclshmem_free(dst_ptr);
         aclshmem_free(src_ptr);
@@ -365,7 +329,7 @@ int main(int argc, char *argv[])
     int prof_pe = (prof_pe_env != nullptr) ? std::atoi(prof_pe_env) : 0;
 
     std::vector<std::vector<std::string>> csv_data = {
-        {"DataSize/B", "Npus", "Blocks", "UBsize/KB", "Bandwidth/GB/s", "CoreMaxTime/us", "SingleCoreTime/us"}};
+        {"DataSize/B", "Npus", "Blocks", "UBsize/KB", "Bandwidth/GB/s(1000)", "Bandwidth/GiB/s(1024)", "CoreMaxTime/us", "SingleCoreTime/us"}};
 
     int status = 0;
 #define UDMA_TEST_IMPL_OP(type) \

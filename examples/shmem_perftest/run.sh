@@ -20,6 +20,7 @@ DATA_TYPE="float"
 # 默认核数范围
 MIN_BLOCK_SIZE="32"
 MAX_BLOCK_SIZE="32"
+BLOCK_LIST=""
 # 默认幂数范围
 MIN_EXPONENT="3"
 MAX_EXPONENT="20"
@@ -49,7 +50,8 @@ function usage() {
     echo "  -t|--test-type <type>      设置测试类型 (put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote|all)"
     echo "  -d|--datatype <type>      设置数据类型 (float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all)"
     echo "  -b|--block-size <size>          设置核数"
-    echo "  --block-range <min> <max>       设置核数范围"
+    echo "  --block-range <min> <max>       设置连续核数范围"
+    echo "  --block-list <b1,b2,...>        设置离散核数列表（ascendc/mte_perftest），如 2,4,6,8"
     echo "  -e|--exponent <exponent>        设置数据量的幂数"
     echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
     echo "  --loop-count <count>            设置循环次数"
@@ -94,6 +96,7 @@ while [[ $# -gt 0 ]]; do
             if [ -n "$2" ]; then
                 MIN_BLOCK_SIZE="$2"
                 MAX_BLOCK_SIZE="$2"
+                BLOCK_LIST=""
                 shift 2
             else
                 echo "Error: -b|--block-size requires a value."
@@ -104,9 +107,19 @@ while [[ $# -gt 0 ]]; do
             if [ -n "$2" ] && [ -n "$3" ]; then
                 MIN_BLOCK_SIZE="$2"
                 MAX_BLOCK_SIZE="$3"
+                BLOCK_LIST=""
                 shift 3
             else
                 echo "Error: --block-range requires two values."
+                exit 1
+            fi
+            ;;
+        --block-list)
+            if [ -n "$2" ]; then
+                BLOCK_LIST="$2"
+                shift 2
+            else
+                echo "Error: --block-list requires a value."
                 exit 1
             fi
             ;;
@@ -243,12 +256,20 @@ if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
     exit 1
 fi
 
+if [ -n "$BLOCK_LIST" ] && [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
+    echo "WARN: --block-list only takes effect for ascendc/mte_perftest; udma_perftest always uses block_size=1."
+fi
+
 echo "=============================================="
 echo "example/shmem_perftest"
 echo "=============================================="
 echo "测试类型: $TEST_TYPE"
 echo "数据类型: $DATA_TYPE"
-echo "核数范围: $MIN_BLOCK_SIZE-$MAX_BLOCK_SIZE"
+if [ -n "$BLOCK_LIST" ]; then
+    echo "核数列表: $BLOCK_LIST"
+else
+    echo "核数范围: $MIN_BLOCK_SIZE-$MAX_BLOCK_SIZE"
+fi
 echo "幂数范围: $MIN_EXPONENT-$MAX_EXPONENT"
 echo "循环次数: $LOOP_COUNT"
 echo "UB size(KB): $UB_SIZE"
@@ -286,8 +307,13 @@ if [[ "$MODE" == "ascendc" || "$MODE" == "all" ]]; then
         echo "WARN: ascendc_perftest does not support -t $TEST_TYPE (supports: $ASCENDC_VALID_TT). Skipping ascendc_perftest."
     else
         echo -e "\n========== Running ascendc_perftest =========="
-        echo "Command: bash ${SCRIPT_DIR}/ascendc_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" --device1 \"$DEVICE1\" --device2 \"$DEVICE2\" --ub-size \"$UB_SIZE\""
-        bash "${SCRIPT_DIR}/ascendc_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --device1 "$DEVICE1" --device2 "$DEVICE2" --ub-size "$UB_SIZE"
+        if [ -n "$BLOCK_LIST" ]; then
+            echo "Command: bash ${SCRIPT_DIR}/ascendc_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-list \"$BLOCK_LIST\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" --device1 \"$DEVICE1\" --device2 \"$DEVICE2\" --ub-size \"$UB_SIZE\""
+            bash "${SCRIPT_DIR}/ascendc_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-list "$BLOCK_LIST" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --device1 "$DEVICE1" --device2 "$DEVICE2" --ub-size "$UB_SIZE"
+        else
+            echo "Command: bash ${SCRIPT_DIR}/ascendc_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" --device1 \"$DEVICE1\" --device2 \"$DEVICE2\" --ub-size \"$UB_SIZE\""
+            bash "${SCRIPT_DIR}/ascendc_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" --device1 "$DEVICE1" --device2 "$DEVICE2" --ub-size "$UB_SIZE"
+        fi
     fi
 fi
 
@@ -297,8 +323,13 @@ if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
         echo "WARN: mte_perftest does not support -t $TEST_TYPE (supports: $MTE_VALID_TT). Skipping mte_perftest."
     else
         echo -e "\n========== Running mte_perftest =========="
-        echo "Command: bash ${SCRIPT_DIR}/mte_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
-        bash "${SCRIPT_DIR}/mte_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
+        if [ -n "$BLOCK_LIST" ]; then
+            echo "Command: bash ${SCRIPT_DIR}/mte_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-list \"$BLOCK_LIST\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
+            bash "${SCRIPT_DIR}/mte_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-list "$BLOCK_LIST" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
+        else
+            echo "Command: bash ${SCRIPT_DIR}/mte_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
+            bash "${SCRIPT_DIR}/mte_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
+        fi
     fi
 fi
 

@@ -78,7 +78,8 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 | `--test-type <type>` | `-t <type>` | 测试类型 (put/get/ub2gm_local/ub2gm_remote/gm2ub_local/gm2ub_remote/all) | put |
 | `--datatype <type>` | `-d <type>` | 数据类型 (float/int8/int16/int32/int64/uint8/uint16/uint32/uint64/char/all) | float |
 | `--block-size <size>` | `-b <size>` | 设置单个核数 | 32 |
-| `--block-range <min> <max>` | - | 设置核数范围 | 32-32 |
+| `--block-range <min> <max>` | - | 设置连续核数范围 | 32-32 |
+| `--block-list <b1,b2,...>` | - | 设置离散核数列表，如 `2,4,6,8` | - |
 | `--exponent <exponent>` | `-e <exponent>` | 设置数据量的幂数 (2^exponent) | - |
 | `--exponent-range <min> <max>` | - | 设置数据量的幂数范围 | 3-20 |
 | `--device1 <id>` | - | 设置设备1 ID | 1 |
@@ -119,7 +120,14 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 ./run.sh -t all -d all --block-size 32 --exponent-range 8 20 --device1 1 --device2 2 --loop-count 1000
 ```
 
-#### 5. 使用默认参数运行
+#### 5. 测试指定核数
+
+```bash
+# 在指定核数（2、4、6、8、16核）测试所有操作类型和所有数据类型
+./run.sh -t all -d all --block-list 2,4,6,8,16 --exponent-range 8 20 --device1 1 --device2 2 --loop-count 1000
+```
+
+#### 6. 使用默认参数运行
 
 ```bash
 # 使用默认参数运行put测试
@@ -129,7 +137,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 ./run.sh -t all
 ```
 
-#### 6. 图形化数据
+#### 7. 图形化数据
 
 ```bash
 # 使用perf_data_process.py -d 传入csv数据存储路径，图形化结果将存储在csv存储路径下picture文件夹下。
