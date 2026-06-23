@@ -122,8 +122,11 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @brief Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
  *        updating a remote signal flag on completion using UDMA.
  *        Template function for different data types.
- *        Default WQE_PIPE = PIPE_S; this overload does not take UB scratch and matches the
- *        original (no-buf) signature for backward compatibility.
+ *        No-buf overload: not templated on WQE_PIPE and takes no UB scratch. Submits the WQE
+ *        through the direct (non-staged) path, behaviorally equivalent to the buf-taking
+ *        overload with WQE_PIPE = PIPE_S. Provided to match the original signature for
+ *        backward compatibility with existing callers; new callers should use the buf-taking
+ *        overload (which defaults to WQE_PIPE = PIPE_MTE3).
  *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same
  *        PE are not supported.
  *

@@ -463,10 +463,10 @@ ACLSHMEM_DEVICE void aclshmemi_udma_copy_wqe_from_ub(
 }
 
 // ---- MTE3-staged WQE construction (PIPE_MTE3 path) -------------------------------
-// The default PIPE_S path above writes the SQE/SGE directly to HBM via scalar stores
-// + dcci_cachelines. The MTE3 path stages the full WQE block in caller-provided UB
-// scratch and lands it on the SQ ring with a single DataCopyPad. Useful for hot
-// loops where the per-iteration scalar->HBM bursts dominate.
+// The PIPE_S path above (aclshmemi_udma_post_send) writes the SQE/SGE directly to HBM
+// via scalar stores + dcci_cachelines. The MTE3 path stages the full WQE block in
+// caller-provided UB scratch and lands it on the SQ ring with a single DataCopyPad.
+// Useful for hot loops where the per-iteration scalar->HBM bursts dominate.
 //
 // MTE3 path only supports UDMA_OP_WRITE / UDMA_OP_WRITE_WITH_NOTIFY / UDMA_OP_READ
 // (the data-mover opcodes). FAA / CAS / WRITE_WITH_REDUCE remain on PIPE_S because
