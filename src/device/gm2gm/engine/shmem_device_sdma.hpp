@@ -106,6 +106,71 @@ ACLSHMEM_DEVICE void aclshmemi_fill_notify_record_sqe(__gm__ stars_channel_info_
     sqe->kernel_credit = ACLSHMEM_DEFAULT_KERNEL_CREDIT;
 }
 
+ACLSHMEM_DEVICE void aclshmemi_fill_stars_v2_cmo_sqe(__gm__ stars_channel_info_t* channel_info, __gm__ uint8_t* src,
+                                                     uint32_t length, uint32_t opcode, uint32_t sq_tail,
+                                                     uint32_t task_id)
+{
+    __gm__ stars_v2_sdma_cmo_sqe_t *sqe = (__gm__ stars_v2_sdma_cmo_sqe_t *)((channel_info->sq_base));
+    sqe += (sq_tail % channel_info->sq_depth);
+
+    sqe->header.type = ACLSHMEM_SQE_TYPE_SDMA;
+    sqe->header.l1_lock = 0U;
+    sqe->header.l1_unlock = 0U;
+    sqe->header.ie = 0U;
+    sqe->header.pre_p = 0U;
+    sqe->header.post_p = 0U;
+    sqe->header.wr_cqe = 1U;
+    sqe->header.ptr_mode = 0U;
+    sqe->header.rtt_mode = 0U;
+    sqe->header.head_update = 0U;
+    sqe->header.reserved = 0U;
+    sqe->header.block_dim = 0U;
+    sqe->header.rt_streamid = static_cast<uint16_t>(channel_info->stream_id);
+    // task_id is derived from SQ tail/head distance and is bounded by SQ depth.
+    sqe->header.task_id = static_cast<uint16_t>(task_id);
+
+    sqe->res3 = 0U;
+    sqe->res4 = 0U;
+    sqe->kernel_credit = ACLSHMEM_DEFAULT_KERNEL_CREDIT;
+    sqe->ptr_mode = 0U;
+    sqe->res5 = 0U;
+
+    sqe->opcode = opcode;
+    sqe->sssv = 1U;
+    sqe->dssv = 1U;
+    sqe->sns = 1U;
+    sqe->dns = 1U;
+    sqe->sro = 0U;
+    sqe->dro = 0U;
+    sqe->stride = 0U;
+    sqe->ie2 = 0U;
+    sqe->comp_en = 0U;
+    sqe->res6 = 0U;
+
+    sqe->sqe_id = 0U;
+    sqe->mpam_partid = 0U;
+    sqe->mpamns = 0U;
+    sqe->pmg = 0U;
+    sqe->qos = 6U; // HCCL QoS
+    sqe->res7 = 0U;
+
+    sqe->src_streamid = 0U;
+    sqe->src_sub_streamid = 0U;
+    sqe->dst_streamid = 0U;
+    sqe->dst_sub_streamid = 0U;
+
+    uint64_t src_addr = reinterpret_cast<uint64_t>(src);
+    sqe->src_addr_low = static_cast<uint32_t>(src_addr & 0x00000000FFFFFFFFU);
+    sqe->src_addr_high = static_cast<uint32_t>((src_addr & 0xFFFFFFFF00000000U) >> 32);
+    sqe->dst_addr_low = 0U;
+    sqe->dst_addr_high = 0U;
+
+    sqe->length = length;
+    sqe->src_stride_len = 0U;
+    sqe->dst_stride_len = 0U;
+    sqe->stride_num = 0U;
+}
+
 ACLSHMEM_DEVICE void aclshmemi_fill_cmo_sqe(__gm__ stars_channel_info_t* channel_info, __gm__ uint8_t* src,
                                                     uint32_t length, uint32_t opcode, uint32_t sq_tail, uint32_t task_id)
 {
@@ -118,7 +183,8 @@ ACLSHMEM_DEVICE void aclshmemi_fill_cmo_sqe(__gm__ stars_channel_info_t* channel
     sqe->post_p = 0U;
     sqe->wr_cqe = 0U;
     sqe->rt_streamid = static_cast<uint16_t>(channel_info->stream_id);
-    sqe->task_id = task_id;
+    // task_id is derived from SQ tail/head distance and is bounded by SQ depth.
+    sqe->task_id = static_cast<uint16_t>(task_id);
     sqe->kernel_credit = ACLSHMEM_DEFAULT_KERNEL_CREDIT;
 
     // for prefetch
@@ -184,7 +250,7 @@ ACLSHMEM_DEVICE void aclshmemi_stars_submit_notify_record(AscendC::LocalTensor<u
         AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(write_info);
 
         // Ring Doorbell
-        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + 8, sq_tail, tmp_local, sync_id);
+        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
         aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail, tmp_local, sync_id);
     }
 }
@@ -238,7 +304,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t
             AscendC::DcciDst::CACHELINE_OUT>(write_info);
 
         // Ring Doorbell
-        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + 8, sq_tail, tmp_local,
+        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local,
                                       sync_id);
         aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail, tmp_local, sync_id);
     }
@@ -331,7 +397,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
             AscendC::DcciDst::CACHELINE_OUT>(write_info);
 
         // Ring Doorbell
-        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + 8, sq_tail[queue_id], tmp_local,
+        aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail[queue_id], tmp_local,
                                       sync_id);
         aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail[queue_id], tmp_local, sync_id);
     }
@@ -344,7 +410,12 @@ ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(__gm__ stars_channel_info_t 
 {
     __gm__ stars_channel_info_t *channel_info = batch_write_channel_info;
 
-    aclshmemi_fill_cmo_sqe(channel_info, src, size, (uint32_t) cmo_type, sq_tail, sq_tail - channel_info->sq_head);
+    if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
+        aclshmemi_fill_stars_v2_cmo_sqe(
+            channel_info, src, size, (uint32_t)cmo_type, sq_tail, sq_tail - channel_info->sq_head);
+    } else {
+        aclshmemi_fill_cmo_sqe(channel_info, src, size, (uint32_t)cmo_type, sq_tail, sq_tail - channel_info->sq_head);
+    }
 
     sq_tail = (sq_tail + 1) % (channel_info->sq_depth);
     AscendC::PipeBarrier<PIPE_ALL>();
@@ -397,7 +468,7 @@ ACLSHMEM_DEVICE void aclshmemi_cmo_async(__gm__ uint8_t *src, uint32_t size, ACL
     AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(write_info);
 
     // Ring Doorbell
-    aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + 8, sq_tail, tmp_local, sync_id);
+    aclshmemi_set_value<uint32_t>((__gm__ uint8_t *)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
     aclshmemi_set_value<uint32_t>(((__gm__ uint8_t *)channel_info) + 4, sq_tail, tmp_local, sync_id);
 
     AscendC::PipeBarrier<PIPE_ALL>();

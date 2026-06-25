@@ -130,6 +130,77 @@ enum class ACLSHMEMCMOTYPE : uint32_t {
     CMO_TYPE_MAX,
 };
 
+// STARS SQE layout is selected at compile time by __NPU_ARCH__.
+// Ascend950 (dav-3510) uses STARS v2 layout and SQ tail doorbell offset 0.
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+constexpr bool ACLSHMEM_STARS_V2_LAYOUT = true;
+constexpr uint32_t ACLSHMEM_STARS_SQ_TAIL_OFFSET = 0x0;
+#else
+constexpr bool ACLSHMEM_STARS_V2_LAYOUT = false;
+constexpr uint32_t ACLSHMEM_STARS_SQ_TAIL_OFFSET = 0x8;
+#endif
+
+struct stars_v2_sqe_header_t {
+    uint8_t type : 6;
+    uint8_t l1_lock : 1;
+    uint8_t l1_unlock : 1;
+    uint8_t ie : 1;
+    uint8_t pre_p : 1;
+    uint8_t post_p : 1;
+    uint8_t wr_cqe : 1;
+    uint8_t ptr_mode : 1;
+    uint8_t rtt_mode : 1;
+    uint8_t head_update : 1;
+    uint8_t reserved : 1;
+    uint16_t block_dim;
+    uint16_t rt_streamid;
+    uint16_t task_id;
+};
+
+struct stars_v2_sdma_cmo_sqe_t {
+    stars_v2_sqe_header_t header;
+    /********8 ~ 15 bytes**********/
+    uint32_t res3;
+    uint16_t res4;
+    uint8_t kernel_credit;
+    uint8_t ptr_mode : 1;
+    uint8_t res5 : 7;
+    /********16 ~ 19 bytes**********/
+    uint32_t opcode : 8;
+    uint32_t sssv : 1;
+    uint32_t dssv : 1;
+    uint32_t sns : 1;
+    uint32_t dns : 1;
+    uint32_t sro : 1;
+    uint32_t dro : 1;
+    uint32_t stride : 2;
+    uint32_t ie2 : 1;
+    uint32_t comp_en : 1;
+    uint32_t res6 : 14;
+    /********20 ~ 23 bytes**********/
+    uint16_t sqe_id;
+    uint8_t mpam_partid;
+    uint8_t mpamns : 1;
+    uint8_t pmg : 2;
+    uint8_t qos : 4;
+    uint8_t res7 : 1;
+    /********24 ~ 31 bytes**********/
+    uint16_t src_streamid;
+    uint16_t src_sub_streamid;
+    uint16_t dst_streamid;
+    uint16_t dst_sub_streamid;
+    /********32 ~ 47 bytes**********/
+    uint32_t src_addr_low;
+    uint32_t src_addr_high;
+    uint32_t dst_addr_low;
+    uint32_t dst_addr_high;
+    /********48 ~ 63 bytes**********/
+    uint32_t length;
+    uint32_t src_stride_len;
+    uint32_t dst_stride_len;
+    uint32_t stride_num;
+};
+
 struct stars_sdma_cmo_sqe_t {
     uint8_t type : 6;
     uint8_t l1_lock : 1;

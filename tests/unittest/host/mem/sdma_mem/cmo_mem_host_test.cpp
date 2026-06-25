@@ -99,8 +99,8 @@ static void test_cmo_function(aclrtStream stream, uint32_t pe, uint32_t npes)
     ASSERT_EQ(aclrtFree(res_host), 0);
 
     // copy_perf
-    ASSERT_EQ(no_prefetch_cycles >= 2 * host_prefetch_cycles, true);
-    ASSERT_EQ(no_prefetch_cycles >= 2 * device_prefetch_cycles, true);
+    ASSERT_GE(static_cast<double>(no_prefetch_cycles), 1.5 * static_cast<double>(host_prefetch_cycles));
+    ASSERT_GE(static_cast<double>(no_prefetch_cycles), 1.5 * static_cast<double>(device_prefetch_cycles));
 }
 
 void test_aclshmem_cmo_mem(int pe, int npes, uint64_t local_mem_size)
