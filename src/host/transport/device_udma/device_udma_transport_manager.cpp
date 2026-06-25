@@ -118,7 +118,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
         mrInfo.in.ub.flags.bs.access = MEM_SEG_ACCESS_DEFAULT;
         mrInfo.in.ub.flags.bs.cacheable = mr.cacheable;
         mrInfo.in.ub.flags.bs.tokenIdValid = mr.tokenIdValid;
-        mrInfo.in.ub.flags.bs.nonPin = 0;
+        mrInfo.in.ub.flags.bs.nonPin = 1;
         mrInfo.in.ub.flags.bs.userIova = 0;
         mrInfo.in.ub.flags.bs.tokenPolicy = URMA_TOKEN_PLAIN_TEXT;
 
