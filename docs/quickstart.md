@@ -46,17 +46,17 @@
 
 商发版本只需要安装`toolkit`的`.run`包即可。
 
-社区版本需要额外安装一个`{soc_name}-ops`的`.run`安装包，需要选择cann版本，选择对应的soc、操作系统、架构的版本。（如果没有`{soc_name}-ops`的算子包，可能会提示缺少`libhccl.so`库文件）。
+社区版本需要额外安装一个`Ascend-cann-{soc_name}-ops-{cann_version}-{os_arch}.run`的`.run`安装包，需要选择cann版本，选择对应的soc、操作系统、架构的版本。（如果没有`{soc_name}-ops`的算子包，可能会提示缺少`libhccl.so`库文件）。
 
 社区资源参考：[CANN 9.0.0 社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0)。
 
-soc的信息如下，可以参考安装。
+各 SoC 对应的 ops 包文件名如下（以 CANN 9.0.0、x86_64 为例）：
 
-|soc version|备注|
-|-----------|---|
-|Ascend 910B|A2|
-|Ascend 910C|A3|
-|Ascend 950	|无|
+| SoC 版本 | 备注 | ops 包文件名 |
+|----------|------|-------------|
+| Ascend 910B | 910b | `Ascend-cann-910b-ops_9.0.0_linux-x86_64.run` |
+| Ascend 910C | A3 | `Ascend-cann-A3-ops_9.0.0_linux-x86_64.run` |
+| Ascend 950 | 950 | `Ascend-cann-950-ops_9.0.0_linux-x86_64.run` |
 
 安装 toolkit 包 
 ```sh
@@ -123,6 +123,9 @@ python3 -m pip install -r requirements-examples.txt
 - MPI：OpenMPI 4.0+（分布式通信场景）
 - PyTorch：1.12+（Python 示例运行）
 
+### 4.7 Docker 容器环境
+
+用户可以根据具体芯片类型，操作系统在[昇腾镜像仓库](https://www.hiascend.com/developer/ascendhub)拉取已配置好CANN环境的容器进行项目开发。Docker使用方法可以参考昇腾CANN镜像仓库内[快速开始](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)章节
 
 ## 5 快速上手
 
