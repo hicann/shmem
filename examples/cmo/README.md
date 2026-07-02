@@ -1,5 +1,7 @@
 # CMO (Cache Maintenance Operation) 功能演示与读性能测试示例
 
+> **暂不支持 Ascend950**：当前暂不支持在 Ascend950 平台配套编译运行。
+
 ## 功能简介
 
 本示例演示了如何使用Shmem的CMO（Cache Maintenance Operation）接口来优化GM（Global Memory）内存访问性能。该CMO接口提供L2缓存管理操作，可以通过预取（Prefetch）将数据从GM提前加载到L2缓存中，从而减少数据访问延迟，提升整体计算性能。
