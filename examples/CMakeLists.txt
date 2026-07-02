@@ -187,6 +187,7 @@ if(ACLSHMEM_RDMA_SUPPORT)
     foreach(EXAMPLE
         rdma_perftest_demo
         rdma_demo
+        rdma_sync_barrier_demo
         rdma_aclgraph_demo
         rdma_handlewait_test/unuse_handlewait
         rdma_handlewait_test/use_handlewait

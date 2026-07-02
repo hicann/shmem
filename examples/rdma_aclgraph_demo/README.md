@@ -1,7 +1,7 @@
 ## 示例场景
 aclGraph图结构如下：
-![image.png](https://raw.gitcode.com/user-images/assets/8546182/091ff732-56c0-431e-be32-21ab6f725de4/image.png 'image.png')
-由于rdma allgather只发送Write，因此在入图时需要在rdma allgather前后添加`aclshmemx_handle_wait`接口进行同步，确保所有PE上的图均已执行到相应阶段，确保aclGraph图（model）的精度正常。
+![image.png](https://raw.gitcode.com/user-images/assets/8546182/b9370686-7b23-4b69-b18e-606167315795/image.png 'image.png')
+由于rdma allgather只发送Write，因此在rdma allgather算子中添加`aclshmemx_roce_barrier_all`接口进行同步，确保所有PE上的图均已执行到相应阶段，确保aclGraph图（model）的精度正常。
 
 ## 环境要求
 

@@ -27,6 +27,8 @@ extern "C" [[bisheng::core_ratio(0,1)]] __global__ __aicore__ void device_all_ga
     int64_t pe_size = aclshmem_n_pes();
     AscendC::PipeBarrier<PIPE_ALL>();
 
+    aclshmemx_roce_barrier_all();
+    
     for (int i = 0; i < pe_size; i++) {
         if (i == my_rank) {
             continue;
@@ -34,6 +36,7 @@ extern "C" [[bisheng::core_ratio(0,1)]] __global__ __aicore__ void device_all_ga
         aclshmemx_roce_put_nbi(gva + message_length * my_rank, gva + message_length * my_rank,
                                 (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), message_length, i, 0);
     }
+    aclshmemx_roce_barrier_all();
 }
 
 void allgather_demo(uint32_t block_dim, void *stream, uint8_t *gva, int elements)

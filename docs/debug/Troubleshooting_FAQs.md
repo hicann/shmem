@@ -175,6 +175,10 @@ rank[16] ranks per NIC/IP exceeded: 17 > 16, conflict rank: 16
 4. 确认 RDMA 网卡间 IP 层可达：`ping <对端RDMA_IP>`
 5. 检查交换机 PFC/ECN 无损网络配置
 
+### 卡间同步Device侧执行卡死
+#### Q: 在算子代码中调用RDMA卡间同步接口 `aclshmemx_roce_sync_all, aclshmemx_roce_barrier_all, aclshmemx_roce_barrier, aclshmemx_roce_team_sync`出现某几个PE执行卡死：
+#### A: 确保当前调用上述接口的算子只在AIV上执行。
+
 ## 调试相关
 ### 编译问题
 #### Q:自行添加"-O0 -g"编译选项调试，编译出错，"bisheng: error: xxxxx will be ignored. [-Werror -Woption-ignored]"

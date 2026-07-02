@@ -59,11 +59,7 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
 
     // AllGather
     allgather_demo(1, stream, (uint8_t *)ptr, trans_size * sizeof(int32_t));
-    aclshmem_handle_t handle;
-    handle.team_id = ACLSHMEM_TEAM_WORLD;
-    aclshmemx_handle_wait(handle, stream);
     status |= aclrtSynchronizeStream(stream);
-    aclshmemi_control_barrier_all();
 
     // 结果校验打印
     int32_t *y_host;

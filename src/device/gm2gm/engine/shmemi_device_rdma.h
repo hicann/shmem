@@ -163,8 +163,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_read(
     AscendC::LocalTensor<uint64_t> ub_local64, AscendC::LocalTensor<uint32_t> ub_local32, uint32_t sync_id);
 
 /**
- * @brief RDMA Quiet function. This synchronous function ensures all previous RDMA WQEs are completed
- * (data has arrived at the destination NIC).
+ * @brief RDMA Quiet function for a single QP. This synchronous function ensures all previous RDMA WQEs
+ * on the specified QP are completed (data has arrived at the destination NIC).
  *
  * @param pe                     [in] PE number of the remote PE.
  * @param qp_idx                 [in] QP index in multi-QP scenario (default 0 for single QP)
@@ -175,6 +175,46 @@ ACLSHMEM_DEVICE void aclshmemi_roce_read(
 ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
     uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<uint64_t> ub_local64, AscendC::LocalTensor<uint32_t> ub_local32,
     uint32_t sync_id);
+
+/**
+ * @brief RDMA Quiet function for all QPs of a PE. This synchronous function ensures all previous RDMA WQEs
+ * on all QPs are completed (data has arrived at the destination NIC).
+ *
+ * @param pe                     [in] PE number of the remote PE.
+ * @param ub_local64             [in] temporary UB local tensor of uint64_t used as workspace
+ * @param ub_local32             [in] temporary UB local tensor of uint32_t used as workspace
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
+ */
+ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
+    uint32_t pe, AscendC::LocalTensor<uint64_t> ub_local64, AscendC::LocalTensor<uint32_t> ub_local32,
+    uint32_t sync_id);
+
+/**
+ * @brief RDMA Sync function. Performs a synchronization operation on the specified team,
+ * ensuring all PEs in the team reach the sync point before proceeding.
+ * Uses RDMA-based dissemination algorithm with highlevel signal operations.
+ *
+ * @param team              [in] Pointer to the team on which to perform synchronization.
+ * @param buf               [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id           [in] ID used to Sync S\\MTE3 Event.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_roce_team_sync(aclshmemx_team_t *team, __ubuf__ T* buf, uint32_t sync_id);
+
+/**
+ * @brief RDMA Barrier function with explicit UB buffer and sync_id. Performs a barrier operation
+ * on the specified team, ensuring all previous RDMA operations are completed and all PEs in the team
+ * reach the barrier point before proceeding. First performs quiet on all QPs for all PEs in the team,
+ * then performs a sync operation.
+ * This version allows the caller to explicitly provide UB buffer and sync_id, avoiding resource
+ * conflicts with the default rdma_config in device_state.
+ *
+ * @param team                   [in] Pointer to the team on which to perform barrier.
+ * @param buf                    [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id                [in] ID used to Sync S\\MTE3 Event.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemi_roce_barrier(aclshmemx_team_t *team, __ubuf__ T* buf, uint32_t sync_id);
 
 /**
  * @brief Asynchronous RDMA Atomic Fetch and Add function.

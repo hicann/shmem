@@ -169,6 +169,114 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_quiet(uint32_t pe, __ubuf__ T* buf, uint32_t sync_id);
 
 /**
+ * @brief RDMA Team Sync function. Performs a synchronization operation on the specified team,
+ * ensuring all PEs in the team reach the sync point before proceeding.
+ * This is a collective operation that uses RDMA-based dissemination algorithm.
+ *        WARNING: This interface reads UB buffer and sync_id from device_state->rdma_config.
+ *        If aclshmemx_set_rdma_config is not called to configure device_state's buf and sync_id,
+ *        or if multiple concurrent operations share the same rdma_config, resource conflicts
+ *        may occur. Use the overload with explicit buf and sync_id parameters for concurrent scenarios.
+ *
+ * @param team              [in] Pointer to the team on which to perform synchronization.
+ */
+ACLSHMEM_DEVICE int aclshmemx_roce_team_sync(aclshmemx_team_t *team);
+#define aclshmemx_roce_sync aclshmemx_roce_team_sync
+
+/**
+ * @brief RDMA Team Sync function with explicit UB buffer and sync_id. Performs a synchronization
+ * operation on the specified team, ensuring all PEs in the team reach the sync point before proceeding.
+ * This is a collective operation that uses RDMA-based dissemination algorithm.
+ *        This version allows the caller to explicitly provide UB buffer and sync_id, avoiding resource
+ *        conflicts with the default rdma_config in device_state.
+ *
+ * @param team              [in] Pointer to the team on which to perform synchronization.
+ * @param buf               [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id           [in] ID used to Sync S\\MTE3 Event.
+ * @return 0 on success, non-zero on failure.
+ */
+template <typename T>
+ACLSHMEM_DEVICE int aclshmemx_roce_team_sync(aclshmemx_team_t *team, __ubuf__ T* buf, uint32_t sync_id);
+
+/**
+ * @brief RDMA Sync All function. Performs a synchronization operation on all PEs
+ * (ACLSHMEM_TEAM_WORLD), ensuring all PEs reach the sync point before proceeding.
+ * Equivalent to aclshmemx_roce_team_sync with ACLSHMEM_TEAM_WORLD team.
+ *        WARNING: This interface reads UB buffer and sync_id from device_state->rdma_config.
+ *        If aclshmemx_set_rdma_config is not called to configure device_state's buf and sync_id,
+ *        or if multiple concurrent operations share the same rdma_config, resource conflicts
+ *        may occur. Use the overload with explicit buf and sync_id parameters for concurrent scenarios.
+ */
+ACLSHMEM_DEVICE void aclshmemx_roce_sync_all();
+
+/**
+ * @brief RDMA Sync All function with explicit UB buffer and sync_id. Performs a synchronization
+ * operation on all PEs (ACLSHMEM_TEAM_WORLD), ensuring all PEs reach the sync point before proceeding.
+ * Equivalent to aclshmemx_roce_team_sync with ACLSHMEM_TEAM_WORLD team.
+ *        This version allows the caller to explicitly provide UB buffer and sync_id, avoiding resource
+ *        conflicts with the default rdma_config in device_state.
+ *
+ * @param buf               [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id           [in] ID used to Sync S\\MTE3 Event.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_sync_all(__ubuf__ T* buf, uint32_t sync_id);
+
+/**
+ * @brief RDMA Barrier function. Performs a barrier operation on the specified team,
+ * ensuring all previous RDMA operations are completed and all PEs in the team
+ * reach the barrier point before proceeding. This function first performs a quiet
+ * operation on all QPs for all PEs in the team, then performs a sync operation.
+ *        WARNING: This interface reads UB buffer and sync_id from device_state->rdma_config.
+ *        If aclshmemx_set_rdma_config is not called to configure device_state's buf and sync_id,
+ *        or if multiple concurrent operations share the same rdma_config, resource conflicts
+ *        may occur. Use the overload with explicit buf and sync_id parameters for concurrent scenarios.
+ *
+ * @param team              [in] Pointer to the team on which to perform barrier.
+ */
+ACLSHMEM_DEVICE int aclshmemx_roce_barrier(aclshmemx_team_t *team);
+
+/**
+ * @brief RDMA Barrier function with explicit UB buffer and sync_id. Performs a barrier operation
+ * on the specified team, ensuring all previous RDMA operations are completed and all PEs in the team
+ * reach the barrier point before proceeding. This function first performs a quiet operation on all QPs
+ * for all PEs in the team, then performs a sync operation.
+ *        This version allows the caller to explicitly provide UB buffer and sync_id, avoiding resource
+ *        conflicts with the default rdma_config in device_state.
+ *
+ * @param team              [in] Pointer to the team on which to perform barrier.
+ * @param buf               [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id           [in] ID used to Sync S\\MTE3 Event.
+ */
+template <typename T>
+ACLSHMEM_DEVICE int aclshmemx_roce_barrier(aclshmemx_team_t *team, __ubuf__ T* buf, uint32_t sync_id);
+
+/**
+ * @brief RDMA Barrier All function. Performs a barrier operation on all PEs
+ * (ACLSHMEM_TEAM_WORLD), ensuring all previous RDMA operations are completed and
+ * all PEs reach the barrier point before proceeding.
+ * Equivalent to aclshmemx_roce_barrier with ACLSHMEM_TEAM_WORLD team.
+ *        WARNING: This interface reads UB buffer and sync_id from device_state->rdma_config.
+ *        If aclshmemx_set_rdma_config is not called to configure device_state's buf and sync_id,
+ *        or if multiple concurrent operations share the same rdma_config, resource conflicts
+ *        may occur. Use the overload with explicit buf and sync_id parameters for concurrent scenarios.
+ */
+ACLSHMEM_DEVICE void aclshmemx_roce_barrier_all();
+
+/**
+ * @brief RDMA Barrier All function with explicit UB buffer and sync_id. Performs a barrier operation
+ * on all PEs (ACLSHMEM_TEAM_WORLD), ensuring all previous RDMA operations are completed and
+ * all PEs reach the barrier point before proceeding.
+ * Equivalent to aclshmemx_roce_barrier with ACLSHMEM_TEAM_WORLD team.
+ *        This version allows the caller to explicitly provide UB buffer and sync_id, avoiding resource
+ *        conflicts with the default rdma_config in device_state.
+ *
+ * @param buf               [in] Pointer on local UB, available space larger than 64 Bytes.
+ * @param sync_id           [in] ID used to Sync S\\MTE3 Event.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_barrier_all(__ubuf__ T* buf, uint32_t sync_id);
+
+/**
  * @brief Synchronous interface. Returns the value at the source address on the specified PE.
  * Supported hardware platform: Ascend950.
  *        The function returns after the remote atomic operation has completed and is visible on the remote PE.

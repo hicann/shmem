@@ -89,19 +89,14 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     aclrtMallocHost(reinterpret_cast<void **>(&y_host), input_size);
 
     aclmdlRI model = nullptr;
-    aclshmem_handle_t handle;
-    handle.team_id = ACLSHMEM_TEAM_WORLD;
 
     for (int zz = 0; zz < LOOP_TIMES; zz++) {
         if (zz == 0) {
             aclmdlRICaptureBegin(stream, ACL_MODEL_RI_CAPTURE_MODE_RELAXED);
             run_vector_add<int>(n_pes * TRANS_SIZE, ptr, add_ptr, temp_ptr, stream);
             aclrtMemcpyAsync(ptr, input_size, temp_ptr, input_size, ACL_MEMCPY_DEVICE_TO_DEVICE, stream);
-            aclshmemx_handle_wait(handle, stream);
             allgather_demo(1, stream, (uint8_t *)ptr, TRANS_SIZE * sizeof(int32_t));
-            aclshmemx_handle_wait(handle, stream);
             allgather_demo(1, stream, (uint8_t *)b_ptr, TRANS_SIZE * sizeof(int32_t));
-            aclshmemx_handle_wait(handle, stream);
             run_vector_add<int>(n_pes * TRANS_SIZE, ptr, b_ptr, c_ptr, stream);
             aclmdlRICaptureEnd(stream, &model);
             aclmdlRIExecuteAsync(model, stream);
