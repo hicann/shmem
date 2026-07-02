@@ -1,5 +1,7 @@
 # SHMEM 算子代码走读检查项
 
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 本文列出 SHMEM 算子实现与设计一致性走读的分类检查项。每项包含描述、错误示例和正确做法。
 
 ## 1. CMake 与构建
@@ -14,7 +16,7 @@
 
 ### 1.2 Target 命名
 
-【描述】编译产物名称应与 `design.md` 的 `op_name` 一致，便于 `run.sh` 和调试引用。
+【描述】编译产物名称应与 `design.md` 的 `op_name` 一致，便于 `scripts/run.sh` 和调试引用。
 
 ## 2. 通信数据面
 
@@ -53,7 +55,7 @@ aclshmemx_mte_put_nbi(remote_symm, local_gm, ub_buf, size, pe);
 // 发送端 signal(magic=1)，接收端 wait(magic=2)
 aclshmemx_signal_op(remote_sig, 1, SIGNAL_SET, pe);
 // ...
-aclshmemx_int64_wait_until(local_sig, SHMEM_CMP_EQ, 2);  // 永远等不到
+aclshmem_signal_wait_until(local_sig, ACLSHMEM_CMP_EQ, 2);  // 永远等不到
 ```
 
 ### 3.2 Phase 边界同步
@@ -62,7 +64,24 @@ aclshmemx_int64_wait_until(local_sig, SHMEM_CMP_EQ, 2);  // 永远等不到
 
 ### 3.3 Quiet/Fence 使用
 
-【描述】如果 design 要求 `quiet` 保证远端写入可见性，实现中不能省略。`quiet` 保证本 PE 发出的 put/signal 对远端可见；`fence` 保证本 PE 后续操作看到之前收到的写入。
+【描述】如果 design 要求 quiet 保证远端写入可见性，实现中不能省略。单引擎 MTE 路径用 `aclshmemx_mte_quiet`；多引擎混用或收尾用 `aclshmem_quiet`。`fence` 当前实现等价于全引擎 `quiet`。
+
+### 3.4 Internal / Deprecated API
+
+【描述】custom-ops 新算子 **禁止** 调用 `aclshmemi_*`（见 [internal-api-boundary.md](../../shmem-ops-code-gen/references/internal-api-boundary.md)）。**禁止** 新增 `aclshmemx_barrier_all_vec`（用 `aclshmem_barrier_all`）。核间同步用 `AscendC::SyncAll`，勿用 `aclshmemi_barrier_core_soft`。
+
+【错误做法】
+```cpp
+aclshmemi_barrier_core_soft();
+aclshmemx_barrier_all_vec();
+```
+
+【正确做法】
+```cpp
+AscendC::SyncAll<true>();
+aclshmem_barrier_all();
+aclshmemx_mte_quiet();
+```
 
 ## 4. 分核与并发
 
@@ -131,9 +150,13 @@ if (core_idx == core_num - 1) {
 
 ## 8. 性能路径
 
-### 8.1 未接入的高性能 Kernel
+### 8.1 统一 kernel 路径（默认）
 
-【描述】如果 design 有多种 kernel（如 small data kernel 和 large data kernel），实现中必须都有对应代码路径，不能只实现一种。
+【描述】默认 **single path** 一套 kernel + UB 内分块。仅当 design 明确记录 profiling ≥5% 收益时，才允许 `small`/`big` 或 `*_small`/`*_large` 并行路径。
+
+【错误做法】未证明收益即维护 `if (0)` / `INT64_MAX` 禁用的 dead `large` 路径与 unified 路径长期并存。
+
+【正确做法】合并为 unified；外层 tile 仅因 GVA/symm 容量保留。见 implementation-boundary、code-patterns §6.4。
 
 ### 8.2 不必要的 GM Scratch
 

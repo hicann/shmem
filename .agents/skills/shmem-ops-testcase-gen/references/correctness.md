@@ -1,12 +1,14 @@
 # SHMEM 正确性验证规则
 
-本文定义 SHMEM 算子正确性验证的规则和策略：测什么、怎么构造 golden、精度容差如何选取、invariant 如何映射到测试。代码模板（gen_data.py / check_result.py / run.sh / main.cpp 边界）见 [test-structure-template.md](test-structure-template.md)。
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
+本文定义 SHMEM 算子正确性验证的规则和策略：测什么、怎么构造 golden、精度容差如何选取、invariant 如何映射到测试。代码模板（gen_data.py / check_result.py / `scripts/run.sh` / main.cpp 边界）见 [test-structure-template.md](test-structure-template.md)。
 
 ## 1. 核心原则
 
 **职责分离**：算子 `main.cpp` 只负责单 PE Host 编排、kernel 调用和输出文件写入。golden 生成和精度验证由独立的 Python 脚本完成。复杂 Host 计划逻辑拆到独立 `.cpp/.h`。
 
-**单进程单 PE**：`main.cpp` 一次启动只对应一个 PE。多 PE 测试由 `run.sh` 启动多个独立进程。
+**单进程单 PE**：`main.cpp` 一次启动只对应一个 PE。多 PE 测试由 `scripts/run.sh` 启动多个独立进程。
 
 **算子必须在 Device 侧执行**：即使是 correctness-first 实现，也必须使用 Device kernel。禁止 Host RMA 作为主通信路径。可以先用简单的 Device kernel（如单 block 串行）实现正确性。
 
@@ -46,14 +48,6 @@
 | gap cases | gap analysis 中新增能力或 engine-specific path |
 | visibility | replicated、sharded 或 owner-only 输出分别检查 |
 
-通算融合还需拆分 golden：local compute golden + communication semantic golden + final fused output golden。如果只检查 final output，测试脚本中保留可选中间结果 dump 开关。
-
-Case matrix 模板和规模分档详见 [testcase-scale-standard.md](testcase-scale-standard.md)。
-
-## 4. Golden 构造策略
-
-按算子类型选择 golden 构造方式：
-
 ### 4.1 Rank Pattern（纯通信算子推荐）
 
 为每个 PE 生成含 rank 特征的输入（如 `pe_id * 1000000 + token * 1000 + h`），golden 按通信语义直接构造。适合 allgather、shuffle、put/get 等纯搬运算子。
@@ -68,7 +62,7 @@ Python 脚本使用 numpy 按通信语义计算 golden。浮点累加使用 floa
 
 参考：`examples/allgather/scripts/data_gen.py`
 
-### 4.3 PyTorch Reference（通算融合算子推荐）
+### 4.3 PyTorch Reference
 
 Python 脚本使用 PyTorch 模拟完整语义（local compute → communication → finalize）。计算使用 float32，最终按 design 的 dtype/cast 规则转换。
 
@@ -93,7 +87,7 @@ Python 脚本使用 PyTorch 模拟完整语义（local compute → communication
 - check_result.py 同时计算 `precision_percent`（逐元素通过率）和 `eb`（平均偏置），通过标准见 [precision-standard.md §4](precision-standard.md)
 - 支持可选的 `--torch-output` 参数启用 reference pass 兜底，判定见 [precision-standard.md §5](precision-standard.md)
 - 比较时转 float64，检查 nan/inf
-- run.sh **MUST** 显式传 `--rtol` 和 `--atol`
+- `scripts/run.sh` **MUST** 显式传 `--rtol` 和 `--atol`
 
 ## 6. Invariant → 测试映射
 

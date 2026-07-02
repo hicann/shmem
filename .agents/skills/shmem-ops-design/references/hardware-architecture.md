@@ -120,16 +120,18 @@ SHMEM 通过 RDMA 引擎实现跨节点或 P2P 不可达场景的远程访问。
 
 ### 4.1 核间同步
 
-- `pipe_barrier(PIPE_ALL)`：当前 core 内所有流水线阶段同步
-- 各 MTE/Vector/Cube 流水线有独立的 pipe barrier
+- `AscendC::SyncAll`：同一 PE 内多 AIV 核间同步（纯 Vector 首选；见 asc-devkit [SyncAll](https://gitcode.com/cann/asc-devkit/blob/master/docs/api/SIMD-API/%E5%9F%BA%E7%A1%80API/%E5%90%8C%E6%AD%A5%E6%8E%A7%E5%88%B6/%E6%A0%B8%E9%97%B4%E5%90%8C%E6%AD%A5/SyncAll.md)）
+- `AscendC::PipeBarrier<PIPE_*>`：单 AIV 内各流水线阶段同步
+- **禁止** custom-ops 新代码调用 internal `aclshmemi_barrier_core_soft`（无公开 API；legacy example 除外）
 
 ### 4.2 跨 PE 同步
 
 - `aclshmemx_signal_op`：向远端 PE 的 signal 地址写入值
-- `aclshmemx_int64_wait_until`：等待本地 signal 地址满足条件
+- `aclshmem_signal_wait_until`：等待本地 signal 地址满足条件
 - `aclshmem_barrier_all` / `aclshmem_team_sync`：集合同步
-- `aclshmem_quiet`：保证本 PE 发出的写入对远端可见
-- `aclshmem_fence`：保证本 PE 后续读取看到之前收到的写入
+- `aclshmem_quiet`：等待本 PE 已发出的**全引擎** RMA 完成（MTE + SDMA + UDMA + RDMA）
+- `aclshmemx_mte_quiet` / `aclshmemx_sdma_quiet` / `aclshmemx_udma_quiet` / `aclshmemx_roce_quiet`：单引擎 quiet；**仅 MTE put/get 时用 `aclshmemx_mte_quiet`，勿误用全局 `aclshmem_quiet`**
+- `aclshmem_fence`：保证本 PE 后续读取看到之前收到的写入（当前实现等价于 `aclshmem_quiet`）
 
 ### 4.3 FFTS（Fast Function Transfer and Synchronization）
 
@@ -155,7 +157,7 @@ SHMEM 算子的典型分核模式：
 | 910B2 | 48 | 24 |
 | 910B3 | 40 | 20 |
 
-`block_dim` 总数不得超过 AIV 核数。通算融合算子中，AIC block 数不得超过 AIC 核数，AIV block 数不得超过 AIV 核数。
+`block_dim` 总数不得超过 AIV 核数。
 
 ## 6. 数据来源与注意事项
 

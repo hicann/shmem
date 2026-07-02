@@ -28,7 +28,6 @@
 | COMPUTE_QUANT | 量化计算 | 量化 matmul、量化 cast |
 | COMPUTE_FLOAT | 通用浮点通信计算 | reduce、allreduce、reduce_scatter |
 | COMPUTE_FLOAT_HIGH_PRECISION | 高精度浮点通信计算 | fp32 accumulate 的 matmul+reduce |
-| VECTOR_FUSION | 向量融合算子 | matmul+allreduce、matmul+alltoall、MoE dispatch+combine、通算融合 |
 
 ---
 
@@ -55,7 +54,6 @@ compute_times = PE 数 × 每 PE 参与计算/累加的元素数
 | COMPUTE_QUANT | 2^-8 | 2^-8 |
 | COMPUTE_FLOAT | 2^-8 | 2^-7 |
 | COMPUTE_FLOAT_HIGH_PRECISION | 2^-11 | 2^-11 |
-| VECTOR_FUSION | 2^-9 | 2^-9 |
 
 **bfloat16**：
 
@@ -64,8 +62,7 @@ compute_times = PE 数 × 每 PE 参与计算/累加的元素数
 | MOVE | 0 | 0 |
 | COMPUTE_INTEGER | 0 | 0 |
 | COMPUTE_FLOAT | 2^-7 | 2^-6 |
-| COMPUTE_FLOAT_HIGH_PRECISION | 2^-8 | 2^-8 |
-| VECTOR_FUSION | 2^-8 | 2^-8 |
+| COMPUTE_FLOAT_HIGH_PRECISION | 2^-11 | 2^-11 |
 
 **float32**：
 
@@ -75,7 +72,6 @@ compute_times = PE 数 × 每 PE 参与计算/累加的元素数
 | COMPUTE_INTEGER | 0 | 0 |
 | COMPUTE_FLOAT | 2^-11 | 2^-10 |
 | COMPUTE_FLOAT_HIGH_PRECISION | 2^-14 | 2^-14 |
-| VECTOR_FUSION | 2^-12 | 2^-12 |
 
 **整型**（int32、int64、int8、uint8）：
 
@@ -161,6 +157,21 @@ overall_pass = basic_pass OR reference_pass
 
 ---
 
+## 5.1 `meta.op_kind` → OpTypes 映射
+
+生成 `check_result.py` / 调用 `--rtol`/`--atol` 时，**先**按 `design.md` DSL 的 `meta.op_kind` 查下表，**再**按 §6 算子名表微调；二者冲突时以 §6 算子语义为准。
+
+| `meta.op_kind` | 默认 OpTypes | rtol / atol | 参考 pass |
+| --- | --- | --- | --- |
+| `transport` | MOVE | 0 / 0 | 不需要 |
+| `collective` | 浮点规约 → COMPUTE_FLOAT；整型搬运 → MOVE | 见 §3.2 或 0 | 浮点规约建议 |
+| `compute` | COMPUTE_FLOAT 或 COMPUTE_INTEGER（按 dtype） | §3.2 或 0 | 浮点建议 |
+| `fused_compute_comm` | COMPUTE_FLOAT（Matmul/GEMM 输出） | §3.2 | **必须** |
+
+> 通算融合若输出为 bf16/fp16，仍用 COMPUTE_FLOAT 阈值；整型路由字段（如 dispatch index）用 COMPUTE_INTEGER。
+
+---
+
 ## 6. SHMEM 算子映射表
 
 | 算子 | OpTypes | rtol 来源 | 参考 pass |
@@ -172,11 +183,8 @@ overall_pass = basic_pass OR reference_pass
 | reduce（浮点） | COMPUTE_FLOAT | §3.2 | 建议 |
 | allreduce（浮点） | COMPUTE_FLOAT | §3.2 | 建议 |
 | reduce_scatter（浮点） | COMPUTE_FLOAT | §3.2 | 建议 |
+| matmul_allreduce / matmul_reduce_scatter / allgather_matmul（通算融合） | COMPUTE_FLOAT | §3.2 | **必须** |
 | dispatch（整型路由） | COMPUTE_INTEGER | 0 | 不需要 |
-| dispatch+combine（浮点） | VECTOR_FUSION | §3.2 | 建议 |
-| matmul+allreduce | VECTOR_FUSION | §3.2 | 建议 |
-| matmul+reduce_scatter | VECTOR_FUSION | §3.2 | 建议 |
-| matmul+alltoall | VECTOR_FUSION | §3.2 | 建议 |
 
 ---
 
@@ -184,7 +192,7 @@ overall_pass = basic_pass OR reference_pass
 
 - 比较时 **MUST** 转 `np.float64` 避免精度损失
 - **MUST** 检查 `nan` / `inf`
-- `run.sh` 调用 `check_result.py` 时 **MUST** 显式传 `--rtol` 和 `--atol`，不依赖脚本默认值
+- `scripts/run.sh` 调用 `check_result.py` 时 **MUST** 显式传 `--rtol` 和 `--atol`，不依赖脚本默认值
 - 退出码 0 = PASS，非 0 = FAIL
 - 每 PE 打印 MaxAE、MaxRE、MeanRE 和 `rtol`/`atol`/`basic_pass`/`reference_pass` 结论
 - `precision_threshold` 和 `eb_threshold` 的计算方法见 §4

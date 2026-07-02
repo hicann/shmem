@@ -1,5 +1,7 @@
 # AscendC 算子调测 API（DumpTensor / printf）
 
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 AscendC 算子调测 API 是 AscendC 提供的调试能力，可进行 kernel 内部的打印、Tensor 内容的查看（Dump）。
 
 关于 kernel 调测 API 的详细介绍，可参考 [DumpTensor](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/API/ascendcopapi/atlasascendc_api_07_0192.html) 和 [printf](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/API/ascendcopapi/atlasascendc_api_07_0193.html)。
@@ -45,7 +47,7 @@ void ShmemAllGatherMatmul(
 1. 打开工具的编译开关 `-enable_ascendc_dump`，使能 AscendC 算子调测 API 编译算子样例：
 
 ```bash
-bash scripts/build.sh -enable_ascendc_dump -examples
+bash scripts/build.sh -examples -enable_ascendc_dump
 ```
 
 2. 在 examples 目录执行 demo：

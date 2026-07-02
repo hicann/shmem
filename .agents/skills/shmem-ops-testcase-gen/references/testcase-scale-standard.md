@@ -17,25 +17,9 @@
 
 **L 档要求**：集合通信总数据量 ≥ 256MB（即 `per_pe_bytes × n_pes ≥ 256MB`）。
 
-### 1.2 通算融合算子（以 matmul M/N/K 为主轴）
+### 1.2 规模分档说明
 
-| 分档 | M/N/K 规模 | 典型 shape | 用途 |
-| --- | --- | --- | --- |
-| XS | max(M,N,K) < 256 | M=64, N=128, K=64 | 边界测试、TileShape 对齐 |
-| S | max(M,N,K) 256~1000 | M=256, N=512, K=256; M=512, N=768, K=512 | 功能验证 |
-| M | max(M,N,K) 1000~4096 | M=1024, N=1024, K=1024; M=2048, N=2048, K=1024 | 常规性能（hidden≥1000） |
-| L | max(M,N,K) > 4096 | M=4096, N=4096, K=2048; M=8192, N=4096, K=4096 | 性能达标（对标模型真实规模） |
-
-**模型参考 shape**：
-
-| 模型 | 典型 M×N×K | 分档 |
-| --- | --- | --- |
-| BERT-base | 512×768×768 | S~M |
-| BERT-large | 512×1024×1024 | M |
-| GPT-2 | 1024×1024×1024 | M |
-| GPT-2 XL | 1024×1600×1600 | M |
-| LLaMA-7B | 4096×4096×4096 | L |
-| LLaMA-13B | 5120×5120×5120 | L |
+以上规模分档适用于纯通信算子。分档根据每 PE 搬运字节数划分：XS < 64KB, S 64KB~1MB, M 1MB~64MB, L >= 64MB（全 PE 总量 >= 256MB）。
 
 ## 2. PE 数覆盖
 
@@ -62,15 +46,7 @@ case matrix 至少覆盖 2 PE 和 8 PE。4 PE 推荐覆盖，尤其是存在 PE 
 | B7 | 最小 PE（2PE）+ 最大 shape | 2 PE 下运行 L 档 shape | 验证大数据量下 2 PE 正确性 |
 | B8 | 最大 PE + 最小 shape | 8 PE 下运行 XS 档 shape | 验证多 PE 下极小数据的正确分发 |
 
-### 通算融合额外边界
-
-| 编号 | 边界类别 | 描述 |
-| --- | --- | --- |
-| BF1 | TileShape 不整除 | M 或 N 不整除 L1TileM/L1TileN |
-| BF2 | K 轴 tail | K 不整除 L1TileK |
-| BF3 | 单 AIC block | M/N 极小导致只有 1 个 compute block |
-
-## 4. dtype 覆盖
+### dtype 覆盖
 
 ### 4.1 通信算子
 
@@ -84,15 +60,7 @@ case matrix 至少覆盖 2 PE 和 8 PE。4 PE 推荐覆盖，尤其是存在 PE 
 | int32 | 4B | 索引/metadata 搬运 |
 | int8 | 1B | 量化场景 |
 
-### 4.2 通算融合算子
-
-| dtype 组合 | 说明 |
-| --- | --- |
-| A=fp16, B=fp16, C/D=fp16 | 标准半精度，必测 |
-| A=fp16, B=fp16, accumulate=fp32 | 混合精度累加 |
-| A=bf16, B=bf16, C/D=bf16 | BF16 训练路径 |
-
-### 4.3 覆盖规则
+### 4.2 覆盖规则
 
 - **每个规模分档 × 每个支持的 dtype** 至少 1 个 case
 - 边界 case 使用主 dtype（通常 fp16）即可，不需全 dtype 交叉
@@ -127,26 +95,6 @@ case matrix 至少覆盖 2 PE 和 8 PE。4 PE 推荐覆盖，尤其是存在 PE 
 | medium_4pe_fp16 | functional | M | 4 | fp16 | (2048, 1024) | 4 PE 覆盖 | 正确性 |
 
 **统计**：21 case，覆盖 3 dtype × 4 scale + 8 boundary + 1 stress
-
-### 5.2 通算融合算子（以 MatmulReduceScatter 为例）
-
-| case_id | category | scale | n_pes | dtype | M | N | K | 特殊条件 | 用途 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| smoke_2pe_fp16 | functional | XS | 2 | fp16 | 64 | 128 | 64 | - | 最小功能 |
-| small_2pe_fp16 | functional | S | 2 | fp16 | 256 | 512 | 256 | - | 正确性 |
-| small_2pe_fp32acc | functional | S | 2 | fp16/fp32 | 256 | 512 | 256 | 混合精度 | 正确性 |
-| medium_2pe_fp16 | functional | M | 2 | fp16 | 1024 | 1024 | 1024 | - | 中等规模 |
-| medium_8pe_fp16 | functional | M | 8 | fp16 | 1024 | 1024 | 1024 | - | 多 PE |
-| large_8pe_fp16 | performance | L | 8 | fp16 | 4096 | 4096 | 2048 | - | 性能达标 |
-| large_8pe_bert | performance | L | 8 | fp16 | 4096 | 4096 | 4096 | LLaMA 规模 | 性能达标 |
-| tile_tail_2pe | boundary | S | 2 | fp16 | 300 | 500 | 256 | BF1: 不整除 Tile | 边界 |
-| k_tail_2pe | boundary | S | 2 | fp16 | 256 | 512 | 200 | BF2: K 轴 tail | 边界 |
-| single_block_2pe | boundary | XS | 2 | fp16 | 64 | 64 | 64 | BF3: 单 AIC block | 边界 |
-| pe_tail_4pe | boundary | M | 4 | fp16 | 1000 | 1024 | 1024 | B2: M 不整除 PE | 边界 |
-| unaligned_2pe | boundary | XS | 2 | fp16 | 100 | 200 | 100 | B3: 非对齐 | 边界 |
-| repeat_3x_2pe | stress | S | 2 | fp16 | 256 | 512 | 256 | B6: repeat=3 | signal 复用 |
-
-**统计**：13 case（dtype 较少时仍满足 ≥20 需追加 dtype 交叉）
 
 ## 6. 最小 case 数要求
 

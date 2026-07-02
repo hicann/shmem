@@ -1,6 +1,8 @@
 # SHMEM 代码规范
 
-本文档定义 SHMEM 通信算子和通算融合算子的代码规范，用于指导 `shmem-ops-code-gen` 生成符合项目标准的代码。
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
+本文档定义 SHMEM 通信算子与通算融合算子的代码规范，用于指导 `shmem-ops-code-gen` 生成符合项目标准的代码。
 
 ## 0. 官方样例对齐原则
 
@@ -15,7 +17,7 @@
 | License | C++/Python/Shell 文件带 CANN Open Software License 头；临时草稿可省略，交付不可省略 |
 | 通用逻辑 | 日志、ACL/RT/SHMEM 检查、文件读写、目录创建、rank 解析等放入 `utils.h` 或 example-local utility，不在 `main.cpp` 散写 |
 | `main.cpp` 职责 | 参数解析、ACL/SHMEM lifecycle、资源分配、数据读写、kernel launch、同步；禁止 route/payload/tiling/packing/layout/golden/checker |
-| `main.cpp` PE 模型 | 单进程单 PE，一次进程只绑一个 device 和一个 `my_pe`；多 PE 由 `run.sh`/MPI/外部 launcher 启动多个独立进程 |
+| `main.cpp` PE 模型 | 单进程单 PE，一次进程只绑一个 device 和一个 `my_pe`；多 PE 由 `scripts/run.sh`/MPI/外部 launcher 启动多个独立进程 |
 | Device kernel | kernel、launch wrapper、声明分别放 `*_kernels.cpp`/`*_kernels.h`，不塞进 Host 主流程 |
 | 脚本入口 | `SCRIPT_DIR`/`PROJECT_ROOT` 定位工程，校验参数，清理旧输出，生成输入/golden，按 PE 启动进程并 `wait`，最后调 checker |
 | CMake | 优先 target-scoped（`target_include_directories`/`target_compile_options`/`target_link_libraries`）；兼容官方 example 时可全局，但限制影响范围 |
@@ -481,11 +483,12 @@ op_name/
 │   ├── op_runtime.cpp    # 可选：资源封装、错误检查、启动辅助
 │   └── op_runtime.h
 ├── scripts/
-│   ├── build.sh          # 编译脚本
-│   ├── run.sh            # 运行脚本
-│   └── check_result.py   # 正确性检查
+│   ├── gen_data.py
+│   ├── check_result.py
+│   ├── run.sh
+│   └── run_case_matrix.py
 ├── baseline/              # 有 baseline 时 MUST 存在
-│   ├── CMakeLists.txt     # 独立的 baseline 编译 target
+│   ├── CMakeLists.txt
 │   ├── src/
 │   │   └── op_name_baseline.cpp
 │   └── scripts/
@@ -505,7 +508,7 @@ op_name/
 | route table / payload 编码解码 / 数据预处理 | Python | 独立 C++ Host 模块 | Device kernel |
 | dtype cast / quant / half-bfloat16 转换 | Python | 独立 C++ Host 模块 | Device kernel |
 | layout / offset / shape 派生 / tiling 参数 / 文件读写 / 资源管理 | — | 可拆到 C++ helper | — |
-| 多 PE 启动 | `run.sh` / MPI / 外部 launcher | — | — |
+| 多 PE 启动 | `scripts/run.sh` / MPI / 外部 launcher | — | — |
 
 **拆分信号**：Host 文件超过约 400 行，且大部分不是 lifecycle、资源管理和 launch 编排。
 
@@ -596,9 +599,17 @@ ACLSHMEM_DEVICE void KernelImpl(uint64_t ffts_addr, ...)
 
 ### 6.2 同步规范
 
+> **Legacy 例外（范围严格限定）**
+>
+> | 场景 | `aclshmemx_barrier_all_vec` | 规范 |
+> | --- | --- | --- |
+> | **custom-ops 新算子**（`shmem-ops-code-gen` 交付） | **禁止新增** | **MUST** 用 `aclshmem_barrier_all()` / `aclshmem_barrier(team)`；见 [internal-api-boundary.md §2](internal-api-boundary.md) |
+> | **最小 diff 对齐 upstream `examples/`** | 可 **原样保留** 已有调用 | 仅未改动的 legacy 行；**禁止**在新 phase 同步路径中主动选用 |
+> | **代码走读** | custom-ops 新写代码出现 → **FAIL** | legacy 未改动行 → 记为 known legacy，不扩写 |
+
 - NBI 操作后必须有明确的完成路径
-- 使用 `aclshmem_quiet()` 确保 RMA 操作完成
-- 优先使用 `aclshmem_barrier_all()` 或 `aclshmem_barrier(team)` 进行 phase 同步；只有对齐既有 legacy example 时才保留 `aclshmemx_barrier_all_vec()`
+- **单引擎** MTE put/get 后用 `aclshmemx_mte_quiet()`；SDMA 用 `aclshmemx_sdma_quiet()`；多引擎混用或收尾阶段再用 `aclshmem_quiet()`
+- **新代码** phase 同步 **MUST** 使用 `aclshmem_barrier_all()` 或 `aclshmem_barrier(team)`；**NEVER** 在新路径中选用 `aclshmemx_barrier_all_vec()`（legacy 保留见上表）
 - 机内跨 PE 搬运必须使用 `aclshmem_*` 或公开 `aclshmemx_*` 数据面接口；禁止用 `DataCopy` 直接读写远端 PE 地址
 
 ```cpp
@@ -607,7 +618,7 @@ ACLSHMEM_DEVICE void KernelImpl(uint64_t ffts_addr, ...)
 for (int peer = 0; peer < n_pes; ++peer) {
     aclshmem_int32_p(dst, value, peer);
 }
-aclshmem_quiet();  // 确保所有写入完成
+aclshmemx_mte_quiet();  // MTE 标量写后 drain（多引擎混用时 aclshmem_quiet）
 
 aclshmem_barrier_all();  // 等待所有 PE 完成 Phase 1
 
@@ -637,7 +648,7 @@ DataCopy(remote, local, elem_count);
 ```cpp
 // ✅ 使用 SHMEM 数据面接口表达跨 PE put。
 aclshmem_int32_put(remote_sym, local, elem_count, peer);
-aclshmem_quiet();
+aclshmemx_mte_quiet();
 ```
 
 如果需要把本地 GM 数据先整理到 UB，可以先对本 PE 本地地址使用 `DataCopy`，再通过 SHMEM put/get/engine API 完成跨 PE 搬运。
@@ -905,7 +916,7 @@ wait
 | 单位不明确的变量名 | 容易出错 | 变量名包含单位（bytes/elems） |
 | 常量命名混用 | 风格不稳定，审查困难 | 生成代码统一 `kPascalCase`，宏才用全大写 |
 | `main.cpp` 承担 route/payload/tiling/packing/checker | 主流程过重，且破坏职责分离 | 复杂 Host 逻辑拆到独立 `.cpp/.h`；golden/checker 放到 Python；算子语义放到 Device kernel |
-| `main.cpp` fork/spawn 多 PE 子进程 | 破坏单进程单 PE 约束，资源和日志边界不清 | `run.sh` 或外部 launcher 启动多个独立进程 |
+| `main.cpp` fork/spawn 多 PE 子进程 | 破坏单进程单 PE 约束，资源和日志边界不清 | `scripts/run.sh` 或外部 launcher 启动多个独立进程 |
 | 全局 CMake include/link 污染 | 影响其他 target，难定位依赖 | 使用 target-scoped CMake |
 | 循环内重复检查常量 | 性能损失 | 将条件提到循环外 |
 | 输出文件被覆盖 | 多 PE 测试失败 | 文件名包含 PE ID |

@@ -8,7 +8,7 @@
 
 MindStudio Profiler，昇腾官方性能采集工具。采集 kernel 级 task_time、通信时间和硬件计数器。
 
-**使用方式**：在 `run.sh` 中包裹可执行程序：
+**使用方式**：在 `scripts/run.sh` 中包裹可执行程序：
 
 ```bash
 msprof --application="${EXEC_BIN} ${ARGS}" --output=./output/

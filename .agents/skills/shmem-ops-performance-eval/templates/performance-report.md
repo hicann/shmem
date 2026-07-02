@@ -18,22 +18,22 @@
 
 - Type: <hccl | aclnn | stitched | metric_only>
 - Source API: <具体 API 名称>
-- Search process: <逐步排查记录：HCCL 清单 → aclnn 清单 → 拼接方案 → metric_only，每步结论>
+- Search process: <逐步排查记录：HCCL 清单 → aclnn 清单 → metric_only，每步结论>
 - Measurement: <baseline 测试命令和数据>
 
 ## 3. 基线数据（Round 0 — 来自 shmem-ops-performance-eval）
 
 ### 3.1 性能结果表
 
-| case_id | shape | dtype | n_pes | e2e_us | kernel_us | algo_GBps | bus_GBps | utilization% |
+| case_id | shape | dtype | n_pes | e2e_us | kernel_us | steady_bus_GBps | algo_GBps | bus_GBps (e2e) | utilization% |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
-### 3.2 通信指标表（通信算子和通算融合的通信阶段 **MUST**；纯计算算子标注 "N/A"）
+### 3.2 通信指标表（**MUST**）
 
 | case_id | logical_payload_bytes | bus_factor | peak_bandwidth_GBps | bandwidth_utilization% |
 | --- | --- | --- | --- | --- |
 
-### 3.3 计算指标表（通算融合算子 **MUST**；纯通信算子标注 "N/A"）
+### 3.3 计算指标表（通信算子标注 "N/A"）
 
 | case_id | op_count_flops | compute_latency_us | effective_flops | peak_flops | compute_utilization% |
 | --- | --- | --- | --- | --- | --- |
@@ -47,12 +47,10 @@
 
 ### 3.5 性能对比表（有 baseline 时 **MUST** — hccl / aclnn / stitched 均适用）
 
-| metric | SHMEM e2e | SHMEM kernel | Baseline | delta (e2e vs baseline) |
-| --- | --- | --- | --- | --- |
-| latency_us | | | | +/-N% |
-| algo_GBps | | | | +/-N% |
-| bus_GBps | | | | +/-N% |
-| utilization% | | | | +/-N% |
+| metric | SHMEM steady_bus | SHMEM e2e | SHMEM kernel | Baseline steady_bus | delta (steady vs baseline) | 达标 |
+| --- | --- | --- | --- | --- | --- | --- |
+| steady_bus_GBps | | | | | +/-N% | PASS/FAIL |
+| latency_us (e2e) | | | | | +/-N% | |
 
 （无 baseline 时，此表替换为 metric_only 达标判断：带宽利用率 ≥ 20% 或 compute_utilization ≥ 目标值）
 
@@ -62,9 +60,11 @@
 
 > **Round 子节约束**：§4 下每个 Round 必须独占 `### Round N: ...` 子节，包含完整的 5 个子块：正确性复测 → Step 表 → 性能验证对比表 → Device Frame Table → 本轮最优配置 → 决策。**NEVER** 将所有 Round 合并为一个扁平表格。
 
-### Round 1: 参数调优
+### Round 1: 机制优化
 
-**目标**：在当前代码结构下找到最优参数配置。
+**机制改动**：<具体代码级改动描述，如并发 peer 通信、分块 put/get>
+
+**瓶颈假设**：<本轮瓶颈假设>
 
 **正确性复测**：调用 shmem-ops-correctness-eval → PASS / FAIL
 
@@ -73,19 +73,20 @@
 | 1.1 | | | | | | | | |
 | 1.2 | | | | | | | | |
 
-> compute_util% 列仅通算融合算子填写，纯通信算子标记 N/A
+> compute_util% 列仅通算融合算子填写；纯通信标 N/A
 
 **性能验证**：调用 shmem-ops-performance-eval → 对比基线
 
-| 指标 | Baseline | Round 1 最优 | Δ% |
+| 指标 | Baseline | Round 1 最优 | Δ% (steady_bus) |
 | --- | --- | --- | --- |
+| steady_bus_bandwidth_GBps | | | |
 | e2e_latency_us | | | |
 | kernel_latency_us | | | |
 | algo_bandwidth_GBps | | | |
-| bus_bandwidth_GBps | | | |
+| bus_bandwidth_GBps (e2e 参考) | | | |
 | compute_utilization_pct | | | |
 
-> compute_utilization_pct 行仅通算融合算子填写
+> compute_utilization_pct 行仅通算融合算子填写；纯通信标 N/A
 
 **Device Frame（最优 step）**：
 
@@ -111,15 +112,20 @@
 | 2.1 | | | | | | | | |
 | 2.2 | | | | | | | | |
 
+> compute_util% 列仅通算融合算子填写；纯通信标 N/A
+
 **性能验证**：调用 shmem-ops-performance-eval → 对比基线
 
-| 指标 | Baseline | Round 2 最优 | Δ% |
+| 指标 | Baseline | Round 2 最优 | Δ% (steady_bus) |
 | --- | --- | --- | --- |
+| steady_bus_bandwidth_GBps | | | |
 | e2e_latency_us | | | |
 | kernel_latency_us | | | |
 | algo_bandwidth_GBps | | | |
-| bus_bandwidth_GBps | | | |
+| bus_bandwidth_GBps (e2e 参考) | | | |
 | compute_utilization_pct | | | |
+
+> compute_utilization_pct 行仅通算融合算子填写；纯通信标 N/A
 
 **Device Frame（最优 step）**：
 
@@ -132,7 +138,7 @@
 
 ---
 
-### Round N: (按 Round 2 格式继续追加，无上限)
+### Round N: (按 Round 2 格式继续追加，含 steady_bus 对比表；无上限)
 
 > 若轮次 < 5 异常停止（如需修改 SHMEM 核心库但无 gap analysis 授权），则剩余轮次标注"未执行 + 原因"。
 > 若用户要求额外轮次（> 5），从 Round 6 起按 Round 2 格式继续追加，并在 §5 轮次总览中标注"用户要求的额外优化轮次"。
@@ -142,14 +148,14 @@
 
 ## 5. 轮次总览
 
-| Round | 性质 | 机制改动 | 最优 Step | 最优 e2e_us | 最优 busBw | 最优 compute_util% | 决策 |
+| Round | 性质 | 机制改动 | 最优 Step | 最优 steady_bus | vs R0 Δ% | 最优 e2e_us | 决策 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | baseline | — | — | | | | — |
-| 1 | 参数调优 | 无 | | | | | |
+| 0 | baseline | — | — | | — | | — |
+| 1 | 机制优化 | <描述> | | | | | |
 | 2 | 机制优化 | | | | | | |
 | ... | ... | ... | ... | ... | ... | ... | ... |
 
-> 按实际轮次数追加行，compute_util% 列仅通算融合算子填写
+> Round 对比主指标为 **steady_bus**；e2e_us 列仅参考
 
 ---
 
@@ -159,25 +165,29 @@
 
 | 指标 | Baseline | Final | Δ% |
 | --- | --- | --- | --- |
+| steady_bus_bandwidth_GBps | | | |
 | e2e_latency_us | | | |
 | kernel_latency_us | | | |
 | algo_bandwidth_GBps | | | |
-| bus_bandwidth_GBps | | | |
+| bus_bandwidth_GBps (e2e 参考) | | | |
 | bandwidth_utilization_pct | | | |
 | compute_utilization_pct | | | |
+
+> compute_utilization_pct 行仅通算融合算子填写；纯通信标 N/A
 
 ### 6.2 S 档对比（8PE）
 
 | 指标 | Baseline | Final | Δ% |
 | --- | --- | --- | --- |
+| steady_bus_bandwidth_GBps | | | |
 | e2e_latency_us | | | |
 | kernel_latency_us | | | |
 | algo_bandwidth_GBps | | | |
-| bus_bandwidth_GBps | | | |
+| bus_bandwidth_GBps (e2e 参考) | | | |
 | bandwidth_utilization_pct | | | |
 | compute_utilization_pct | | | |
 
-> compute_utilization_pct 行仅通算融合算子填写。S 档在 Round 0 采集 baseline、最终轮重新采集 final，仅出现于本节，不出现在 §4 优化记录中。
+> compute_utilization_pct 行仅通算融合算子填写；纯通信标 N/A。S 档在 Round 0 采集 baseline、最终轮重新采集 final，仅出现于本节
 
 ---
 
@@ -188,7 +198,7 @@
 **最终配置**：<block_dim=X, chunk_size=Y, ...>
 
 **优化路径总结**：
-- Round 1: 参数调优 → (效果)
+- Round 1: 机制优化 → (效果)
 - Round 2: (机制) → (效果)
 - ...
 

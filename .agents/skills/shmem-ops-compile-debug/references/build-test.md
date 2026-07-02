@@ -1,14 +1,25 @@
 # SHMEM 构建、运行与测试
 
+> **仓内路径**：下文 `examples/`、`install/`、`scripts/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。  
+> **custom-ops 命令唯一参考**：[custom-ops-entrypoints.md](custom-ops-entrypoints.md)（Skill 内禁止引用独立 shell 脚本文件；命令以该文档代码段为准）。
+
 本文说明 SHMEM 算子两类构建方式：独立工程依赖已编译 SHMEM 库，以及算子作为 `shmem/examples` 内置 example 编译。`shmem-ops-code-gen` 只负责生成代码和测试入口；实际构建、运行和失败定位由 `shmem-ops-compile-debug` 执行。
 
 ## 1. 通用环境
 
 构建和运行前，必须确认以下环境已就绪：
 
-**CANN 环境**：`ASCEND_HOME_PATH` 已设置，`bisheng` 编译器可用。缺失时询问用户提供 `set_env.sh` 路径，不直接停止。
+**CANN 环境**：`ASCEND_HOME_PATH` 已设置，`bisheng` 编译器可用。
 
-**SHMEM 核心库**：`install/shmem/lib/libshmem.so` 和 bootstrap 插件存在。不存在时先执行 `bash scripts/build.sh` 构建核心库，再 `source install/set_env.sh`。
+- 已设置：直接使用。
+- **未设置**：Agent **MUST** 询问用户选择「默认系统安装」或「自定义 `set_env.sh` 路径」，并在自定义选项中给出路径样例；**禁止**未确认就 `source /usr/local/Ascend/ascend-toolkit/set_env.sh`。
+- 完整流程见 [cann-env-resolution.md](cann-env-resolution.md)。
+
+确认后记录 `CANN_SET_ENV`（`set_env.sh` 绝对路径），后续 build/run/`docker exec` 均使用该变量。
+
+**Docker 容器（用户指定时 — MUST）**：若 `phase0_intake.docker_container` 非空，本节所有命令 **MUST** 包在 `docker exec <container> bash -lc '...'` 内执行，禁止宿主机裸跑。详见 [docker-exec-contract.md](../../shmem-ops-dev/references/docker-exec-contract.md)。
+
+**SHMEM 核心库**：`install/shmem/lib/libshmem.so` 和 bootstrap 插件存在。in-tree example 不存在时先执行 `bash scripts/build.sh -examples`（**必须带 `-examples`**，否则无 `build/bin/<op_name>` target），再 `source install/set_env.sh`。
 
 **Python 环境**：`PYTHON_CMD` 或 `python3` 可用，且能导入测试脚本需要的依赖（`numpy`，按脚本再检查 `torch` 等）。缺失时询问用户提供可执行文件或 conda/venv 激活命令。
 
@@ -28,7 +39,47 @@
 | `-uttests` | 编译单元测试 |
 | `-python_example` | 编译部分 Python/Torch 扩展示例 |
 
-注意：`scripts/build.sh` 每次会清理并重建 `build/` 和 `install/`。调试单 target 时优先使用已有 `build/` 做增量构建（`cmake --build build --target <target> -j`）。
+注意：`scripts/build.sh` 每次会清理并重建 `build/` 和 `install/`。调试单 target 时优先使用已有 `build/` 做增量构建（`cmake --build build --target <target> -j`），**不要**反复全量 `build.sh`。
+
+### 1.1 运行时环境（MUST）
+
+运行 example 前完整环境链：
+
+```bash
+source ${CANN_SET_ENV}    # Phase 0 用户确认的 set_env.sh
+cd /path/to/shmem
+bash scripts/build.sh -examples    # 首次或 install/set_env.sh 缺失时
+source install/set_env.sh
+cd examples/<op_name> && bash scripts/run.sh <pe_size>
+```
+
+`install/set_env.sh` 注入的路径（**不可省略**）：
+
+- `$SHMEM_HOME_PATH/shmem/lib`（`libshmem.so` + `aclshmem_bootstrap_*.so`）
+- `/usr/local/Ascend/driver/lib64/driver/`
+- 可选：`$SHMEM_HOME_PATH/shmem/torch_binding/kernels`
+
+算子 `scripts/run.sh` 在激活 SHMEM install 环境（`install/set_env.sh`）**之后** MUST 内联 [env-setup.snippet.md](env-setup.snippet.md) 中的：
+
+- `setup_shmem_runtime_env ${PROJECT_ROOT}` — 完整 CANN + install + `build/lib`
+- `setup_shmem_dynamic_endpoints` — 用户未 export 时随机化 `IPPORT` / `SHMEM_UID_SESSION_ID`
+- `warn_shmem_stale_processes` — 检测长期运行的 `torch_test_*.py`
+
+**禁止**在模板中写死 `IPPORT=tcp://127.0.0.1:27010` 和 `SHMEM_UID_SESSION_ID=127.0.0.1:8899`（多轮测试、Torch 测试并行时极易冲突）。
+
+**反模式**：只设 `LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:...` 而不 `source install/set_env.sh` — 缺 bootstrap 插件和 driver 库，典型症状为 `aclError:100000` 或 golden 全 FAIL。
+
+**假 FAIL 典型链**（必须先查日志，勿改 kernel）：
+
+```text
+address in use for bind listen on 127.0.0.1:27010
+→ AccStoreServer startup failed
+→ Memory Heap Not Initialized
+→ aclshmem_malloc 无效 / D2H 全 0
+→ result_compare FAILED
+```
+
+**Agent 要求**：Phase 4 必须在目标环境（用户指定的 Docker 容器或本机 NPU）实际执行 `scripts/run.sh`（见 [custom-ops-entrypoints.md](custom-ops-entrypoints.md) §2），不得仅输出命令。
 
 ## 2. 模式 A：独立工程依赖已编译 SHMEM 库
 
@@ -122,18 +173,21 @@ target_link_libraries(my_shmem_op PRIVATE shmem)
 
 如果包含 Device kernel，必须补齐与目标 SOC 匹配的 CCE/AscendC 编译选项。可从本地 `shmem/CMakeLists.txt` 的 `CMAKE_CCE_COMPILE_OPTIONS` 和相近 example 复制，不要凭空写 arch。
 
-### 2.4 独立工程构建命令
+### 2.4 独立工程构建与运行命令
+
+**MUST** 使用 [custom-ops-entrypoints.md](custom-ops-entrypoints.md) 中的命令代码段（编译 §1、运行 §2、matrix §3、Torch §4）。性能采集见 [perf-workflow.md](../../shmem-ops-performance-eval/references/perf-workflow.md)。
+
+Agent 在 skill/交付文档/聊天摘要中 **NEVER** 把裸 `cmake -S/-B` 或 `cd custom-ops/<op> && ...` 作为首选入口。
+
+<details>
+<summary>底层 cmake（仅 Agent 本地调试，非交付首选）</summary>
 
 ```bash
-export CANN_ENV=/path/to/user/specified/set_env.sh
-source "${CANN_ENV}"
-export PYTHON_CMD=${PYTHON_CMD:-python3}
-${PYTHON_CMD} --version
-source /path/to/shmem/install/set_env.sh
-cd /path/to/my_shmem_op
-cmake -S . -B build
-cmake --build build --target my_shmem_op -j
+cd custom-ops/<op_name>
+cmake -S . -B build && cmake --build build -j
+cd custom-ops/<op_name> && bash scripts/run.sh ...
 ```
+</details>
 
 运行前确认：
 
@@ -177,7 +231,7 @@ examples/<op_name>/
     check_result.py
 ```
 
-通算融合或单文件 demo 可按相近 example 放置：
+独立工程或 in-tree 示例使用对应的 CMake 规则构建。
 
 ```text
 examples/<op_name>/
@@ -205,13 +259,7 @@ aclshmem_add_collective_example(<op_name>)
 - `build/bin/<op_name>`
 - `build/lib/lib<op_name>_kernel.so`
 
-通算融合或单文件 demo 使用：
-
-```cmake
-aclshmem_add_fusion_example(<op_name> main.cpp)
-```
-
-复杂工程可参考 `examples/dynamic_tiling/CMakeLists.txt` 自定义 shared library、tiling library 和依赖关系。
+独立工程使用独立 CMakeLists.txt 构建；可参考 `examples/dynamic_tiling/CMakeLists.txt` 自定义 shared library、tiling library 和依赖关系。
 
 如果生成算子采用 `src/` 目录和多个 Host helper `.cpp/.h` 的模块化布局，不要强行套用只识别根目录文件的 helper 函数；应在 example-local `CMakeLists.txt` 中显式列出 `src/main.cpp`、kernel 源文件和 Host helper 源文件，并用 `target_include_directories(... PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)` 补齐头文件搜索路径。若必须复用官方 helper，则提供薄包装文件或调整目录使其符合 helper 的实际假设。
 
@@ -269,12 +317,17 @@ bash run.sh -pes 2 -fnpu 0 -gnpus 2 -ipport tcp://127.0.0.1:8766
 
 run 脚本应做：
 
-- `source ${PROJECT_ROOT}/install/set_env.sh`
-- 设置 `SHMEM_UID_SESSION_ID=<host>:<port>`。
-- 每个 PE 启动一个进程，参数包含 `n_pes`、rank、`ip_port`、device id、shape/dtype。
-- 输出目录按 PE/case 隔离。
-- 等待所有 PE 退出，并聚合返回码。
-- 运行 checker，返回非 0 表示失败。
+- **MUST** 调用 `setup_shmem_runtime_env ${PROJECT_ROOT}`（见 [env-setup.snippet.md](env-setup.snippet.md)），或等价地：`source install/set_env.sh` 后再追加 `build/lib` 和 `${ASCEND_HOME_PATH}/lib64`
+- **MUST** 调用 `setup_shmem_dynamic_endpoints`（用户未 export 时自动分配 `IPPORT` / `SHMEM_UID_SESSION_ID`）
+- 可选：`warn_shmem_stale_processes` 提示仍在运行的 `torch_test_*.py`
+- 设置 `SHMEM_UID_SESSION_ID`（与 `ip_port` 参数分离；二者均勿写死为全局默认值）
+- 检查 `build/bin/<op_name>` 存在，否则提示 `bash scripts/build.sh -examples`
+- 每个 PE 启动一个进程，参数包含 `n_pes`、rank、`ip_port`、device id、shape/dtype
+- 输出目录按 PE/case 隔离
+- 等待所有 PE 退出，并聚合返回码
+- 运行 checker，返回非 0 表示失败
+
+有官方参考 example 时，优先复用其 `golden.py`/`result_compare.py` 和全尺寸测试数据，勿缩小 cache 做 smoke 导致 Memcpy 尺寸不匹配。
 
 ## 4. 正确性测试入口
 

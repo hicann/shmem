@@ -29,9 +29,17 @@ dsl_version: "0.3"
 
 meta:
   op_name: "replace_me"
-  op_kind: "fused_compute_comm"   # transport | collective | compute | fused_compute_comm
+  op_kind: "transport"             # transport | collective | compute | fused_compute_comm
   target_soc: ["ascend910b"]
   scope: "intra_node"             # intra_node | inter_node | both
+  torch_required: false           # Phase 0 用户确认；true 才执行 Phase 5.5
+  performance_required: false       # Phase 0 #4；true 才执行 Phase 6
+  performance_auto_optim: false     # Phase 0 #5；true 且未达标才自动 Phase 6.5
+  docker_container: null            # Phase 0；非空时全部 build/run/perf 进容器
+  docker_workdir: ""                # 容器内 SHMEM_REPO 绝对路径
+  docker_exec_required: false       # docker_container 非空时为 true
+  skills_root: ""                    # MUST；用户 @ skill 时上溯写入
+  shmem_repo: ""                    # MUST；Phase 0 定位后写入；见 shmem-repo-resolution.md
 
 source:
   kind: "natural_language"        # natural_language | user_pseudocode | heterogeneous_reference | mixed
@@ -128,10 +136,10 @@ correctness:
   #   category: "functional"
 
 performance:
-  metric: ["e2e_latency_us", "kernel_latency_us", "algo_bandwidth_GBps", "bus_bandwidth_GBps"]
+  metric: ["e2e_latency_us", "kernel_latency_us", "steady_bus_bandwidth_GBps", "algo_bandwidth_GBps", "bus_bandwidth_GBps"]
   baseline: "replace_me"
-  baseline_search: "replace_me"       # 已检查哪些 HCCL/CANN/拼接方案，为何不适用（无 baseline 时必填）
-  baseline_target: "replace_me"       # 有 baseline: "current >= 80% baseline"；无 baseline: metric_only 指标目标
+  baseline_search: "replace_me"       # 已检查哪些 HCCL/aclnn 方案，为何不适用（无 baseline 时必填）
+  baseline_target: "replace_me"       # 四算子: platform-perf-spec；其他有 baseline: "current >= 80% baseline"；无 baseline: metric_only
   target_cases: []
   min_scale: "replace_me"             # 集合通信 >= 256MB；计算/通算融合 hidden size >= 1000
   profiling_method: "replace_me"
@@ -178,12 +186,16 @@ performance:
 
 | 字段 | 内容 |
 | --- | --- |
-| build_mode | `independent_project` 或 `in_tree_example` |
+| build_mode | **`independent_project`（默认）** 或 `in_tree_example`（须 Phase 0 用户明确要求） |
 | cann_env | [用户指定的 CANN set_env.sh 路径；不得硬编码默认路径] |
-| shmem_repo | [路径或发现规则] |
-| op_dir | [路径] |
+| shmem_repo | [绝对路径；见 shmem-repo-resolution.md；与 meta.shmem_repo 一致] |
+| op_dir | [`custom-ops/<op_name>/`（默认）或 `examples/<op_name>/`] |
 | target | [binary/shared library] |
-| command | [完整命令或发现规则] |
+| command | independent: [custom-ops-entrypoints.md](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md) §1 编译；in-tree: 同文件 §0 + SHMEM build -examples |
+| run_command | [custom-ops-entrypoints.md](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md) §2 运行 |
+| matrix_command | [custom-ops-entrypoints.md](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md) §3 case matrix |
+| perf_command | [perf-workflow.md](../../shmem-ops-performance-eval/references/perf-workflow.md) §1 阶段 B |
+| torch_build_command | [custom-ops-entrypoints.md](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md) §4 Torch 编译 |
 | required_flags | [-examples/-debug/-enable_rdma/-enable_ascendc_dump/-soc_type ...] |
 | expected_outputs | [build/bin 或 build/lib 产物] |
 
@@ -191,7 +203,7 @@ performance:
 
 | 字段 | 内容 |
 | --- | --- |
-| command | [run.sh/checker 命令] |
+| command | [`scripts/run.sh`/checker 命令] |
 | python_env | [python_cmd 或 conda/venv 激活命令；用于 gen_data.py、golden、check_result.py、baseline/profiler] |
 | python_deps | [numpy/torch/torch_npu 或脚本实际 import 的依赖] |
 | determinism | [seed、repeats、输出路径隔离] |

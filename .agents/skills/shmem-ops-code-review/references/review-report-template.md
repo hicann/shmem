@@ -2,11 +2,14 @@
 
 走读完成后按以下格式输出报告，保存为算子目录下的 `docs/review-report.md`。
 
+> **填写时机**：Phase 5 使用 `interim` 模式填写 Section 1–2、4–6（Section 3 待补齐）；Phase 7 使用 `final` 模式补齐 Section 3 和 Section 5 性能判定。
+
 ## 走读信息
 
 | 字段 | 内容 |
 | --- | --- |
 | 算子名称 | |
+| 报告模式 | interim / final |
 | design.md | [路径] |
 | 代码目录 | [op_dir] |
 | 走读时间 | [日期] |
@@ -25,7 +28,7 @@
 | 6 | Block dim 与 design core_partition 一致 | P0 | PASS/FAIL | |
 | 7 | Tile/Chunk/Tail 处理正确 | P1 | PASS/FAIL | |
 | 8 | main.cpp 不含复杂逻辑 | P1 | PASS/FAIL | |
-| 9 | 高性能 kernel 路径已接入（通算融合必须使用 AIC+CATLASS） | P0 | PASS/FAIL | |
+| 9 | e2e 计时口径正确 | P0 | PASS/FAIL | |
 | 10 | 无多余 GM scratch 中转 | P2 | PASS/FAIL | |
 | 11 | Symmetric allocation 顺序和大小所有 PE 一致 | P0 | PASS/FAIL | |
 | 12 | 代码风格符合 code-style.md | P2 | PASS/FAIL | |
@@ -66,11 +69,14 @@
 
 ## 3. 性能评估摘要
 
+> **interim 模式**：本节全部填 `待 Phase 6 性能采集后补齐`，禁止编造数据。
+> **final 模式**：从 `performance_report.md` 摘录。
+
 | 指标 | 值 |
 | --- | --- |
 | 性能报告 | [performance_report.md 路径] |
-| 基线类型 | HCCL / 拼接 / metric_only |
-| 达标状态 | 达标 / 未达标 |
+| 基线类型 | HCCL / aclnn / metric_only |
+| 达标状态 | 达标 / 未达标 / 待 Phase 6 补齐 |
 | 优化轮次 | /5 |
 
 ### 性能关键指标
@@ -94,8 +100,11 @@
 
 - **设计一致性**：PASS / FAIL（P0 项全部通过为 PASS）
 - **正确性验证**：PASS / FAIL（全部 case 通过为 PASS）
-- **性能达标**：达标 / 未达标
-- **总体结论**：**可交付** / **需修复**（设计一致性 PASS + 正确性 PASS = 可交付）
+- **性能达标**：达标 / 未达标 / 待 Phase 6 补齐
+- **总体结论**：**可进入 Phase 5.5** / **可交付** / **需修复**
+
+> interim 模式：设计一致性 PASS + 正确性 PASS → **可进入 Phase 5.5**
+> final 模式：设计一致性 PASS + 正确性 PASS + 性能达标 → **可交付**
 
 ### FAIL 项修复建议
 
@@ -108,5 +117,8 @@
 | design.md | docs/ | ✅ / ❌ |
 | 算子代码 | src/ | ✅ / ❌ |
 | 测试脚本 | scripts/ | ✅ / ❌ |
+| correctness_report.md | docs/ | ✅ / ❌ |
 | review-report.md（本文档） | docs/ | ✅ / ❌ |
-| performance_report.md | docs/ | ✅ / ❌ |
+| aclshmem_torch.so（若 torch_required） | lib/ 或 build/ | ✅ / ❌ / N/A |
+| torch_test_<op>.py（若 torch_required） | scripts/ | ✅ / ❌ / N/A |
+| performance_report.md（final 模式必填） | docs/ | ✅ / ❌ / 待补齐 |

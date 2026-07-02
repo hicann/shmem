@@ -1,13 +1,16 @@
 # SHMEM 编译运行调试
 
-本文记录失败定位方法和调试开关。正确性用例如何生成、oracle 如何构造，应看 `shmem-ops-testcase-gen/references/correctness.md`。
+> **仓内路径**：下文 `examples/`、`docs/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
+本文记录失败定位方法和调试开关。正确性用例如何生成、oracle 如何构造，应看 [correctness.md](../../shmem-ops-testcase-gen/references/correctness.md)。
 
 ## 参考资料
 
 | 资料 | 用途 |
 | --- | --- |
 | [dump-debug.md](dump-debug.md) | AscendC DumpTensor/printf 调测 API 使用方法 |
-| [log-debug.md](log-debug.md) | SHMEM 日志环境变量、日志格式和阅读方法 |
+| [log-debug.md](log-debug.md) | SHMEM 日志（摘要）；真源 `${SHMEM_REPO}/docs/debug/log_debug.md` |
+| [shmem-repo-docs-index.md](shmem-repo-docs-index.md) | 仓内 `docs/`、`include/` API、examples 索引 |
 
 ---
 
@@ -36,7 +39,7 @@
 | 找不到 `shmem.h` | include 路径错 | 独立工程看 `$SHMEM_HOME_PATH/shmem/include`，example 看 `${PROJECT_SOURCE_DIR}/include` |
 | Device API 在 Host 编译单元报错 | Host/Device 边界混淆 | Device kernel 用 CCE 编译选项；Host 只调用 wrapper |
 | `aclshmem_add_*` 未定义 | 独立工程误用 examples 宏 | 该宏只在 shmem `examples/CMakeLists.txt` 中定义 |
-| catcoc 头文件缺失 | `3rdparty/catlass` 不存在 | `bash scripts/build.sh -examples` 会尝试拉取；无网时需先准备依赖 |
+| catcoc 头文件缺失 | `3rdparty/catlass` 不存在 | [custom-ops-entrypoints.md](custom-ops-entrypoints.md) §0 + SHMEM build -examples 会尝试拉取；无网时需先准备依赖 |
 | RDMA target 不存在 | 未开启 RDMA | 使用 `bash scripts/build.sh -examples -enable_rdma` |
 
 调试动作：
@@ -55,7 +58,7 @@
 | --- | --- | --- |
 | `undefined reference to aclshmem...` | 未链接 `shmem` | `target_link_libraries(<target> PRIVATE shmem)` |
 | `cannot find -lshmem` | link directory 错 | 指向 `$SHMEM_HOME_PATH/shmem/lib` |
-| `libshmem.so: cannot open shared object file` | 运行时库不可见 | `source install/set_env.sh` 或设置 `LD_LIBRARY_PATH` |
+| `libshmem.so: cannot open shared object file` | 运行时库不可见 | `source `${SHMEM_REPO}/install/set_env.sh` 或设置 `LD_LIBRARY_PATH` |
 | bootstrap 插件加载失败 | 插件没和 `libshmem.so` 同目录 | 同步部署 `aclshmem_bootstrap_*.so` |
 
 排查命令：
@@ -68,18 +71,48 @@ ldd <bin_or_so> | grep -E "shmem|not found"
 
 ## 4. 启动和初始化失败
 
+`aclshmemx_init_attr` 返回非 0 时，**可参考**：
+
+1. `export SHMEM_LOG_LEVEL=DEBUG SHMEM_LOG_TO_STDOUT=1` 或读 `${HOME}/shmem/log/aclshmem_*.log`
+2. 定位 `SHMEM_REPO` 后 Read `${SHMEM_REPO}/docs/debug/log_debug.md` 对照 bootstrap/init 日志阶段
+3. [shmem-repo-docs-index.md §5](shmem-repo-docs-index.md) 常见根因表
+
 重点检查：
 
 - 所有 PE 的 `n_pes`、rank、`ip_port` 一致
 - 同一轮多进程使用同一个 `SHMEM_UID_SESSION_ID`
-- 端口未被旧进程占用
+- 端口未被旧进程占用（含长期运行的 `torch_test_*.py`）
 - 每个 PE 绑定的 device id 合理
 - `local_mem_size` 在所有 PE 一致，且足够容纳 symmetric heap
 - RDMA/SDMA engine 运行前已按要求开启构建选项
 
+### 4.1 输出全 0 但进程仍 SUCCESS（高频假 FAIL）
+
+**现象**：
+
+- `result_`perf-workflow.md` §2 sweep / checker 报 FAILED
+- 输出 `.bin` 全 0（`nz=0`），输入/golden 非零
+- Host 仍打印 `[SUCCESS] ... completed on PE X`
+
+**首要排查**（查 shmem 日志，默认 `${HOME}/shmem/log/aclshmem_*.log`）：
+
+| 日志关键字 | 含义 | 处理 |
+| --- | --- | --- |
+| `address in use for bind listen on 127.0.0.1:xxxx` | tcp store 端口被占用 | 换 `IPPORT` 或结束占用进程 |
+| `Memory Heap Not Initialized` | shmem init 失败但 Host 未检查返回值 | 修环境，**不要**先改 kernel |
+| `AccStoreServer startup failed` | bootstrap 未就绪 | 检查 `IPPORT` + `SHMEM_UID_SESSION_ID` 是否冲突 |
+
+**修复步骤**：
+
+1. `pkill -f torch_test_.*\.py`（若有长期 Torch 测试）或换独立端口
+2. `scripts/run.sh` 使用 `setup_shmem_dynamic_endpoints`（见 env-setup.snippet.md）
+3. 重跑 `scripts/run.sh`；确认日志无上述 error 后再看 golden
+
+**反模式**：看到 FAILED 就删 `SHMEMI_PROF` 或改 kernel put 逻辑 — 在 shmem 未初始化时无效。
+
 常见恢复：
 
-- 换一个 `ip_port` 或清理旧进程后重跑
+- 换一个 `ip_port` / `SHMEM_UID_SESSION_ID` 或清理旧进程后重跑
 - 小 PE、小 shape、默认 engine 先跑通，再打开 RDMA/SDMA 或大 shape
 
 ---
@@ -154,7 +187,7 @@ bash scripts/run.sh 0,1
 
 - dump/printf 必须用 `#if defined(ENABLE_ASCENDC_DUMP)` 宏保护
 - 性能采集前必须关闭 dump（不加 `-enable_ascendc_dump` 重新编译）
-- 完整的代码插入示例见 `docs/debug/dump_debug.md`
+- 完整的代码插入示例见 `${SHMEM_REPO}/docs/debug/dump_debug.md`（先定位 `SHMEM_REPO`，见 [shmem-repo-resolution.md](../../shmem-ops-dev/references/shmem-repo-resolution.md)）
 
 ---
 
@@ -182,7 +215,7 @@ bash scripts/run.sh 0,1
 1. 确认 checker 本身输入、golden、dtype、shape、PE 数一致
 2. 用 rank pattern exact case 排除通信错位
 3. 检查首个 mismatch 是错 PE、错 chunk、错 tail、错 dtype cast 还是错同步
-4. 对通算融合分别 dump local compute、中间通信 buffer、final output
+4. dump local compute 和通信 buffer
 5. 若 final output 错但中间通信正确，定位 compute/finalize；若通信 buffer 已错，定位 RMA/sync/schedule
 
 ---

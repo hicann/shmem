@@ -31,7 +31,10 @@
 | 字段 | 填写规则 |
 | --- | --- |
 | `meta.op_name` | 使用能落地为目录名和符号前缀的名称；必须来自用户确认，不能只靠推断 |
-| `meta.op_kind` | 取 `transport`、`collective`、`compute`、`fused_compute_comm`；无法判断时先提问 |
+| `meta.torch_required` | **须 Phase 0 用户确认**；纯 C++ 交付设为 `false`，Phase 5.5 跳过；Agent 不得擅自默认 `true` |
+| `meta.performance_required` | **须 Phase 0 AskQuestion #4**；`false` 时 Phase 6 跳过；Agent 不得擅自默认 `true` |
+| `meta.performance_auto_optim` | **须 Phase 0 AskQuestion #5**；`true` 且 Phase 6 未达标时 **自动** Phase 6.5；`false` 时仅报告差距、禁止改 kernel |
+| `meta.op_kind` | 取 `transport`、`collective`、`compute`、`fused_compute_comm`；无法判断时先提问。判定：`transport`=点对点 put/get；`collective`=多 PE 集合语义；`compute`=Device 本地计算、无跨 PE 通信；`fused_compute_comm`=Cube matmul/GEMM + SHMEM 跨 PE 通信（CoC，见 core-allocation §4） |
 | `source.user_confirmations` | 记录用户确认的 `op_name` 和 dtype/dtypes；未确认时不得进入下游 |
 | `interface.inputs/outputs` | 每个输入输出写清 `name`、`dtype`、`shape`、`role`；dtype 必须来自用户确认；输出还要写 `visibility` |
 | `interface.shape_relations` | 写出跨输入输出的 shape 约束，例如 `A[1] == B[0]` |
@@ -43,7 +46,7 @@
 | `schedule.tiling` | **分核之后设计**。写明每组核的 tile、chunk、tail 处理方式（可以是符号公式，但要能指导后续 tiling 实现） |
 | `schedule.phases` | **最后设计**。写 device 侧的大体执行流程，每个 phase 仅需 `name` 和 `action`（一句话中文描述该阶段做什么）；不需要写 input/output/dependency/sync 等微观细节 |
 | `correctness` | 写 oracle、dtype tolerance、关键 invariants；invariants 为结构体列表，每项含 `invariant`（**使用中文描述**）、`test_method`（rank pattern / CPU golden / file golden / intermediate check）、`case`（适用 case 范围）；`case_matrix` 统一存放功能 case 和 stress/边界 case（boundary shape、tail、非均衡分片、signal 复用等），每项标注 `category`（functional / stress）；无法构造 oracle 时先提问 |
-| `performance` | 写主指标、baseline、target cases 和优化轮数；`baseline_search` 记录已检查的 HCCL/CANN/拼接方案（无直接 baseline 时必填，禁止留空或写 “none”）；`baseline_target` 写达标阈值（有 baseline 时默认 `current >= 80% baseline`，无 baseline 时写 metric_only 指标目标，通信算子能计算带宽利用率时不低于 20%）；`min_scale` 写最小测试规模（集合通信 >= 256MB，计算/通算融合 hidden size >= 1000，无法满足时说明原因）；默认 `max_opt_rounds` 为 `5`，且不得超过 5 |
+| `performance` | 写主指标、baseline、target cases 和优化轮数；`baseline_search` 记录已检查的 HCCL/aclnn 方案（无直接 baseline 时必填，禁止留空或写 “none”）；`baseline_target` 写达标阈值（四算子见 platform-perf-spec.md；其他有 baseline 时默认 `current >= 80% baseline`，无 baseline 时写 metric_only 指标目标，通信算子能计算带宽利用率时不低于 20%）；`min_scale` 写最小测试规模（集合通信 >= 256MB，计算/通算融合 hidden size >= 1000，无法满足时说明原因）；默认 `max_opt_rounds` 为 `5`，且不得超过 5 |
 | `语言使用` | **描述性字段（semantics、schedule.phases.action、correctness.invariants 等）使用中文**；API 名称、数据类型、字段名、代码标识符使用英语 |
 
 ## 4. 缺失信息处理
@@ -59,7 +62,7 @@
 | 输出可见性不明确 | 向用户提问，需要明确 `replicated`、`sharded` 或 `owner_only` |
 | topology、PE 范围、team/subgroup 不明确 | 向用户提问；只有明确是全体 PE 时才写 `all_pes` |
 | correctness oracle 缺失 | 向用户提问，或把 oracle 设计列为 gap 并阻塞 code-gen |
-| 性能 baseline 缺失 | 可写 `baseline: "none"` 或 `baseline: "to_be_measured"`，但如果用户要求性能对比，应先提问 |
+| 性能 baseline 缺失 | 写入 `baseline: "metric_only"` 并在 `baseline_search` 记录搜索过程；**禁止** `"none"`。若用户要求与 HCCL/aclnn 对比但 baseline 未确定，先提问 |
 | target SoC 缺失 | 可默认 `ascend910b`，但必须写入 design.md Section 1.3 Assumptions |
 
 提问时只问阻塞问题，优先一次问 1 到 3 个最关键问题。用户回答后再补全 DSL；不要把关键问题长期留在 design.md 的 Open Questions 中后继续进入代码生成。

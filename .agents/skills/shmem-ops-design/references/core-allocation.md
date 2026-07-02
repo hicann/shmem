@@ -1,5 +1,7 @@
 # SHMEM 分核设计指南
 
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 ## 1. 概述
 
 本文档指导 skill 为 SHMEM 算子选择分核策略。核心目标是把串行搬运变并行、把全局等待变局部同步、让通信与计算重叠。
@@ -307,7 +309,7 @@ for each commIdx:
     stageId = commIdx % WORKSPACE_STAGES
     CrossCoreWaitFlag(flagAicFinishStore[stageId])  // 等 AIC 计算完成
     ... 执行 AllGather / ReduceScatter ...
-    aclshmemx_barrier_all_vec()                      // 跨 PE 同步
+    aclshmem_barrier_all()                       // 跨 PE 同步
     CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId])  // 通知 AIC
 ```
 
@@ -351,9 +353,30 @@ commInterval * M0 * K0 * block_num < symmetric_buff_bytes / dtype_size / n_pes /
 
 ---
 
-## 5. 数据分片公式
+## 5. 跨 PE 同步原语选择
 
-### 5.1 均分 + 尾块处理
+| 原语 | 语义 | 适用场景 |
+| --- | --- | --- |
+| `signal_op` + `signal_wait_until` | 点对点 PE 同步 | 已知对端 PE、需要精确握手（如 kv_shuffle sender↔receiver） |
+| `aclshmem_barrier_all` | 全 PE 栅栏 | 所有 PE 数据一致后同步（**新算子首选**） |
+| `AscendC::SyncAll` | 同一 PE 内多 AIV 核间同步 | 纯 Vector kernel 阶段切换（如 allgather Step 1→Step 2）；见 [SyncAll](https://gitcode.com/cann/asc-devkit/blob/master/docs/api/SIMD-API/%E5%9F%BA%E7%A1%80API/%E5%90%8C%E6%AD%A5%E6%8E%A7%E5%88%B6/%E6%A0%B8%E9%97%B4%E5%90%8C%E6%AD%A5/SyncAll.md) |
+| `AscendC::PipeBarrier` | 单 AIV 内流水线同步 | 同一 core 内 MTE/Vector 等 pipe 之间的顺序与可见性 |
+| `aclshmem_quiet` | 等待本 PE 已发出的**全引擎** RMA 完成（MTE + SDMA + UDMA + RDMA） | 混合引擎或收尾阶段，需一次性 drain 所有在途传输 |
+| `aclshmemx_mte_quiet` | 等待本地 MTE 完成 | **仅** MTE put/get 后确保数据落地；勿用全局 `aclshmem_quiet` 代替 |
+| `aclshmemx_sdma_quiet` | 等待本地 SDMA 完成 | SDMA 传输后确保完成 |
+| `aclshmemx_udma_quiet` | 等待指定 PE 的 UDMA 完成 | PCIE/SIO 等 UDMA 通路 |
+| `aclshmemx_roce_quiet` | 等待指定 PE 的 RDMA/RoCE 完成 | 跨机 RDMA 通路 |
+| `CrossCoreSetFlag` / `CrossCoreWaitFlag` | AIC↔AIV 跨核同步 | 通算融合的 stage 交替 |
+
+> **选型**：单引擎场景 **SHOULD** 使用 engine-specific quiet（如 MTE 用 `aclshmemx_mte_quiet`），与 `aclshmemx_sdma_quiet` 对称；仅在多引擎混用或无法区分引擎时再调用 `aclshmem_quiet`。
+
+> **不推荐**：`aclshmemi_barrier_core_soft` 为仓内 **internal** 接口（`shmemi_device_cc.h`），**无公开 Device API**；custom-ops 新算子 **禁止** 直接调用。同一 PE 内多 AIV 同步 **SHOULD** 使用 `AscendC::SyncAll`（纯 Vector 全核硬同步 `SyncAll<true>()`；需部分核参与时用软同步 `SyncAll(gmWorkspace, ubWorkspace, usedCores)`）。仅 legacy example（如 dispatch/combine）仍保留该 internal 调用，新代码勿仿照。
+
+---
+
+## 6. 数据分片公式
+
+### 6.1 均分 + 尾块处理
 
 **方式一：末核承担余数**（简单，但末核可能负载偏高）
 
@@ -381,7 +404,7 @@ else:
 
 参考：`sdma`
 
-### 5.2 对齐约束
+### 6.2 对齐约束
 
 | 传输引擎 | 对齐要求 | 说明 |
 | --- | --- | --- |
@@ -391,9 +414,9 @@ else:
 
 ---
 
-## 6. 同步机制详解
+## 7. 同步机制详解
 
-### 6.1 per-AIV 独立 Flag
+### 7.1 per-AIV 独立 Flag
 
 每个 AIV 拥有独立的同步 flag 槽，避免多核写同一地址造成竞争。
 
@@ -412,7 +435,7 @@ flag_addr = gva_sync_base + (rank * aiv_num + aiv_idx) * SYNC_FLAG_INTERVAL
 
 参考：`allgather`、`kv_shuffle`
 
-### 6.2 Epoch / Magic Number 防脏读
+### 7.2 Epoch / Magic Number 防脏读
 
 多轮迭代中，上一轮的 flag 值可能残留在远端。通过 magic number 区分不同轮次：
 
@@ -427,7 +450,7 @@ if (remote_flag >> 10) != (expected_magic >> 10):
 
 参考：`allgather` 大数据路径
 
-### 6.3 Ping-Pong UB 双缓冲
+### 7.3 Ping-Pong UB 双缓冲
 
 两个 UB buffer 交替使用，配合两个 EVENT_ID，实现 DMA 与处理的重叠：
 
@@ -452,20 +475,20 @@ for each chunk:
 
 参考：`allgather`（大数据 recv 组）、`kv_shuffle`
 
-### 6.4 跨 PE 同步原语选择
+### 7.4 同一 PE 内多 AIV 同步（核间）
 
-| 原语 | 语义 | 适用场景 |
+| 方式 | 推荐 | 说明 |
 | --- | --- | --- |
-| `signal_op` + `signal_wait_until` | 点对点 PE 同步 | 已知对端 PE、需要精确握手（如 kv_shuffle sender↔receiver） |
-| `barrier_all_vec` | 全 PE 栅栏 | 通算融合的跨 PE 同步（ReduceScatter 后所有 PE 数据一致） |
-| `barrier_core_soft` | 仅 AIV 核间软栅栏 | 同一 PE 内多 AIV 核间同步（如 allgather 小数据 Step 1→Step 2） |
-| `quiet` | 等待本地所有 RMA 完成 | MTE put/get 后确保数据落地 |
-| `sdma_quiet` | 等待本地所有 SDMA 完成 | SDMA 传输后确保完成 |
-| `CrossCoreSetFlag` / `WaitFlag` | AIC↔AIV 跨核同步 | 通算融合的 stage 交替 |
+| `AscendC::SyncAll<true>()` | **首选**（纯 Vector 全核） | 硬件核间同步；kernel 需 `__mix__(0, 1)` 等正确修饰符，见 asc-devkit SyncAll 约束 |
+| `AscendC::SyncAll(gm, ub, usedCores)` | 部分 AIV 参与时 | 软同步；`gmWorkspace` 需 Host 或 kernel 侧初始化为 0 |
+| `AscendC::PipeBarrier<PIPE_*>` | 单 core 内 pipe 同步 | 不同 AIV 之间**不能**替代核间栅栏 |
+| `aclshmemi_barrier_core_soft` | **禁止**（新算子） | internal 实现细节；仓库无公开等价 API，勿在 custom-ops 中使用 |
+
+`aclshmemi_barrier_core` 在 MIX kernel 下内部会走 `SyncAll`；非 MIX 时 fallback 到 `barrier_core_soft`——custom-ops 应显式选用 `SyncAll`，不依赖该 fallback。
 
 ---
 
-## 7. 设计原则
+## 8. 设计原则
 
 1. **先判断数据规模**：小数据优先少核少同步（模式 A）；大数据才扩大核数和拆分粒度（模式 B）
 2. **优先按连续地址切片**：每个核处理连续区间，便于合并传输、减少地址计算
@@ -475,14 +498,14 @@ for each chunk:
 6. **对不规则负载做均衡**：MoE token、KV block 可能分布不均，按数据量而非简单按 rank 平均
 7. **缩小同步边界**：用 stage / phase / tile 级同步替代全局 barrier
 
-## 8. 分核设计检查清单
+## 9. 分核设计检查清单
 
 - [ ] 算子类型已确定（纯通信 / 通算融合 / MoE）
 - [ ] 数据规模已评估，分核模式已选择（A / B1 / B2 / B3 / CoC）
 - [ ] `aiv_num` 满足与 `n_pes` 的整除约束
 - [ ] 每个 AIV 的具体职责已写明（哪个 AIV 编号范围 → 哪个 PE / 哪段数据 / 哪个维度）
 - [ ] 数据分片公式已写明（`len_per_core`、`offset`、尾块处理方式）
-- [ ] 同步方式已选择（per-AIV flag / barrier / cross-core flag）并写入 design
+- [ ] 同步方式已选择（per-AIV flag / `AscendC::SyncAll` / cross-core flag / 跨 PE barrier）并写入 design；**禁止**新算子使用 `aclshmemi_barrier_core_soft`
 - [ ] UB 布局已规划（ping-pong 分配、每个缓冲区大小、EVENT_ID 分配）
 - [ ] 通算融合已确认 `commInterval` 和 workspace 容量约束
 - [ ] 对齐约束已检查（MTE 32B / SDMA 512B / CATLASS tile 整除）

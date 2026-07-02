@@ -1,5 +1,7 @@
 # SHMEM 能力梳理
 
+> **仓内路径**：下文 `include/`、`src/`、`examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 本文按功能域梳理 SHMEM 当前提供的能力。梳理依据是对外头文件、Python 绑定以及内部实现模块的接口边界，不逐个展开 API 参数说明。
 
 ## 1. 总体定位
@@ -145,7 +147,7 @@ Device 侧提供：
 - Team sync / world sync。
 - vector-core barrier 兼容接口。
 - FFTS 配置设置，用于 MIX kernel 中 barrier 和跨核同步所需的 runtime 控制地址。
-- `quiet/fence` 内存保序能力；当前 fence 实现等价于 quiet，既保证顺序也保证完成。
+- `quiet/fence` 内存保序能力：`aclshmem_quiet` 将覆盖全引擎（MTE + SDMA + UDMA + RDMA）；单引擎场景应使用 `aclshmemx_mte_quiet` 等 engine-specific quiet。当前 fence 实现等价于 quiet，既保证顺序也保证完成。
 
 Device barrier 有明确使用边界：主要用于 MIX kernel，不能和 `SyncAll` 混用；不同网络路径下可见性语义也不同，HCCS 场景可提供更强全局可见性，RDMA 参与时主要保证对目标 PE 内存的可见性。
 

@@ -218,7 +218,7 @@ if __name__ == '__main__':
 
 ### 3.3 精度容差选择
 
-check_result.py 的 `--rtol` 和 `--atol` 必须由 run.sh 显式传入，不依赖脚本默认值。容差值按 `op_kind`、`dtype` 和 `compute_times` 选取，权威规则见 [precision-standard.md](precision-standard.md)。
+check_result.py 的 `--rtol` 和 `--atol` 必须由 `scripts/run.sh` 显式传入，不依赖脚本默认值。容差值按 `op_kind`、`dtype` 和 `compute_times` 选取，权威规则见 [precision-standard.md](precision-standard.md)。
 
 **check_result.py 必须实现**：
 - 双统计判定：`precision_percent`（逐元素通过率 → 必须 100%）和 `eb`（平均偏置 → 必须 ≤ eb_threshold），见 [precision-standard.md §4](precision-standard.md)
@@ -234,29 +234,36 @@ check_result.py 的 `--rtol` 和 `--atol` 必须由 run.sh 显式传入，不依
 
 ---
 
-## 4. run.sh 模板
+## 4. `scripts/run.sh` 模板
+
+> **custom-ops 独立工程（默认）**：算子内仍生成 `custom-ops/<op>/scripts/run.sh`，但 skill/README/交付 **MUST** 以 [custom-ops-entrypoints.md](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md) §2 为首选运行入口。build 失败提示 **MUST** 写同文件 §1 编译，禁止裸 cmake。
 
 ```bash
 #!/bin/bash
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 OP_DIR=$(dirname "$SCRIPT_DIR")
-PROJECT_ROOT=$(dirname "$OP_DIR")
+# custom-ops：SHMEM 仓库根
+SHMEM_REPO=$(cd "${OP_DIR}/../.." && pwd)
+EXEC_BIN="${OP_DIR}/build/bin/<op_name>"
 
 # ========== 参数 ==========
 PE_SIZE="${1:-2}"
-IPPORT="${2:-tcp://127.0.0.1:8899}"
 FIRST_NPU="${3:-0}"
 TIMEOUT="${TIMEOUT:-120}"    # 超时上限 120 秒（2 分钟）
+# IPPORT / SHMEM_UID_SESSION_ID 由 setup_shmem_dynamic_endpoints 分配；用户 export 时尊重其值
 
-EXEC_BIN=${PROJECT_ROOT}/build/bin/<op_name>
 DATA_DIR=${OP_DIR}/data
 OUTPUT_DIR=${OP_DIR}/output
 
-# ========== 环境 ==========
-source ${PROJECT_ROOT}/install/set_env.sh
-export SHMEM_UID_SESSION_ID=127.0.0.1:8899
-export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:${LD_LIBRARY_PATH:-}
+# ========== 环境（MUST 完整链路，禁止只设 build/lib）==========
+# 内联 setup_shmem_runtime_env（函数体见 env-setup.snippet.md）
+setup_shmem_runtime_env "${SHMEM_REPO}" "${OP_DIR}" || exit 1
+
+if [[ ! -x "${EXEC_BIN}" ]]; then
+    echo "Build first: cmake --build ${OP_DIR}/build (see shmem-ops-compile-debug/references/custom-ops-entrypoints.md §1)" >&2
+    exit 1
+fi
 
 # ========== 1. 生成测试数据 ==========
 rm -rf ${DATA_DIR} ${OUTPUT_DIR}
@@ -298,6 +305,8 @@ exit $?
 ```
 
 **关键规范**：
+- **MUST** `source ${SHMEM_REPO}/install/set_env.sh` 后再追加 `build/lib`；见 env-setup.snippet.md 的 `setup_shmem_runtime_env`
+- **MUST** 调用 `setup_shmem_dynamic_endpoints`，禁止写死 `27010`/`8899`
 - **超时上限 120 秒**（通过 `TIMEOUT` 环境变量可覆盖，但默认不超过 2 分钟）
 - 支持参数化 PE 数、端口、首 NPU
 - 先生成数据，再启动进程，最后验证
@@ -329,7 +338,7 @@ exit $?
 | route table / payload 编码解码 / 数据预处理 | Python（测试数据）或 独立 C++ Host 模块（运行时） |
 | layout / offset / shape 派生 / tiling 参数 | 独立 C++ helper |
 | 文件读写 / 资源管理 | 可拆到 C++ helper |
-| 多 PE 启动 | `run.sh` / 外部 launcher |
+| 多 PE 启动 | `scripts/run.sh` / 外部 launcher |
 
 ---
 
@@ -342,4 +351,4 @@ exit $?
 ]
 ```
 
-用于批量测试多组 case 的场景，`run.sh` 可循环读取每条执行。
+用于批量测试多组 case 的场景，`scripts/run.sh` 可循环读取每条执行。

@@ -29,6 +29,8 @@ kernel 代码中必须包含：
 
 该头文件位于 SHMEM SDK 仓库的 `src/device/utils/prof/shmemi_prof.h`，用户代码通过编译时 `-I` 路径引用。
 
+> **边界**：仅用于 `SHMEMI_PROF_*` 性能宏；宏内部 `aclshmemi_get_state` 为 SDK 实现细节，算子 **禁止** 直接调用 `aclshmemi_*`。默认性能路径 **禁止** 常驻 include。详见 [internal-api-boundary.md §4](../../shmem-ops-code-gen/references/internal-api-boundary.md)。
+
 ### 2.2 环境变量：指定采集 PE
 
 **MUST** 在启动前设置环境变量 `SHMEM_CYCLE_PROF_PE`，指定在哪个 PE 上采集 profiling 数据：
@@ -134,7 +136,7 @@ constexpr int32_t kProfFinalize     = 4;   // finalize: 写回/metadata/收尾
 
 ### 4.3 打点示例
 
-以下展示两种常见模式：**信号-搬运分离**（通信算子典型模式）和 **分段计算**（通算融合典型模式）。
+以下展示通信算子典型模式（信号-搬运分离）。
 
 #### 4.3.1 信号-搬运分离模式
 

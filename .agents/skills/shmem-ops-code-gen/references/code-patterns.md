@@ -1,6 +1,6 @@
 # SHMEM Examples 代码模式与规范
 
-本文从 examples 中抽取可复用的代码组织、通信骨架和规范性要求，用于开发新 SHMEM demo、通信算子或通算融合 kernel。
+本文从 examples 中抽取可复用的代码组织、通信骨架和规范性要求，用于开发新 SHMEM 纯通信算子 kernel。
 
 ## 1. `main.cpp` 固定结构
 
@@ -22,7 +22,7 @@
 
 | 约束 | 说明 |
 | --- | --- |
-| 单进程单 PE | `main.cpp` 一次启动只绑一个 device/`my_pe`；多 PE 由 `run.sh`/launcher 启动 |
+| 单进程单 PE | `main.cpp` 一次启动只绑一个 device/`my_pe`；多 PE 由 `scripts/run.sh`/launcher 启动 |
 | Host 逻辑边界 | 复杂 tiling/route/packing 拆到独立 `.cpp/.h`；`main.cpp` 只做 `BuildPlan → PrepareInputs → LaunchOp → WriteOutputs` 编排 |
 
 ## 2. Device kernel 文件拆分习惯
@@ -33,7 +33,6 @@ examples 中常见三类拆分方式：
 | --- | --- | --- |
 | 纯通信 demo | `main.cpp` 承担 Host 逻辑，`*_kernel.cpp/.h` 承担 kernel + launch wrapper | allgather |
 | 单文件 demo | kernel 模板、launch wrapper、Host 测试逻辑放在一个 `main.cpp` | SDMA demo |
-| 通算融合 demo | Host 入口在 example 目录，kernel 放 `include/catcoc/.../kernel` 或 example-local headers | matmul allreduce |
 
 推荐边界：
 
@@ -67,7 +66,7 @@ raw pointer 不能绕过 SHMEM 数据面。即使通过 `aclshmem_ptr` 或 engin
 
 - 使用 `SetGlobalBuffer(reinterpret_cast<__gm__ T *>(addr), elem_count)` 绑定 GM。
 - 与 `aclshmemx_mte_*`、`aclshmemx_sdma_*`、typed RMA 的 tensor 重载配合。
-- 更适合通算融合 epilogue 中传递 tile 或 block-level view。
+
 
 ### 3.3 `AscendC::LocalTensor`
 
@@ -138,10 +137,17 @@ AllReduce 通常由 ReduceScatter + AllGather 组成：
 
 - ReduceScatter 阶段把每个 chunk 的归约结果收敛到负责该 chunk 的 PE。
 - AllGather 阶段把各 PE 拥有的归约后 chunk 广播给所有 PE。
-- 对通算融合，计算 kernel 可以直接把 partial result 写入 symmetric state，通信 epilogue 再执行 reduce-scatter/allgather。
+
 - 对 schedule-driven allreduce，Host 只 launch 一个 fused kernel，Device 内部执行 init、reduce-scatter、all-gather、finalize，phase 间在 Device 侧同步。
 
 AllReduce 的关键规范是明确“谁拥有某个 chunk 的写权”。同一目标 slice 不应被多个 AIV 无序写入，除非使用受控 atomic 或先聚合再写回。
+
+### 6.4 统一实现 vs 大小分支
+
+- **默认 single path**：一套 kernel 逻辑覆盖 S/L 档；UB 内 `while` 分块是内部细节，不是 `small`/`large` 两条路径
+- **禁止**未证明收益就维护 `*_small_data` / `*_big_data`、`*_small` / `*_large` 并行实现
+- **允许**仅因 `GVA_BUFF_MAX_SIZE` / symm 容量触发的**外层 tile 循环**（内存约束，不是 perf 分支）
+- size 分支须附 profiling：**≥5%** steady_bus 或时延收益才保留；否则合并并删除死代码
 
 ## 7. symmetric buffer 生命周期
 

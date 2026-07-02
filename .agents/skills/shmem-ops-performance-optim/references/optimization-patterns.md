@@ -1,5 +1,7 @@
 # SHMEM 算子性能优化模式
 
+> **仓内路径**：下文 `examples/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 本文按瓶颈类型列出 SHMEM 算子的优化方向和具体手段。每轮优化先定位瓶颈类型，再选择对应手段。
 
 ## 1. 通信优化
@@ -53,13 +55,25 @@ while (!all_done) {
 - signal 使用 magic + chunk_count 编码，receiver 通过解码判断就绪程度
 - 不需要全局 barrier，数据逐 chunk 流式可用
 
-### 1.2 Engine 选择
+### 1.1b AllToAllV 大消息 — 禁止双拷贝 staging
+
+| 项目 | 说明 |
+| --- | --- |
+| 瓶颈 | `sendbuf → 本地 symm → put 远端 symm` 使有效带宽封顶 ~50% 目标 |
+| 优化 | 远端 **直接** `mte_put(sendbuf+displ, remote_symm+put_off, pe=dst)`；仅 `dst==my_rank` 时 staging 到 `symm_off` |
+| 同步 | send 半核 `quiet` 后 **全体** `aclshmem_barrier_all()`，再 recv 半核 get |
+| SDMA | ≥2MB 可试 SDMA put/get；**MUST** 先 MTE 路径大档 PASS，再启用 SDMA |
+| 验证 | 平台档 uniform `base_count=8388608` 正确性 + `perf-workflow.md + platform-perf-spec.md` 带宽表 |
+
+❌ 错误：对每个 dst 先 Copy 到 `symm_off` 再 Copy `symm_off` 到远端 `put_off`（双倍流量）
+
+✅ 正确：远端一次 put；半核 send/recv 之间 `aclshmem_barrier_all()`
 
 | 数据量 | 拓扑 | 推荐 Engine | 原因 |
 | --- | --- | --- | --- |
-| < 2MB | 任意 | MTE (`aclshmemx_mte_put/get_nbi`) | 延迟低，setup 开销小 |
-| ≥ 2MB | 节点内 P2P 可达 | SDMA (`aclshmemx_sdma_put/get_nbi`) | 带宽高，不占 MTE 通道 |
-| ≥ 2MB | 跨节点 / P2P 不可达 | RDMA/RoCE (`aclshmemx_roce_put/get_nbi`) | 唯一可达路径 |
+| < 2MB | 任意 | MTE (`aclshmemx_mte_put_nbi`/`aclshmemx_mte_get_nbi`) | 延迟低，setup 开销小 |
+| ≥ 2MB | 节点内 P2P 可达 | SDMA (`aclshmemx_sdma_put_nbi`/`aclshmemx_sdma_get_nbi`) | 带宽高，不占 MTE 通道 |
+| ≥ 2MB | 跨节点 / P2P 不可达 | RDMA/RoCE (`aclshmemx_roce_put_nbi`/`aclshmemx_roce_get_nbi`) | 唯一可达路径 |
 | 混合场景 | 节点内+跨节点 | MTE 节点内 + RDMA 跨节点 | 按拓扑分层选择 |
 
 注意：
@@ -216,7 +230,7 @@ signal 编码建议：
 ❌ 错误做法：
 ```cpp
 aclshmem_getmem(gm_tmp, remote_src, size, peer);  // 落 GM
-aclshmem_quiet();
+aclshmemx_mte_quiet();
 DataCopy(ub_buf, gm_tmp, size);  // 再搬 UB
 compute(ub_buf);
 ```
@@ -362,7 +376,7 @@ else {
 | --- | --- |
 | < 2MB | 固定 8 核（小数据 setup 开销大于并行收益） |
 | ≥ 2MB | `2 * n_pes` 或按 chunk 数动态计算 |
-| 通算融合 | compute cores 按 matmul 负载均衡，comm cores 独立 |
+| 纯通信 | AIV 按 PE、数据维度均分 |
 
 ### 5.5 负载均衡
 

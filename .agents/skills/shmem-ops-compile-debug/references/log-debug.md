@@ -1,5 +1,10 @@
 # SHMEM 日志调试
 
+> **仓内参考文档**：先定位 `SHMEM_REPO`（[shmem-repo-resolution.md](../../shmem-ops-dev/references/shmem-repo-resolution.md)），再 Read `${SHMEM_REPO}/docs/debug/log_debug.md`  
+> 本文件为技能内摘要；排障时可对照仓内文档与最新日志。
+
+完整 SHMEM 文档索引见 [shmem-repo-docs-index.md](shmem-repo-docs-index.md)。
+
 ## 环境变量
 
 | 变量 | 含义 | 默认值 |
@@ -44,3 +49,14 @@ bootstrap 过程涉及多个 socket 的创建和使用，这些 socket 信息会
 ## 定位能力边界
 
 SHMEM 日志当前主要提供 Host 侧的定位能力。Device 侧如算子发生报错时可能无法根据 SHMEM 日志定位，需配合 CANN 或 AscendC DumpTensor/printf 工具进行定位（见 [dump-debug.md](dump-debug.md)）。
+
+## `aclshmemx_init_attr` 失败时（参考）
+
+1. 可设置 `SHMEM_LOG_LEVEL=DEBUG`、`SHMEM_LOG_TO_STDOUT=1`（或读 `${SHMEM_LOG_PATH:-$HOME/shmem/log}/aclshmem_*.log`）
+2. 在日志中定位 bootstrap/init 失败点（见上文「关键日志阶段」）
+3. 对照 [debug.md §4](debug.md) 与 `${SHMEM_REPO}/docs/debug/Troubleshooting_FAQs.md`
+4. 环境恢复后再跑正确性；init 未成功时优先排查环境，再考虑 kernel
+
+```bash
+grep -iE 'fail|error|address in use|bootstrap|AccStore' "${SHMEM_LOG_PATH:-$HOME/shmem/log}"/aclshmem_*.log | tail -20
+```

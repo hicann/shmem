@@ -1,5 +1,9 @@
 # SHMEM API 功能场景梳理
 
+> custom-ops **禁止** `aclshmemi_*`；deprecated 的 `aclshmemx_barrier_*_vec` 改用 `aclshmem_barrier_*`；MTE-only 勿误用全引擎 `aclshmem_quiet` — 见 [internal-api-boundary.md](internal-api-boundary.md)（`aclshmemx_*` 扩展接口本身 **允许**）。
+
+> **仓内路径**：下文 `examples/`、`install/shmem/include/` 等均指 `${SHMEM_REPO}/` 下路径。Read 前先 [定位 SHMEM_REPO](../../shmem-ops-dev/references/shmem-repo-resolution.md)。
+
 本文按使用场景梳理 SHMEM 对外和内部接口提供的能力，重点说明接口族在系统中的职责、组合方式和边界，不展开逐个 API 的参数说明。
 
 ## 1. 接口层次和基本边界
@@ -115,7 +119,7 @@ Host 侧还可以通过 `aclshmemx_set_mte_config`、`aclshmemx_set_sdma_config`
 Device GM2GM 是 kernel 内从 GM 到远端 GM、或从远端 GM 到本地 GM 的主要路径：
 
 - 标准 typed `put/get`、`p/g`、`iput/iget`、bit-size、`putmem/getmem` 覆盖同步和 NBI 形式。
-- NBI 接口返回后不代表数据已经完成，需要配套 `aclshmem_quiet`、barrier、engine-specific quiet、event/flag 或 Host stream 同步保证可见性。
+- NBI 接口返回后不代表数据已经完成，需要配套 engine-specific quiet（如 MTE 用 `aclshmemx_mte_quiet`）、全局 `aclshmem_quiet`（多引擎混用）、barrier、event/flag 或 Host stream 同步保证可见性。
 - `non_contiguous_copy_param` 描述 repeat、length、src_ld、dst_ld，用于非连续搬运。
 - `AscendC::GlobalTensor` 重载适合模板化或算子框架内写法；raw `__gm__` 指针适合低层精确控制地址和 offset。
 
@@ -170,11 +174,11 @@ barrier 能力同时存在于 Host 和 Device：
 
 Device 侧 memory ordering 能力：
 
-- `aclshmem_quiet` 确保调用 PE 之前发出的 symmetric data object 操作完成。
+- `aclshmem_quiet` 确保调用 PE 之前发出的**全引擎** symmetric data object 操作完成（MTE + SDMA + UDMA + RDMA）。
+- **单引擎场景 SHOULD 使用 engine-specific quiet**：MTE → `aclshmemx_mte_quiet`；SDMA → `aclshmemx_sdma_quiet`；UDMA → `aclshmemx_udma_quiet(pe)`；RDMA/RoCE → `aclshmemx_roce_quiet`。勿在仅需 MTE drain 时调用全局 `aclshmem_quiet`。
 - `aclshmem_fence` 在当前实现中与 `aclshmem_quiet` 等价，既保证顺序也保证完成。
 - HCCS-only 场景下完成后可认为全局可见；HCCS + RDMA 场景下，当前说明只保证对目标 PE 内存的可见性。
-- SDMA 需要使用 `aclshmemx_sdma_quiet` 或 notify/wait 机制等待 SDMA SQE 完成。
-- RDMA 示例中常在 Host 侧使用 `aclshmemx_handle_wait(handle, stream)` 等待同一 stream 上的 RDMA 请求和 team 内协作完成。
+- 亦可配合 event/flag（如 `SetFlag/WaitFlag<MTE3_S>`）或 Host `aclrtSynchronizeStream` 等等价同步。
 
 ## 6. Atomic：远端累加和本地归约辅助
 
@@ -239,13 +243,13 @@ examples 中使用 Ascend C 调测能力定位 Device 侧问题：
 | `aclshmem_malloc/free` | 是 | 否 | 所有 PE 相同顺序、相同大小 | 跨 PE 使用前应确保初始化和必要 barrier 完成 |
 | `aclshmem_ptr` | 是 | 是 | 输入地址必须是 symmetric 地址 | 返回地址只表示远端映射，不代表数据已同步 |
 | Host put/get | 是 | 否 | 远端目标/源通常为 symmetric 地址 | NBI/stream 版本需显式同步 |
-| Device GM2GM put/get | 否 | 是 | 远端目标/源为 symmetric GM | NBI 后用 quiet/barrier/event/engine quiet |
+| Device GM2GM put/get | 否 | 是 | 远端目标/源为 symmetric GM | NBI 后用 engine quiet（MTE→`aclshmemx_mte_quiet`）或全局 `aclshmem_quiet`/barrier/event |
 | Device UB2GM put/get | 否 | 是 | GM 侧为 symmetric 地址 | 需管理 UB 生命周期和事件同步 |
-| MTE engine | Host 可配默认参数 | 是 | 远端 GM 为 symmetric 地址 | 使用 `sync_id` 和事件保证流水顺序 |
+| MTE engine | Host 可配默认参数 | 是 | 远端 GM 为 symmetric 地址 | `aclshmemx_mte_quiet` 或 `sync_id`/事件保证流水顺序 |
 | SDMA engine | Host 可配默认参数 | 是 | 远端 GM 为 symmetric 地址 | `aclshmemx_sdma_quiet` 或 notify/wait |
 | RDMA/RoCE engine | Host 初始化选择 RoCE | 是 | 远端 GM 为 RDMA 可达 symmetric 地址 | 避免同 PE 并发冲突，必要时 `handle_wait` |
 | signal/wait/test | stream 版本可用 | 是 | signal word 应在 symmetric memory | signal 前的数据可见性需由接口语义和同步保证 |
 | barrier/sync | 是 | 是 | team 内 PE 必须一致参与 | Host/Device 完成域不同，Device barrier 要求 MIX kernel |
-| quiet/fence | 未暴露通用 Host API | 是 | 作用于 symmetric data object 操作 | RDMA/SDMA 有额外 engine-specific 等待 |
+| quiet/fence | 未暴露通用 Host API | 是 | 作用于 symmetric data object 操作 | `aclshmem_quiet` 全引擎；单引擎用 `aclshmemx_*_quiet` |
 | atomic add | 否 | 是 | 目标为 symmetric GM | 读取前需要 quiet/barrier 等完成保证 |
 | profiling/log/debug | 是 | Device 埋点/printf/dump | profiling buffer 由库管理，dump buffer 由用户准备 | debug 代码需通过编译开关保护 |

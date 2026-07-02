@@ -5,7 +5,7 @@
 ## 核心原则
 
 - **性能阶段是强制性阶段**：正确性通过后 **NEVER** 直接停止，**MUST** 进行性能采集、baseline 接入和瓶颈分析
-- **有 baseline 时 **MUST** 接入**：有 HCCL/aclnn/拼接 baseline 时，**MUST** 接入并对比，默认达标线为 current ≥ baseline 的 80%
+- **有 baseline 时 **MUST** 接入**：有 HCCL/aclnn baseline 时，**MUST** 接入并对比；四算子批次达标线见 [platform-perf-spec.md](platform-perf-spec.md)，其他有 baseline 算子默认 current ≥ baseline 的 **80%**
 - **无 baseline 时 **MUST** 指标验收**：通信算子测量带宽利用率或端到端时延，能计算带宽利用率时 **NEVER** 低于 20%
 - **功能完善不算性能优化**：例如从 Host RMA 改为 Device kernel 是功能完善，不是性能优化
 - **并发补齐不算性能优化**：例如从临时 `block_dim=1` 改为 design 要求的多 block，是 correctness 实现补齐
@@ -31,10 +31,10 @@ correctness 未通过时，性能数据无效。
 | 字段 | 说明 |
 | --- | --- |
 | metric | `latency_us`、`algo_bandwidth_GBps`、`bus_bandwidth_GBps`、`bandwidth_utilization_percent`、`effective_flops`、`compute_utilization_percent`、`cycles` |
-| baseline | HCCL（见 baseline-selection.md §1）、aclnn（见 baseline-selection.md §2）、拼接（见 baseline-selection.md §3）、已有 SHMEM example、用户参考实现、或 metric_only |
-| baseline_target | 有 baseline 时默认 current ≥ 80% baseline；无 baseline 时写 metric_only 指标目标，通信算子能计算带宽利用率时 **NEVER** 低于 20% |
+| baseline | HCCL（见 baseline-selection.md §1）、aclnn（见 baseline-selection.md §1.2）、已有 SHMEM example、用户参考实现、或 metric_only |
+| baseline_target | 四算子见 platform-perf-spec.md；其他有 baseline 时默认 current ≥ 80% baseline；无 baseline 时写 metric_only 指标目标，通信算子能计算带宽利用率时 **NEVER** 低于 20% |
 | cases | shape、dtype、PE count、engine、scope |
-| min_scale | 集合通信至少 256MB 级通信数据量；计算/通算融合 hidden size 上千级；无法满足时说明原因 |
+| min_scale | 集合通信至少 256MB 级通信数据量；无法满足时说明原因 |
 | repeats | 预热次数、统计次数 |
 | profiler | msprof、torch_npu profiler、SHMEM cycle profiling、example 内部计时 |
 | target | 目标改善方向或验收阈值 |
@@ -56,7 +56,7 @@ correctness 未通过时，性能数据无效。
 | baseline | baseline 数值或 N/A |
 | current | 当前实现数值 |
 | delta | 与 baseline 差异 |
-| target | baseline 80% 达标线或 metric_only 指标目标 |
+| target | platform-perf-spec 按算子目标，或 baseline 80% 达标线，或 metric_only 指标目标 |
 | pass | 是否达标 |
 | notes | 关键现象 |
 
@@ -93,5 +93,22 @@ correctness 未通过时，性能数据无效。
 
 - smoke 小 shape 只用于启动和 sanity check，不作为性能结论
 - 集合通信类至少包含 256MB 级通信数据量 case
-- 计算或通算融合类至少包含 hidden size 上千级 case
+- 至少包含 L 档 8PE case
 - 达不到规模要求时，最终报告 **MUST** 写"未满足性能规模门禁"，**NEVER** 写成完整性能完成
+
+## 5. 采集命令（custom-ops 默认）
+
+**MUST** 按 [perf-workflow.md](perf-workflow.md) 执行（custom-ops 为 skill 生成交付物；命令以该 md 代码段为准）。HCCL 与 SHMEM **分阶段、分 shell**，对比离线进行。
+
+性能前后正确性回归：见 [custom-ops-entrypoints.md §3](../../shmem-ops-compile-debug/references/custom-ops-entrypoints.md)。
+
+**alltoallv 参考**：两次独立 `docker exec`，容器内粘贴 perf-workflow §1 阶段 A/B，再 §1 阶段 C 离线对比。
+
+Agent 完成 perf 采集后 **MUST** 在聊天中摘要：
+1. **sweep 全表**（payload vs steady_bus_GBps，标明平台区）
+2. 平台区 **SHMEM vs baseline 对比**（steady_bus 比值、PASS/FAIL；目标见 [platform-perf-spec.md](platform-perf-spec.md)）
+3. **NEVER** 只报单点 e2e 带宽（未饱和时随 payload 上升）
+
+详见 [baseline-compare-workflow.md](baseline-compare-workflow.md)。
+
+in-tree example 仍使用算子目录内 `scripts/perf.sh` 或 `scripts/run.sh --perf`。

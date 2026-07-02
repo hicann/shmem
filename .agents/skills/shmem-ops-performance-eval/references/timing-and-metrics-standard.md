@@ -171,10 +171,11 @@ hccl_latency = Phase 2 + Phase 3
 
 ```text
 algo_bandwidth_GBps = logical_payload_bytes / latency_s / 1e9
-``
+```
 
-- 与 Baseline 对比：使用 `e2e_latency_us`
-- 内部分析：使用 `kernel_latency_us`
+- 与 Baseline **带宽达标、Round 间对比**：使用 `steady_bus_bandwidth_GBps`（kernel 口径，经 [perf-workflow.md §2](perf-workflow.md) sweep 确认稳态）；**NEVER** 用 e2e 带宽作达标主指标
+- 与 Baseline **时延参考**：使用 `e2e_latency_us`
+- 内部分析：使用 `kernel_latency_us` 推算 kernel 口径 algo/bus 带宽
 - 报告中标注使用的是哪个 latency
 - 不乘 2，统一按 input size 计算（遵循 NCCL `algBw` 惯例）
 
@@ -206,7 +207,7 @@ bandwidth_utilization_percent = bus_bandwidth_GBps / peak_bandwidth_GBps × 100
 ### 5.1 SHMEM main.cpp --perf 输出
 
 ```text
-PERF pe=<id> e2e_us=<val> kernel_us=<val> algo_GBps=<val> bus_GBps=<val> logical_bytes=<val> bus_factor=<val>
+[PERF] pe=<id> e2e_us=<val> kernel_us=<val> algo_bandwidth_GBps=<val> bus_bandwidth_GBps=<val> steady_bus_bandwidth_GBps=<val> payload_bytes=<val> bus_factor=<val>
 ```
 
 **注意**：`bus_factor` 在 PERF 行中输出以供调试和公式验证，但不作为性能结果表的主列输出（详见 SKILL.md 和 §4.3）。
@@ -215,25 +216,27 @@ PERF pe=<id> e2e_us=<val> kernel_us=<val> algo_GBps=<val> bus_GBps=<val> logical
 | --- | --- |
 | `e2e_us` | 含 staging + barrier + kernel |
 | `kernel_us` | 仅 kernel |
-| `algo_GBps` | 基于 `e2e_us` 计算 |
-| `bus_GBps` | `algo_GBps × bus_factor` |
-| `logical_bytes` | 单 PE 语义数据量 |
+| `algo_bandwidth_GBps` | 基于 `e2e_us` 计算（参考） |
+| `bus_bandwidth_GBps` | `algo_bandwidth_GBps × bus_factor`（e2e 参考） |
+| **`steady_bus_bandwidth_GBps`** | **`payload_bytes / kernel_us × bus_factor / 1e9` — 达标对比 MUST 用此字段** |
+| `payload_bytes` | 单 PE 语义数据量 |
 | `bus_factor` | 数值及来源 |
 
 ### 5.2 HCCL baseline 输出
 
 ```text
-HCCL_PERF pe=<id> avg_us=<val> algo_GBps=<val> bus_GBps=<val> logical_bytes=<val> bus_factor=<val>
+[BASELINE_PERF] pe=<id> e2e_us=<val> kernel_us=<val> algo_bandwidth_GBps=<val> bus_bandwidth_GBps=<val> steady_bus_bandwidth_GBps=<val> payload_bytes=<val> bus_factor=<val> api=<HcclAlltoAllV|...>
 ```
 
 ### 5.3 性能报告对比表
 
-对比表格式和字段定义见 [SKILL.md §性能对比表](../SKILL.md) 和 [performance-report.md 模板](../templates/performance-report.md)。此处仅列出核心结构：
+对比表格式和字段定义见 [SKILL.md §性能对比表](../SKILL.md)、[perf-chat-output-spec.md §2](perf-chat-output-spec.md) 和 [performance-report.md 模板](../templates/performance-report.md)。此处仅列出核心结构：
 
-- 列名：`metric | SHMEM e2e | SHMEM kernel | Baseline | delta (e2e vs Baseline)`
+- 列名（带宽达标）：`metric | SHMEM steady_bus | Baseline steady_bus | delta (steady vs Baseline)`；时延参考列可并列 `e2e_us`、`kernel_us`
 - `Baseline` 列适用 hccl / aclnn / stitched，不限 HCCL
-- 达标判断使用 `SHMEM e2e` 列与 `Baseline` 列对比
-- `SHMEM kernel` 列用于内部优化分析
+- **达标判断 MUST 使用 `steady_bus_bandwidth_GBps`（kernel 口径）** 与 baseline 对比；四算子阈值见 [platform-perf-spec.md](platform-perf-spec.md)，其他默认 ≥ baseline 80%
+- `e2e_latency_us` / e2e 带宽仅作参考，**NEVER** 作为 Round 对比或达标主指标（见 [performance-eval/SKILL.md §达标规则](../SKILL.md)）
+- `kernel_latency_us` 列用于内部优化分析
 
 ## 6. 计算示例
 
@@ -256,8 +259,13 @@ bus_GBps (kernel)  = 127.83 × 0.875 = 111.85
 algo_GBps (hccl)   = 134217728 / (1100.0 × 1e-6) / 1e9 = 122.02
 bus_GBps (hccl)    = 122.02 × 0.875 = 106.77
 
-# 达标判断 (e2e vs hccl)
-algo_bw ratio: 111.85 / 122.02 = 91.7% >= 80% -> PASS
+# 达标判断 (steady_bus vs hccl kernel bus)
+steady_bus_GBps (kernel) = 127.83 × 0.875 = 111.85
+steady_bus_GBps (hccl)   = 106.77
+ratio: 111.85 / 106.77 = 104.8% >= 80% -> PASS (steady_bus 口径)
+
+# e2e 带宽仅参考，不作达标主指标
+# algo_bw (e2e): 111.85 / 122.02 = 91.7%  ← 不可单独用于 PASS/FAIL
 ```
 
 ### 6.2 reduce-scatter (float32, 8 PE, shard_elems = 8388608)
@@ -336,7 +344,7 @@ aclshmemx_show_prof(nullptr, true);
 
 ## 8. 计算指标
 
-计算算子或通算融合中的计算阶段 **MUST** 计算有效算力和算力使用率，并与硬件峰值对比。
+通信算子中计算阶段的算力使用率（如适用）**MAY** 计算有效算力和算力使用率，并与硬件峰值对比。纯搬运算子标注 N/A。
 
 公式：
 
@@ -351,7 +359,7 @@ compute_utilization_percent = effective_flops / peak_flops_for_dtype_and_soc * 1
 - `op_count_flops`：按算子语义统计的有效 FLOPs，**MUST** 给出公式。例如 GEMM 通常为 `2 * M * N * K`
 - `compute_frame_us`：优先来自 Device profiling 的 compute frame；没有分段打点时可用端到端时间，但 **MUST** 标注该值包含通信/等待开销
 - `peak_flops_for_dtype_and_soc`：硬件峰值算力，**MUST** 记录 SoC、dtype、数据格式、是否使用 cube/vector 单元以及来源
-- 对通算融合算子，同时输出 compute、communication、wait/sync、end-to-end 四类时间占比，**NEVER** 只给整体 FLOPS
+- 输出通信阶段时间占比，**NEVER** 只给整体时间
 
 ## 9. 采集方法选择
 

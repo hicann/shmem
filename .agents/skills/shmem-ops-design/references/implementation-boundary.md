@@ -26,3 +26,20 @@
 - 运行时 Host 计划逻辑 -> 独立 Host `.cpp/.h`
 - 算子通信或计算语义 -> Device kernel
 - `main.cpp` 应该是胶水代码，只串联阶段
+
+## Kernel 实现策略（统一路径 — MUST）
+
+设计阶段 **MUST** 默认 **single path**：一套 Device kernel 逻辑覆盖 correctness case matrix 与性能平台区（S/L 档），UB 内 `while` 分块是内部细节，**不是** `small`/`large` 两套并行实现。
+
+| 原则 | 说明 |
+| --- | --- |
+| 默认 unified | `schedule` / `implementation` 描述一条主路径 + UB 分块 |
+| 外层 tile | 仅因 `GVA_BUFF_MAX_SIZE`、对称堆容量触发的 GM 分块循环可保留 |
+| 禁止默认分叉 | **不得**在设计中预先规划 `*_small_data`/`*_big_data`、`*_small`/`*_large` 双路径，除非用户明确要求且附收益假设 |
+| 证明后分拆 | 若 Phase 6.5 profiling 证明 size 分支 **steady_bus 或时延 ≥5%** 稳态收益，才在 design 修订中记录分拆理由与对比数据 |
+
+DSL `schedule` 中若出现多路径，**MUST** 在 Design Review 标注「需 profiling 证明」或合并为 unified。代码生成见 [code-patterns.md §6.4](../../shmem-ops-code-gen/references/code-patterns.md)；优化阶段见 [agent-execution-contract.md §5](../../shmem-ops-dev/references/agent-execution-contract.md)。
+
+## 禁止的实现（补充）
+
+- 未证明收益即在 kernel 中维护 `if (0)` / `INT64_MAX` 禁用的 dead `large` 路径与 unified 路径长期并存（合并后 **MUST** 删除死代码）
