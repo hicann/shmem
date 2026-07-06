@@ -412,14 +412,13 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_cross_host(aclshmemx_team_t *team)
         int pre_pe_in_team = (my_pe_in_team - shift + size) % size;
         int next_pe_in_team = (my_pe_in_team + shift) % size;
 
-        int pre_pe = start + pre_pe_in_team * stride;
         int next_pe = start + next_pe_in_team * stride;
 
         // signal next pe
-        aclshmemi_highlevel_signal_set((__gm__ int32_t *)(sync_pool + my_pe), (__gm__ int32_t *)sync_counter, next_pe);
+        aclshmemi_highlevel_signal_set((__gm__ int32_t *)(sync_pool + my_pe_in_team), (__gm__ int32_t *)sync_counter, next_pe);
 
         // wait pre pe
-        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + pre_pe), count);
+        aclshmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_pool + pre_pe_in_team), count);
 
         shift *= SHIFT_MULTIPLIER;
     }
