@@ -198,8 +198,8 @@ struct HccpRaGetIfAttr {
 };
 
 struct HccpIfaddrInfo {
-    HccpIpAddr ip;          /* Address of interface */
-    struct in_addr mask;    /* Netmask of interface */
+    HccpIpAddr ip;       /* Address of interface */
+    struct in_addr mask; /* Netmask of interface */
 };
 
 struct HccpInterfaceInfo {
@@ -337,10 +337,10 @@ struct AiQpRMAWQ {
     uint32_t sl{0};
     uint64_t atomicAddr{0}; // device addr for atomic fetch or swapped data
     uint32_t atomicLkey{0}; // lkey for atomicAddr
-    // A5 (Ascend950) hns1825-specific fields
-    uint64_t dbSwVa{0};   // software shadow doorbell address
-    uint8_t  mtuShift{0}; // MTU shift for WQE size calculation
-    uint8_t  reserved[7]; // padding
+    // (Ascend950) hns1825-specific fields
+    uint64_t dbSwVa{0};  // software shadow doorbell address
+    uint8_t mtuShift{0}; // MTU shift for WQE size calculation
+    uint8_t reserved[7]; // padding
 };
 
 struct AiQpRMACQ {
@@ -352,7 +352,7 @@ struct AiQpRMACQ {
     uint64_t tailAddr{0};
     DBMode dbMode{DBMode::INVALID_DB}; // 0-hw/1-sw
     uint64_t dbAddr{0};
-    // A5 (Ascend950) hns1825-specific fields
+    // (Ascend950) hns1825-specific fields
     uint64_t dbSwVa{0}; // software shadow doorbell address
 };
 
@@ -374,7 +374,7 @@ struct AiQpRMAQueueInfo {
 
 constexpr int RA_QOS_ATTR_RESERVED = 6;
 
- struct QosAttr {
+struct QosAttr {
     unsigned char tc;
     unsigned char sl;
     unsigned char reserved[RA_QOS_ATTR_RESERVED];

@@ -16,18 +16,6 @@
 namespace shm {
 namespace topo {
 
-inline size_t get_common_prefix_len(const char* left, const char* right)
-{
-    if (left == nullptr || right == nullptr) {
-        return 0;
-    }
-    size_t len = 0;
-    while (left[len] == right[len] && left[len] != '\0' && right[len] != '\0') {
-        len++;
-    }
-    return len;
-}
-
 inline const char* get_path_basename(const char* path)
 {
     if (path == nullptr) {
@@ -37,23 +25,12 @@ inline const char* get_path_basename(const char* path)
     return (base == nullptr) ? path : base + 1;
 }
 
-inline int select_closest_nic_path_index(const char* npu_pcie_path, const char* const* nic_pcie_paths, size_t nic_len,
-                                         size_t min_prefix_len)
-{
-    int max_pos = -1;
-    size_t max_len = min_prefix_len;
-    for (size_t i = 0; i < nic_len; ++i) {
-        if (nic_pcie_paths == nullptr || nic_pcie_paths[i] == nullptr || nic_pcie_paths[i][0] == '\0') {
-            continue;
-        }
-        size_t common_prefix_len = get_common_prefix_len(npu_pcie_path, nic_pcie_paths[i]);
-        if (common_prefix_len > max_len) {
-            max_pos = static_cast<int>(i);
-            max_len = common_prefix_len;
-        }
-    }
-    return max_pos;
-}
+// Python is_pix_topo uses pci_path[0:-18] to strip the last 18 chars, then
+// falls back to lspci Serial comparison for bridges with the same hardware.
+constexpr size_t PCI_PATH_TAIL_LEN = 18;
+
+// Full implementation in pcie_nic.cpp (needs popen for lspci)
+bool is_pix_topo(const char* path_a, const char* path_b);
 
 } // namespace topo
 } // namespace shm
