@@ -13,10 +13,11 @@ Welcome to Shmem's Documentation!
     :maxdepth: 2
     :caption: Using SHMEM
     :name: Using SHMEM
-    
+
     example/api_demo.md
     debug/log_debug.md
     debug/tools_debug.md
+    debug/profiling.md
     debug/dump_debug.md
 
 .. toctree::
@@ -50,6 +51,7 @@ Welcome to Shmem's Documentation!
     :name: Architecture
 
     principles/init_finalize.md
+    principles/config_store_bootstrap.md
     principles/team.md
     code_organization.md
 

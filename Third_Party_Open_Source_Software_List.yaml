@@ -20,6 +20,3 @@ pybind11:
 makeself:
   version: v2.5.0
   type: build
-secodefuzz:
-  version: v2.4.8
-  type: test
