@@ -88,7 +88,7 @@ target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
     ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
 )
-if(ACLSHMEM_UDMA_SUPPORT OR (ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950"))
+if(SOC_TYPE STREQUAL "Ascend950")
     target_include_directories(aclshmem_unittest_host PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
 endif()
 

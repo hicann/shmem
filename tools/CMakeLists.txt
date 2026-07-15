@@ -1,3 +1,3 @@
-if(ACLSHMEM_UDMA_SUPPORT)
-add_subdirectory(rootinfo)
+if(SOC_TYPE STREQUAL "Ascend950")
+    add_subdirectory(rootinfo)
 endif()
