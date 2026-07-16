@@ -91,7 +91,7 @@ function(aclshmem_add_fusion_example NAME)
         endif()
         target_link_libraries(${NAME}_kernel PRIVATE shmem)
         target_compile_options(${NAME}_kernel PRIVATE ${MPI_CXX_COMPILE_FLAGS})
-        
+
         list(APPEND ACLSHMEM_ALL_KERNEL_TARGETS ${NAME}_kernel)
         set(ACLSHMEM_ALL_KERNEL_TARGETS ${ACLSHMEM_ALL_KERNEL_TARGETS} CACHE INTERNAL "Update kernel targets")
         install(TARGETS ${NAME}_kernel
@@ -158,6 +158,7 @@ foreach(EXAMPLE
     allgather
     multi_instance
     rma_d2h_demo
+    sdma_d2h_demo
     sdma
     notifywait
     cmo

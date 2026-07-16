@@ -49,7 +49,7 @@ source ${install_path}/ascend-toolkit/set_env.sh
 #### 4.3.1 CANN 版本说明
 | 驱动固件 | CANN 版本 | D2D | D2H/H2D | D2rH/rH2D | 其他依赖 |
 | --- | --- | --- | --- | --- | --- |
-| Ascend HDK 25.0.RC1.1 | 9.0.0-beta.2 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA<br>SDMA | MTE | MTE | 使能 SDMA 需下载与 toolkit 版本和设备类型匹配的 [ops 包](https://www.hiascend.com/developer/download/community/result?module=cann) |
+| Ascend HDK 25.0.RC1.1 | 9.0.0-beta.2 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA<br>SDMA | MTE<br>SDMA（仅支持 A3） | MTE<br>SDMA（仅支持 A3） | 使能 SDMA 需下载与 toolkit 版本和设备类型匹配的 [ops 包](https://www.hiascend.com/developer/download/community/result?module=cann) |
 | Ascend HDK 25.0.RC1.1 | 8.5.0 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA | MTE | MTE | 使能 A3 D2rH/rH2D：LingQu Computing Network [1.5.0 版本](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software)<br>升级指导：[安装指南](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841) |
 | Ascend HDK 25.0.RC1.1 | 8.3.RC1 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA |  |  | |
 
