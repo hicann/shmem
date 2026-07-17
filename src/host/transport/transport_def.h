@@ -31,6 +31,11 @@ constexpr int32_t REG_MR_ACCESS_FLAG_REMOTE_WRITE = 0x2;
 constexpr int32_t REG_MR_ACCESS_FLAG_REMOTE_READ = 0x4;
 constexpr int32_t REG_MR_ACCESS_FLAG_BOTH_READ_WRITE = 0x7;
 
+constexpr int32_t HCOMM_CHANNEL_STATUS_READY = 0;      // 建链就绪
+constexpr int32_t HCOMM_CHANNEL_STATUS_CONNECTING = 1; // 建链中，继续等待
+constexpr int32_t HCOMM_CHANNEL_STATUS_FAILED = 2;     // 建链失败
+constexpr int32_t HCOMM_CHANNEL_STATUS_TIMEOUT = 3;    // 建链超时
+
 enum TransportType {
     TT_HCCP = 0,
     TT_SDMA = 1,
@@ -44,32 +49,29 @@ struct TransportOptions {
     uint32_t protocol;
     hybm_role_type role;
     std::string nic;
-    IpType type {IpV4};
+    IpType type{IpV4};
 
     friend std::ostream& operator<<(std::ostream& output, const TransportOptions& options)
     {
-        output << "TransportOptions(rankId=" << options.rankId
-               << ", count=" << options.rankCount
-               << ", protocol=" << options.protocol
-               << ", role=" << options.role
-               << ", nid=" << options.nic
+        output << "TransportOptions(rankId=" << options.rankId << ", count=" << options.rankCount
+               << ", protocol=" << options.protocol << ", role=" << options.role << ", nid=" << options.nic
                << ", iptype=" << options.type << ")";
         return output;
     }
 };
 
 struct TransportMemoryRegion {
-    uint64_t addr = 0;  /* virtual address of memory could be hbm or host dram */
-    uint64_t size = 0;  /* size of memory to be registered */
+    uint64_t addr = 0;                                   /* virtual address of memory could be hbm or host dram */
+    uint64_t size = 0;                                   /* size of memory to be registered */
     int32_t access = REG_MR_ACCESS_FLAG_BOTH_READ_WRITE; /* access right by local and remote */
-    uint32_t flags = 0;                                          /* optional flags: 加一个flag标识是DRAM还是HBM */
+    uint32_t flags = 0;                                  /* optional flags: 加一个flag标识是DRAM还是HBM */
 
     uint32_t cacheable = 0;
     uint32_t tokenValue = 0;
     uint64_t targetSegHandle = 0;
     uint32_t tokenIdValid = 1;
 
-    friend inline std::ostream &operator<<(std::ostream &output, const TransportMemoryRegion &mr)
+    friend inline std::ostream& operator<<(std::ostream& output, const TransportMemoryRegion& mr)
     {
         output << "TransportMemoryRegion(addr=" << mr.addr << ", size=" << mr.size << ", access=" << mr.access
                << ", flags=" << mr.flags << ", cacheable=" << mr.cacheable << ", tokenValue=" << mr.tokenValue
@@ -81,7 +83,7 @@ struct TransportMemoryRegion {
 struct TransportMemoryKey {
     uint32_t keys[16];
 
-    friend std::ostream &operator<<(std::ostream &output, const TransportMemoryKey &key)
+    friend std::ostream& operator<<(std::ostream& output, const TransportMemoryKey& key)
     {
         output << "MemoryKey" << std::hex;
         for (auto i = 0U; i < sizeof(key.keys) / sizeof(key.keys[0]); i++) {
@@ -99,22 +101,25 @@ struct TransportRankPrepareInfo {
 
     TransportRankPrepareInfo() {}
 
-    TransportRankPrepareInfo(std::string n, TransportMemoryKey k)
-        : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{k} {}
+    TransportRankPrepareInfo(std::string n, TransportMemoryKey k) : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{k}
+    {}
 
     TransportRankPrepareInfo(std::string n, hybm_role_type r, TransportMemoryKey k)
-        : nic{std::move(n)}, role{r}, memKeys{k} {}
+        : nic{std::move(n)}, role{r}, memKeys{k}
+    {}
 
     TransportRankPrepareInfo(std::string n, std::vector<TransportMemoryKey> ks)
-        : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{std::move(ks)} {}
+        : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{std::move(ks)}
+    {}
 
     TransportRankPrepareInfo(std::string n, hybm_role_type r, std::vector<TransportMemoryKey> ks)
-        : nic{std::move(n)}, role{r}, memKeys{std::move(ks)} {}
+        : nic{std::move(n)}, role{r}, memKeys{std::move(ks)}
+    {}
 
-    friend std::ostream &operator<<(std::ostream &output, const TransportRankPrepareInfo &info)
+    friend std::ostream& operator<<(std::ostream& output, const TransportRankPrepareInfo& info)
     {
         output << "PrepareInfo(nic=" << info.nic << ", role=" << info.role << ", memKeys=[";
-        for (auto &key : info.memKeys) {
+        for (auto& key : info.memKeys) {
             output << key << " ";
         }
         output << "])";
@@ -125,10 +130,10 @@ struct TransportRankPrepareInfo {
 struct HybmTransPrepareOptions {
     std::unordered_map<uint32_t, TransportRankPrepareInfo> options;
 
-    friend std::ostream &operator<<(std::ostream &output, const HybmTransPrepareOptions &info)
+    friend std::ostream& operator<<(std::ostream& output, const HybmTransPrepareOptions& info)
     {
         output << "PrepareOptions(";
-        for (auto &op : info.options) {
+        for (auto& op : info.options) {
             output << op.first << " => " << op.second << ", ";
         }
         output << ")";
@@ -136,7 +141,7 @@ struct HybmTransPrepareOptions {
     }
 };
 
-}  // namespace transport
-}  // namespace shm
+} // namespace transport
+} // namespace shm
 
-#endif  // MF_HYBRID_HYBM_TRANSPORT_COMMON_H
+#endif // MF_HYBRID_HYBM_TRANSPORT_COMMON_H

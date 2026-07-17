@@ -31,11 +31,6 @@ constexpr uint32_t ATOMIC_MAX_NUM = 128;
 // 非阻塞建链状态轮询参数(按通道个数缩放)
 constexpr uint32_t CHANNEL_STATUS_POLL_INTERVAL_PER_CH_MS = 10;   // 单通道单次轮询间隔(ms)
 constexpr uint32_t CHANNEL_STATUS_POLL_TIMEOUT_PER_CH_MS = 60000; // 单通道建链就绪等待超时(ms) = 1min
-// HcommChannelGetStatus 返回的通道状态码
-constexpr int32_t CHANNEL_STATUS_READY = 0;      // 建链就绪
-constexpr int32_t CHANNEL_STATUS_CONNECTING = 1; // 建链中，继续等待
-constexpr int32_t CHANNEL_STATUS_TIMEOUT_1 = 2;  // 建链超时
-constexpr int32_t CHANNEL_STATUS_TIMEOUT_2 = 3;  // 建链超时
 
 RdmaTransportManagerV2::~RdmaTransportManagerV2()
 {
@@ -359,7 +354,7 @@ Result RdmaTransportManagerV2::Connect()
 
     const uint32_t pollIntervalMs = channelNum * CHANNEL_STATUS_POLL_INTERVAL_PER_CH_MS;
     const uint32_t pollTimeoutMs = channelNum * CHANNEL_STATUS_POLL_TIMEOUT_PER_CH_MS;
-    std::vector<int32_t> statusList(channelNum, CHANNEL_STATUS_CONNECTING);
+    std::vector<int32_t> statusList(channelNum, HCOMM_CHANNEL_STATUS_CONNECTING);
     bool allReady = false;
     bool connectFailed = false;
     uint32_t elapsedMs = 0;
@@ -374,14 +369,17 @@ Result RdmaTransportManagerV2::Connect()
         connectFailed = false;
         for (uint32_t i = 0; i < channelNum; ++i) {
             const int32_t status = statusList[i];
-            if (status == CHANNEL_STATUS_READY) {
+            if (status == HCOMM_CHANNEL_STATUS_READY) {
                 continue;
             }
             allReady = false;
-            if (status == CHANNEL_STATUS_CONNECTING) {
+            if (status == HCOMM_CHANNEL_STATUS_CONNECTING) {
                 continue; // 建链中，继续等待
             }
-            if (status == CHANNEL_STATUS_TIMEOUT_1 || status == CHANNEL_STATUS_TIMEOUT_2) {
+            if (status == HCOMM_CHANNEL_STATUS_FAILED) {
+                SHM_LOG_ERROR("rank[" << rankId_ << "] channel[" << i << "] connect failed, status=" << status);
+                connectFailed = true;
+            } else if (status == HCOMM_CHANNEL_STATUS_TIMEOUT) {
                 SHM_LOG_ERROR("rank[" << rankId_ << "] channel[" << i << "] connect timeout, status=" << status);
                 connectFailed = true;
             } else {
