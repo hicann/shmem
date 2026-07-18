@@ -28,16 +28,17 @@ MemEntityDefault::~MemEntityDefault()
     ReleaseResources();
 }
 
-int32_t MemEntityDefault::Initialize(const hybm_options *options) noexcept
+int32_t MemEntityDefault::Initialize(const hybm_options* options) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized) {
         SHM_LOG_WARN("The MemEntity has already been initialized, no action needs.");
         return ACLSHMEM_SUCCESS;
     }
-    SHM_VALIDATE_RETURN((id_ >= 0 && (uint32_t)(id_) < HYBM_ENTITY_NUM_MAX),
-                       "input entity id is invalid, input: " << id_ << " must be less than: " << HYBM_ENTITY_NUM_MAX,
-                       ACLSHMEM_INVALID_PARAM);
+    SHM_VALIDATE_RETURN(
+        (id_ >= 0 && (uint32_t)(id_) < HYBM_ENTITY_NUM_MAX),
+        "input entity id is invalid, input: " << id_ << " must be less than: " << HYBM_ENTITY_NUM_MAX,
+        ACLSHMEM_INVALID_PARAM);
 
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(CheckOptions(options), "check options failed.");
 
@@ -77,7 +78,7 @@ void MemEntityDefault::UnInitialize() noexcept
     ReleaseResources();
 }
 
-int32_t MemEntityDefault::ReserveMemorySpace(void **reservedMem) noexcept
+int32_t MemEntityDefault::ReserveMemorySpace(void** reservedMem) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!initialized) {
@@ -128,7 +129,8 @@ int32_t MemEntityDefault::UnReserveMemorySpace() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::AllocLocalMemory(uint64_t size, hybm_mem_type mType, uint32_t flags, hybm_mem_slice_t &slice) noexcept
+int32_t MemEntityDefault::AllocLocalMemory(
+    uint64_t size, hybm_mem_type mType, uint32_t flags, hybm_mem_slice_t& slice) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!initialized) {
@@ -159,7 +161,7 @@ int32_t MemEntityDefault::AllocLocalMemory(uint64_t size, hybm_mem_type mType, u
     info.size = realSlice->size_;
     info.addr = realSlice->vAddress_;
     info.access = transport::REG_MR_ACCESS_FLAG_BOTH_READ_WRITE;
-    info.flags = 
+    info.flags =
         segment->GetMemoryType() == HYBM_MEM_TYPE_DEVICE ? transport::REG_MR_FLAG_HBM : transport::REG_MR_FLAG_DRAM;
     if (transportManager_ != nullptr) {
         ret = transportManager_->RegisterMemoryRegion(info);
@@ -176,8 +178,8 @@ int32_t MemEntityDefault::AllocLocalMemory(uint64_t size, hybm_mem_type mType, u
     return UpdateHybmDeviceInfo(0);
 }
 
-int32_t MemEntityDefault::RegisterLocalMemory(const void *ptr, uint64_t size, uint32_t flags,
-                                              hybm_mem_slice_t &slice) noexcept
+int32_t MemEntityDefault::RegisterLocalMemory(
+    const void* ptr, uint64_t size, uint32_t flags, hybm_mem_slice_t& slice) noexcept
 {
     if (ptr == nullptr || size == 0) {
         SHM_LOG_ERROR("input ptr or size(" << size << ") is invalid");
@@ -187,14 +189,16 @@ int32_t MemEntityDefault::RegisterLocalMemory(const void *ptr, uint64_t size, ui
     if ((size % DEVICE_LARGE_PAGE_SIZE) != 0) {
         uint64_t originalSize = size;
         size = ((size + DEVICE_LARGE_PAGE_SIZE - 1) / DEVICE_LARGE_PAGE_SIZE) * DEVICE_LARGE_PAGE_SIZE;
-        SHM_LOG_INFO("size: " << originalSize << " not aligned to large page (" << DEVICE_LARGE_PAGE_SIZE <<
-                    "), rounded to: " << size);
+        SHM_LOG_INFO(
+            "size: " << originalSize << " not aligned to large page (" << DEVICE_LARGE_PAGE_SIZE
+                     << "), rounded to: " << size);
     }
 
     auto addr = static_cast<uint64_t>(reinterpret_cast<ptrdiff_t>(ptr));
     bool isHbm = (addr >= HYBM_DEVICE_VA_START && addr < HYBM_DEVICE_VA_END);
-    SHM_LOG_INFO("Hbm: " << isHbm << std::hex << ", addrs: 0x" << addr
-                        << ", start: 0x" << HYBM_DEVICE_VA_START << ", end: 0x" << HYBM_DEVICE_VA_END);
+    SHM_LOG_INFO(
+        "Hbm: " << isHbm << std::hex << ", addrs: 0x" << addr << ", start: 0x" << HYBM_DEVICE_VA_START << ", end: 0x"
+                << HYBM_DEVICE_VA_END);
     std::shared_ptr<MemSegment> segment = nullptr;
     if (dramSegment_ == nullptr) {
         segment = hbmSegment_;
@@ -251,7 +255,7 @@ int32_t MemEntityDefault::FreeLocalMemory(hybm_mem_slice_t slice, uint32_t flags
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::ExportExchangeInfo(ExchangeInfoWriter &desc, uint32_t flags) noexcept
+int32_t MemEntityDefault::ExportExchangeInfo(ExchangeInfoWriter& desc, uint32_t flags) noexcept
 {
     if (!initialized) {
         SHM_LOG_INFO("the object is not initialized, please check whether Initialize is called.");
@@ -264,7 +268,7 @@ int32_t MemEntityDefault::ExportExchangeInfo(ExchangeInfoWriter &desc, uint32_t 
     exportInfo.rankId = options_.rankId;
     exportInfo.role = static_cast<uint16_t>(options_.role);
     if (transportManager_ != nullptr) {
-        auto &nic = transportManager_->GetNic();
+        auto& nic = transportManager_->GetNic();
         if (nic.size() >= sizeof(exportInfo.nic)) {
             SHM_LOG_ERROR("transport get nic(" << nic << ") too long.");
             return ACLSHMEM_INNER_ERROR;
@@ -287,7 +291,7 @@ int32_t MemEntityDefault::ExportExchangeInfo(ExchangeInfoWriter &desc, uint32_t 
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInfoWriter &desc, uint32_t flags) noexcept
+int32_t MemEntityDefault::ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInfoWriter& desc, uint32_t flags) noexcept
 {
     if (!initialized) {
         SHM_LOG_INFO("the object is not initialized, please check whether Initialize is called.");
@@ -300,8 +304,8 @@ int32_t MemEntityDefault::ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInf
     return ExportWithSlice(slice, desc, flags);
 }
 
-int32_t MemEntityDefault::ImportExchangeInfo(const ExchangeInfoReader desc[], uint32_t count, void *addresses[],
-                                             uint32_t flags) noexcept
+int32_t MemEntityDefault::ImportExchangeInfo(
+    const ExchangeInfoReader desc[], uint32_t count, void* addresses[], uint32_t flags) noexcept
 {
     if (!initialized) {
         SHM_LOG_ERROR("the object is not initialized, please check whether Initialize is called.");
@@ -350,7 +354,7 @@ int32_t MemEntityDefault::ImportExchangeInfo(const ExchangeInfoReader desc[], ui
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::GetExportSliceInfoSize(size_t &size) noexcept
+int32_t MemEntityDefault::GetExportSliceInfoSize(size_t& size) noexcept
 {
     size_t exportSize = 0;
     auto segment = hbmSegment_ == nullptr ? dramSegment_ : hbmSegment_;
@@ -371,7 +375,7 @@ int32_t MemEntityDefault::GetExportSliceInfoSize(size_t &size) noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::SetExtraContext(const void *context, uint32_t size) noexcept
+int32_t MemEntityDefault::SetExtraContext(const void* context, uint32_t size) noexcept
 {
     if (!initialized) {
         SHM_LOG_INFO("the object is not initialized, please check whether Initialize is called.");
@@ -380,15 +384,16 @@ int32_t MemEntityDefault::SetExtraContext(const void *context, uint32_t size) no
 
     SHM_ASSERT_RETURN(context != nullptr, ACLSHMEM_INVALID_PARAM);
     if (size > HYBM_DEVICE_USER_CONTEXT_PRE_SIZE) {
-        SHM_LOG_ERROR("set extra context failed, context size is too large: " << size << " limit: "
-                                                                             << HYBM_DEVICE_USER_CONTEXT_PRE_SIZE);
+        SHM_LOG_ERROR(
+            "set extra context failed, context size is too large: " << size
+                                                                    << " limit: " << HYBM_DEVICE_USER_CONTEXT_PRE_SIZE);
         return ACLSHMEM_INVALID_PARAM;
     }
 
     uint64_t addr = HYBM_DEVICE_USER_CONTEXT_ADDR + id_ * HYBM_DEVICE_USER_CONTEXT_PRE_SIZE;
     SHM_LOG_DEBUG("set extra context to addr: 0x" << std::hex << addr << " size: " << size);
-    auto ret = DlAclApi::AclrtMemcpy((void *)addr, HYBM_DEVICE_USER_CONTEXT_PRE_SIZE, context, size,
-                                     ACL_MEMCPY_HOST_TO_DEVICE);
+    auto ret =
+        DlAclApi::AclrtMemcpy((void*)addr, HYBM_DEVICE_USER_CONTEXT_PRE_SIZE, context, size, ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("memcpy user context failed, ret: " << ret);
         return ACLSHMEM_INNER_ERROR;
@@ -435,7 +440,7 @@ int32_t MemEntityDefault::Mmap() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::RemoveImported(const std::vector<uint32_t> &ranks) noexcept
+int32_t MemEntityDefault::RemoveImported(const std::vector<uint32_t>& ranks) noexcept
 {
     if (!initialized) {
         SHM_LOG_INFO("the object is not initialized, please check whether Initialize is called.");
@@ -459,7 +464,7 @@ int32_t MemEntityDefault::RemoveImported(const std::vector<uint32_t> &ranks) noe
     return ACLSHMEM_SUCCESS;
 }
 
-bool MemEntityDefault::CheckAddressInEntity(const void *ptr, uint64_t length) const noexcept
+bool MemEntityDefault::CheckAddressInEntity(const void* ptr, uint64_t length) const noexcept
 {
     if (!initialized) {
         SHM_LOG_ERROR("the object is not initialized, please check whether Initialize is called.");
@@ -477,7 +482,7 @@ bool MemEntityDefault::CheckAddressInEntity(const void *ptr, uint64_t length) co
     return false;
 }
 
-int MemEntityDefault::CheckOptions(const hybm_options *options) noexcept
+int MemEntityDefault::CheckOptions(const hybm_options* options) noexcept
 {
     if (options == nullptr) {
         SHM_LOG_ERROR("initialize with nullptr.");
@@ -510,18 +515,12 @@ int MemEntityDefault::LoadExtendLibrary() noexcept
         }
     }
 
+#if !defined(ACLSHMEM_UDMA_SUPPORT)
     if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) {
-#if defined(ACLSHMEM_UDMA_SUPPORT)
-        auto ret = DlApi::LoadExtendLibrary(DL_EXT_LIB_DEVICE_UDMA);
-        if (ret != 0) {
-            SHM_LOG_ERROR("LoadExtendLibrary for DEVICE UDMA failed: " << ret);
-            return ret;
-        }
-#else
         SHM_LOG_ERROR("DEVICE UDMA support is not enabled in this build.");
         return ACLSHMEM_NOT_SUPPORTED;
-#endif
     }
+#endif
 
     return ACLSHMEM_SUCCESS;
 }
@@ -533,17 +532,17 @@ int MemEntityDefault::UpdateHybmDeviceInfo(uint32_t extCtxSize) noexcept
 
     SetHybmDeviceInfo(info);
     info.extraContextSize = extCtxSize;
-    auto ret = DlAclApi::AclrtMemcpy((void *)addr, DEVICE_LARGE_PAGE_SIZE, &info, sizeof(HybmDeviceMeta),
-                                     ACL_MEMCPY_HOST_TO_DEVICE);
+    auto ret = DlAclApi::AclrtMemcpy(
+        (void*)addr, DEVICE_LARGE_PAGE_SIZE, &info, sizeof(HybmDeviceMeta), ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("update hybm info memory failed, ret: " << ret << ", addr:" << (void *)addr);
+        SHM_LOG_ERROR("update hybm info memory failed, ret: " << ret << ", addr:" << (void*)addr);
         return ACLSHMEM_INNER_ERROR;
     }
-    SHM_LOG_DEBUG("update hybm info memory success, addr:" << (void *)addr);
+    SHM_LOG_DEBUG("update hybm info memory success, addr:" << (void*)addr);
     return ACLSHMEM_SUCCESS;
 }
 
-void MemEntityDefault::SetHybmDeviceInfo(HybmDeviceMeta &info)
+void MemEntityDefault::SetHybmDeviceInfo(HybmDeviceMeta& info)
 {
     info.entityId = id_;
     info.rankId = options_.rankId;
@@ -557,7 +556,7 @@ void MemEntityDefault::SetHybmDeviceInfo(HybmDeviceMeta &info)
     }
 }
 
-int32_t MemEntityDefault::ExportWithSlice(hybm_mem_slice_t slice, ExchangeInfoWriter &desc, uint32_t flags) noexcept
+int32_t MemEntityDefault::ExportWithSlice(hybm_mem_slice_t slice, ExchangeInfoWriter& desc, uint32_t flags) noexcept
 {
     uint64_t exportMagic = 0;
     std::string info;
@@ -607,7 +606,7 @@ int32_t MemEntityDefault::ExportWithSlice(hybm_mem_slice_t slice, ExchangeInfoWr
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::ExportWithoutSlice(ExchangeInfoWriter &desc, uint32_t flags) noexcept
+int32_t MemEntityDefault::ExportWithoutSlice(ExchangeInfoWriter& desc, uint32_t flags) noexcept
 {
     std::string info;
     int32_t ret = ACLSHMEM_INNER_ERROR;
@@ -626,9 +625,8 @@ int32_t MemEntityDefault::ExportWithoutSlice(ExchangeInfoWriter &desc, uint32_t 
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t MemEntityDefault::ImportForTransportPrecheck(const ExchangeInfoReader desc[],
-                                                     uint32_t &count,
-                                                     bool &importInfoEntity)
+int32_t MemEntityDefault::ImportForTransportPrecheck(
+    const ExchangeInfoReader desc[], uint32_t& count, bool& importInfoEntity)
 {
     int ret = ACLSHMEM_SUCCESS;
     uint64_t magic;
@@ -681,7 +679,7 @@ int32_t MemEntityDefault::ImportForTransport(const ExchangeInfoReader desc[], ui
 
     transport::HybmTransPrepareOptions transOptions;
     std::unique_lock<std::mutex> uniqueLock{importMutex_};
-    for (auto &rank : importedRanks_) {
+    for (auto& rank : importedRanks_) {
         if (options_.role != HYBM_ROLE_PEER && static_cast<hybm_role_type>(rank.second.role) == options_.role) {
             continue;
         }
@@ -689,10 +687,10 @@ int32_t MemEntityDefault::ImportForTransport(const ExchangeInfoReader desc[], ui
         transOptions.options[rank.first].role = static_cast<hybm_role_type>(rank.second.role);
         transOptions.options[rank.first].nic = rank.second.nic;
     }
-    for (auto &mr : importedMemories_) {
+    for (auto& mr : importedMemories_) {
         auto pos = transOptions.options.find(mr.first);
         if (pos != transOptions.options.end()) {
-            for (auto &key : mr.second) {
+            for (auto& key : mr.second) {
                 pos->second.memKeys.emplace_back(key.second);
             }
         }
@@ -835,7 +833,7 @@ bool MemEntityDefault::SdmaReaches(uint32_t remoteRank) const noexcept
 hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) const noexcept
 {
     uint32_t supportDataOp = 0U;
-    bool sdmaReach = SdmaReaches(remoteRank);   // SDMA reaches mean MTE reaches too
+    bool sdmaReach = SdmaReaches(remoteRank); // SDMA reaches mean MTE reaches too
     if (sdmaReach) {
         supportDataOp |= HYBM_DOP_TYPE_MTE;
     }
@@ -852,7 +850,7 @@ hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) c
     return static_cast<hybm_data_op_type>(supportDataOp);
 }
 
-void *MemEntityDefault::GetReservedMemoryPtr(hybm_mem_type memType) noexcept
+void* MemEntityDefault::GetReservedMemoryPtr(hybm_mem_type memType) noexcept
 {
     if (memType == HYBM_MEM_TYPE_DEVICE) {
         return hbmGva_;
@@ -880,4 +878,4 @@ void MemEntityDefault::ReleaseResources()
     initialized = false;
 }
 
-}  // namespace shm
+} // namespace shm

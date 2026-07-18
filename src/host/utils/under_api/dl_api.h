@@ -19,16 +19,15 @@ namespace shm {
 enum DlApiExtendLibraryType {
     DL_EXT_LIB_DEVICE_RDMA,
     DL_EXT_LIB_DEVICE_SDMA,
-    DL_EXT_LIB_DEVICE_UDMA,
 };
 
 class DlApi {
 public:
-    static Result LoadLibrary(const std::string &libDirPath);
+    static Result LoadLibrary(const std::string& libDirPath);
     static void CleanupLibrary();
     static Result LoadExtendLibrary(DlApiExtendLibraryType libraryType);
     static AscendSocType GetAscendSocType();
 };
-}
+} // namespace shm
 
-#endif  // MEM_FABRIC_HYBRID_DL_API_H
+#endif // MEM_FABRIC_HYBRID_DL_API_H
