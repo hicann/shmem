@@ -24,9 +24,14 @@ constexpr int PORT_LEFT_OFFSET = 1;
 constexpr int PORT_RIGHT_OFFSET = 4;
 constexpr int DIE_OFFSET = 3;
 constexpr int DIE_MASK = 4;
-constexpr int SERVER_DIE_OFFSET = 7;
 constexpr int LOW_BIT_PORT_MASK = 0x7F;
 constexpr int PORT_MASK = 0x80;
+constexpr int UB_FE_POS = 6;
+constexpr int UB_FE_MASK = 0x7F;
+constexpr int UB_PORT_AND_DIE_POS = 5;
+constexpr int UB_PORT_MASK = 0x3F;
+constexpr int UB_DIE_OFFSET = 6;
+constexpr int UB_PORT_GROUP_ID = 0x3F;
 } // namespace
 
 std::optional<int> aclshmemi_eid_parser_t::get_fe_id(const std::string& eid_hex_str)
@@ -99,17 +104,29 @@ int aclshmemi_eid_parser_t::get_low_bit_port(const dcmi_urma_eid_t& eid)
     return lower & LOW_BIT_PORT_MASK;
 }
 
-int aclshmemi_eid_parser_t::get_pod_die_id(const dcmi_urma_eid_t& eid)
+int aclshmemi_eid_parser_t::get_ub_fe_id(const dcmi_urma_eid_t& eid)
 {
-    uint8_t bit = eid.raw[DCMI_URMA_EID_SIZE - 2];
-    return (bit & DIE_MASK) > 0 ? 1 : 0;
+    return static_cast<int>(eid.raw[UB_FE_POS] & UB_FE_MASK);
 }
 
-int aclshmemi_eid_parser_t::get_server_die_id(const dcmi_urma_eid_t& eid)
+int aclshmemi_eid_parser_t::get_ub_port_id(const dcmi_urma_eid_t& eid)
 {
-    uint8_t bit = eid.raw[DCMI_URMA_EID_SIZE - 1];
-    return bit >> SERVER_DIE_OFFSET;
+    return static_cast<int>(eid.raw[UB_PORT_AND_DIE_POS] & UB_PORT_MASK);
 }
+
+int aclshmemi_eid_parser_t::get_ub_die_id(const dcmi_urma_eid_t& eid)
+{
+    return static_cast<int>(eid.raw[UB_PORT_AND_DIE_POS] >> UB_DIE_OFFSET);
+}
+
+bool aclshmemi_eid_parser_t::is_ub_port_group(const dcmi_urma_eid_t& eid)
+{
+    return get_ub_port_id(eid) == UB_PORT_GROUP_ID;
+}
+
+int aclshmemi_eid_parser_t::get_pod_die_id(const dcmi_urma_eid_t& eid) { return get_ub_die_id(eid); }
+
+int aclshmemi_eid_parser_t::get_server_die_id(const dcmi_urma_eid_t& eid) { return get_ub_die_id(eid); }
 
 std::optional<int> aclshmemi_eid_parser_t::get_max_fe_id(const dcmi_urma_eid_info_t* eid_list, size_t eid_cnt)
 {
@@ -128,18 +145,15 @@ int aclshmemi_eid_parser_t::get_ub_entity_id(const UBEntity& ue)
     if (ue.eidNum == 0) {
         return -1;
     }
-    return get_fe_id(ue.eidList[0].eid);
+    return get_ub_fe_id(ue.eidList[0].eid);
 }
 
 int aclshmemi_eid_parser_t::get_server_port_group_idx(const UBEntity& ue)
 {
-    constexpr int MAX_PHY_PORT_ID = 9;
     for (uint32_t i = 0; i < ue.eidNum; ++i) {
-        int port = get_port_id(ue.eidList[i].eid);
-        if (port <= MAX_PHY_PORT_ID) {
-            continue;
+        if (is_ub_port_group(ue.eidList[i].eid)) {
+            return static_cast<int>(i);
         }
-        return static_cast<int>(i);
     }
     return -1;
 }
@@ -151,7 +165,22 @@ int aclshmemi_eid_parser_t::get_max_entity_id(const UEList& ue_list)
         if (ue_list.ueList[i].eidNum == 0) {
             continue;
         }
-        int id = get_fe_id(ue_list.ueList[i].eidList[0].eid);
+        int id = get_ub_entity_id(ue_list.ueList[i]);
+        if (id > max_id) {
+            max_id = id;
+        }
+    }
+    return max_id;
+}
+
+int aclshmemi_eid_parser_t::get_max_entity_id(const UEList& ue_list, int die_id)
+{
+    int max_id = -1;
+    for (uint32_t i = 0; i < ue_list.ueNum; ++i) {
+        if (ue_list.ueList[i].eidNum == 0 || get_ub_die_id(ue_list.ueList[i].eidList[0].eid) != die_id) {
+            continue;
+        }
+        int id = get_ub_entity_id(ue_list.ueList[i]);
         if (id > max_id) {
             max_id = id;
         }

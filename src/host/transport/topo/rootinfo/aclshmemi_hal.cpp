@@ -175,7 +175,8 @@ int aclshmemi_dcmi_api_t::get_eid_list(int phy_id, dcmi_urma_eid_info_t* eid_lis
     size_t total_cnt = 0;
     for (uint32_t i = 0; i < dev_cnt && total_cnt < *eid_cnt; ++i) {
         int eid_num = static_cast<int>(*eid_cnt - total_cnt);
-        ret = shm::DlDcmiApi::Dcmiv2GetEidListByUrmaDevIndex(static_cast<int>(*logic_id), i, eid_list + total_cnt, &eid_num);
+        ret = shm::DlDcmiApi::Dcmiv2GetEidListByUrmaDevIndex(
+            static_cast<int>(*logic_id), i, eid_list + total_cnt, &eid_num);
         if (ret != 0) {
             SHM_LOG_ERROR("get_eid_list failed: Dcmiv2GetEidListByUrmaDevIndex ret=" << ret << " for dev_index=" << i);
             continue;
@@ -202,7 +203,8 @@ int aclshmemi_dcmi_api_t::get_eid_list_by_dev_index(
 
     int ret = shm::DlDcmiApi::Dcmiv2GetEidListByUrmaDevIndex(static_cast<int>(*logic_id), dev_index, eid_list, eid_cnt);
     if (ret != 0) {
-        SHM_LOG_ERROR("get_eid_list_by_dev_index failed: ret=" << ret << " for phy_id=" << phy_id << " dev_index=" << dev_index);
+        SHM_LOG_ERROR(
+            "get_eid_list_by_dev_index failed: ret=" << ret << " for phy_id=" << phy_id << " dev_index=" << dev_index);
         return -1;
     }
     return 0;
@@ -210,10 +212,21 @@ int aclshmemi_dcmi_api_t::get_eid_list_by_dev_index(
 
 int aclshmemi_dcmi_api_t::get_ue_list(int phy_id, UEList* ue_list)
 {
+    if (ue_list == nullptr) {
+        SHM_LOG_ERROR("get_ue_list failed: ue_list is null for phy_id=" << phy_id);
+        return -1;
+    }
+
     if (!is_initialized_) {
         if (!initialize()) {
             return -1;
         }
+    }
+
+    int memset_ret = memset_s(ue_list, sizeof(UEList), 0, sizeof(UEList));
+    if (memset_ret != EOK) {
+        SHM_LOG_ERROR("get_ue_list failed: memset_s ret=" << memset_ret << " for phy_id=" << phy_id);
+        return -1;
     }
 
     auto logic_id = get_logic_id_from_phy_id(static_cast<uint32_t>(phy_id));
@@ -221,15 +234,33 @@ int aclshmemi_dcmi_api_t::get_ue_list(int phy_id, UEList* ue_list)
         return -1;
     }
 
-    size_t eid_cnt = ACLSHMEMI_MAX_EID_NUM;
-    int ret = get_eid_list(phy_id, ue_list->ueList[0].eidList, &eid_cnt);
+    uint32_t dev_cnt = 0;
+    int ret = shm::DlDcmiApi::Dcmiv2GetUrmaDeviceCnt(static_cast<int>(*logic_id), &dev_cnt);
     if (ret != 0) {
-        SHM_LOG_ERROR("get_ue_list failed: get_eid_list ret=" << ret << " for phy_id=" << phy_id);
+        SHM_LOG_ERROR("get_ue_list failed: get_urma_device_cnt ret=" << ret << " for phy_id=" << phy_id);
         return -1;
     }
 
-    ue_list->ueNum = 1;
-    ue_list->ueList[0].eidNum = static_cast<uint32_t>(eid_cnt);
+    if (dev_cnt > MAX_UE_PER_NPU) {
+        SHM_LOG_WARN(
+            "get_ue_list: urma device count " << dev_cnt << " exceeds limit " << MAX_UE_PER_NPU
+                                              << " for phy_id=" << phy_id << ", truncating");
+        dev_cnt = MAX_UE_PER_NPU;
+    }
+
+    ue_list->ueNum = dev_cnt;
+    for (uint32_t i = 0; i < dev_cnt; ++i) {
+        int eid_num = MAX_EID_PER_UE;
+        ret = shm::DlDcmiApi::Dcmiv2GetEidListByUrmaDevIndex(
+            static_cast<int>(*logic_id), static_cast<int>(i), ue_list->ueList[i].eidList, &eid_num);
+        if (ret != 0) {
+            SHM_LOG_ERROR(
+                "get_ue_list failed: Dcmiv2GetEidListByUrmaDevIndex ret=" << ret << " for phy_id=" << phy_id
+                                                                          << ", dev_index=" << i);
+            continue;
+        }
+        ue_list->ueList[i].eidNum = static_cast<uint32_t>(eid_num);
+    }
     return 0;
 }
 
@@ -330,7 +361,10 @@ int aclshmemi_hal_t::get_device_pcie_info(int phy_id, struct dcmi_pcie_info_all*
 {
     return dcmi_.get_device_pcie_info(phy_id, pcie_info);
 }
-int aclshmemi_hal_t::get_spod_info(int phy_id, struct dcmi_spod_info* spod_info) { return dcmi_.get_spod_info(phy_id, spod_info); }
+int aclshmemi_hal_t::get_spod_info(int phy_id, struct dcmi_spod_info* spod_info)
+{
+    return dcmi_.get_spod_info(phy_id, spod_info);
+}
 
 } // namespace topo
 } // namespace shm

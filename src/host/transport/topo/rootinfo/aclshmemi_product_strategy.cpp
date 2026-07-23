@@ -27,6 +27,18 @@ static std::string build_topo_file_path(const std::string& driver_path, const st
     return driver_path + "/" + TOPO_FILE_DIR_PATH + "/" + topo_filename;
 }
 
+template <typename... Args>
+static bool format_rootinfo_string(
+    const char* context, char* buffer, size_t buffer_size, const char* format, Args... args)
+{
+    int ret = snprintf_s(buffer, buffer_size, buffer_size - 1, format, args...);
+    if (ret < 0) {
+        SHM_LOG_ERROR(context << " failed: snprintf_s ret=" << ret);
+        return false;
+    }
+    return true;
+}
+
 static const char* card_topo_filename(uint32_t mainboard_id)
 {
     switch (mainboard_id) {
@@ -82,8 +94,8 @@ std::optional<aclshmemi_root_info_t> aclshmemi_card_product_t::get_root_info(int
     aclshmemi_root_info_t root_info;
     aclshmemi_root_info_init(root_info);
     std::string driver_path = hal.get_driver_install_path();
-    aclshmemi_root_info_set_topo_file_path(root_info,
-        build_topo_file_path(driver_path, card_topo_filename(mainboard_id)));
+    aclshmemi_root_info_set_topo_file_path(
+        root_info, build_topo_file_path(driver_path, card_topo_filename(mainboard_id)));
 
     UEList ue_list;
     memset_s(&ue_list, sizeof(ue_list), 0, sizeof(ue_list));
@@ -241,26 +253,30 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_server_product_t::process_mesh_la
 {
     aclshmemi_net_layer_t layer;
     char instance_id[64] = {0};
-    snprintf_s(
-        instance_id, sizeof(instance_id), sizeof(instance_id) - 1, "sp%d_srv%d", spod_info.super_pod_id,
-        spod_info.server_index);
+    if (!format_rootinfo_string(
+            "aclshmemi_server_product_t::process_mesh_layer instance_id", instance_id, sizeof(instance_id),
+            "sp%u_srv%u", spod_info.super_pod_id, spod_info.server_index)) {
+        return std::nullopt;
+    }
     aclshmemi_net_layer_init(layer, 0, instance_id);
     aclshmemi_net_layer_set_net_type(layer, "MESH");
 
-    int mesh_entity_id = aclshmemi_eid_parser_t::get_max_entity_id(ue_list);
-    constexpr uint32_t MIN_MESH_EID_NUM = 7;
     constexpr int MESH_DIE = 1;
-    constexpr int MAX_MESH_PORT_ID = 9;
+    int mesh_entity_id = aclshmemi_eid_parser_t::get_max_entity_id(ue_list, MESH_DIE);
 
     for (uint32_t i = 0; i < ue_list.ueNum; ++i) {
         int fe = aclshmemi_eid_parser_t::get_ub_entity_id(ue_list.ueList[i]);
-        if (fe != mesh_entity_id || ue_list.ueList[i].eidNum < MIN_MESH_EID_NUM) {
+        if (ue_list.ueList[i].eidNum == 0) {
+            continue;
+        }
+
+        int die = aclshmemi_eid_parser_t::get_ub_die_id(ue_list.ueList[i].eidList[0].eid);
+        if (fe != mesh_entity_id || die != MESH_DIE) {
             continue;
         }
 
         for (uint32_t j = 0; j < ue_list.ueList[i].eidNum; ++j) {
-            int phy_port_id = aclshmemi_eid_parser_t::get_port_id(ue_list.ueList[i].eidList[j].eid);
-            if (phy_port_id > MAX_MESH_PORT_ID) {
+            if (aclshmemi_eid_parser_t::is_ub_port_group(ue_list.ueList[i].eidList[j].eid)) {
                 continue;
             }
 
@@ -269,8 +285,17 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_server_product_t::process_mesh_la
 
             char port[16] = {0};
             char plane_id[16] = {0};
-            snprintf_s(port, sizeof(port), sizeof(port) - 1, "%d/%d", MESH_DIE, phy_port_id - 1);
-            snprintf_s(plane_id, sizeof(plane_id), sizeof(plane_id) - 1, "plane_%d", MESH_DIE);
+            int phy_port_id = aclshmemi_eid_parser_t::get_ub_port_id(ue_list.ueList[i].eidList[j].eid);
+            if (!format_rootinfo_string(
+                    "aclshmemi_server_product_t::process_mesh_layer port", port, sizeof(port), "%d/%d", die,
+                    phy_port_id)) {
+                return std::nullopt;
+            }
+            if (!format_rootinfo_string(
+                    "aclshmemi_server_product_t::process_mesh_layer plane_id", plane_id, sizeof(plane_id), "plane_%d",
+                    die)) {
+                return std::nullopt;
+            }
 
             aclshmemi_addr_add_port(addr, port);
             aclshmemi_addr_set_plane_id(addr, plane_id);
@@ -286,7 +311,11 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_server_product_t::process_clos_la
 {
     aclshmemi_net_layer_t layer;
     char instance_id[64] = {0};
-    snprintf_s(instance_id, sizeof(instance_id), sizeof(instance_id) - 1, "superpod_%d", spod_info.super_pod_id);
+    if (!format_rootinfo_string(
+            "aclshmemi_server_product_t::process_clos_layer instance_id", instance_id, sizeof(instance_id),
+            "superpod_%u", spod_info.super_pod_id)) {
+        return std::nullopt;
+    }
     aclshmemi_net_layer_init(layer, 1, instance_id);
     aclshmemi_net_layer_set_net_type(layer, "CLOS");
 
@@ -307,14 +336,26 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_server_product_t::process_clos_la
                 aclshmemi_addr_t addr;
                 aclshmemi_addr_set_eid(addr, ue_list.ueList[i].eidList[port_group_idx].eid);
 
-                for (size_t p = 0; p < g_ub_rules[r].ports.size(); ++p) {
+                for (uint32_t j = 0; j < ue_list.ueList[i].eidNum; ++j) {
+                    if (aclshmemi_eid_parser_t::is_ub_port_group(ue_list.ueList[i].eidList[j].eid)) {
+                        continue;
+                    }
+                    int port_id = aclshmemi_eid_parser_t::get_ub_port_id(ue_list.ueList[i].eidList[j].eid);
                     char port[16] = {0};
-                    snprintf_s(port, sizeof(port), sizeof(port) - 1, "%d/%d", die, g_ub_rules[r].ports[p]);
+                    if (!format_rootinfo_string(
+                            "aclshmemi_server_product_t::process_clos_layer port", port, sizeof(port), "%d/%d", die,
+                            port_id)) {
+                        return std::nullopt;
+                    }
                     aclshmemi_addr_add_port(addr, port);
                 }
 
                 char plane_id[16] = {0};
-                snprintf_s(plane_id, sizeof(plane_id), sizeof(plane_id) - 1, "plane_%d", die);
+                if (!format_rootinfo_string(
+                        "aclshmemi_server_product_t::process_clos_layer plane_id", plane_id, sizeof(plane_id),
+                        "plane_clos_%d", die)) {
+                    return std::nullopt;
+                }
                 aclshmemi_addr_set_plane_id(addr, plane_id);
 
                 aclshmemi_net_layer_add_addr(layer, addr);
@@ -353,14 +394,18 @@ std::optional<aclshmemi_root_info_t> aclshmemi_server_product_t::get_root_info(i
     aclshmemi_rank_init(rank, phy_id, phy_id);
 
     auto mesh_layer = process_mesh_layer(phy_id, ue_list, spod_info);
-    if (mesh_layer) {
-        aclshmemi_rank_add_net_layer(rank, *mesh_layer);
+    if (!mesh_layer) {
+        SHM_LOG_ERROR("aclshmemi_server_product_t::get_root_info failed: process_mesh_layer failed");
+        return std::nullopt;
     }
+    aclshmemi_rank_add_net_layer(rank, *mesh_layer);
 
     auto clos_layer = process_clos_layer(phy_id, mainboard_id, ue_list, spod_info);
-    if (clos_layer) {
-        aclshmemi_rank_add_net_layer(rank, *clos_layer);
+    if (!clos_layer) {
+        SHM_LOG_ERROR("aclshmemi_server_product_t::get_root_info failed: process_clos_layer failed");
+        return std::nullopt;
     }
+    aclshmemi_rank_add_net_layer(rank, *clos_layer);
 
     aclshmemi_root_info_add_rank(root_info, rank);
     return root_info;
@@ -371,25 +416,32 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_pod_product_t::process_mesh_layer
 {
     aclshmemi_net_layer_t layer;
     char instance_id[64] = {0};
-    snprintf_s(
-        instance_id, sizeof(instance_id), sizeof(instance_id) - 1, "sp%d_chassis%d", spod_info.super_pod_id,
-        spod_info.chassis_id);
+    if (!format_rootinfo_string(
+            "aclshmemi_pod_product_t::process_mesh_layer instance_id", instance_id, sizeof(instance_id), "sp%u_srv%u",
+            spod_info.super_pod_id, spod_info.server_index)) {
+        return std::nullopt;
+    }
     aclshmemi_net_layer_init(layer, 0, instance_id);
     aclshmemi_net_layer_set_net_type(layer, "MESH");
 
-    int mesh_entity_id = aclshmemi_eid_parser_t::get_max_entity_id(ue_list);
-    constexpr uint32_t MIN_MESH_EID_NUM = 7;
-    constexpr int MAX_MESH_PORT_ID = 9;
     constexpr int NPU_NUM = 8;
+    constexpr int MAX_MESH_PORT_ID = 9;
+    const int mesh_die_id = (phy_id % NPU_NUM) < 4 ? 0 : 1;
+    int mesh_entity_id = aclshmemi_eid_parser_t::get_max_entity_id(ue_list, mesh_die_id);
 
     for (uint32_t i = 0; i < ue_list.ueNum; ++i) {
         int fe = aclshmemi_eid_parser_t::get_ub_entity_id(ue_list.ueList[i]);
-        if (fe != mesh_entity_id || ue_list.ueList[i].eidNum < MIN_MESH_EID_NUM) {
+        if (ue_list.ueList[i].eidNum == 0) {
+            continue;
+        }
+
+        int die = aclshmemi_eid_parser_t::get_ub_die_id(ue_list.ueList[i].eidList[0].eid);
+        if (fe != mesh_entity_id || die != mesh_die_id) {
             continue;
         }
 
         for (uint32_t j = 0; j < ue_list.ueList[i].eidNum; ++j) {
-            int phy_port_id = aclshmemi_eid_parser_t::get_port_id(ue_list.ueList[i].eidList[j].eid);
+            int phy_port_id = aclshmemi_eid_parser_t::get_ub_port_id(ue_list.ueList[i].eidList[j].eid);
             if (phy_port_id > MAX_MESH_PORT_ID) {
                 continue;
             }
@@ -397,11 +449,12 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_pod_product_t::process_mesh_layer
             aclshmemi_addr_t addr;
             aclshmemi_addr_set_eid(addr, ue_list.ueList[i].eidList[j].eid);
 
-            int die = (phy_id % NPU_NUM) < 4 ? 0 : 1;
-            int transformed_port = phy_port_id < 2 ? (phy_port_id - 1) : (phy_port_id + 2);
-
             char port[16] = {0};
-            snprintf_s(port, sizeof(port), sizeof(port) - 1, "%d/%d", die, transformed_port);
+            if (!format_rootinfo_string(
+                    "aclshmemi_pod_product_t::process_mesh_layer port", port, sizeof(port), "%d/%d", die,
+                    phy_port_id)) {
+                return std::nullopt;
+            }
             aclshmemi_addr_add_port(addr, port);
             aclshmemi_addr_set_plane_id(addr, "plane_0");
 
@@ -447,13 +500,16 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_pod_product_t::process_clos_layer
 {
     aclshmemi_net_layer_t layer;
     char instance_id[64] = {0};
-    snprintf_s(instance_id, sizeof(instance_id), sizeof(instance_id) - 1, "superpod_%d", spod_info.super_pod_id);
+    if (!format_rootinfo_string(
+            "aclshmemi_pod_product_t::process_clos_layer instance_id", instance_id, sizeof(instance_id), "superpod_%u",
+            spod_info.super_pod_id)) {
+        return std::nullopt;
+    }
     aclshmemi_net_layer_init(layer, 1, instance_id);
     aclshmemi_net_layer_set_net_type(layer, "CLOS");
 
-    int addr_6port_idx = 0;
-    int addr_2port_idx = 0;
-
+    std::optional<aclshmemi_addr_t> primary_addr;
+    std::optional<aclshmemi_addr_t> secondary_addr;
     for (uint32_t i = 0; i < ue_list.ueNum; ++i) {
         int fe = aclshmemi_eid_parser_t::get_ub_entity_id(ue_list.ueList[i]);
         int port_group_idx = aclshmemi_eid_parser_t::get_server_port_group_idx(ue_list.ueList[i]);
@@ -471,20 +527,35 @@ std::optional<aclshmemi_net_layer_t> aclshmemi_pod_product_t::process_clos_layer
         aclshmemi_addr_t addr;
         aclshmemi_addr_set_eid(addr, ue_list.ueList[i].eidList[port_group_idx].eid);
 
-        for (size_t p = 0; p < rule->ports.size(); ++p) {
+        int port_num = 0;
+        for (uint32_t j = 0; j < ue_list.ueList[i].eidNum; ++j) {
+            if (aclshmemi_eid_parser_t::is_ub_port_group(ue_list.ueList[i].eidList[j].eid)) {
+                continue;
+            }
+            int port_id = aclshmemi_eid_parser_t::get_ub_port_id(ue_list.ueList[i].eidList[j].eid);
             char port[16] = {0};
-            snprintf_s(port, sizeof(port), sizeof(port) - 1, "%d/%d", die, rule->ports[p]);
+            if (!format_rootinfo_string(
+                    "aclshmemi_pod_product_t::process_clos_layer port", port, sizeof(port), "%d/%d", die, port_id)) {
+                return std::nullopt;
+            }
             aclshmemi_addr_add_port(addr, port);
+            port_num++;
         }
-
-        aclshmemi_addr_set_plane_id(addr, rule->plane_id);
 
         constexpr int PRIMARY_PORT_NUM = 6;
-        if (rule->ports.size() >= PRIMARY_PORT_NUM) {
-            aclshmemi_net_layer_set_addr_at(layer, addr, addr_6port_idx++);
+        if (port_num >= PRIMARY_PORT_NUM) {
+            aclshmemi_addr_set_plane_id(addr, "plane_0");
+            primary_addr = addr;
         } else {
-            aclshmemi_net_layer_set_addr_at(layer, addr, addr_2port_idx++);
+            aclshmemi_addr_set_plane_id(addr, "plane_1");
+            secondary_addr = addr;
         }
+    }
+    if (primary_addr) {
+        aclshmemi_net_layer_add_addr(layer, *primary_addr);
+    }
+    if (secondary_addr) {
+        aclshmemi_net_layer_add_addr(layer, *secondary_addr);
     }
 
     return layer;
@@ -521,14 +592,18 @@ std::optional<aclshmemi_root_info_t> aclshmemi_pod_product_t::get_root_info(int 
     aclshmemi_rank_init(rank, phy_id, local_id);
 
     auto mesh_layer = process_mesh_layer(phy_id, ue_list, spod_info);
-    if (mesh_layer) {
-        aclshmemi_rank_add_net_layer(rank, *mesh_layer);
+    if (!mesh_layer) {
+        SHM_LOG_ERROR("aclshmemi_pod_product_t::get_root_info failed: process_mesh_layer failed");
+        return std::nullopt;
     }
+    aclshmemi_rank_add_net_layer(rank, *mesh_layer);
 
     auto clos_layer = process_clos_layer(phy_id, mainboard_id, ue_list, spod_info);
-    if (clos_layer) {
-        aclshmemi_rank_add_net_layer(rank, *clos_layer);
+    if (!clos_layer) {
+        SHM_LOG_ERROR("aclshmemi_pod_product_t::get_root_info failed: process_clos_layer failed");
+        return std::nullopt;
     }
+    aclshmemi_rank_add_net_layer(rank, *clos_layer);
 
     aclshmemi_root_info_add_rank(root_info, rank);
     return root_info;

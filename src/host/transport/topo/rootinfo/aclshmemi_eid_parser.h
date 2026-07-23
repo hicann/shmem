@@ -24,19 +24,24 @@ public:
     static std::optional<int> get_fe_id(const std::string& eid_hex_str);
     static std::optional<int> get_port_id(const std::string& eid_hex_str);
     static std::optional<int> get_die_id(const std::string& eid_hex_str);
-    
+
     static int get_fe_id(const dcmi_urma_eid_t& eid);
     static int get_port_id(const dcmi_urma_eid_t& eid);
     static int get_die_id(const dcmi_urma_eid_t& eid);
     static int get_low_bit_port(const dcmi_urma_eid_t& eid);
+    static int get_ub_fe_id(const dcmi_urma_eid_t& eid);
+    static int get_ub_port_id(const dcmi_urma_eid_t& eid);
+    static int get_ub_die_id(const dcmi_urma_eid_t& eid);
+    static bool is_ub_port_group(const dcmi_urma_eid_t& eid);
     static int get_pod_die_id(const dcmi_urma_eid_t& eid);
     static int get_server_die_id(const dcmi_urma_eid_t& eid);
-    
+
     static std::optional<int> get_max_fe_id(const dcmi_urma_eid_info_t* eid_list, size_t eid_cnt);
-    
+
     static int get_ub_entity_id(const UBEntity& ue);
     static int get_server_port_group_idx(const UBEntity& ue);
     static int get_max_entity_id(const UEList& ue_list);
+    static int get_max_entity_id(const UEList& ue_list, int die_id);
 };
 
 } // namespace topo
