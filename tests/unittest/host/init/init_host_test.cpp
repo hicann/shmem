@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <unistd.h>
+#include <algorithm>
 #include <gtest/gtest.h>
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
@@ -27,7 +28,7 @@ void logger_test_example(int level, const char* msg)
 {
     // do print here
 }
-}
+} // namespace shm
 
 void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
@@ -66,7 +67,6 @@ void test_aclshmem_init_invalid_rank_id(int rank_id, int n_ranks, uint64_t local
     aclshmemx_init_attr_t attributes;
     test_set_attr(erank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
 
-
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
     EXPECT_EQ(status, ACLSHMEM_INVALID_VALUE);
@@ -88,7 +88,6 @@ void test_aclshmem_init_invalid_n_ranks(int rank_id, int n_ranks, uint64_t local
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(rank_id, en_ranks, local_mem_size, test_global_ipport, &attributes);
-
 
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
@@ -194,7 +193,8 @@ void test_shmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
 }
-void aclshmem_test_logger(int level, const char *msg) {
+void aclshmem_test_logger(int level, const char* msg)
+{
     if (level < 1) {
         return;
     }
@@ -204,12 +204,23 @@ void aclshmem_test_logger(int level, const char *msg) {
     }
     const char* level_name = "unknown";
     switch (level) {
-        case 0: level_name = "debug"; break;
-        case 1: level_name = "info"; break;
-        case 2: level_name = "warn"; break;
-        case 3: level_name = "error"; break;
-        case 4: level_name = "fatal"; break;
-        default: break;
+        case 0:
+            level_name = "debug";
+            break;
+        case 1:
+            level_name = "info";
+            break;
+        case 2:
+            level_name = "warn";
+            break;
+        case 3:
+            level_name = "error";
+            break;
+        case 4:
+            level_name = "fatal";
+            break;
+        default:
+            break;
     }
 
     printf("extern log set [%s]: %s\n", level_name, msg);
@@ -295,7 +306,8 @@ void test_aclshmem_repeatedly_init(int rank_id, int n_ranks, uint64_t local_mem_
     EXPECT_EQ(aclFinalize(), 0);
 }
 
-std::vector<std::string> split_env(const std::string& s, char delimiter) {
+std::vector<std::string> split_env(const std::string& s, char delimiter)
+{
     std::vector<std::string> tokens;
     std::string token;
     std::istringstream tokenStream(s);
@@ -350,8 +362,9 @@ void test_aclshmem_init_cant_access(int rank_id, int n_ranks, uint64_t local_mem
 // =============================== Multi-Instance UT ===============================
 // 多实例初始化公共逻辑：
 // 返回 0 表示当前 pe 在 dev_list 中且初始化成功; 返回 -1 表示当前 pe 不参与该实例
-static int multi_instance_init(int rank_id, uint64_t local_mem_size, uint64_t instance_id,
-                               std::vector<int> &dev_list, aclshmemx_init_attr_t &attr, bool &joined)
+static int multi_instance_init(
+    int rank_id, uint64_t local_mem_size, uint64_t instance_id, std::vector<int>& dev_list, aclshmemx_init_attr_t& attr,
+    bool& joined)
 {
     auto it = std::find(dev_list.begin(), dev_list.end(), rank_id);
     if (it == dev_list.end()) {
@@ -361,7 +374,7 @@ static int multi_instance_init(int rank_id, uint64_t local_mem_size, uint64_t in
     joined = true;
 
     // 默认模式下 port 必须为 0
-    const char *ipport = "tcp://127.0.0.1:0";
+    const char* ipport = "tcp://127.0.0.1:0";
     int local_pe_id = static_cast<int>(std::distance(dev_list.begin(), it));
 
     int status = test_set_attr(local_pe_id, static_cast<int>(dev_list.size()), local_mem_size, ipport, &attr);
@@ -383,7 +396,9 @@ void test_aclshmem_multi_instance_single(int rank_id, int n_ranks, uint64_t loca
     uint64_t INSTANCE_ID = 1;
     aclshmemx_init_attr_t attr;
     std::vector<int> dev_list;
-    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i); // {0,1,...,n_ranks-1}
+    for (int i = 0; i < n_ranks; ++i) {
+        dev_list.push_back(i); // {0,1,...,n_ranks-1}
+    }
 
     bool joined = false;
     int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
@@ -411,14 +426,15 @@ void test_aclshmem_multi_instance_malloc(int rank_id, int n_ranks, uint64_t loca
     aclshmemx_init_attr_t attr;
     int subset = std::max(2, n_ranks / 2); // n_ranks=2->2, 4->2, 8->4
     std::vector<int> dev_list;
-    for (int i = 0; i < subset; ++i) dev_list.push_back(i);
+    for (int i = 0; i < subset; ++i)
+        dev_list.push_back(i);
 
     bool joined = false;
     int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
     EXPECT_EQ(ret, ACLSHMEM_SUCCESS);
 
     if (joined) {
-        void *ptr = aclshmem_malloc(1024);
+        void* ptr = aclshmem_malloc(1024);
         EXPECT_NE(ptr, nullptr);
         std::vector<uint64_t> host_buf(1024 / sizeof(uint64_t), INSTANCE_ID);
         EXPECT_EQ(aclrtMemcpy(ptr, 1024, host_buf.data(), 1024, ACL_MEMCPY_HOST_TO_DEVICE), 0);
@@ -471,7 +487,7 @@ void test_aclshmem_multi_instance_overlap(int rank_id, int n_ranks, uint64_t loc
         int status = aclshmemx_instance_ctx_set(INSTANCE_ID2);
         EXPECT_EQ(status, ACLSHMEM_SUCCESS);
 
-        void *ptr = aclshmem_malloc(1024);
+        void* ptr = aclshmem_malloc(1024);
         EXPECT_NE(ptr, nullptr);
         aclshmem_free(ptr);
         EXPECT_EQ(aclshmemx_finalize(inst2_attr.instance_id), ACLSHMEM_SUCCESS);
@@ -482,7 +498,7 @@ void test_aclshmem_multi_instance_overlap(int rank_id, int n_ranks, uint64_t loc
         int status = aclshmemx_instance_ctx_set(INSTANCE_ID4);
         EXPECT_EQ(status, ACLSHMEM_SUCCESS);
 
-        void *ptr = aclshmem_malloc(1024);
+        void* ptr = aclshmem_malloc(1024);
         EXPECT_NE(ptr, nullptr);
         aclshmem_free(ptr);
         EXPECT_EQ(aclshmemx_finalize(inst4_attr.instance_id), ACLSHMEM_SUCCESS);
@@ -502,10 +518,11 @@ void test_aclshmem_multi_instance_invalid_id(int rank_id, int n_ranks, uint64_t 
 
     aclshmemx_init_attr_t attr;
     std::vector<int> dev_list;
-    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i); // {0,1,...,n_ranks-1}
+    for (int i = 0; i < n_ranks; ++i)
+        dev_list.push_back(i); // {0,1,...,n_ranks-1}
     auto it = std::find(dev_list.begin(), dev_list.end(), rank_id);
     if (it != dev_list.end()) {
-        const char *ipport = "tcp://127.0.0.1:0";
+        const char* ipport = "tcp://127.0.0.1:0";
         int local_pe_id = static_cast<int>(std::distance(dev_list.begin(), it));
         attr.instance_id = 1025; // 非法 instance_id
         test_set_attr(local_pe_id, static_cast<int>(dev_list.size()), local_mem_size, ipport, &attr);
@@ -583,8 +600,9 @@ TEST(TestInitAPI, TestInfoGetName)
     aclshmem_info_get_name(name);
     EXPECT_TRUE(strlen(name) > 0);
 
-    std::string expect = "ACLSHMEM v" + std::to_string(ACLSHMEM_VENDOR_MAJOR_VER) + "."
-        + std::to_string(ACLSHMEM_VENDOR_MINOR_VER) + "." + std::to_string(ACLSHMEM_VENDOR_PATCH_VER).c_str();
+    std::string expect = "ACLSHMEM v" + std::to_string(ACLSHMEM_VENDOR_MAJOR_VER) + "." +
+                         std::to_string(ACLSHMEM_VENDOR_MINOR_VER) + "." +
+                         std::to_string(ACLSHMEM_VENDOR_PATCH_VER).c_str();
     for (size_t i = 0; i < expect.length(); i++) {
         EXPECT_EQ(expect[i], name[i]);
     }
@@ -592,7 +610,7 @@ TEST(TestInitAPI, TestInfoGetName)
 
 TEST(TestInitAPI, TestInfoGetNameNull)
 {
-    char *input = nullptr;
+    char* input = nullptr;
     aclshmem_info_get_name(input);
     EXPECT_EQ(input, nullptr);
 }
@@ -749,7 +767,8 @@ void test_aclshmemx_finalize_active(int rank_id, int n_ranks, uint64_t local_mem
     uint64_t INSTANCE_ID = 1;
     aclshmemx_init_attr_t attr;
     std::vector<int> dev_list;
-    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i);
+    for (int i = 0; i < n_ranks; ++i)
+        dev_list.push_back(i);
 
     bool joined = false;
     int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
@@ -795,7 +814,7 @@ void test_aclshmemx_finalize_nonactive(int rank_id, int n_ranks, uint64_t local_
         int status = aclshmemx_instance_ctx_set(INSTANCE_ID2);
         EXPECT_EQ(status, ACLSHMEM_SUCCESS);
 
-        void *ptr = aclshmem_malloc(1024);
+        void* ptr = aclshmem_malloc(1024);
         EXPECT_NE(ptr, nullptr);
         aclshmem_free(ptr);
 
@@ -835,7 +854,8 @@ void test_aclshmemx_finalize_nonexist(int rank_id, int n_ranks, uint64_t local_m
     uint64_t INSTANCE_ID = 1;
     aclshmemx_init_attr_t attr;
     std::vector<int> dev_list;
-    for (int i = 0; i < n_ranks; ++i) dev_list.push_back(i);
+    for (int i = 0; i < n_ranks; ++i)
+        dev_list.push_back(i);
 
     bool joined = false;
     int ret = multi_instance_init(rank_id, local_mem_size, INSTANCE_ID, dev_list, attr, joined);
@@ -848,7 +868,7 @@ void test_aclshmemx_finalize_nonexist(int rank_id, int n_ranks, uint64_t local_m
         EXPECT_NE(aclshmemx_finalize(999), ACLSHMEM_SUCCESS);
 
         // 当前活动实例仍可正常操作
-        void *ptr = aclshmem_malloc(1024);
+        void* ptr = aclshmem_malloc(1024);
         EXPECT_NE(ptr, nullptr);
         aclshmem_free(ptr);
 
