@@ -818,6 +818,13 @@ Device 侧检查宏要求：
  * @param[in] size Number of bytes to transfer.
  * @param[in] pe Remote PE number. Must be in the valid PE range.
  *
+ * @note Address requirements: dst points to symmetric memory on pe. src is
+ *       used as supplied and may be any valid local device GM buffer.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting
+ *       ACLSHMEM_DATA_OP_ROCE, complete transfer ranges for both operands must
+ *       remain within their respective symmetric memory allocations. Runtime
+ *       dispatch may select RDMA
+ *       for the target PE; callers need not determine the per-operation engine.
  * @note Execution domain: Host.
  * @note Blocking semantics: non-blocking. Returning from this void API only
  *       means the submission path has returned; it is not a completion signal.
@@ -845,6 +852,13 @@ Device API 注释示例：
  * @param[in] size Number of bytes to transfer.
  * @param[in] pe Remote PE number.
  *
+ * @note Address requirements: dst points to symmetric memory on pe. src is
+ *       used as supplied and may be any valid address in device global memory.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting
+ *       ACLSHMEM_DATA_OP_ROCE, complete transfer ranges for both operands must
+ *       remain within their respective symmetric memory allocations. Runtime
+ *       dispatch may select RDMA
+ *       for the target PE; callers need not determine the per-operation engine.
  * @note Execution domain: Device.
  * @note The caller must ensure that dst and src are non-NULL, properly aligned,
  *       and that pe is valid. These conditions may be checked only in debug
@@ -995,12 +1009,14 @@ SHMEM 通信路径对内存布局、对称性、cache line、page、UB workspace
 
 ### 11.1 对称堆分配
 
+- 用户/API 语义统一使用“对称内存（symmetric memory）”；仅在描述底层预留堆、`heap_base`、`heap_size`
+  或分配器实现时使用“对称堆（symmetric heap）”。
 - 用户可通信的对称内存应通过公共内存 API 获取，例如 `aclshmem_malloc`、`aclshmem_calloc`、`aclshmem_align`、`aclshmemx_malloc`、`aclshmemx_calloc` 或 `aclshmemx_align`。
 - 示例代码和用户文档不得要求用户依赖内部堆实现。
 - 使用 `aclshmem_align(alignment, size)` 时，`alignment` 必须为 2 的幂。
 - 调用侧必须处理分配失败返回 `NULL` 的情况。
 - `size == 0`、分配失败和返回 `NULL` 的语义必须在接口注释或调用侧处理逻辑中体现。
-- 各 PE 上的对称对象必须保持一致的分配关系。所有 PE 应按相同顺序、相同大小或文档明确允许的方式分配对称内存。
+- 各 PE 上的对称内存必须保持一致的分配关系。所有 PE 应按相同顺序、相同大小或文档明确允许的方式分配。
 - 不得把普通 `malloc/new` 的 Host 地址作为 SHMEM 对称地址传入 RMA、AMO、signal 或同步 API。
 - 不得在公共 ABI 中暴露内部 allocator 布局、chunk header、free list、页表或远端地址翻译细节。
 

@@ -56,7 +56,7 @@
 | `URMA` | Unified Remote Memory Access | 统一远程内存访问 | 华为新一代互联协议，基于 UB 总线，提供类似本地访问语义的远程内存操作能力。 |
 | `PCIe` | Peripheral Component Interconnect Express | 高速外设互联总线 | CPU 与 NPU 等其他外设的连接标准，也用于部分拓扑中的跨组互联。 |
 | `SIO` | **S**erial **I**/**O** Link | SIO 链路/通路 | 昇腾 A3 处理器片内，两个物理 Die （芯片裸片）之间的高速互联通路。 |
-| `RoCE` / `ROCE` | RDMA over Converged Ethernet | 基于融合以太网的 RDMA | 一种网络协议，允许应用通过以太网实现远程内存直接访问，常用于跨节点的网络通信。 |
+| `RoCE` / `ROCE` | RDMA over Converged Ethernet | 基于融合以太网的 RDMA | RDMA 引擎使用的网络协议，常用于跨节点通信。 |
 | `D2D` | Device to Device | 设备到设备 | 本端 NPU Device 内存与对端 NPU Device 内存之间的数据访问或搬运。 |
 | `D2H` | Device to Host | 设备到主机 | 本端 NPU Device 内存到本端 Host 内存的数据通路。 |
 | `H2D` | Host to Device | 主机到设备 | 本端 Host 内存到本端 NPU Device 内存的数据通路。 |
@@ -129,4 +129,4 @@
 | `latency` | Latency | 时延 | 性能测试输出指标。 |
 | `KB` / `MB` / `GB` | Kilobyte / Megabyte / Gigabyte | 千字节/兆字节/吉字节 | 文档、示例参数和性能输出中的容量单位。 |
 | `低阶接口` | Low-level API (engine-specific API) | 直接暴露底层传输引擎（UDMA、RDMA、SDMA、MTE 等）通信语义的接口 | SHMEM 中位于 `engine/` 目录下的引擎专用接口（如 `aclshmemx_udma_*`、`aclshmemx_roce_*`），需调用方自行管理 buffer 配置与同步，支持并发操作。代码中常以 lowlevel 指代。 |
-| `高阶接口` | High-level API | 屏蔽底层引擎细节、提供统一编程模型的高层抽象接口 | SHMEM 中位于 `gm2gm/` 或 `host/data_plane/` 下的封装接口（如 `aclshmem_put_*`、`aclshmem_amo_*`），内部自动管理 buffer 与同步，使用默认 buffer 不支持并发；RDMA/SDMA 高阶接口需通过 `aclshmemx_*_config` 预配置引擎参数。代码中常以 highlevel 指代。 |
+| `高阶接口` | High-level API | 屏蔽底层引擎细节、提供统一编程模型的高层抽象接口 | SHMEM 中位于 `gm2gm/` 或 `host/data_plane/` 下的封装接口（如 `aclshmem_put_*`、`aclshmem_amo_*`），内部自动管理 buffer 与同步，使用默认 buffer 不支持并发；UDMA/RDMA/SDMA 高阶接口需通过 `aclshmemx_*_config` 预配置引擎参数。代码中常以 highlevel 指代。 |

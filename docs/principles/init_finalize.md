@@ -188,7 +188,7 @@ UID 的 `addr` 来自 `SHMEM_UID_SESSION_ID` 或 `SHMEM_UID_SOCK_IFNAME`；`magi
 |------|------|
 | `ACLSHMEM_DATA_OP_MTE` | MTE |
 | `ACLSHMEM_DATA_OP_SDMA` | SDMA |
-| `ACLSHMEM_DATA_OP_ROCE` | RDMA/ROCE |
+| `ACLSHMEM_DATA_OP_ROCE` | RDMA |
 | `ACLSHMEM_DATA_OP_UDMA` | UDMA |
 
 `setup_heap` 后 `reach_info_init` 写入 `topo_list`，供 RMA 选路。

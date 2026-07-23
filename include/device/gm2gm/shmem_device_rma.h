@@ -85,7 +85,7 @@
 /**
  * @brief  Automatically generates aclshmem p functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_p(\_\_gm\_\_ TYPE *dst, const TYPE value, int pe)
  *
  * @par Function Description
@@ -96,8 +96,8 @@
  * - **value**  - [in] The element to be put.
  * - **pe**     - [in] The number of the remote PE.
  */
-#define ACLSHMEM_TYPENAME_P_AICORE(NAME, TYPE)                                              \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_p(__gm__ TYPE *dst, const TYPE value, int pe)
+#define ACLSHMEM_TYPENAME_P_AICORE(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
@@ -119,7 +119,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
 /**
  * @brief  Automatically generates aclshmem g functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_g(\_\_gm\_\_ TYPE *src, int32_t pe)
  *
  * @par Function Description
@@ -132,8 +132,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
  * @par Returns
  *      A single element of type specified in the input pointer.
  */
-#define ACLSHMEM_TYPENAME_G_AICORE(NAME, TYPE)                                              \
-    ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_g(__gm__ TYPE *src, int32_t pe)
+#define ACLSHMEM_TYPENAME_G_AICORE(NAME, TYPE) ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
@@ -159,20 +158,26 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe);
 #define shmem_getmem aclshmem_getmem
 
 /**
  * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  * Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -184,13 +189,19 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, uint32_
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                    \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
@@ -212,11 +223,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iget(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iget(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst,
+ * ptrdiff_t sst, size_t nelems, int pe)
  *
  * @par Function Description
- * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided
+ * locations on a local array.
  *
  * @par Parameters
  * - **dest**     - [in] Pointer on local device of the destination data.
@@ -226,9 +239,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_IGET_TYPENAME_MEM(NAME, TYPE)                                                                         \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_iget(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,  \
-                                                size_t nelems, int pe)
+#define ACLSHMEM_IGET_TYPENAME_MEM(NAME, TYPE)   \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iget( \
+        __gm__ TYPE* dest, __gm__ TYPE* source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
@@ -238,8 +251,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_getBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_getBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t
+ * pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -251,13 +265,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IGET_TYPENAME_MEM);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                              \
-    ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM(BITS) \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
@@ -267,11 +287,13 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
 /**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_igetBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_igetBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst,
+ * ptrdiff_t sst, size_t nelems, int pe)
  *
  * @par Function Description
- * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided locations on a local array.
+ * Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to strided
+ * locations on a local array.
  *
  * @par Parameters
  * - **dest**     - [in] Pointer on local device of the destination data.
@@ -281,9 +303,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_IGET_SIZE_MEM(BITS)                                                                                   \
-    ACLSHMEM_DEVICE void aclshmem_iget##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,     \
-                                             size_t nelems, int pe)
+#define ACLSHMEM_IGET_SIZE_MEM(BITS)          \
+    ACLSHMEM_DEVICE void aclshmem_iget##BITS( \
+        __gm__ void* dest, __gm__ void* source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
@@ -298,20 +320,26 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IGET_SIZE_MEM);
  * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe);
 #define shmem_putmem aclshmem_putmem
 
 /**
  * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -323,13 +351,19 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, uint32_
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                     \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
@@ -351,8 +385,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iput(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_iput(\_\_gm\_\_ TYPE *dest, \_\_gm\_\_ TYPE *source, ptrdiff_t dst,
+ * ptrdiff_t sst, size_t nelems, int pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
@@ -366,9 +401,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_IPUT_TYPENAME_MEM(NAME, TYPE)                                                                           \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_iput(__gm__ TYPE *dest, __gm__ TYPE *source, ptrdiff_t dst, ptrdiff_t sst,    \
-                                                size_t nelems, int pe)
+#define ACLSHMEM_IPUT_TYPENAME_MEM(NAME, TYPE)   \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_iput( \
+        __gm__ TYPE* dest, __gm__ TYPE* source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
@@ -378,8 +413,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t
+ * pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
@@ -391,13 +427,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_IPUT_TYPENAME_MEM);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                               \
-    ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_SIZE_MEM(BITS) \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
@@ -407,8 +449,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_iputBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_iputBITS(\_\_gm\_\_ void *dest, \_\_gm\_\_ void *source, ptrdiff_t dst,
+ * ptrdiff_t sst, size_t nelems, int pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the
@@ -422,9 +465,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_IPUT_SIZE_MEM(BITS)                                                                                     \
-    ACLSHMEM_DEVICE void aclshmem_iput##BITS(__gm__ void *dest, __gm__ void *source, ptrdiff_t dst, ptrdiff_t sst,       \
-                                             size_t nelems, int pe)
+#define ACLSHMEM_IPUT_SIZE_MEM(BITS)          \
+    ACLSHMEM_DEVICE void aclshmem_iput##BITS( \
+        __gm__ void* dest, __gm__ void* source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE_MEM);
@@ -439,20 +482,26 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE_MEM);
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe);
 #define shmem_getmem_nbi aclshmem_getmem_nbi
 
 /**
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -464,13 +513,19 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, uin
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
@@ -492,8 +547,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_getBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_getBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -505,13 +561,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                                                              \
-    ACLSHMEM_DEVICE void aclshmem_get##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS) \
+    ACLSHMEM_DEVICE void aclshmem_get##BITS##_nbi(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
@@ -521,12 +583,13 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const non_contiguous_copy_param &copy_params, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const
+ * non_contiguous_copy_param &copy_params, int32_t pe)
  *
  * @par Function Description
  *      Asynchronous interface. Provide a high-performance way to copy non-contiguous data on symmetric memory from
- *      the specified PE to address on the local device. 
+ *      the specified PE to address on the local device.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
@@ -534,9 +597,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
  * - **copy_params** - [in] Params to describe how non-contiguous data is managed in src and dst.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                             \
-                                                 const non_contiguous_copy_param &copy_params, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(        \
+        __gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copy_params, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
@@ -545,8 +608,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
 /**
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,
+ * uint32_t elem_size, int pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -558,14 +622,20 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may reference any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 uint32_t elem_size, int pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(      \
+        AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
@@ -574,12 +644,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
 /**
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,
+ * uint32_t elem_size, int pe)
  *
  * @par Function Description
  *      Asynchronous interface. Provide a high-performance way to copy non-contiguous data on symmetric memory from
- *      the specified PE to address on the local device. 
+ *      the specified PE to address on the local device.
  *
  * @par Parameters
  * - **dst**         - [in] GlobalTensor on local device of the destination data.
@@ -587,9 +658,10 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_NBI);
  * - **copy_params** - [in] Params to describe how non-contiguous data is managed in src and dst.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)                                                        \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 const non_contiguous_copy_param &copy_params, int pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_get_nbi(                       \
+        AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+        const non_contiguous_copy_param& copy_params, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
@@ -598,8 +670,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
 /**
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -611,13 +684,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
@@ -639,8 +718,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, uint32_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -652,13 +732,19 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                                                              \
-    ACLSHMEM_DEVICE void aclshmem_put##BITS##_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS) \
+    ACLSHMEM_DEVICE void aclshmem_put##BITS##_nbi(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
@@ -668,8 +754,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const non_contiguous_copy_param &copy_params, int32_t pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, const
+ * non_contiguous_copy_param &copy_params, int32_t pe)
  *
  * @par Function Description
  *      Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -681,9 +768,9 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
  * - **copy_params** - [in] Params to describe how non-contiguous data is managed in src and dst.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE)                                                         \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src,                             \
-                                                 const non_contiguous_copy_param &copy_params, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(        \
+        __gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copy_params, int32_t pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
@@ -692,8 +779,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
 /**
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,
+ * uint32_t elem_size, int pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -705,14 +793,20 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may reference any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
+ *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE)                                                                 \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 uint32_t elem_size, int pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI(NAME, TYPE) \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(      \
+        AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
 /** \endcond */
@@ -720,8 +814,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
 /**
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param &copy_params, int pe)
+ *
+ * \remark ACLSHMEM_DEVICE void aclshmem_NAME_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,
+ * const non_contiguous_copy_param &copy_params, int pe)
  *
  * @par Function Description
  * Asynchronous interface. Provide a high-performance way to copy non-contiguous data on local PE to symmetric address
@@ -733,9 +828,10 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_NBI);
  * - **copy_params** - [in] Params to describe how non-contiguous data is managed in src and dst.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)                                                        \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src,     \
-                                                 const non_contiguous_copy_param &copy_params, int pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI(NAME, TYPE)         \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_put_nbi(                       \
+        AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, \
+        const non_contiguous_copy_param& copy_params, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
@@ -749,13 +845,18 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED_NBI);
  * @param src               [in] Pointer on local device of the source data.
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @warning Concurrent RMA/AMO operations to the same PE are NOT supported when using RDMA
  *          as the underlying transport. When using RDMA or SDMA, the corresponding
  *          sync_id from device_state's rdma_config or sdma_config is used for pipeline
  *          synchronization.
  */
-ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, uint32_t elem_size, int32_t pe);
+ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void* dst, __gm__ void* src, uint32_t elem_size, int32_t pe);
 #define shmem_putmem_nbi aclshmem_putmem_nbi
 
 /**

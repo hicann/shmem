@@ -37,7 +37,7 @@ int status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
 **功能描述：**
 
-同步接口，在指定流上将对称内存中本卡上的数据从源地址复制到指定PE的地址上。
+同步接口，在指定流上将本地 PE 的连续数据复制到指定 PE 的对称地址。
 
 **跨机支持：** 支持，HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA。
 
@@ -52,7 +52,7 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_on_stream(void* dst, void* src, size_t e
 | 参数         | 类型          | 说明                   |
 | ---------- | ----------- | -------------------- |
 | dst        | void\*      | 目标PE的目的地址在本卡的对称地址指针  |
-| src        | void\*      | 本地源数据的指针             |
+| src        | void\*      | 本地源数据指针              |
 | elem\_size | size\_t     | 要传输的数据大小（字节）         |
 | pe         | int32\_t    | 目标PE的编号              |
 | stream     | aclrtStream | 使用的流（如果为NULL，则使用默认流） |
@@ -72,7 +72,7 @@ aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 aclrtStream stream;
 aclrtCreateStream(&stream);
 
-// 3. 跨机调用RDMA接口时，必须使用aclshmem_malloc分配对称内存，不能使用aclrtMalloc
+// 3. 使能 RDMA 通信时，src 和 dst 都必须使用 aclshmem_malloc分配，不能使用 aclrtMalloc
 size_t data_size = 1024; // 1KB
 int32_t target_pe = 1; // 目标PE编号
 void* src_ptr = aclshmem_malloc(data_size);
@@ -102,7 +102,7 @@ aclFinalize();
 
 **功能描述：**
 
-同步接口，在指定流上将对称内存中指定PE上的连续数据复制到本地PE的地址上。
+同步接口，在指定流上将指定 PE 对称内存中的连续数据复制到本地 PE。
 
 **跨机支持：** 支持。HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA。
 
@@ -116,7 +116,7 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(void* dst, void* src, size_t e
 
 | 参数         | 类型          | 说明                      |
 | ---------- | ----------- | ----------------------- |
-| dst        | void\*      | 本地PE上的指针（目标地址）          |
+| dst        | void\*      | 本地目的数据指针                 |
 | src        | void\*      | 远端PE上的源数据地址在本卡的对称地址     |
 | elem\_size | size\_t     | 要传输的数据大小（字节）            |
 | pe         | int32\_t    | 远端PE的编号                 |
@@ -137,7 +137,7 @@ aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 aclrtStream stream;
 aclrtCreateStream(&stream);
 
-// 3. 跨机调用RDMA接口时，必须使用aclshmem_malloc分配对称内存，不能使用aclrtMalloc
+// 3. 初始化使能RDMA时，src和dst都必须使用aclshmem_malloc分配，不能使用aclrtMalloc
 size_t data_size = 1024; // 1KB
 int32_t source_pe = 0; // 源PE编号
 void* src_ptr = aclshmem_malloc(data_size);
@@ -348,7 +348,8 @@ aclFinalize();
 
 ## 三、注意事项
 
-1. **内存申请**：跨机调用RDMA接口时，必须使用`aclshmem_malloc`分配对称内存。
+1. **内存申请**：初始化使能 RDMA 后，通用 Put/Get 的 `src`、`dst` 都必须使用`aclshmem_malloc`分配，
+   且完整传输范围不得越过对应的对称内存分配；调用者无需判断单次实际选择的引擎。
 2. **跨机通信**：
    - `aclshmemx_putmem_on_stream`和`aclshmemx_getmem_on_stream`支持跨机，HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA
    - `aclshmemx_signal_op_on_stream`：`ACLSHMEM_SIGNAL_SET`支持RDMA跨机；`ACLSHMEM_SIGNAL_ADD`不支持RDMA跨机，HCCS可通时支持MTE跨机

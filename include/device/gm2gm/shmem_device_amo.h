@@ -141,7 +141,7 @@
  * |-------|---------------------------------------|----------------------------------|
  * | MTE   | int8, int16, bf16, half, int32, float | Ascend910B/Ascend910C/Ascend950  |
  * | MTE   | uint32, uint64, int64                 | Ascend950                        |
- * | ROCE  | int32, uint32, int64, uint64,         | Ascend950                        |
+ * | RDMA  | int32, uint32, int64, uint64,         | Ascend950                        |
  * | UDMA  | int32, uint32, int64, uint64, float   | Ascend950                        |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_add(\_\_gm\_\_ TYPE *dst, TYPE value, int32_t pe)
@@ -150,7 +150,7 @@
  * Asynchronous interface. Perform contiguous data atomic add operation on
  * symmetric memory from the specified PE to address on the local PE.
  *
- * The implementation dispatches to MTE, ROCE, or UDMA based on the transport topology.
+ * The implementation dispatches to MTE, RDMA, or UDMA based on the transport topology.
  * Pipeline synchronization requirements differ by transport and data type, and must
  * be ensured externally by the caller.
  *
@@ -181,16 +181,16 @@
  * The MTE UB buffer offset defaults to 0 and can be adjusted via
  * aclshmemx_set_mte_config(offset, ub_size, sync_id).
  *
- * @par ROCE Path Synchronization
- * The atomic add is issued asynchronously over ROCE. The caller must call
+ * @par RDMA Path Synchronization
+ * The atomic add is issued asynchronously over RDMA. The caller must call
  * aclshmemx_roce_quiet before reading the result to guarantee the operation
  * has completed on the target PE.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  *
  * @par Parameters
- * - **dst**    - [in] Pointer on local device of the destination data.
+ * - **dst**    - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value atomic add to destination.
  * - **pe**     - [in] PE number of the remote PE.
  */
@@ -209,11 +209,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_910(ACLSHMEM_ATOMIC_ADD_910_TYPENAME);
 ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
 /** \endcond */
 
-#define shmem_int8_atomic_add aclshmem_int8_atomic_add 
-#define shmem_int16_atomic_add aclshmem_int16_atomic_add 
-#define shmem_int32_atomic_add aclshmem_int32_atomic_add 
-#define shmem_half_atomic_add aclshmem_half_atomic_add 
-#define shmem_bfloat16_atomic_add aclshmem_bfloat16_atomic_add 
+#define shmem_int8_atomic_add aclshmem_int8_atomic_add
+#define shmem_int16_atomic_add aclshmem_int16_atomic_add
+#define shmem_int32_atomic_add aclshmem_int32_atomic_add
+#define shmem_half_atomic_add aclshmem_half_atomic_add
+#define shmem_bfloat16_atomic_add aclshmem_bfloat16_atomic_add
 #define shmem_float_atomic_add aclshmem_float_atomic_add
 
 /** ============================================================================
@@ -225,7 +225,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
  *
  * - **Void return** (add, inc, and, or, xor, set): **Asynchronous**. May not
  *   have completed on return. Caller must synchronize:
- *   - **ROCE**: aclshmemx_roce_quiet
+ *   - **RDMA**: aclshmemx_roce_quiet
  *   - **UDMA**: aclshmemx_udma_quiet
  *   - **MTE**: Insert SetFlag/WaitFlag per data dependency (see below)
  *
@@ -236,11 +236,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
  * - **Post-call**: Fence MTE3 before reading GM (MTE3_MTE2) or reusing UB (MTE3_S)
  * MTE UB buffer offset defaults to 0; adjust via aclshmemx_set_mte_config().
  *
- * @par ROCE Path Synchronization
+ * @par RDMA Path Synchronization
  * Synchronous interfaces auto-quiet. Asynchronous interfaces require an explicit
  * quiet call to ensure completion.
  *
- * @warning Concurrent RMA/AMO to the same PE over RDMA (ROCE) is not supported.
+ * @warning Concurrent RMA/AMO to the same PE over RDMA is not supported.
  *          Use sync_id in device_state.rdma_config for pipeline synchronization.
  * ============================================================================ */
 
@@ -251,7 +251,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | int32, uint32, uint64, int64, float   | Ascend950         |
- * | ROCE  | int32, uint32, int64, uint64          | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64          | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch_add(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -266,11 +266,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value atomic add to destination.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -278,7 +278,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_EXT(ACLSHMEM_ATOMIC_ADD_EXT_TYPENAME);
  * The old value at dest before the addition.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_FETCH_ADD_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_fetch_add(__gm__ TYPE* dest, TYPE value, int32_t pe)
@@ -294,7 +294,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_ADD_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | int32, uint32, uint64, int64,         | Ascend950         |
- * | ROCE  | int32, uint32, int64, uint64, float   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64, float   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64, float   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_inc(\_\_gm\_\_ TYPE *dst, int32_t pe)
@@ -312,16 +312,16 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_ADD_TYPENAME);
  *   transfer units when reading/writing GM or sharing UB, the caller must insert
  *   appropriate SetFlag/WaitFlag synchronization at the Kernel Runtime level based
  *   on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dst**    - [in] Pointer on local device of the destination data.
+ * - **dst**    - [in] Pointer to the target data in symmetric memory.
  * - **pe**     - [in] PE number of the remote PE.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_INC_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_inc(__gm__ TYPE* dst, int32_t pe)
@@ -337,7 +337,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_INC_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | int32, uint32, uint64, int64, float   | Ascend950         |
- * | ROCE  | int32, uint32, int64, uint64          | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64          | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch_inc(\_\_gm\_\_ TYPE *dest, int32_t pe)
@@ -352,18 +352,18 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_INC_TYPENAME);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **pe**     - [in] PE number of the remote PE.
  *
  * @par Return
  * The old value at dest before the increment.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_FETCH_INC_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_fetch_inc(__gm__ TYPE* dest, int32_t pe)
@@ -378,7 +378,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_INC_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_and(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -387,12 +387,12 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_INC_TYPENAME);
  * Atomically performs bitwise AND operation between the value at dest and the specified value.
  *
  * @par Synchronization
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise AND with.
  * - **pe**     - [in] PE number of the remote PE.
  */
@@ -409,7 +409,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_AND_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_or(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -418,12 +418,12 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_AND_TYPENAME);
  * Atomically performs bitwise OR operation between the value at dest and the specified value.
  *
  * @par Synchronization
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise OR with.
  * - **pe**     - [in] PE number of the remote PE.
  */
@@ -440,7 +440,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_OR_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_xor(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -449,12 +449,12 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_OR_TYPENAME);
  * Atomically performs bitwise XOR operation between the value at dest and the specified value.
  *
  * @par Synchronization
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise XOR with.
  * - **pe**     - [in] PE number of the remote PE.
  */
@@ -471,7 +471,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_XOR_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch_and(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -483,11 +483,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_XOR_TYPENAME);
  * quiet operation is performed before returning.
  *
  * @par Synchronization
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise AND with.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -507,7 +507,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_AND_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch_or(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -519,11 +519,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_AND_TYPENAME);
  * quiet operation is performed before returning.
  *
  * @par Synchronization
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise OR with.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -543,7 +543,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_OR_TYPENAME);
  *
  * | Path  | Supported Types                | Hardware Platform |
  * |-------|--------------------------------|-------------------|
- * | ROCE  | int32, uint32, int64, uint64   | Ascend950         |
+ * | RDMA  | int32, uint32, int64, uint64   | Ascend950         |
  * | UDMA  | int32, uint32, int64, uint64   | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch_xor(\_\_gm\_\_ TYPE *dest, TYPE value, int32_t pe)
@@ -555,11 +555,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_OR_TYPENAME);
  * quiet operation is performed before returning.
  *
  * @par Synchronization
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to perform bitwise XOR with.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -580,7 +580,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_XOR_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64, float   | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64, float   | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64, float   | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_fetch(const TYPE *source, int32_t pe)
@@ -596,18 +596,18 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_LOGIC(ACLSHMEM_ATOMIC_FETCH_XOR_TYPENAME);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **source**  - [in] Pointer on local device of the source data to read.
+ * - **source**  - [in] Pointer to the source data in symmetric memory.
  * - **pe**      - [in] PE number of the remote PE.
  *
  * @par Return
  * The value at source.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_FETCH_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_fetch(__gm__ const TYPE* source, int32_t pe)
@@ -623,7 +623,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64, float   | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64, float   | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64, float   | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_set(TYPE *dest, TYPE value, int32_t pe)
@@ -637,17 +637,17 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_TYPENAME);
  *   transfer units when reading/writing GM or sharing UB, the caller must insert
  *   appropriate SetFlag/WaitFlag synchronization at the Kernel Runtime level based
  *   on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to set.
  * - **pe**     - [in] PE number of the remote PE.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_SET_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_set(__gm__ TYPE* dest, TYPE value, int32_t pe)
@@ -660,7 +660,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_TYPENAME);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64, float   | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64, float   | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64, float   | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE void aclshmem_NAME_atomic_set(TYPE *dest, TYPE value, int32_t pe)
@@ -675,17 +675,17 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_ADD_950(ACLSHMEM_ATOMIC_FETCH_TYPENAME);
  *   transfer units when reading/writing GM or sharing UB, the caller must insert
  *   appropriate SetFlag/WaitFlag synchronization at the Kernel Runtime level based
  *   on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: This is an asynchronous operation. The caller must invoke
+ * - **RDMA path**: This is an asynchronous operation. The caller must invoke
  *   aclshmemx_roce_quiet to guarantee the operation has completed and the
  *   data is visible on the remote PE.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to set.
  * - **pe**     - [in] PE number of the remote PE.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_SET_TYPENAME_CAST(NAME, TYPE, SUBTYPE) \
     ACLSHMEM_DEVICE void aclshmem_##NAME##_atomic_set(__gm__ TYPE* dest, TYPE value, int32_t pe)
@@ -702,7 +702,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64, float   | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64, float   | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64, float   | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_swap(TYPE *dest, TYPE value, int32_t pe)
@@ -718,11 +718,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to swap.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -730,7 +730,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  * The old value at dest before the swap.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_SWAP_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_swap(__gm__ TYPE* dest, TYPE value, int32_t pe)
@@ -743,7 +743,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  * | Path  | Supported Types                       | Hardware Platform |
  * |-------|---------------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64, float   | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64, float   | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64, float   | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64          | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_swap(TYPE *dest, TYPE value, int32_t pe)
@@ -760,11 +760,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **value**  - [in] Value to swap.
  * - **pe**     - [in] PE number of the remote PE.
  *
@@ -772,7 +772,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SET_TYPENAME_CAST);
  * The old value at dest before the swap.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST(NAME, TYPE, SUBTYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_swap(__gm__ TYPE* dest, TYPE value, int32_t pe)
@@ -789,7 +789,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  * | Path  | Supported Types               | Hardware Platform |
  * |-------|-------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64  | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64  | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64  | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64  | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_compare_swap(TYPE *dest, TYPE cond, TYPE value, int32_t pe)
@@ -805,11 +805,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **cond**   - [in] Value to compare against.
  * - **value**  - [in] Value to set if comparison succeeds.
  * - **pe**     - [in] PE number of the remote PE.
@@ -818,7 +818,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  * The old value at dest before the operation.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_COMPARE_SWAP_TYPENAME(NAME, TYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_compare_swap(__gm__ TYPE* dest, TYPE cond, TYPE value, int32_t pe)
@@ -831,7 +831,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  * | Path  | Supported Types               | Hardware Platform |
  * |-------|-------------------------------|-------------------|
  * | MTE   | uint32, uint64, int32, int64  | Ascend950         |
- * | ROCE  | uint32, uint64, int32, int64  | Ascend950         |
+ * | RDMA  | uint32, uint64, int32, int64  | Ascend950         |
  * | UDMA  | uint32, uint64, int32, int64  | Ascend950         |
  *
  * \remark ACLSHMEM_DEVICE TYPE aclshmem_NAME_atomic_compare_swap(TYPE *dest, TYPE cond, TYPE value, int32_t pe)
@@ -848,11 +848,11 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  *   the Scalar computation unit and MTE2/MTE3 transfer units when reading/writing GM or
  *   sharing UB, the caller must insert appropriate SetFlag/WaitFlag synchronization at the
  *   Kernel Runtime level based on the actual data flow. See @ref amo_sync_model for details.
- * - **ROCE path**: Internally synchronized via built-in quiet. No additional
+ * - **RDMA path**: Internally synchronized via built-in quiet. No additional
  *   aclshmemx_roce_quiet call is required.
  *
  * @par Parameters
- * - **dest**   - [in] Pointer on local device of the destination data.
+ * - **dest**   - [in] Pointer to the target data in symmetric memory.
  * - **cond**   - [in] Value to compare against.
  * - **value**  - [in] Value to set if comparison succeeds.
  * - **pe**     - [in] PE number of the remote PE.
@@ -861,7 +861,7 @@ ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST(ACLSHMEM_ATOMIC_SWAP_TYPENAME_CAST);
  * The old value at dest before the operation.
  *
  * @note The MTE transport for this operation does not support cross-PCIe (inter-node)
- *       communication. Use the ROCE or UDMA transport paths for cross-PCIe scenarios.
+ *       communication. Use the RDMA or UDMA transport paths for cross-PCIe scenarios.
  */
 #define ACLSHMEM_ATOMIC_COMPARE_SWAP_TYPENAME_CAST(NAME, TYPE, SUBTYPE) \
     ACLSHMEM_DEVICE TYPE aclshmem_##NAME##_atomic_compare_swap(__gm__ TYPE* dest, TYPE cond, TYPE value, int32_t pe)

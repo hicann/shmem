@@ -1,6 +1,6 @@
 # ACLSHMEM Atomic 原子操作接口用法语义总结
 
-> 本文档基于实际代码实现编写，覆盖各层接口：标准接口 `aclshmem_<type>_atomic_<op>`、MTE 后端 `aclshmemx_mte_atomic_<op>`、ROCE 后端 `aclshmemx_roce_atomic_<op>`。
+> 本文档基于实际代码实现编写，覆盖各层接口：标准接口 `aclshmem_<type>_atomic_<op>`、MTE 后端 `aclshmemx_mte_atomic_<op>`、RDMA 后端 `aclshmemx_roce_atomic_<op>`。
 
 ---
 
@@ -12,10 +12,10 @@ atomic 接口分为两层：
 aclshmem_<type>_atomic_<op>()          ← 标准接口
     │
     ├── topo == MTE  → aclshmemx_mte_atomic_<op>()   ← MTE 后端
-    └── topo == ROCE → aclshmemx_roce_atomic_<op>()  ← ROCE 后端
+    └── topo == ROCE → aclshmemx_roce_atomic_<op>()  ← RDMA 后端
 ```
 
-标准接口根据 `device_state->topo_list[pe]` 自动分派到 MTE 或 ROCE 后端，并在后端调用之上额外添加同步保证。
+标准接口根据 `device_state->topo_list[pe]` 自动分派到 MTE 或 RDMA 后端，并在后端调用之上额外添加同步保证。
 
 ---
 
@@ -62,7 +62,7 @@ aclshmem_<type>_atomic_<op>()          ← 标准接口
 
 ---
 
-## 三、ROCE 后端接口：`aclshmemx_roce_atomic_<op>`
+## 三、RDMA 后端接口：`aclshmemx_roce_atomic_<op>`
 
 > 头文件：`include/device/gm2gm/engine/shmem_device_rdma.h`
 > 实现文件：`src/device/gm2gm/engine/shmem_device_rdma.hpp`
@@ -70,6 +70,9 @@ aclshmem_<type>_atomic_<op>()          ← 标准接口
 **核心特征：有返回值的接口为同步接口（内部 quiet），无返回值的接口为异步接口（需调用者 quiet）。**
 
 同步原语：`aclshmemx_roce_quiet(pe, buf, sync_id)`。
+
+RDMA AMO 的 target/source 参数会作为本地对称地址换算到指定 PE，因此必须指向对称内存；不能把任意
+本地 GM 地址直接用作该参数。可通过 `aclshmem_malloc` 等对称内存分配接口准备目标对象。
 
 ### 3.1 接口清单（同步接口——内部完成 quiet）
 
@@ -101,7 +104,7 @@ aclshmem_<type>_atomic_<op>()          ← 标准接口
 
 ### 3.3 并发限制
 
-> **警告**：使用 RDMA（ROCE）作为底层传输时，不支持对同一 PE 的并发 RMA/AMO 操作。请使用 `device_state.rdma_config` 中的 `sync_id` 进行流水线同步。
+> **警告**：使用 RDMA 作为底层传输时，不支持对同一 PE 的并发 RMA/AMO 操作。请使用 `device_state.rdma_config` 中的 `sync_id` 进行流水线同步。
 
 ---
 
@@ -110,7 +113,11 @@ aclshmem_<type>_atomic_<op>()          ← 标准接口
 > 头文件：`include/device/gm2gm/shmem_device_amo.h`
 > 实现文件：`src/device/gm2gm/shmem_device_amo.hpp`
 
-标准接口根据拓扑自动分派到 MTE 或 ROCE 后端，并在后端调用之上**额外添加同步保证**。
+标准接口根据拓扑自动分派到 MTE 或 RDMA 后端，并在后端调用之上**额外添加同步保证**。
+
+标准 AMO 接口会将用户传入的 `dst`、`dest` 或 `source` 交给 `aclshmem_ptr(..., pe)` 换算为指定 PE 上的
+目标地址，因此这些参数必须指向对称内存。该要求来自标准接口的地址换算方式，并不表示 MTE 引擎本身
+只能访问对称内存；传输层自动分派不会改变这一接口语义。
 
 ```text
 aclshmem_<type>_atomic_<op>(dst, val, pe)
@@ -132,7 +139,7 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 
 函数内部完成同步后才返回，**调用者无需额外同步**。
 
-| 接口完整名（以 int32 为例） | 返回值 | MTE 路径同步方式 | ROCE 路径同步方式 |
+| 接口完整名（以 int32 为例） | 返回值 | MTE 路径同步方式 | RDMA 路径同步方式 |
 |---|---|---|---|
 | `aclshmem_int32_atomic_fetch_add` | int32_t | `aclshmemx_mte_atomic_fetch_add` + `PipeBarrier<PIPE_ALL>` | `aclshmemx_roce_atomic_fetch_add`（内部 quiet） |
 | `aclshmem_int32_atomic_fetch_inc` | int32_t | `aclshmemx_mte_atomic_fetch_inc` + `PipeBarrier<PIPE_ALL>` | `aclshmemx_roce_atomic_fetch_inc`（内部 quiet） |
@@ -145,20 +152,20 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 
 ### 4.2 异步接口（不带返回值，必须显式同步）
 
-| 接口完整名（以 int32 为例） | 返回值 | MTE 路径 | ROCE 路径 | 调用者必须的同步 |
+| 接口完整名（以 int32 为例） | 返回值 | MTE 路径 | RDMA 路径 | 调用者必须的同步 |
 |---|---|---|---|---|
-| `aclshmem_int32_atomic_add` | void | `aclshmemx_mte_atomic_add`（异步） | `aclshmemx_roce_atomic_add`（异步） | MTE: SetFlag/WaitFlag（按需）；ROCE: `aclshmemx_roce_quiet` |
-| `aclshmem_int32_atomic_inc` | void | `aclshmemx_mte_atomic_inc`（异步） | `aclshmemx_roce_atomic_inc`（异步） | MTE: SetFlag/WaitFlag（按需）；ROCE: `aclshmemx_roce_quiet` |
-| `aclshmem_int32_atomic_and` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_and`（异步） | ROCE: `aclshmemx_roce_quiet` |
-| `aclshmem_int32_atomic_or` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_or`（异步） | ROCE: `aclshmemx_roce_quiet` |
-| `aclshmem_int32_atomic_xor` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_xor`（异步） | ROCE: `aclshmemx_roce_quiet` |
-| `aclshmem_uint32_atomic_set` | void | `aclshmemx_mte_atomic_set`（异步） | `aclshmemx_roce_atomic_set`（异步） | MTE: SetFlag/WaitFlag（按需）；ROCE: `aclshmemx_roce_quiet` |
+| `aclshmem_int32_atomic_add` | void | `aclshmemx_mte_atomic_add`（异步） | `aclshmemx_roce_atomic_add`（异步） | MTE: SetFlag/WaitFlag（按需）；RDMA: `aclshmemx_roce_quiet` |
+| `aclshmem_int32_atomic_inc` | void | `aclshmemx_mte_atomic_inc`（异步） | `aclshmemx_roce_atomic_inc`（异步） | MTE: SetFlag/WaitFlag（按需）；RDMA: `aclshmemx_roce_quiet` |
+| `aclshmem_int32_atomic_and` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_and`（异步） | RDMA: `aclshmemx_roce_quiet` |
+| `aclshmem_int32_atomic_or` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_or`（异步） | RDMA: `aclshmemx_roce_quiet` |
+| `aclshmem_int32_atomic_xor` | void | ✗ 不支持 MTE | `aclshmemx_roce_atomic_xor`（异步） | RDMA: `aclshmemx_roce_quiet` |
+| `aclshmem_uint32_atomic_set` | void | `aclshmemx_mte_atomic_set`（异步） | `aclshmemx_roce_atomic_set`（异步） | MTE: SetFlag/WaitFlag（按需）；RDMA: `aclshmemx_roce_quiet` |
 
 > `atomic_add` 的 MTE 路径同步细节：按数据类型分两条路径，参见 [第二节 2.3](#23-aclshmemx_mte_atomic_add-的类型差异重要)。
 
 ---
 
-## 五、同步规则速查（针对MTE和ROCE通路）
+## 五、同步规则速查（针对MTE和RDMA通路）
 
 ```text
 使用 aclshmem_<type>_atomic_<op> 接口
@@ -166,12 +173,12 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 ├── fetch_add / fetch_inc / fetch_and / fetch_or / fetch_xor / fetch / swap / compare_swap
 │   └── 同步接口（带返回值），调用返回即完成，返回值可靠
 │       MTE: fetch_add/fetch_inc/fetch/swap/compare_swap 有 PipeBarrier
-│       ROCE: 全部内部 quiet
+│       RDMA: 全部内部 quiet
 │       （MTE 路径 PipeBarrier 已保证传输完成；调用前如有其他单元写 UB 仍需 SetFlag/WaitFlag）
 │
 ├── add / inc / and / or / xor / set
 │   └── 异步接口（不带返回值），必须显式同步：
-│       ROCE: aclshmemx_roce_quiet(pe, buf, sync_id)
+│       RDMA: aclshmemx_roce_quiet(pe, buf, sync_id)
 │       MTE: 根据实际数据依赖插入 SetFlag/WaitFlag（and/or/xor 不支持 MTE）
 ```
 
@@ -185,34 +192,34 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 |---|---|---|---|
 | MTE | int8, int16, bf16, half, int32, float | UB + MTE3 | A2/A3/950 |
 | MTE | uint32, uint64, int64 | Scalar AtomicAdd | 950 |
-| ROCE | int32, uint32, int64, uint64 | — | 950 |
+| RDMA | int32, uint32, int64, uint64 | — | 950 |
 
 ### 6.2 `aclshmem_<type>_atomic_fetch_add`
 
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | int32, uint32, uint64, int64, float | 950 |
-| ROCE | int32, uint32, int64, uint64 | 950 |
+| RDMA | int32, uint32, int64, uint64 | 950 |
 
 ### 6.3 `aclshmem_<type>_atomic_inc`
 
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | int32, uint32, uint64, int64 | 950 |
-| ROCE | int32, uint32, int64, uint64, float | 950 |
+| RDMA | int32, uint32, int64, uint64, float | 950 |
 
 ### 6.4 `aclshmem_<type>_atomic_fetch_inc`
 
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | int32, uint32, uint64, int64, float | 950 |
-| ROCE | int32, uint32, int64, uint64 | 950 |
+| RDMA | int32, uint32, int64, uint64 | 950 |
 
 ### 6.5 位运算系列 (`atomic_and/or/xor` 及 fetch 变体)
 
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
-| ROCE | int32, uint32, int64, uint64 | 950 |
+| RDMA | int32, uint32, int64, uint64 | 950 |
 
 > **注意**：位运算接口不支持 MTE 通路。
 
@@ -221,14 +228,14 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | uint32, uint64, int32, int64, float | 950 |
-| ROCE | uint32, uint64, int32, int64, float | 950 |
+| RDMA | uint32, uint64, int32, int64, float | 950 |
 
 ### 6.7 `aclshmem_<type>_atomic_set`
 
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | uint32, uint64, int32, int64, float | 950 |
-| ROCE | uint32, uint64, int32, int64, float | 950 |
+| RDMA | uint32, uint64, int32, int64, float | 950 |
 
 > CAST 变体（`ACLSHMEM_TYPE_FUNC_ATOMIC_SWAP_CAST`）：int32→uint32、int64→uint64、float→uint32 通过类型转换实现。
 
@@ -237,7 +244,7 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | uint32, uint64, int32, int64, float | 950 |
-| ROCE | uint32, uint64, int32, int64, float | 950 |
+| RDMA | uint32, uint64, int32, int64, float | 950 |
 
 > CAST 变体同上。
 
@@ -246,7 +253,7 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 | 传输通路 | 支持类型 | 硬件平台 |
 |---|---|---|
 | MTE | uint32, uint64, int32, int64 | 950 |
-| ROCE | uint32, uint64, int32, int64 | 950 |
+| RDMA | uint32, uint64, int32, int64 | 950 |
 
 > CAST 变体（`ACLSHMEM_TYPE_FUNC_ATOMIC_CAS_CAST`）：int32→uint32、int64→uint64。
 
@@ -254,16 +261,27 @@ aclshmem_<type>_atomic_<op>(dst, val, pe)
 
 ## 七、跨 PCIe（跨节点）限制
 
-**MTE 通路不支持跨 PCIe**。跨节点场景请使用 ROCE 通路。
+**MTE 通路不支持跨 PCIe**。跨节点场景请使用 RDMA 通路。
 
 ---
 
 ## 八、代码示例
 
-### 8.1 异步接口 + ROCE（`aclshmem_int32_atomic_add`）
+以下示例中的 `dst` 必须来自对称分配。Host 侧所有 PE 以相同大小集合调用分配接口，并把返回地址传给
+执行 Device AMO 的 kernel：
 
 ```c
-// 异步 atomic add，ROCE 通路
+void *symmetric_target = aclshmem_malloc(sizeof(uint64_t));
+// Pass symmetric_target to the kernel and use the typed pointer as dst.
+```
+
+不能用 `aclrtMalloc` 分配的普通本地 GM 地址替代标准 AMO 的 target；该限制来自远端地址换算，而不是
+MTE 或 RDMA 引擎对 GM 地址的固有限制。
+
+### 8.1 异步接口 + RDMA（`aclshmem_int32_atomic_add`）
+
+```c
+// 异步 atomic add，RDMA 通路
 aclshmem_int32_atomic_add(dst, 42, pe);
 
 // ... 其他不依赖 dst 的计算 ...
@@ -318,7 +336,7 @@ SetFlag<HardEvent::MTE2_S>(sync_id);
 WaitFlag<HardEvent::MTE2_S>(sync_id);
 ```
 
-### 8.5 异步接口 + ROCE（`aclshmem_int32_atomic_and`，ROCE 通路）
+### 8.5 异步接口 + RDMA（`aclshmem_int32_atomic_and`，RDMA 通路）
 
 ```c
 // atomic_and 不带返回值，标准接口透传 roce_atomic_and（异步）
@@ -334,10 +352,10 @@ int32_t val = *dst;
 ### 8.6 `aclshmem_uint32_atomic_set`（需显式同步）
 
 ```c
-// atomic_set 底层为异步（无论 MTE 还是 ROCE）
+// atomic_set 底层为异步（无论 MTE 还是 RDMA）
 aclshmem_uint32_atomic_set(dst, 99, pe);
 
-// ROCE 通路需 quiet
+// RDMA 通路需 quiet
 aclshmemx_roce_quiet(pe, ub_buf, sync_id);
 
 // 或 MTE 通路需按数据依赖插入 SetFlag/WaitFlag
@@ -377,7 +395,7 @@ aclshmemx_roce_quiet(pe, ub_buf, sync_id);
 | `mte_atomic_fetch_inc` | T | 异步 | 同上 |
 | `mte_atomic_fetch_add` | T | 异步 | 同上 |
 
-### ROCE 后端（`aclshmemx_roce_atomic_<op>`）
+### RDMA 后端（`aclshmemx_roce_atomic_<op>`）
 
 | 接口 | 返回值 | 同步性 | 同步方式 |
 |---|---|---|---|
@@ -398,7 +416,7 @@ aclshmemx_roce_quiet(pe, ub_buf, sync_id);
 
 ### 标准接口（`aclshmem_<type>_atomic_<op>`）
 
-| 接口 | 返回值 | MTE 路径 | ROCE 路径 | 调用者需同步？ |
+| 接口 | 返回值 | MTE 路径 | RDMA 路径 | 调用者需同步？ |
 |---|---|---|---|---|
 | `atomic_fetch_add` | T | 同步（+PipeBarrier） | 同步（透传） | 否 |
 | `atomic_fetch_inc` | T | 同步（+PipeBarrier） | 同步（透传） | 否 |
@@ -424,4 +442,4 @@ aclshmemx_roce_quiet(pe, ub_buf, sync_id);
 | 标准接口声明 | `include/device/gm2gm/shmem_device_amo.h` | — |
 | 标准接口实现 | — | `src/device/gm2gm/shmem_device_amo.hpp` |
 | MTE 后端接口 | `include/device/gm2gm/engine/shmem_device_mte.h` | `src/device/gm2gm/engine/shmem_device_mte.hpp` |
-| ROCE 后端接口 | `include/device/gm2gm/engine/shmem_device_rdma.h` | `src/device/gm2gm/engine/shmem_device_rdma.hpp` |
+| RDMA 后端接口 | `include/device/gm2gm/engine/shmem_device_rdma.h` | `src/device/gm2gm/engine/shmem_device_rdma.hpp` |

@@ -67,9 +67,12 @@ bash run.sh [选项]
 | `-fpe <id>` | - | 首个 PE ID | 0 |
 | `-a/--analyse <mode>` | - | 分析模式 (none / plot / md) | none |
 
-### DRAM 内存约束
+### HBM 与对称内存约束
 
 本示例仅测试 HBM (DEVICE_SIDE) 内存路径，**不支持 D2H / `HOST_SIDE` (DRAM)**。
+
+`main.cpp` 通过 `aclshmem_malloc` 分配输入、输出缓冲区。该示例直接调用 RDMA 引擎专用接口，因此 Put/Get
+的本地和远端操作数都必须指向对称内存，且各自的完整传输范围不得越过其所在的内存分配。
 
 默认 1 GB 本地内存；当数据量较大时，程序会自动上调 `local_mem_size`（最多 40 GB）。
 

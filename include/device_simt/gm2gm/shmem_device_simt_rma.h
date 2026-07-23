@@ -15,8 +15,7 @@
 #include "device_simt/gm2gm/engine/shmem_device_simt_mte.h"
 #include "device/shmem_def.h"
 
-namespace simt
-{
+namespace simt {
 
 /**
  * @brief Standard RMA Types and Names
@@ -52,7 +51,6 @@ namespace simt
     FUNC(char, unsigned char);   \
     FUNC(bfloat16, bfloat16_t)
 
-
 /**
  * @brief Standard test Types and Names
  *
@@ -86,8 +84,9 @@ namespace simt
 /**
  * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark __simt_callee__ inline void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
@@ -98,10 +97,13 @@ namespace simt
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                                   \
-    __simt_callee__ inline void aclshmem_##NAME##_put(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                              \
+    __simt_callee__ inline void aclshmem_##NAME##_put(                     \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_block(              \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(               \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 
@@ -112,8 +114,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark __simt_callee__ inline void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
@@ -124,11 +127,11 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                               \
-    __simt_callee__ inline void aclshmem_put##BITS(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe);  \
-    __simt_callee__ inline void aclshmemx_put##BITS_block(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_put##BITS_warp(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe)
-
+#define ACLSHMEM_PUT_SIZE_MEM(BITS)                                                                                \
+    __simt_callee__ inline void aclshmem_put##BITS(__gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS_block(                                                         \
+        __gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe);                                            \
+    __simt_callee__ inline void aclshmemx_put##BITS_warp(__gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
 
@@ -144,16 +147,16 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_putmem(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_putmem(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
 /**
  * @brief  Automatically generates aclshmem p functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark __simt_callee__ inline void aclshmem_NAME_p(\_\_gm\_\_ TYPE *dst, const TYPE value, int pe)
  *
  * @par Function Description
@@ -164,8 +167,8 @@ __simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __gm__ void 
  * - **value**  - [in] The element to be put.
  * - **pe**     - [in] The number of the remote PE.
  */
-#define ACLSHMEM_TYPENAME_P_AICORE(NAME, TYPE)                                              \
-    __simt_callee__ inline void aclshmem_##NAME##_p(__gm__ TYPE *dst, const TYPE value, int pe)
+#define ACLSHMEM_TYPENAME_P_AICORE(NAME, TYPE) \
+    __simt_callee__ inline void aclshmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
 
@@ -176,8 +179,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
 /**
  * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark __simt_callee__ inline void aclshmem_NAME_get(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_NAME_get(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  * Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -188,10 +192,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_P_AICORE);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                                       \
-    __simt_callee__ inline void aclshmem_##NAME##_get(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe);          \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)    
+#define ACLSHMEM_GET_TYPENAME_MEM(NAME, TYPE)                              \
+    __simt_callee__ inline void aclshmem_##NAME##_get(                     \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_block(              \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(               \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 
@@ -202,8 +209,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
 /**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark __simt_callee__ inline void aclshmem_getBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_getBITS(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -214,10 +222,11 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                                     \
-    __simt_callee__ inline void aclshmem_get##BITS(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe);      \
-    __simt_callee__ inline void aclshmemx_get##BITS_block(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_get##BITS_warp(__gm__ void *dst, __gm__ void *src, size_t nelems, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM(BITS)                                                                                \
+    __simt_callee__ inline void aclshmem_get##BITS(__gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS_block(                                                         \
+        __gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe);                                            \
+    __simt_callee__ inline void aclshmemx_get##BITS_warp(__gm__ void* dst, __gm__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
 
@@ -234,16 +243,16 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_getmem(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_getmem(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_block(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
 /**
  * @brief  Automatically generates aclshmem g functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
+ *
  * \remark __simt_callee__ inline TYPE aclshmem_NAME_g(\_\_gm\_\_ TYPE *src, int32_t pe)
  *
  * @par Function Description
@@ -256,8 +265,8 @@ __simt_callee__ inline void aclshmemx_getmem_warp(__gm__ void *dst, __gm__ void 
  * @par Returns
  *      A single element of type specified in the input pointer.
  */
-#define ACLSHMEM_TYPENAME_G_AICORE(NAME, TYPE)                                              \
-    __simt_callee__ inline TYPE aclshmem_##NAME##_g(__gm__ TYPE *src, int32_t pe)
+#define ACLSHMEM_TYPENAME_G_AICORE(NAME, TYPE) \
+    __simt_callee__ inline TYPE aclshmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
 
@@ -268,8 +277,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
 /**
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark __simt_callee__ inline void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  *      Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
@@ -280,10 +290,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G_AICORE);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_NBI(NAME, TYPE)                                                                    \
-    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe);  \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_NBI(NAME, TYPE)                          \
+    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(                 \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(          \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(           \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
 
@@ -294,8 +307,9 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark __simt_callee__ inline void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
@@ -306,10 +320,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_NBI);
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                                                              \
-    __simt_callee__ inline void aclshmem_put##BITS##_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);   \
-    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_SIZE_MEM_NBI(BITS)                                    \
+    __simt_callee__ inline void aclshmem_put##BITS##_nbi(                  \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_block(           \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_warp(            \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
 
@@ -325,17 +342,19 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_NBI);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_nbi_block(
+    __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
 /**
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark __simt_callee__ inline void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_NAME_get_nbi(\_\_gm\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
@@ -346,10 +365,13 @@ __simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __gm__ v
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE)                                                                                   \
-    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe);      \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(__gm__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_NBI(NAME, TYPE)                          \
+    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(                 \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(          \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(           \
+        __gm__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
 
@@ -360,13 +382,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
 /**
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark __simt_callee__ inline void aclshmem_getBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t elem_size, int32_t pe)
+ *
+ * \remark __simt_callee__ inline void aclshmem_getBITS_nbi(\_\_gm\_\_ void *dst, \_\_gm\_\_ void *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the
- *                 same PE are not supported.
  *
  * @par Parameters
  * - **dst**         - [in] Pointer on local device of the destination data.
@@ -374,10 +395,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_NBI);
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                                                              \
-    __simt_callee__ inline void aclshmem_get##BITS##_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);   \
-    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM_NBI(BITS)                                    \
+    __simt_callee__ inline void aclshmem_get##BITS##_nbi(                  \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_block(           \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_warp(            \
+        __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
 
@@ -394,9 +418,10 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE_MEM_NBI);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_getmem_nbi(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_nbi_block(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_nbi_warp(__gm__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_getmem_nbi(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_nbi_block(
+    __gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_nbi_warp(__gm__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 } // namespace simt
 

@@ -17,17 +17,19 @@
 #include "gm2gm/engine/shmem_device_mte.hpp"
 
 /**
- * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
+ * @brief Translate a local symmetric address to the corresponding symmetric address on the specified PE.
  *
  * @param ptr               [in] Symmetric address on local PE.
- * @param pe                [in] The number of the remote PE.
- * @return A remote symmetric address on the specified PE that can be accessed using memory loads and stores.
+ * @param pe                [in] Target PE number.
+ * @return The corresponding symmetric address on the specified PE.
+ * @note The supported access method for the returned address depends on the transport and topology.
  */
-ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
+ACLSHMEM_DEVICE __gm__ void* aclshmem_ptr(__gm__ void* ptr, int pe);
 #define shmem_ptr aclshmem_ptr
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local
+ * device.
  *
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
@@ -38,8 +40,8 @@ ACLSHMEM_DEVICE __gm__ void *aclshmem_ptr(__gm__ void *ptr, int pe);
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           uint32_t elem_size, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -54,8 +56,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params,
+    int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
@@ -69,8 +72,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -84,9 +88,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                           int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf,
+    const non_contiguous_copy_param& copy_params, int pe, uint32_t sync_id);
 #define shmem_mte_get_mem_nbi aclshmemx_mte_get_nbi
 
 /**
@@ -101,8 +105,8 @@ ACLSHMEM_DEVICE void aclshmemx_mte_get_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           uint32_t elem_size, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -117,8 +121,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                           const non_contiguous_copy_param &copy_params, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params,
+    int pe, uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
@@ -131,8 +136,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf_
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id);
 
 /**
  * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data
@@ -146,9 +152,9 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
  * @param sync_id           [in] ID used to sync pipeline.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src,
-                                           AscendC::LocalTensor<T> buf, const non_contiguous_copy_param &copy_params,
-                                           int pe, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf,
+    const non_contiguous_copy_param& copy_params, int pe, uint32_t sync_id);
 #define shmem_mte_put_mem_nbi aclshmemx_mte_put_nbi
 
 /**
@@ -157,7 +163,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_put_nbi(AscendC::GlobalTensor<T> dst, AscendC
 ACLSHMEM_DEVICE void aclshmemx_mte_quiet();
 
 /**
- * @brief Atomic fetch operation. Returns the value at the source address on the specified PE.  
+ * @brief Atomic fetch operation. Returns the value at the source address on the specified PE.
  *        Supported hardware platform: Ascend950.
  *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
  *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
@@ -172,7 +178,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_quiet();
  * @return The value at the source address.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch(__gm__ T *src, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch(__gm__ T* src, int32_t pe);
 
 /**
  * @brief Atomic set operation. Sets the value at the destination address on the specified PE.
@@ -189,7 +195,7 @@ ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch(__gm__ T *src, int32_t pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_atomic_set(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_set(__gm__ T* dst, T value, int32_t pe);
 
 /**
  * @brief Atomic compare and swap operation. Conditionally updates the value at the destination address.
@@ -208,7 +214,7 @@ ACLSHMEM_DEVICE void aclshmemx_mte_atomic_set(__gm__ T *dst, T value, int32_t pe
  * @return The original value at the destination address.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_mte_atomic_compare_swap(__gm__ T *dst, T cond, T value, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe);
 
 /**
  * @brief Atomic swap operation. Swaps the value at the destination address.
@@ -226,7 +232,7 @@ ACLSHMEM_DEVICE T aclshmemx_mte_atomic_compare_swap(__gm__ T *dst, T cond, T val
  * @return The original value at the destination address.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_mte_atomic_swap(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_swap(__gm__ T* dst, T value, int32_t pe);
 
 /**
  * @brief Atomic increment operation. Increments the value at the destination address by 1.
@@ -243,7 +249,7 @@ ACLSHMEM_DEVICE T aclshmemx_mte_atomic_swap(__gm__ T *dst, T value, int32_t pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_atomic_inc(__gm__ T *dst, int32_t pe);
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_inc(__gm__ T* dst, int32_t pe);
 
 /**
  * @brief Atomic add operation. Adds the value to the destination address.
@@ -272,15 +278,17 @@ ACLSHMEM_DEVICE void aclshmemx_mte_atomic_inc(__gm__ T *dst, int32_t pe);
  * @param pe                [in] PE number of the remote PE.
  */
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_mte_atomic_add(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE void aclshmemx_mte_atomic_add(__gm__ T* dst, T value, int32_t pe);
 
 /**
- * @brief Atomic fetch increment operation. Increments the value at the destination address by 1 and returns the old value.
- *        Supported hardware platform: Ascend950.
- *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
- *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
- *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
- *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ * @brief Atomic fetch increment operation. Increments the value at the destination address by 1 and returns the old
+ *        value.
+ *
+ * @note Supported hardware platform: Ascend950.
+ * @warning Use sync_id in device_state.mte_config for pipeline synchronization.
+ * @note This is an asynchronous interface involving scalar computation (Scalar). If there are data dependencies
+ *       between the scalar computation unit and the move unit (MTE2/MTE3) when reading or writing GM, developers must
+ *       insert synchronization as appropriate.
  * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
  * @note The MTE transport operates over the in-die interconnect and does not support
  *       cross-PCIe (inter-node) communication.
@@ -290,15 +298,16 @@ ACLSHMEM_DEVICE void aclshmemx_mte_atomic_add(__gm__ T *dst, T value, int32_t pe
  * @return The original value at the destination address before increment.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_inc(__gm__ T *dst, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_inc(__gm__ T* dst, int32_t pe);
 
 /**
  * @brief Atomic fetch add operation. Adds the value to the destination address and returns the old value.
- *        Supported hardware platform: Ascend950.
- *        WARNING: Use sync_id in device_state.mte_config for pipeline synchronization.
- *        NOTE: This is an asynchronous interface. Atomic operations involve scalar computation (Scalar).
- *              If there are data dependencies between the scalar computation unit and the move unit (MTE2/MTE3)
- *              when reading/writing GM, developers need to insert synchronization according to actual situations.
+ *
+ * @note Supported hardware platform: Ascend950.
+ * @warning Use sync_id in device_state.mte_config for pipeline synchronization.
+ * @note This is an asynchronous interface involving scalar computation (Scalar). If there are data dependencies
+ *       between the scalar computation unit and the move unit (MTE2/MTE3) when reading or writing GM, developers must
+ *       insert synchronization as appropriate.
  * @note T only supports int32_t/uint32_t/float/int64_t/uint64_t.
  * @note The MTE transport operates over the in-die interconnect and does not support
  *       cross-PCIe (inter-node) communication.
@@ -309,6 +318,6 @@ ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_inc(__gm__ T *dst, int32_t pe);
  * @return The original value at the destination address before addition.
  */
 template <typename T>
-ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_add(__gm__ T *dst, T value, int32_t pe);
+ACLSHMEM_DEVICE T aclshmemx_mte_atomic_fetch_add(__gm__ T* dst, T value, int32_t pe);
 
 #endif

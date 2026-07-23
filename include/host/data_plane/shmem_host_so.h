@@ -21,25 +21,29 @@ extern "C" {
 /**
  * @brief  Automatically generates aclshmem put signal functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put_signal(TYPE* dst, TYPE* src, size_t elem_size, uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
+ *
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put_signal(TYPE* dst, TYPE* src, size_t elem_size, uint8_t *sig_addr,
+ * int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
- *      Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
+ *      Synchronous interface. Copy contiguous data from local device memory to symmetric memory on the specified PE
+ *      and update a remote signal variable.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer to the destination data in symmetric memory.
+ * - **src**         - [in] Pointer to the source data on the local device.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
  * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
  *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note The data transfer path uses MTE only.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)                                                                  \
-    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal(TYPE* dst, TYPE* src, size_t elem_size,                       \
-                                                        uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL(NAME, TYPE)     \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal( \
+        TYPE* dst, TYPE* src, size_t elem_size, uint8_t* sig_addr, int32_t signal, int sig_op, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
@@ -60,25 +64,29 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
 /**
  * @brief  Automatically generates aclshmem put signal nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
- * 
- * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size, uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
+ *
+ * \remark ACLSHMEM_HOST_API void aclshmem_NAME_put_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size, uint8_t
+ * *sig_addr, int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
- *      Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
+ *      Asynchronous interface. Copy contiguous data from local device memory to symmetric memory on the specified PE
+ *      and update a remote signal variable.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer to the destination data in symmetric memory.
+ * - **src**         - [in] Pointer to the source data on the local device.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
  * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
  *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note The data transfer path uses MTE only.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)                                                              \
-    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal_nbi(TYPE* dst, TYPE* src, size_t elem_size,                   \
-                                                        uint8_t *sig_addr, int32_t signal, int sig_op, int pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI(NAME, TYPE)     \
+    ACLSHMEM_HOST_API void aclshmem_##NAME##_put_signal_nbi( \
+        TYPE* dst, TYPE* src, size_t elem_size, uint8_t* sig_addr, int32_t signal, int sig_op, int pe)
 
 /** \cond */
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
@@ -99,26 +107,29 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL_NBI);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal(void *dst, void *src, size_t nelems, int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+ *
+ * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal(void *dst, void *src, size_t nelems, int32_t *sig_addr,
+ * int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
- *    Synchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
- *    updating a remote signal flag on completion.
+ *    Synchronous interface. Copy contiguous data from local device memory to symmetric memory on the specified PE
+ *    and update a remote signal variable.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer to the destination data in symmetric memory.
+ * - **src**         - [in] Pointer to the source data on the local device.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
  * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
  *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note The data transfer path uses MTE only.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL(BITS)                                                                             \
-    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal(void *dst, void *src, size_t nelems,                            \
-                                                       int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL(BITS)              \
+    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal( \
+        void* dst, void* src, size_t nelems, int32_t* sig_addr, int32_t signal, int sig_op, int pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL);
@@ -128,26 +139,29 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL);
 /**
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
- * 
- * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal_nbi(void *dst, void *src, size_t nelems, int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+ *
+ * \remark ACLSHMEM_HOST_API void aclshmem_putBITS_signal_nbi(void *dst, void *src, size_t nelems, int32_t *sig_addr,
+ * int32_t signal, int sig_op, int pe)
  *
  * @par Function Description
- *    Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
- *    updating a remote signal flag on completion.
+ *    Asynchronous interface. Copy contiguous data from local device memory to symmetric memory on the specified PE
+ *    and update a remote signal variable.
  *
  * @par Parameters
- * - **dst**         - [in] Pointer on local device of the destination data.
- * - **src**         - [in] Pointer on Symmetric memory of the source data.
+ * - **dst**         - [in] Pointer to the destination data in symmetric memory.
+ * - **src**         - [in] Pointer to the source data on the local device.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **sig_addr**    - [in] Symmetric address of the signal word to be updated.
  * - **signal**      - [in] The value used to update sig_addr.
  * - **sig_op**      - [in] Operation used to update sig_addr with signal. Supported operations:
  *                          ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note The data transfer path uses MTE only.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI(BITS)                                                                        \
-    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal_nbi(void *dst, void *src, size_t nelems,                       \
-                                                           int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+#define ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI(BITS)              \
+    ACLSHMEM_HOST_API void aclshmem_put##BITS##_signal_nbi( \
+        void* dst, void* src, size_t nelems, int32_t* sig_addr, int32_t signal, int sig_op, int pe)
 
 /** \cond */
 ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI);
@@ -155,36 +169,39 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI);
 #undef ACLSHMEM_PUT_SIZE_MEM_SIGNAL_NBI
 
 /**
-    * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
-    *
-    * @param dst               [in] Pointer on local device of the destination data.
-    * @param src               [in] Pointer on Symmetric memory of the source data.
-    * @param elem_size         [in] Number of elements in the dest and source arrays.
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.
-    * @param signal            [in] The value used to update sig_addr.
-    * @param sig_op            [in] Operation used to update sig_addr with signal.
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
-    * @param pe                [in] PE number of the remote PE.
+ * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE and
+ *        update a remote signal variable.
+ *
+ * @param dst               [in] Pointer to the destination data in symmetric memory.
+ * @param src               [in] Pointer to the source data on the local device.
+ * @param elem_size         [in] Number of elements in the dest and source arrays.
+ * @param sig_addr          [in] Symmetric address of the signal word to be updated.
+ * @param signal            [in] The value used to update sig_addr.
+ * @param sig_op            [in] Operation used to update sig_addr with signal.
+ *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+ * @param pe                [in] PE number of the remote PE.
+ * @note The data transfer path uses MTE only.
  */
-ACLSHMEM_HOST_API void aclshmemx_putmem_signal_nbi(void* dst, void* src, size_t elem_size,
-                                            void* sig_addr, int32_t signal, int sig_op, int pe);
+ACLSHMEM_HOST_API void aclshmemx_putmem_signal_nbi(
+    void* dst, void* src, size_t elem_size, void* sig_addr, int32_t signal, int sig_op, int pe);
 #define shmem_putmem_signal_nbi aclshmemx_putmem_signal_nbi
 
-
 /**
-    * @brief Synchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
-    *
-    * @param dst               [in] Pointer on local device of the destination data.
-    * @param src               [in] Pointer on Symmetric memory of the source data.
-    * @param elem_size         [in] Number of elements in the dest and source arrays.
-    * @param sig_addr          [in] Symmetric address of the signal word to be updated.
-    * @param signal            [in] The value used to update sig_addr.
-    * @param sig_op            [in] Operation used to update sig_addr with signal.
-    *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
-    * @param pe                [in] PE number of the remote PE.
+ * @brief Synchronously copy contiguous data from local device memory to symmetric memory on the specified PE and
+ *        update a remote signal variable.
+ *
+ * @param dst               [in] Pointer to the destination data in symmetric memory.
+ * @param src               [in] Pointer to the source data on the local device.
+ * @param elem_size         [in] Number of elements in the dest and source arrays.
+ * @param sig_addr          [in] Symmetric address of the signal word to be updated.
+ * @param signal            [in] The value used to update sig_addr.
+ * @param sig_op            [in] Operation used to update sig_addr with signal.
+ *                               Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
+ * @param pe                [in] PE number of the remote PE.
+ * @note The data transfer path uses MTE only.
  */
-ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem_size,
-                                        void* sig_addr, int32_t signal, int sig_op, int pe);
+ACLSHMEM_HOST_API void aclshmemx_putmem_signal(
+    void* dst, void* src, size_t elem_size, void* sig_addr, int32_t signal, int sig_op, int pe);
 #define shmem_putmem_signal aclshmemx_putmem_signal
 
 /**
@@ -192,7 +209,7 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem
  *        executed on the given stream. It is used to modify a remote signal and is typically paired with wait routines
  *        like aclshmemx_signal_wait_until_on_stream.
  *
- * @param sig_addr              [in] Local address of the source signal variable that is accessible at the target PE.
+ * @param sig_addr              [in] Symmetric address of the signal variable to update on the target PE.
  * @param signal                [in] The value to be used in the atomic operation.
  * @param sig_op                [in] The operation to perform on the remote signal. Supported operations:
  *                                   ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD.
@@ -203,7 +220,8 @@ ACLSHMEM_HOST_API void aclshmemx_putmem_signal(void* dst, void* src, size_t elem
  *       - ACLSHMEM_SIGNAL_SET: Supports RDMA cross-machine.
  *       - ACLSHMEM_SIGNAL_ADD: Does not support RDMA cross-machine. Supports MTE cross-machine when HCCS is available.
  */
-ACLSHMEM_HOST_API void aclshmemx_signal_op_on_stream(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream);
+ACLSHMEM_HOST_API void aclshmemx_signal_op_on_stream(
+    int32_t* sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream);
 #define shmem_signal_op_on_stream aclshmemx_signal_op_on_stream
 
 #ifdef __cplusplus

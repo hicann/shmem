@@ -17,61 +17,68 @@
 #include "gm2gm/engine/shmem_device_rdma.hpp"
 
 /**
- * @brief Translate an local symmetric address to remote symmetric address on the specified PE used by RDMA.
+ * @brief Translate a local symmetric address to the corresponding symmetric address on the specified PE for RDMA
+ *        operations.
  *
  * @param ptr               [in] Symmetric address on local PE.
- * @param pe                [in] The number of the remote PE.
- * @return A remote symmetric address on the specified PE that can be accessed using memory loads and stores.
+ * @param pe                [in] Target PE number.
+ * @return The corresponding symmetric address on the specified PE for use by RDMA operations.
  */
 ACLSHMEM_DEVICE __gm__ void* aclshmem_roce_ptr(__gm__ void* ptr, int pe);
 #define shmem_roce_ptr aclshmem_roce_ptr
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local device.
+ * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
  *        to the same PE are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Symmetric address of the destination data on the local PE.
+ * @param src               [in] Symmetric address of the source data.
  * @param buf               [in] Pointer on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: src is translated to the corresponding address on pe; dst is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local device.
+ * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
  *        to the same PE are not supported.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] Symmetric address of the destination data on the local PE.
+ * @param src               [in] Symmetric address of the source data.
  * @param buf               [in] Pointer on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param sync_id           [in] Hardware event ID for MTE3 pipeline synchronization.
+ * @note Address requirements: src is translated to the corresponding address on pe; dst is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local PE.
+ * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
  *        to the same PE are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] GlobalTensor on local device of the destination data.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param dst               [in] GlobalTensor at the symmetric address of the destination data on the local PE.
+ * @param src               [in] GlobalTensor at the symmetric address of the source data.
  * @param buf               [in] LocalTensor on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: src is translated to the corresponding address on pe; dst is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
@@ -79,18 +86,20 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
     int pe);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local PE.
+ * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
  *        to the same PE are not supported.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] GlobalTensor on local device of the destination data.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param dst               [in] GlobalTensor at the symmetric address of the destination data on the local PE.
+ * @param src               [in] GlobalTensor at the symmetric address of the source data.
  * @param buf               [in] LocalTensor on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param sync_id           [in] Hardware event ID for MTE3 pipeline synchronization.
+ * @note Address requirements: src is translated to the corresponding address on pe; dst is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
@@ -98,48 +107,57 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
     uint32_t sync_id);
 #define shmem_roce_get_mem_nbi aclshmemx_roce_get_nbi
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
  *        are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] Pointer on Symmetric memory of the destination data.
- * @param src               [in] Pointer on local device of the source data.
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param src               [in] Symmetric address of the source data on the local PE.
  * @param buf               [in] Pointer on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: dst is translated to the corresponding address on pe; src is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
  *        are not supported.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] Pointer on Symmetric memory of the destination data.
- * @param src               [in] Pointer on local device of the source data.
+ * @param dst               [in] Symmetric address of the destination data.
+ * @param src               [in] Symmetric address of the source data on the local PE.
  * @param buf               [in] Pointer on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @note Address requirements: dst is translated to the corresponding address on pe; src is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same
  *        PE are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
- * @param src               [in] GlobalTensor on local device of the source data.
+ * @param dst               [in] GlobalTensor at the symmetric address of the destination data.
+ * @param src               [in] GlobalTensor at the symmetric address of the source data on the local PE.
  * @param buf               [in] LocalTensor on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @note Address requirements: dst is translated to the corresponding address on pe; src is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
@@ -147,17 +165,20 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
     int pe);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same
  *        PE are not supported.
  *
  * @tparam T                  Element type of the transfer.
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
- * @param src               [in] GlobalTensor on local device of the source data.
+ * @param dst               [in] GlobalTensor at the symmetric address of the destination data.
+ * @param src               [in] GlobalTensor at the symmetric address of the source data on the local PE.
  * @param buf               [in] LocalTensor on local UB. Must be at least 128 bytes.
  * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @note Address requirements: dst is translated to the corresponding address on pe; src is the local RDMA operand.
+ *       Both operands must point to symmetric memory, and each complete transfer range must remain within its
+ *       corresponding allocation.
  */
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(

@@ -61,14 +61,14 @@ enum aclshmem_block_mode_t {
 /**@} */ // end of group_enums
 
 /**
- * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
- *        Firstly, check whether the input address is legal on local PE. Then translate it into remote address
- *        on specified PE. Otherwise, returns a null pointer.
+ * @brief Translate a local symmetric address to the corresponding symmetric address on the specified PE.
+ *        First check whether the input address and PE are valid, then translate the address. Return a null pointer
+ *        for invalid input.
  *
  * @param ptr               [in] Symmetric address on local PE.
- * @param pe                [in] The number of the remote PE.
- * @return If the input address is legal, returns a remote symmetric address on the specified PE that can be
- *         accessed using memory loads and stores. Otherwise, a null pointer is returned.
+ * @param pe                [in] Target PE number.
+ * @return The corresponding symmetric address on the specified PE, or a null pointer if ptr or pe is invalid.
+ * @note The supported access method for the returned address depends on the transport and topology.
  */
 ACLSHMEM_HOST_API void* aclshmem_ptr(void* ptr, int pe);
 #define shmem_ptr aclshmem_ptr
@@ -87,6 +87,12 @@ ACLSHMEM_HOST_API void* aclshmem_ptr(void* ptr, int pe);
  * - **source**   - [in] Pointer on local device of the source data.
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: dest must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. source is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_TYPE_PUT(NAME, TYPE) \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put(TYPE* dest, TYPE* source, size_t nelems, int pe)
@@ -121,6 +127,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_PUT);
  * - **source**   - [in] Pointer on local device of the source data.
  * - **nelems**   - [in] Number of elements in the destination and source arrays.
  * - **pe**       - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: dest must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. source is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_TYPE_PUT_NBI(NAME, TYPE) \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_put_nbi(TYPE* dest, TYPE* source, size_t nelems, int pe)
@@ -183,6 +195,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_IPUT);
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_PUT_SIZE(BITS) \
     ACLSHMEM_HOST_API void aclshmem_put##BITS(void* dst, void* src, uint32_t elem_size, int32_t pe)
@@ -206,6 +224,12 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_PUT_SIZE);
  * - **src**         - [in] Pointer on local device of the source data.
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_PUT_SIZE_NBI(BITS) \
     ACLSHMEM_HOST_API void aclshmem_put##BITS##_nbi(void* dst, void* src, uint32_t elem_size, int32_t pe)
@@ -257,6 +281,12 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_IPUT_SIZE);
  * - **source**      - [in] Pointer on Symmetric memory of the source data.
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: source must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dest is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_TYPE_GET(NAME, TYPE) \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get(TYPE* dest, TYPE* source, size_t nelems, int pe)
@@ -291,6 +321,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_GET);
  * - **source**      - [in] Pointer on Symmetric memory of the source data.
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: source must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dest is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_TYPE_GET_NBI(NAME, TYPE) \
     ACLSHMEM_HOST_API void aclshmem_##NAME##_get_nbi(TYPE* dest, TYPE* source, size_t nelems, int pe)
@@ -353,6 +389,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPE_IGET);
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_GET_SIZE(BITS) \
     ACLSHMEM_HOST_API void aclshmem_get##BITS(void* dst, void* src, uint32_t elem_size, int32_t pe)
@@ -376,6 +418,12 @@ ACLSHMEM_SIZE_FUNC(ACLSHMEM_GET_SIZE);
  * - **src**         - [in] Pointer on Symmetric memory of the source data.
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
+ *
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 #define ACLSHMEM_GET_SIZE_NBI(BITS) \
     ACLSHMEM_HOST_API void aclshmem_get##BITS##_nbi(void* dst, void* src, uint32_t elem_size, int32_t pe)
@@ -486,6 +534,11 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_TYPENAME_G);
  * @param src                [in] Pointer on local memory of the source data.
  * @param elem_size          [in] size of elements in the destination and source addr.
  * @param pe                 [in] PE number of the remote PE.
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 ACLSHMEM_HOST_API void aclshmem_putmem(void* dst, void* src, size_t elem_size, int32_t pe);
 #define shmem_putmem aclshmem_putmem
@@ -498,6 +551,11 @@ ACLSHMEM_HOST_API void aclshmem_putmem(void* dst, void* src, size_t elem_size, i
  * @param src                [in] Pointer on Symmetric memory of the source data.
  * @param elem_size          [in] size of elements in the destination and source addr.
  * @param pe                 [in] PE number of the remote PE.
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 ACLSHMEM_HOST_API void aclshmem_getmem(void* dst, void* src, size_t elem_size, int32_t pe);
 #define shmem_getmem aclshmem_getmem
@@ -509,6 +567,11 @@ ACLSHMEM_HOST_API void aclshmem_getmem(void* dst, void* src, size_t elem_size, i
  * @param src                [in] Pointer on local memory of the source data.
  * @param elem_size          [in] size of elements in the destination and source addr.
  * @param pe                 [in] PE number of the remote PE.
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 ACLSHMEM_HOST_API void aclshmem_putmem_nbi(void* dst, void* src, size_t elem_size, int32_t pe);
 #define shmem_putmem_nbi aclshmem_putmem_nbi
@@ -521,6 +584,11 @@ ACLSHMEM_HOST_API void aclshmem_putmem_nbi(void* dst, void* src, size_t elem_siz
  * @param src                [in] Pointer on Symmetric memory of the source data.
  * @param elem_size          [in] size of elements in the destination and source addr.
  * @param pe                 [in] PE number of the remote PE.
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  */
 ACLSHMEM_HOST_API void aclshmem_getmem_nbi(void* dst, void* src, size_t elem_size, int32_t pe);
 #define shmem_getmem_nbi aclshmem_getmem_nbi
@@ -533,6 +601,11 @@ ACLSHMEM_HOST_API void aclshmem_getmem_nbi(void* dst, void* src, size_t elem_siz
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param stream            [in] copy used stream(use default stream if stream == NULL).
+ * @note Address requirements: src must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. dst is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @note Cross-machine support: Supports cross-machine. Uses MTE when HCCS is connected, otherwise uses RDMA if
  * available.
@@ -549,6 +622,11 @@ ACLSHMEM_HOST_API void aclshmemx_getmem_on_stream(
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param stream            [in] copy used stream(use default stream if stream == NULL).
+ * @note Address requirements: dst must point to symmetric memory because it is translated to the corresponding
+ *       address on pe. src is used as supplied and may be any valid local device GM address.
+ * @note RDMA-enabled configuration: If initialization enables RDMA by setting ACLSHMEM_DATA_OP_ROCE, complete transfer
+ * ranges for both operands must remain within their respective symmetric memory allocations. Runtime dispatch may
+ * select RDMA for the target PE; callers do not need to determine the engine selected for an individual operation.
  *
  * @note Cross-machine support: Supports cross-machine. Uses MTE when HCCS is connected, otherwise uses RDMA if
  * available.

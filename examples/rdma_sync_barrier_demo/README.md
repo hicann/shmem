@@ -1,6 +1,6 @@
 # 示例场景
 
-本示例演示通过 RDMA RoCE 传输通路，使用低阶接口 `aclshmemx_roce_put_nbi` 配合同步/栅栏原语完成多 PE 之间的全交换（all-gather）数据通信，并验证数据正确性。
+本示例演示通过 RDMA 传输通路，使用低阶接口 `aclshmemx_roce_put_nbi` 配合同步/栅栏原语完成多 PE 之间的全交换（all-gather）数据通信，并验证数据正确性。
 
 具体包含以下 8 种同步模式：
 
