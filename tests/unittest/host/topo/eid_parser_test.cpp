@@ -214,6 +214,23 @@ TEST_F(EidParserTest, GetLowBitPort)
     EXPECT_EQ(low_port, 0x28);
 }
 
+TEST_F(EidParserTest, GetUbFields)
+{
+    dcmi_urma_eid_t eid = {};
+    eid.raw[5] = 0x45;
+    eid.raw[6] = 0x82;
+
+    EXPECT_EQ(aclshmemi_eid_parser_t::get_ub_die_id(eid), 1);
+    EXPECT_EQ(aclshmemi_eid_parser_t::get_ub_port_id(eid), 5);
+    EXPECT_EQ(aclshmemi_eid_parser_t::get_ub_fe_id(eid), 2);
+
+    UBEntity entity = {};
+    entity.eidNum = 2;
+    entity.eidList[0].eid = eid;
+    entity.eidList[1].eid.raw[5] = 0x7F;
+    EXPECT_EQ(aclshmemi_eid_parser_t::get_server_port_group_idx(entity), 1);
+}
+
 TEST_F(EidParserTest, InvalidHexString)
 {
     auto port = aclshmemi_eid_parser_t::get_port_id("invalid");

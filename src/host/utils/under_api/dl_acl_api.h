@@ -19,35 +19,36 @@
 namespace shm {
 
 using aclrtSetDeviceFunc = int32_t (*)(int32_t);
-using aclrtGetDeviceFunc = int32_t (*)(int32_t *);
+using aclrtGetDeviceFunc = int32_t (*)(int32_t*);
 using aclrtDeviceEnablePeerAccessFunc = int32_t (*)(int32_t, uint32_t);
-using aclrtCreateStreamFunc = int (*)(void **);
-using aclrtDestroyStreamFunc = int (*)(void *);
-using aclrtSynchronizeStreamFunc = int (*)(void *);
-using aclrtMallocFunc = int32_t (*)(void **, size_t, uint32_t);
-using aclrtFreeFunc = int (*)(void *);
-using aclrtMemcpyFunc = int32_t (*)(void *, size_t, const void *, size_t, uint32_t);
-using aclrtMemcpyAsyncFunc = int32_t (*)(void *, size_t, const void *, size_t, uint32_t, void *);
-using aclrtMemsetFunc = int32_t (*)(void *, size_t, int32_t, size_t);
-using rtDeviceGetBareTgidFunc = int32_t (*)(uint32_t *);
-using rtGetDeviceInfoFunc = int32_t (*)(uint32_t, int32_t, int32_t, int64_t *val);
-using rtIpcSetMemoryNameFunc = int32_t (*)(const void *, uint64_t, char *, uint32_t);
-using rtSetIpcMemorySuperPodPidFunc = int32_t (*)(const char *, uint32_t, int32_t *, int32_t);
-using rtIpcDestroyMemoryNameFunc = int32_t (*)(const char *);
-using rtIpcOpenMemoryFunc = int32_t (*)(void **, const char *);
-using rtIpcCloseMemoryFunc = int32_t (*)(const void *);
-using aclrtGetSocNameFunc = const char *(*)();
-using rtGetLogicDevIdByUserDevIdFunc = int32_t (*)(const int32_t, int32_t *const);
-using aclrtGetPhyDevIdByUserDevIdFunc = int32_t (*)(const int32_t, int32_t *const);
-using aclrtGetPhyDevIdByLogicDevIdFunc = int32_t (*)(const int32_t, int32_t *const);
-using rtGetDevicePhyIdByIndexFunc = int32_t (*)(uint32_t, uint32_t *);
+using aclrtCreateStreamFunc = int (*)(void**);
+using aclrtDestroyStreamFunc = int (*)(void*);
+using aclrtSynchronizeStreamFunc = int (*)(void*);
+using aclrtMallocFunc = int32_t (*)(void**, size_t, uint32_t);
+using aclrtFreeFunc = int (*)(void*);
+using aclrtMemcpyFunc = int32_t (*)(void*, size_t, const void*, size_t, uint32_t);
+using aclrtMemcpyAsyncFunc = int32_t (*)(void*, size_t, const void*, size_t, uint32_t, void*);
+using aclrtMemsetFunc = int32_t (*)(void*, size_t, int32_t, size_t);
+using rtDeviceGetBareTgidFunc = int32_t (*)(uint32_t*);
+using rtGetDeviceInfoFunc = int32_t (*)(uint32_t, int32_t, int32_t, int64_t* val);
+using rtIpcSetMemoryNameFunc = int32_t (*)(const void*, uint64_t, char*, uint32_t);
+using rtSetIpcMemorySuperPodPidFunc = int32_t (*)(const char*, uint32_t, int32_t*, int32_t);
+using rtIpcDestroyMemoryNameFunc = int32_t (*)(const char*);
+using rtIpcOpenMemoryFunc = int32_t (*)(void**, const char*);
+using rtIpcCloseMemoryFunc = int32_t (*)(const void*);
+using aclrtGetSocNameFunc = const char* (*)();
+using rtGetLogicDevIdByUserDevIdFunc = int32_t (*)(const int32_t, int32_t* const);
+using aclrtGetUserDevIdByPhyDevIdFunc = int32_t (*)(const int32_t, int32_t* const);
+using aclrtGetPhyDevIdByUserDevIdFunc = int32_t (*)(const int32_t, int32_t* const);
+using aclrtGetPhyDevIdByLogicDevIdFunc = int32_t (*)(const int32_t, int32_t* const);
+using rtGetDevicePhyIdByIndexFunc = int32_t (*)(uint32_t, uint32_t*);
 using rtEnableP2PFunc = int32_t (*)(uint32_t, uint32_t, uint32_t);
-using aclrtReserveMemAddressFunc = int (*)(void **, size_t, size_t, void *, uint64_t);
-using aclrtReleaseMemAddressFunc = int (*)(void *);
+using aclrtReserveMemAddressFunc = int (*)(void**, size_t, size_t, void*, uint64_t);
+using aclrtReleaseMemAddressFunc = int (*)(void*);
 
 class DlAclApi {
 public:
-    static Result LoadLibrary(const std::string &libDirPath);
+    static Result LoadLibrary(const std::string& libDirPath);
     static void CleanupLibrary();
 
     static inline Result AclrtSetDevice(int32_t deviceId)
@@ -58,7 +59,7 @@ public:
         return pAclrtSetDevice(deviceId);
     }
 
-    static inline Result AclrtGetDevice(int32_t *deviceId)
+    static inline Result AclrtGetDevice(int32_t* deviceId)
     {
         if (pAclrtGetDevice == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -74,7 +75,7 @@ public:
         return pAclrtDeviceEnablePeerAccess(peerDeviceId, flags);
     }
 
-    static inline Result AclrtCreateStream(void **stream)
+    static inline Result AclrtCreateStream(void** stream)
     {
         if (pAclrtCreateStream == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -82,7 +83,7 @@ public:
         return pAclrtCreateStream(stream);
     }
 
-    static inline Result AclrtDestroyStream(void *stream)
+    static inline Result AclrtDestroyStream(void* stream)
     {
         if (pAclrtDestroyStream == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -90,7 +91,7 @@ public:
         return pAclrtDestroyStream(stream);
     }
 
-    static inline Result AclrtSynchronizeStream(void *stream)
+    static inline Result AclrtSynchronizeStream(void* stream)
     {
         if (pAclrtSynchronizeStream == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -98,7 +99,7 @@ public:
         return pAclrtSynchronizeStream(stream);
     }
 
-    static inline Result AclrtMalloc(void **ptr, size_t count, uint32_t type)
+    static inline Result AclrtMalloc(void** ptr, size_t count, uint32_t type)
     {
         if (pAclrtMalloc == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -106,7 +107,7 @@ public:
         return pAclrtMalloc(ptr, count, type);
     }
 
-    static inline Result AclrtFree(void *ptr)
+    static inline Result AclrtFree(void* ptr)
     {
         if (pAclrtFree == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -115,7 +116,7 @@ public:
         return ret;
     }
 
-    static inline Result AclrtMemcpy(void *dst, size_t destMax, const void *src, size_t count, uint32_t kind)
+    static inline Result AclrtMemcpy(void* dst, size_t destMax, const void* src, size_t count, uint32_t kind)
     {
         if (pAclrtMemcpy == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -123,8 +124,8 @@ public:
         return pAclrtMemcpy(dst, destMax, src, count, kind);
     }
 
-    static inline Result AclrtMemcpyAsync(void *dst, size_t destMax, const void *src, size_t count, uint32_t kind,
-                                          void *stream)
+    static inline Result AclrtMemcpyAsync(
+        void* dst, size_t destMax, const void* src, size_t count, uint32_t kind, void* stream)
     {
         if (pAclrtMemcpyAsync == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -132,7 +133,7 @@ public:
         return pAclrtMemcpyAsync(dst, destMax, src, count, kind, stream);
     }
 
-    static inline Result AclrtMemset(void *dst, size_t destMax, int32_t value, size_t count)
+    static inline Result AclrtMemset(void* dst, size_t destMax, int32_t value, size_t count)
     {
         if (pAclrtMemset == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -140,7 +141,7 @@ public:
         return pAclrtMemset(dst, destMax, value, count);
     }
 
-    static inline Result RtDeviceGetBareTgid(uint32_t *pid)
+    static inline Result RtDeviceGetBareTgid(uint32_t* pid)
     {
         if (pRtDeviceGetBareTgid == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -148,7 +149,7 @@ public:
         return pRtDeviceGetBareTgid(pid);
     }
 
-    static inline Result RtGetDeviceInfo(uint32_t deviceId, int32_t moduleType, int32_t infoType, int64_t *val)
+    static inline Result RtGetDeviceInfo(uint32_t deviceId, int32_t moduleType, int32_t infoType, int64_t* val)
     {
         if (pRtGetDeviceInfo == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -156,7 +157,7 @@ public:
         return pRtGetDeviceInfo(deviceId, moduleType, infoType, val);
     }
 
-    static inline Result RtSetIpcMemorySuperPodPid(const char *name, uint32_t sdid, int32_t pid[], int32_t num)
+    static inline Result RtSetIpcMemorySuperPodPid(const char* name, uint32_t sdid, int32_t pid[], int32_t num)
     {
         if (pRtSetIpcMemorySuperPodPid == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -164,7 +165,7 @@ public:
         return pRtSetIpcMemorySuperPodPid(name, sdid, pid, num);
     }
 
-    static inline Result RtIpcSetMemoryName(const void *ptr, uint64_t byteCount, char *name, uint32_t len)
+    static inline Result RtIpcSetMemoryName(const void* ptr, uint64_t byteCount, char* name, uint32_t len)
     {
         if (pRtIpcSetMemoryName == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -172,7 +173,7 @@ public:
         return pRtIpcSetMemoryName(ptr, byteCount, name, len);
     }
 
-    static inline Result RtIpcDestroyMemoryName(const char *name)
+    static inline Result RtIpcDestroyMemoryName(const char* name)
     {
         if (pRtIpcDestroyMemoryName == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -180,7 +181,7 @@ public:
         return pRtIpcDestroyMemoryName(name);
     }
 
-    static inline Result RtIpcOpenMemory(void **ptr, const char *name)
+    static inline Result RtIpcOpenMemory(void** ptr, const char* name)
     {
         if (pRtIpcOpenMemory == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -188,7 +189,7 @@ public:
         return pRtIpcOpenMemory(ptr, name);
     }
 
-    static inline Result RtIpcCloseMemory(const void *ptr)
+    static inline Result RtIpcCloseMemory(const void* ptr)
     {
         if (pRtIpcCloseMemory == nullptr) {
             return ACLSHMEM_UNDER_API_UNLOAD;
@@ -196,17 +197,25 @@ public:
         return pRtIpcCloseMemory(ptr);
     }
 
-    static inline const char *AclrtGetSocName()
-    {
-        return pAclrtGetSocName();
-    }
+    static inline const char* AclrtGetSocName() { return pAclrtGetSocName(); }
 
-    static inline Result RtGetLogicDevIdByUserDevId(const int32_t userDevId, int32_t * const logicDevId)
+    static inline Result RtGetLogicDevIdByUserDevId(const int32_t userDevId, int32_t* const logicDevId)
     {
         return pRtGetLogicDevIdByUserDevId(userDevId, logicDevId);
     }
 
-    static inline Result AclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t * const phyDevId)
+    static inline Result AclrtGetUserDevIdByPhyDevId(const int32_t phyDevId, int32_t* const userDevId)
+    {
+        if (phyDevId < 0 || userDevId == nullptr) {
+            return ACLSHMEM_INVALID_PARAM;
+        }
+        if (pAclrtGetUserDevIdByPhyDevId == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pAclrtGetUserDevIdByPhyDevId(phyDevId, userDevId);
+    }
+
+    static inline Result AclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t* const phyDevId)
     {
         if (userDevId < 0 || phyDevId == nullptr) {
             return ACLSHMEM_INVALID_PARAM;
@@ -230,7 +239,7 @@ public:
         return ACLSHMEM_UNDER_API_UNLOAD;
     }
 
-    static inline Result AclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t * const phyDevId)
+    static inline Result AclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t* const phyDevId)
     {
         if (logicDevId < 0 || phyDevId == nullptr) {
             return ACLSHMEM_INVALID_PARAM;
@@ -250,9 +259,9 @@ public:
         return ACLSHMEM_UNDER_API_UNLOAD;
     }
 
-    static Result AclrtReserveMemAddress(void **virPtr, size_t size, size_t alignment, void *expectPtr, uint64_t flags);
+    static Result AclrtReserveMemAddress(void** virPtr, size_t size, size_t alignment, void* expectPtr, uint64_t flags);
 
-    static Result AclrtReleaseMemAddress(void *virPtr);
+    static Result AclrtReleaseMemAddress(void* virPtr);
 
     static inline Result RtEnableP2P(uint32_t localUserId, uint32_t remotePhyId, uint32_t flags)
     {
@@ -265,10 +274,10 @@ public:
 private:
     static std::mutex gMutex;
     static bool gLoaded;
-    static void *rtHandle;
-    static void *runtimeHandle;
-    static const char *gAscendAclLibName;
-    static const char *gAscendRuntimeLibName;
+    static void* rtHandle;
+    static void* runtimeHandle;
+    static const char* gAscendAclLibName;
+    static const char* gAscendRuntimeLibName;
 
     static aclrtSetDeviceFunc pAclrtSetDevice;
     static aclrtGetDeviceFunc pAclrtGetDevice;
@@ -290,6 +299,7 @@ private:
     static rtIpcCloseMemoryFunc pRtIpcCloseMemory;
     static aclrtGetSocNameFunc pAclrtGetSocName;
     static rtGetLogicDevIdByUserDevIdFunc pRtGetLogicDevIdByUserDevId;
+    static aclrtGetUserDevIdByPhyDevIdFunc pAclrtGetUserDevIdByPhyDevId;
     static aclrtGetPhyDevIdByUserDevIdFunc pAclrtGetPhyDevIdByUserDevId;
     static aclrtGetPhyDevIdByLogicDevIdFunc pAclrtGetPhyDevIdByLogicDevId;
     static rtGetDevicePhyIdByIndexFunc pRtGetDevicePhyIdByIndex;
@@ -297,6 +307,6 @@ private:
     static aclrtReserveMemAddressFunc pAclrtReserveMemAddress;
     static aclrtReleaseMemAddressFunc pAclrtReleaseMemAddress;
 };
-}
+} // namespace shm
 
-#endif  // MF_HYBM_CORE_DL_ACL_API_H
+#endif // MF_HYBM_CORE_DL_ACL_API_H

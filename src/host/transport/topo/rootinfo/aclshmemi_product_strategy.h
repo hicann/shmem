@@ -29,6 +29,7 @@ constexpr size_t ACLSHMEMI_ROOT_INFO_SIZE = 4096;
 #define ACLSHMEMI_MAIN_BOARD_ID_CARD_4PMESH 0x6c
 #define ACLSHMEMI_MAIN_BOARD_ID_SERVER_8PMESH 0x25
 #define ACLSHMEMI_MAIN_BOARD_ID_SERVER_TYPE1 0x23
+#define ACLSHMEMI_MAIN_BOARD_ID_SERVER_UBX 0x44
 #define ACLSHMEMI_MAIN_BOARD_ID_POD 0x07
 #define ACLSHMEMI_MAIN_BOARD_ID_POD_2D 0x03
 
@@ -55,6 +56,7 @@ public:
     virtual ~aclshmemi_product_strategy_t() = default;
 
     virtual std::optional<aclshmemi_root_info_t> get_root_info(int phy_id, uint32_t mainboard_id) = 0;
+    virtual std::optional<aclshmemi_root_info_t> get_root_info_without_roce(int phy_id, uint32_t mainboard_id);
     virtual size_t get_root_info_size() const = 0;
 
     static std::unique_ptr<aclshmemi_product_strategy_t> create(uint32_t mainboard_id);
@@ -63,9 +65,11 @@ public:
 class aclshmemi_card_product_t : public aclshmemi_product_strategy_t {
 public:
     std::optional<aclshmemi_root_info_t> get_root_info(int phy_id, uint32_t mainboard_id) override;
+    std::optional<aclshmemi_root_info_t> get_root_info_without_roce(int phy_id, uint32_t mainboard_id) override;
     size_t get_root_info_size() const override { return ACLSHMEMI_ROOT_INFO_SIZE; }
 
 private:
+    std::optional<aclshmemi_root_info_t> build_root_info(int phy_id, uint32_t mainboard_id, bool include_roce);
     std::optional<aclshmemi_net_layer_t> process_mesh_layer(
         int phy_id, const dcmi_urma_eid_info_t* eid_list, size_t eid_cnt);
     std::optional<aclshmemi_net_layer_t> process_mesh2p_layer(
@@ -95,6 +99,15 @@ private:
         int phy_id, const UEList& ue_list, const dcmi_spod_info& spod_info);
     std::optional<aclshmemi_net_layer_t> process_clos_layer(
         int phy_id, uint32_t mainboard_id, const UEList& ue_list, const dcmi_spod_info& spod_info);
+};
+
+class aclshmemi_ubx_product_t : public aclshmemi_product_strategy_t {
+public:
+    std::optional<aclshmemi_root_info_t> get_root_info(int phy_id, uint32_t mainboard_id) override;
+    size_t get_root_info_size() const override { return ACLSHMEMI_ROOT_INFO_SIZE; }
+
+private:
+    std::optional<aclshmemi_net_layer_t> process_base_layer(const UEList& ue_list);
 };
 
 } // namespace topo

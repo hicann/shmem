@@ -17,6 +17,9 @@
 #include <utility>
 #include <vector>
 
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
+#include "rootinfo/aclshmemi_virtual_topology_root_info.h"
+#endif
 #include "rootinfo/topo_addr_info.h"
 #include "shmemi_file_util.h"
 #include "shmemi_host_common.h"
@@ -45,8 +48,8 @@ bool TopoReader::LoadRootInfoJson(uint32_t phyId, nlohmann::json& out)
     bool shouldFallback = false;
     std::ifstream rootInfoFile(ROOTINFO_PATH);
     if (!rootInfoFile.is_open()) {
-        SHM_LOG_WARN("Rootinfo file not found at " << ROOTINFO_PATH
-                                                    << ", fallback to generated rootinfo for phyId " << phyId);
+        SHM_LOG_WARN(
+            "Rootinfo file not found at " << ROOTINFO_PATH << ", fallback to generated rootinfo for phyId " << phyId);
         shouldFallback = true;
     } else {
         try {
@@ -63,11 +66,22 @@ bool TopoReader::LoadRootInfoJson(uint32_t phyId, nlohmann::json& out)
         return true;
     }
 
+    std::string generatedRootInfo;
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
+    auto virtualTopologyRootInfo =
+        shm::topo::aclshmemi_generate_virtual_topology_root_info_json(static_cast<int>(phyId));
+    if (!virtualTopologyRootInfo) {
+        SHM_LOG_ERROR("Failed to generate virtual-topology rootinfo for phyId " << phyId);
+        return false;
+    }
+    generatedRootInfo = std::move(*virtualTopologyRootInfo);
+#else
     size_t rootInfoSize = 0;
     int ret = topo_addr_info_get_size(static_cast<int>(phyId), &rootInfoSize);
     if (ret != 0 || rootInfoSize == 0) {
-        SHM_LOG_ERROR("Failed to get generated rootinfo size for phyId " << phyId << ", ret = " << ret
-                                                                          << ", size = " << rootInfoSize);
+        SHM_LOG_ERROR(
+            "Failed to get generated rootinfo size for phyId " << phyId << ", ret = " << ret
+                                                               << ", size = " << rootInfoSize);
         return false;
     }
     SHM_LOG_INFO("Generated rootinfo size for phyId " << phyId << " is " << rootInfoSize);
@@ -76,19 +90,21 @@ bool TopoReader::LoadRootInfoJson(uint32_t phyId, nlohmann::json& out)
     size_t actualSize = rootInfoSize;
     ret = topo_addr_info_get(static_cast<int>(phyId), rootInfoBuffer.data(), &actualSize);
     if (ret != 0 || actualSize == 0) {
-        SHM_LOG_ERROR("Failed to get generated rootinfo for phyId " << phyId << ", ret = " << ret
-                                                                     << ", actualSize = " << actualSize);
+        SHM_LOG_ERROR(
+            "Failed to get generated rootinfo for phyId " << phyId << ", ret = " << ret
+                                                          << ", actualSize = " << actualSize);
         return false;
     }
     if (actualSize > rootInfoBuffer.size() - 1) {
-        SHM_LOG_ERROR("Generated rootinfo size overflow, actualSize " << actualSize << ", capacity "
-                                                                       << rootInfoBuffer.size());
+        SHM_LOG_ERROR(
+            "Generated rootinfo size overflow, actualSize " << actualSize << ", capacity " << rootInfoBuffer.size());
         return false;
     }
-    rootInfoBuffer[actualSize] = '\0';
+    generatedRootInfo.assign(rootInfoBuffer.data(), actualSize);
+#endif
 
     try {
-        out = nlohmann::json::parse(rootInfoBuffer.data(), rootInfoBuffer.data() + actualSize);
+        out = nlohmann::json::parse(generatedRootInfo);
 #ifdef DEBUG_MODE
         SHM_LOG_DEBUG("Generated rootinfo json for phyId " << phyId << ":\n" << out.dump(2));
 #endif
@@ -109,8 +125,8 @@ bool TopoReader::ParseRootInfo(uint32_t phyId, RootInfo& out)
     bool shouldFallback = false;
     std::ifstream rootInfoFile(ROOTINFO_PATH);
     if (!rootInfoFile.is_open()) {
-        SHM_LOG_WARN("Rootinfo file not found at " << ROOTINFO_PATH
-                                                    << ", fallback to generated rootinfo for phyId " << phyId);
+        SHM_LOG_WARN(
+            "Rootinfo file not found at " << ROOTINFO_PATH << ", fallback to generated rootinfo for phyId " << phyId);
         shouldFallback = true;
     } else {
         try {
@@ -135,8 +151,9 @@ bool TopoReader::ParseRootInfo(uint32_t phyId, RootInfo& out)
     size_t rootInfoSize = 0;
     int ret = topo_addr_info_get_size(static_cast<int>(phyId), &rootInfoSize);
     if (ret != 0 || rootInfoSize == 0) {
-        SHM_LOG_ERROR("Failed to get generated rootinfo size for phyId " << phyId << ", ret = " << ret
-                                                                          << ", size = " << rootInfoSize);
+        SHM_LOG_ERROR(
+            "Failed to get generated rootinfo size for phyId " << phyId << ", ret = " << ret
+                                                               << ", size = " << rootInfoSize);
         return false;
     }
     SHM_LOG_INFO("Generated rootinfo size for phyId " << phyId << " is " << rootInfoSize);
@@ -145,13 +162,14 @@ bool TopoReader::ParseRootInfo(uint32_t phyId, RootInfo& out)
     size_t actualSize = rootInfoSize;
     ret = topo_addr_info_get(static_cast<int>(phyId), rootInfoBuffer.data(), &actualSize);
     if (ret != 0 || actualSize == 0) {
-        SHM_LOG_ERROR("Failed to get generated rootinfo for phyId " << phyId << ", ret = " << ret
-                                                                     << ", actualSize = " << actualSize);
+        SHM_LOG_ERROR(
+            "Failed to get generated rootinfo for phyId " << phyId << ", ret = " << ret
+                                                          << ", actualSize = " << actualSize);
         return false;
     }
     if (actualSize > rootInfoBuffer.size() - 1) {
-        SHM_LOG_ERROR("Generated rootinfo size overflow, actualSize " << actualSize << ", capacity "
-                                                                       << rootInfoBuffer.size());
+        SHM_LOG_ERROR(
+            "Generated rootinfo size overflow, actualSize " << actualSize << ", capacity " << rootInfoBuffer.size());
         return false;
     }
     rootInfoBuffer[actualSize] = '\0';
@@ -208,8 +226,8 @@ bool TopoReader::ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t 
         out.deviceLocalIdMap[rankInfo.device_id] = rankInfo.local_id;
 
         if (!rankJson.contains("level_list") || !rankJson["level_list"].is_array() || rankJson["level_list"].empty()) {
-            SHM_LOG_ERROR("Rootinfo: missing level_list for current phyId " << phyId << ", localId "
-                                                                      << rankInfo.local_id);
+            SHM_LOG_ERROR(
+                "Rootinfo: missing level_list for current phyId " << phyId << ", localId " << rankInfo.local_id);
             return false;
         }
 
@@ -223,8 +241,9 @@ bool TopoReader::ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t 
             if (netType == "TOPO_FILE_DESC" || netType == "MESH") {
                 foundTopoLevel = true;
                 if (!levelJson.contains("rank_addr_list") || !levelJson["rank_addr_list"].is_array()) {
-                    SHM_LOG_ERROR("Rootinfo: missing rank_addr_list for current phyId " << phyId << ", localId "
-                                                                                          << rankInfo.local_id);
+                    SHM_LOG_ERROR(
+                        "Rootinfo: missing rank_addr_list for current phyId " << phyId << ", localId "
+                                                                              << rankInfo.local_id);
                     return false;
                 }
                 const auto& rankAddrListJson = levelJson["rank_addr_list"];
@@ -252,19 +271,20 @@ bool TopoReader::ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t 
             }
         }
         if (!foundTopoLevel) {
-            SHM_LOG_ERROR("Rootinfo: missing topo level for current phyId " << phyId << ", localId "
-                                                                             << rankInfo.local_id);
+            SHM_LOG_ERROR(
+                "Rootinfo: missing topo level for current phyId " << phyId << ", localId " << rankInfo.local_id);
             return false;
         }
 
         if (out.eidCount == 0) {
-            SHM_LOG_ERROR("Rootinfo: invalid eid count for current phyId " << phyId << ", localId "
-                                                                            << rankInfo.local_id);
+            SHM_LOG_ERROR(
+                "Rootinfo: invalid eid count for current phyId " << phyId << ", localId " << rankInfo.local_id);
             return false;
         }
 
-        SHM_LOG_INFO("Parse rootinfo success for phyId " << phyId << ", localId " << rankInfo.local_id
-                                                          << ", eidCount " << out.eidCount);
+        SHM_LOG_INFO(
+            "Parse rootinfo success for phyId " << phyId << ", localId " << rankInfo.local_id << ", eidCount "
+                                                << out.eidCount);
         return true;
     }
 
@@ -427,8 +447,7 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
             continue;
         }
 
-        if (!rankJson.contains("level_list") || !rankJson["level_list"].is_array() ||
-            rankJson["level_list"].empty()) {
+        if (!rankJson.contains("level_list") || !rankJson["level_list"].is_array() || rankJson["level_list"].empty()) {
             SHM_LOG_WARN("Rootinfo: missing level_list for phyId " << phyId);
             return false;
         }
@@ -463,14 +482,16 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
                 std::string addrStr = rankAddrJson["addr"].get<std::string>();
                 if (addrType == "IPV4") {
                     if (inet_pton(AF_INET, addrStr.c_str(), &outIp.ip.ipv4) != 1) {
-                        SHM_LOG_WARN("Rootinfo: invalid IPv4 addr in CLOS entry, phyId " << phyId << ", addr " << addrStr);
+                        SHM_LOG_WARN(
+                            "Rootinfo: invalid IPv4 addr in CLOS entry, phyId " << phyId << ", addr " << addrStr);
                         continue;
                     }
                     outIp.type = IpV4;
                     found = true;
                 } else if (addrType == "IPV6") {
                     if (inet_pton(AF_INET6, addrStr.c_str(), &outIp.ip.ipv6) != 1) {
-                        SHM_LOG_WARN("Rootinfo: invalid IPv6 addr in CLOS entry, phyId " << phyId << ", addr " << addrStr);
+                        SHM_LOG_WARN(
+                            "Rootinfo: invalid IPv6 addr in CLOS entry, phyId " << phyId << ", addr " << addrStr);
                         continue;
                     }
                     outIp.type = IpV6;
@@ -492,8 +513,8 @@ bool TopoReader::ParseRankAddrRaw(
     std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
 {
     if (!rankAddrJson.contains("addr")) {
-        SHM_LOG_ERROR("Rootinfo rank_addr_list entry does not contain addr, localId " << localId << ", eidIndex "
-                                                                                       << eidIndex);
+        SHM_LOG_ERROR(
+            "Rootinfo rank_addr_list entry does not contain addr, localId " << localId << ", eidIndex " << eidIndex);
         return false;
     }
 
@@ -514,8 +535,8 @@ bool TopoReader::ParseRankAddrRaw(
     }
 
     if (!rankAddrJson["addr"].is_string()) {
-        SHM_LOG_ERROR("Rootinfo " << addrType << " addr must be a string, localId " << localId << ", eidIndex "
-                                  << eidIndex);
+        SHM_LOG_ERROR(
+            "Rootinfo " << addrType << " addr must be a string, localId " << localId << ", eidIndex " << eidIndex);
         return false;
     }
 
@@ -547,8 +568,8 @@ bool TopoReader::ParseRankAddrRaw(
         return ret;
     }
 
-    SHM_LOG_ERROR("Rootinfo addr_type is unsupported: " << addrType << ", localId " << localId << ", eidIndex "
-                                                        << eidIndex);
+    SHM_LOG_ERROR(
+        "Rootinfo addr_type is unsupported: " << addrType << ", localId " << localId << ", eidIndex " << eidIndex);
     return false;
 }
 
@@ -608,7 +629,7 @@ bool TopoReader::ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t
 
 bool TopoReader::ParseIpv4EidRaw(const std::string& addr, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
 {
-    in_addr ipv4Addr {};
+    in_addr ipv4Addr{};
     if (inet_pton(AF_INET, addr.c_str(), &ipv4Addr) != 1) {
         SHM_LOG_ERROR("Rootinfo IPV4 addr is invalid: " << addr);
         return false;
@@ -618,7 +639,7 @@ bool TopoReader::ParseIpv4EidRaw(const std::string& addr, std::array<uint8_t, UR
     raw[10] = static_cast<uint8_t>((URMA_EID_IPV4_PREFIX >> 8) & 0xff);
     raw[11] = static_cast<uint8_t>(URMA_EID_IPV4_PREFIX & 0xff);
 
-    const auto *ipv4Bytes = reinterpret_cast<const uint8_t *>(&ipv4Addr.s_addr);
+    const auto* ipv4Bytes = reinterpret_cast<const uint8_t*>(&ipv4Addr.s_addr);
     std::copy_n(ipv4Bytes, sizeof(ipv4Addr), raw.begin() + 12);
     return true;
 }

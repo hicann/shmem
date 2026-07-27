@@ -52,6 +52,8 @@ std::optional<std::string> aclshmemi_topo_addr_info_manager_t::get_topo_file_pat
         case ACLSHMEMI_MAIN_BOARD_ID_SERVER_8PMESH:
         case ACLSHMEMI_MAIN_BOARD_ID_SERVER_TYPE1:
             return driver_path + "/driver/topo/950/atlas_850_1.json";
+        case ACLSHMEMI_MAIN_BOARD_ID_SERVER_UBX:
+            return driver_path + "/driver/topo/950/atlas_850_3.json";
         case ACLSHMEMI_MAIN_BOARD_ID_POD:
         case ACLSHMEMI_MAIN_BOARD_ID_POD_2D:
             return driver_path + "/driver/topo/950/atlas_950_1.json";

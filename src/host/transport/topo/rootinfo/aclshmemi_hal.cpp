@@ -18,6 +18,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
+#include "dl_acl_api.h"
 #include "utils/shmemi_logger.h"
 
 #include <securec.h>
@@ -310,6 +311,15 @@ aclshmemi_hal_t& aclshmemi_hal_t::instance()
 }
 
 std::optional<uint32_t> aclshmemi_hal_t::get_mainboard_id(int phy_id) { return dcmi_.get_mainboard_id(phy_id); }
+std::optional<uint32_t> aclshmemi_hal_t::get_user_id_from_phy_id(uint32_t phy_id)
+{
+    int32_t user_id = -1;
+    const auto ret = shm::DlAclApi::AclrtGetUserDevIdByPhyDevId(static_cast<int32_t>(phy_id), &user_id);
+    if (ret != 0 || user_id < 0) {
+        return std::nullopt;
+    }
+    return static_cast<uint32_t>(user_id);
+}
 std::optional<int> aclshmemi_hal_t::get_npu_count() { return dcmi_.get_npu_count(); }
 
 std::string aclshmemi_hal_t::get_server_id()

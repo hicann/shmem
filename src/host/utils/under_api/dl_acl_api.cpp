@@ -15,10 +15,10 @@
 namespace shm {
 bool DlAclApi::gLoaded = false;
 std::mutex DlAclApi::gMutex;
-void *DlAclApi::rtHandle;
-void *DlAclApi::runtimeHandle;
-const char *DlAclApi::gAscendAclLibName = "libascendcl.so";
-const char *DlAclApi::gAscendRuntimeLibName = "libruntime.so";
+void* DlAclApi::rtHandle;
+void* DlAclApi::runtimeHandle;
+const char* DlAclApi::gAscendAclLibName = "libascendcl.so";
+const char* DlAclApi::gAscendRuntimeLibName = "libruntime.so";
 
 aclrtGetDeviceFunc DlAclApi::pAclrtGetDevice = nullptr;
 aclrtSetDeviceFunc DlAclApi::pAclrtSetDevice = nullptr;
@@ -40,6 +40,7 @@ rtIpcOpenMemoryFunc DlAclApi::pRtIpcOpenMemory = nullptr;
 rtIpcCloseMemoryFunc DlAclApi::pRtIpcCloseMemory = nullptr;
 aclrtGetSocNameFunc DlAclApi::pAclrtGetSocName = nullptr;
 rtGetLogicDevIdByUserDevIdFunc DlAclApi::pRtGetLogicDevIdByUserDevId = nullptr;
+aclrtGetUserDevIdByPhyDevIdFunc DlAclApi::pAclrtGetUserDevIdByPhyDevId = nullptr;
 aclrtGetPhyDevIdByUserDevIdFunc DlAclApi::pAclrtGetPhyDevIdByUserDevId = nullptr;
 aclrtGetPhyDevIdByLogicDevIdFunc DlAclApi::pAclrtGetPhyDevIdByLogicDevId = nullptr;
 rtGetDevicePhyIdByIndexFunc DlAclApi::pRtGetDevicePhyIdByIndex = nullptr;
@@ -47,7 +48,7 @@ rtEnableP2PFunc DlAclApi::pRtEnableP2P = nullptr;
 aclrtReserveMemAddressFunc DlAclApi::pAclrtReserveMemAddress = nullptr;
 aclrtReleaseMemAddressFunc DlAclApi::pAclrtReleaseMemAddress = nullptr;
 
-Result DlAclApi::LoadLibrary(const std::string &libDirPath)
+Result DlAclApi::LoadLibrary(const std::string& libDirPath)
 {
     std::lock_guard<std::mutex> guard(gMutex);
     if (gLoaded) {
@@ -89,6 +90,16 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     DL_LOAD_SYM(pAclrtGetSocName, aclrtGetSocNameFunc, rtHandle, "aclrtGetSocName");
     DL_LOAD_SYM(pRtGetLogicDevIdByUserDevId, rtGetLogicDevIdByUserDevIdFunc, rtHandle, "rtGetLogicDevIdByUserDevId");
 
+    pAclrtGetUserDevIdByPhyDevId =
+        reinterpret_cast<aclrtGetUserDevIdByPhyDevIdFunc>(dlsym(rtHandle, "aclrtGetUserDevIdByPhyDevId"));
+    if (pAclrtGetUserDevIdByPhyDevId == nullptr) {
+        pAclrtGetUserDevIdByPhyDevId =
+            reinterpret_cast<aclrtGetUserDevIdByPhyDevIdFunc>(dlsym(rtHandle, "aclrtGetLogicDevIdByPhyDevId"));
+    }
+    if (pAclrtGetUserDevIdByPhyDevId == nullptr) {
+        SHM_LOG_WARN("Optional symbol aclrtGetUserDevIdByPhyDevId is not loaded.");
+    }
+
     pAclrtGetPhyDevIdByUserDevId =
         reinterpret_cast<aclrtGetPhyDevIdByUserDevIdFunc>(dlsym(rtHandle, "aclrtGetPhyDevIdByUserDevId"));
     if (pAclrtGetPhyDevIdByUserDevId == nullptr) {
@@ -101,10 +112,8 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
         SHM_LOG_WARN("Optional symbol aclrtGetPhyDevIdByLogicDevId is not loaded.");
     }
 
-    pAclrtReserveMemAddress =
-        reinterpret_cast<aclrtReserveMemAddressFunc>(dlsym(rtHandle, "aclrtReserveMemAddress"));
-    pAclrtReleaseMemAddress =
-        reinterpret_cast<aclrtReleaseMemAddressFunc>(dlsym(rtHandle, "aclrtReleaseMemAddress"));
+    pAclrtReserveMemAddress = reinterpret_cast<aclrtReserveMemAddressFunc>(dlsym(rtHandle, "aclrtReserveMemAddress"));
+    pAclrtReleaseMemAddress = reinterpret_cast<aclrtReleaseMemAddressFunc>(dlsym(rtHandle, "aclrtReleaseMemAddress"));
     if (pAclrtReserveMemAddress == nullptr || pAclrtReleaseMemAddress == nullptr) {
         pAclrtReserveMemAddress = nullptr;
         pAclrtReleaseMemAddress = nullptr;
@@ -125,8 +134,8 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
         return ACLSHMEM_DL_FUNC_FAILED;
     }
 
-    pRtGetDevicePhyIdByIndex = reinterpret_cast<rtGetDevicePhyIdByIndexFunc>(
-        dlsym(runtimeHandle, "rtGetDevicePhyIdByIndex"));
+    pRtGetDevicePhyIdByIndex =
+        reinterpret_cast<rtGetDevicePhyIdByIndexFunc>(dlsym(runtimeHandle, "rtGetDevicePhyIdByIndex"));
     pRtEnableP2P = reinterpret_cast<rtEnableP2PFunc>(dlsym(runtimeHandle, "rtEnableP2P"));
     if (pRtEnableP2P == nullptr) {
         SHM_LOG_WARN("Optional symbol rtEnableP2P is not loaded, grouped visible P2P falls back to "
@@ -153,7 +162,7 @@ Result DlAclApi::LoadLibrary(const std::string &libDirPath)
     return ACLSHMEM_SUCCESS;
 }
 
-Result DlAclApi::AclrtReserveMemAddress(void **virPtr, size_t size, size_t alignment, void *expectPtr, uint64_t flags)
+Result DlAclApi::AclrtReserveMemAddress(void** virPtr, size_t size, size_t alignment, void* expectPtr, uint64_t flags)
 {
     if (expectPtr == nullptr) {
         if (pAclrtReserveMemAddress == nullptr) {
@@ -168,13 +177,14 @@ Result DlAclApi::AclrtReserveMemAddress(void **virPtr, size_t size, size_t align
         if (ret == 0) {
             return ret;
         }
-        SHM_LOG_WARN("AclrtReserveMemAddress specified failed ret=" << ret
-                     << ", fallback to HalMemAddressReserve expectAddr=" << expectPtr);
+        SHM_LOG_WARN(
+            "AclrtReserveMemAddress specified failed ret=" << ret << ", fallback to HalMemAddressReserve expectAddr="
+                                                           << expectPtr);
     }
     return DlHalApi::HalMemAddressReserve(virPtr, size, alignment, expectPtr, flags);
 }
 
-Result DlAclApi::AclrtReleaseMemAddress(void *virPtr)
+Result DlAclApi::AclrtReleaseMemAddress(void* virPtr)
 {
     if (pAclrtReleaseMemAddress != nullptr) {
         auto ret = pAclrtReleaseMemAddress(virPtr);
@@ -210,6 +220,7 @@ void DlAclApi::CleanupLibrary()
     pRtIpcSetMemoryName = nullptr;
     pAclrtGetSocName = nullptr;
     pRtGetLogicDevIdByUserDevId = nullptr;
+    pAclrtGetUserDevIdByPhyDevId = nullptr;
     pAclrtGetPhyDevIdByUserDevId = nullptr;
     pAclrtGetPhyDevIdByLogicDevId = nullptr;
     pRtGetDevicePhyIdByIndex = nullptr;
@@ -229,4 +240,4 @@ void DlAclApi::CleanupLibrary()
 
     gLoaded = false;
 }
-}
+} // namespace shm

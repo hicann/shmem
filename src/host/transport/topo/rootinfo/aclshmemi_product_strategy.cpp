@@ -9,6 +9,9 @@
  */
 #include "aclshmemi_product_strategy.h"
 
+#include <algorithm>
+#include <utility>
+
 #include <securec.h>
 
 #include "aclshmemi_eid_parser.h"
@@ -70,6 +73,12 @@ static const aclshmemi_pod_ub_entity_rule_t g_pod_ub_rules[] = {
     {ACLSHMEMI_MAIN_BOARD_ID_POD_2D, 1, 1, 2, {1, 2}, {4, 5, 6, 7}, "plane_pg_1"},
 };
 
+std::optional<aclshmemi_root_info_t> aclshmemi_product_strategy_t::get_root_info_without_roce(
+    int phy_id, uint32_t mainboard_id)
+{
+    return get_root_info(phy_id, mainboard_id);
+}
+
 std::unique_ptr<aclshmemi_product_strategy_t> aclshmemi_product_strategy_t::create(uint32_t mainboard_id)
 {
     switch (mainboard_id) {
@@ -80,6 +89,8 @@ std::unique_ptr<aclshmemi_product_strategy_t> aclshmemi_product_strategy_t::crea
         case ACLSHMEMI_MAIN_BOARD_ID_SERVER_8PMESH:
         case ACLSHMEMI_MAIN_BOARD_ID_SERVER_TYPE1:
             return std::make_unique<aclshmemi_server_product_t>();
+        case ACLSHMEMI_MAIN_BOARD_ID_SERVER_UBX:
+            return std::make_unique<aclshmemi_ubx_product_t>();
         case ACLSHMEMI_MAIN_BOARD_ID_POD:
         case ACLSHMEMI_MAIN_BOARD_ID_POD_2D:
             return std::make_unique<aclshmemi_pod_product_t>();
@@ -88,6 +99,18 @@ std::unique_ptr<aclshmemi_product_strategy_t> aclshmemi_product_strategy_t::crea
     }
 }
 std::optional<aclshmemi_root_info_t> aclshmemi_card_product_t::get_root_info(int phy_id, uint32_t mainboard_id)
+{
+    return build_root_info(phy_id, mainboard_id, true);
+}
+
+std::optional<aclshmemi_root_info_t> aclshmemi_card_product_t::get_root_info_without_roce(
+    int phy_id, uint32_t mainboard_id)
+{
+    return build_root_info(phy_id, mainboard_id, false);
+}
+
+std::optional<aclshmemi_root_info_t> aclshmemi_card_product_t::build_root_info(
+    int phy_id, uint32_t mainboard_id, bool include_roce)
 {
     auto& hal = aclshmemi_hal_t::instance();
 
@@ -121,25 +144,18 @@ std::optional<aclshmemi_root_info_t> aclshmemi_card_product_t::get_root_info(int
     }
     eid_cnt = MAX_EID_NUM - eid_cnt;
 
-    if (mainboard_id == ACLSHMEMI_MAIN_BOARD_ID_CARD_NOMESH) {
-        auto roce_layer = process_roce_layer(phy_id);
-        if (roce_layer) {
-            aclshmemi_rank_add_net_layer(rank, *roce_layer);
-        }
-    } else if (mainboard_id == ACLSHMEMI_MAIN_BOARD_ID_CARD_2PMESH) {
+    if (mainboard_id == ACLSHMEMI_MAIN_BOARD_ID_CARD_2PMESH) {
         auto mesh_layer = process_mesh2p_layer(phy_id, eid_list, eid_cnt);
         if (mesh_layer) {
             aclshmemi_rank_add_net_layer(rank, *mesh_layer);
         }
-        auto roce_layer = process_roce_layer(phy_id);
-        if (roce_layer) {
-            aclshmemi_rank_add_net_layer(rank, *roce_layer);
-        }
-    } else {
+    } else if (mainboard_id == ACLSHMEMI_MAIN_BOARD_ID_CARD_4PMESH) {
         auto mesh_layer = process_mesh_layer(phy_id, eid_list, eid_cnt);
         if (mesh_layer) {
             aclshmemi_rank_add_net_layer(rank, *mesh_layer);
         }
+    }
+    if (include_roce) {
         auto roce_layer = process_roce_layer(phy_id);
         if (roce_layer) {
             aclshmemi_rank_add_net_layer(rank, *roce_layer);
@@ -605,6 +621,152 @@ std::optional<aclshmemi_root_info_t> aclshmemi_pod_product_t::get_root_info(int 
     }
     aclshmemi_rank_add_net_layer(rank, *clos_layer);
 
+    aclshmemi_root_info_add_rank(root_info, rank);
+    return root_info;
+}
+
+namespace {
+
+const UBEntity* find_ubx_entity(const UEList& ue_list, int die_id, int fe_id)
+{
+    const uint32_t ue_num = std::min<uint32_t>(ue_list.ueNum, MAX_UE_PER_NPU);
+    for (uint32_t i = 0; i < ue_num; ++i) {
+        const auto& entity = ue_list.ueList[i];
+        if (entity.eidNum == 0) {
+            continue;
+        }
+        if (aclshmemi_eid_parser_t::get_ub_die_id(entity.eidList[0].eid) == die_id &&
+            aclshmemi_eid_parser_t::get_ub_fe_id(entity.eidList[0].eid) == fe_id) {
+            return &entity;
+        }
+    }
+    return nullptr;
+}
+
+bool add_ubx_port_addresses(const UBEntity& entity, bool clos_ports, aclshmemi_net_layer_t& layer)
+{
+    const uint32_t eid_num = std::min<uint32_t>(entity.eidNum, MAX_EID_PER_UE);
+    const int port_group_index = aclshmemi_eid_parser_t::get_server_port_group_idx(entity);
+    for (uint32_t i = 0; i < eid_num; ++i) {
+        const auto& eid = entity.eidList[i].eid;
+        if (port_group_index == static_cast<int>(i)) {
+            continue;
+        }
+        const int die_id = aclshmemi_eid_parser_t::get_ub_die_id(eid);
+        const int port_id = aclshmemi_eid_parser_t::get_ub_port_id(eid);
+
+        aclshmemi_addr_t addr;
+        aclshmemi_addr_set_eid(addr, eid);
+        char port[16] = {0};
+        char plane_id[32] = {0};
+        if (!format_rootinfo_string("add_ubx_port_addresses port", port, sizeof(port), "%d/%d", die_id, port_id)) {
+            return false;
+        }
+        if (clos_ports) {
+            if (!format_rootinfo_string(
+                    "add_ubx_port_addresses CLOS plane", plane_id, sizeof(plane_id), "plane_clos_%d_%d", die_id,
+                    port_id)) {
+                return false;
+            }
+        } else {
+            if (!format_rootinfo_string(
+                    "add_ubx_port_addresses MESH plane", plane_id, sizeof(plane_id), "plane_%d", die_id)) {
+                return false;
+            }
+        }
+        aclshmemi_addr_add_port(addr, port);
+        aclshmemi_addr_set_plane_id(addr, plane_id);
+        aclshmemi_net_layer_add_addr(layer, addr);
+    }
+    return true;
+}
+
+bool add_ubx_clos_address(const UBEntity& entity, aclshmemi_net_layer_t& layer)
+{
+    const int port_group_index = aclshmemi_eid_parser_t::get_server_port_group_idx(entity);
+    if (port_group_index < 0) {
+        return true;
+    }
+    const auto& port_group_eid = entity.eidList[static_cast<size_t>(port_group_index)].eid;
+    const int die_id = aclshmemi_eid_parser_t::get_ub_die_id(port_group_eid);
+
+    aclshmemi_addr_t addr;
+    aclshmemi_addr_set_eid(addr, port_group_eid);
+    const uint32_t eid_num = std::min<uint32_t>(entity.eidNum, MAX_EID_PER_UE);
+    for (uint32_t i = 0; i < eid_num; ++i) {
+        if (static_cast<int>(i) == port_group_index) {
+            continue;
+        }
+        char port[16] = {0};
+        if (!format_rootinfo_string(
+                "add_ubx_clos_address port", port, sizeof(port), "%d/%d", die_id,
+                aclshmemi_eid_parser_t::get_ub_port_id(entity.eidList[i].eid))) {
+            return false;
+        }
+        aclshmemi_addr_add_port(addr, port);
+    }
+    char plane_id[32] = {0};
+    if (!format_rootinfo_string("add_ubx_clos_address plane", plane_id, sizeof(plane_id), "plane_clos_%d", die_id)) {
+        return false;
+    }
+    aclshmemi_addr_set_plane_id(addr, plane_id);
+    aclshmemi_net_layer_add_addr(layer, addr);
+    return true;
+}
+
+} // namespace
+
+std::optional<aclshmemi_net_layer_t> aclshmemi_ubx_product_t::process_base_layer(const UEList& ue_list)
+{
+    aclshmemi_net_layer_t layer;
+    aclshmemi_net_layer_init(layer, 0, aclshmemi_hal_t::instance().get_server_id());
+    aclshmemi_net_layer_set_net_type(layer, "TOPO_FILE_DESC");
+
+    constexpr int UBX_DIE_ID = 1;
+    constexpr int UBX_MESH_FE_ID = 3;
+    constexpr int UBX_CLOS_FE_ID = 2;
+    const UBEntity* mesh_entity = find_ubx_entity(ue_list, UBX_DIE_ID, UBX_MESH_FE_ID);
+    if (mesh_entity != nullptr && !add_ubx_port_addresses(*mesh_entity, false, layer)) {
+        return std::nullopt;
+    }
+
+    const UBEntity* clos_entity = find_ubx_entity(ue_list, UBX_DIE_ID, UBX_CLOS_FE_ID);
+    if (clos_entity != nullptr) {
+        if (!add_ubx_port_addresses(*clos_entity, true, layer) || !add_ubx_clos_address(*clos_entity, layer)) {
+            return std::nullopt;
+        }
+    }
+
+    return layer.addr_list.empty() ? std::nullopt : std::optional<aclshmemi_net_layer_t>(std::move(layer));
+}
+
+std::optional<aclshmemi_root_info_t> aclshmemi_ubx_product_t::get_root_info(int phy_id, uint32_t mainboard_id)
+{
+    if (mainboard_id != ACLSHMEMI_MAIN_BOARD_ID_SERVER_UBX) {
+        return std::nullopt;
+    }
+
+    auto& hal = aclshmemi_hal_t::instance();
+    UEList ue_list;
+    if (memset_s(&ue_list, sizeof(ue_list), 0, sizeof(ue_list)) != EOK || hal.get_ue_list(phy_id, &ue_list) != 0) {
+        SHM_LOG_ERROR("aclshmemi_ubx_product_t::get_root_info failed: get_ue_list failed for phy_id=" << phy_id);
+        return std::nullopt;
+    }
+
+    aclshmemi_root_info_t root_info;
+    aclshmemi_root_info_init(root_info);
+    aclshmemi_root_info_set_topo_file_path(
+        root_info, build_topo_file_path(hal.get_driver_install_path(), "atlas_850_3.json"));
+
+    aclshmemi_rank_t rank;
+    aclshmemi_rank_init(rank, phy_id, phy_id);
+    auto base_layer = process_base_layer(ue_list);
+    if (!base_layer) {
+        SHM_LOG_ERROR(
+            "aclshmemi_ubx_product_t::get_root_info failed: no usable UBX base-layer EID for phy_id=" << phy_id);
+        return std::nullopt;
+    }
+    aclshmemi_rank_add_net_layer(rank, *base_layer);
     aclshmemi_root_info_add_rank(root_info, rank);
     return root_info;
 }
