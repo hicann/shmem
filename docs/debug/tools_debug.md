@@ -11,7 +11,7 @@ shmem已适配[mssanitizer内存检测工具](https://www.hiascend.com/document/
 
 - SDMA/RDMA/UDMA相关接口和用例不支持使用mssanitizer进行内存检测
 
-**该功能依赖对应 CANN 版本能力，预计社区版 9.1.0 支持**
+**该功能需 CANN 9.1.0 及以上支持**
 
 如果当前使用的 CANN 版本不支持 mssanitizer，可按以下步骤从源码安装：
 

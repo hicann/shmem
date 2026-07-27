@@ -2,9 +2,9 @@
 
 HCCS/SIO 链路测试工具，用于验证 NPU 之间 SIO / HCCS 链路的正确性。
 
-> **注意**：当前 CANN 版本暂未支持，预计 CANN 9.1.0 版本支持该功能。
 > **依赖**：
 >
+> - CANN 版本 >= 9.1.0
 > - Ascend HDK 版本 >= 26.0.0
 > - LingQu Computing Network 版本 >= 1.5.3。下载地址：[LingQu Computing Network](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software)
 

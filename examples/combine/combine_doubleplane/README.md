@@ -4,7 +4,7 @@
 
 本示例实现非量化 MoE combine 的双平面版本。它保持与 `examples/combine/combine_classic` 相同的输入输出和校验语义，但在 expert 输出回传阶段同时启用 MTE 与 SDMA，根据 segment 大小自适应选择传输路径。
 
-双平面路径依赖 SHMEM SDMA 能力。SDMA 功能要求 CANN 9.0.0 及以上版本的尝鲜版环境，并需要安装匹配硬件平台的 toolkit 和 ops-legacy 软件包。基础安装和独立 SDMA demo 可参考 `examples/sdma/README.md`。
+双平面路径依赖 SHMEM SDMA 能力。SDMA 功能要求 CANN 9.0.0 及以上，并需要安装匹配硬件平台的 toolkit 和 ops-legacy 软件包。基础安装和独立 SDMA demo 可参考 `examples/sdma/README.md`。
 
 ## 为什么使用双平面
 

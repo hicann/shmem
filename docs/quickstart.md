@@ -67,9 +67,9 @@ source ${install_path}/ascend-toolkit/set_env.sh
 
 参考[快速安装 CANN](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=local)
 
-商发版本需要安装`toolkit`的`.run`包。从 CANN 8.5.0 版本起，`hccl`等算子已迁移至 ops 包中，商发版本同样需要安装对应 SoC 的 ops 包，否则运行时会报缺少`libhccl.so`等库文件的错误。
+9.1.0 之前的商发版本需要安装`toolkit`的`.run`包。从 CANN 8.5.0 版本起，`hccl`等算子已迁移至 ops 包中，上述商发版本同样需要安装对应 SoC 的 ops 包，否则运行时会报缺少`libhccl.so`等库文件的错误。
 
-社区版本需要额外安装一个`Ascend-cann-{soc_name}-ops-{cann_version}-{os_arch}.run`的`.run`安装包，需要选择cann版本，选择对应的soc、操作系统、架构的版本。（如果没有`{soc_name}-ops`的算子包，可能会提示缺少`libhccl.so`库文件）。
+9.1.0 之前的社区版本需要额外安装一个`Ascend-cann-{soc_name}-ops-{cann_version}-{os_arch}.run`的`.run`安装包，需要选择cann版本，选择对应的soc、操作系统、架构的版本。（如果没有`{soc_name}-ops`的算子包，可能会提示缺少`libhccl.so`库文件）。
 
 社区资源参考：[CANN 9.0.0 社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0)。
 
@@ -118,7 +118,7 @@ source ${install_path}/ascend-toolkit/set_env.sh
 | 依赖 | 使用场景 | 获取方式 | 离线环境准备 |
 | --- | --- | --- | --- |
 | CANN toolkit | 核心库、Device kernel、examples 和 UT 编译运行 | 安装 CANN toolkit `.run` 包 | 提前下载匹配 CPU 架构的 toolkit 安装包 |
-| CANN ops 包 | 社区版 CANN、SDMA 等场景的运行依赖 | 安装与 SoC/CANN 版本匹配的 ops `.run` 包 | 提前下载匹配 SoC、CANN 版本和 CPU 架构的 ops 包 |
+| CANN ops 包 | 特性支持的 CANN、SDMA 等场景的运行依赖 | 安装与 SoC/CANN 版本匹配的 ops `.run` 包 | 提前下载匹配 SoC、CANN 版本和 CPU 架构的 ops 包 |
 | bisheng | Device 侧 AscendC kernel 编译 | 随 CANN toolkit 提供 | 安装 toolkit 后执行 `set_env.sh` |
 | Python 依赖 | 构建脚本、Python 示例和测试 | `requirements.txt`、`requirements-examples.txt` | 提前准备 pip wheel 或使用内部 PyPI 源 |
 | googletest v1.14.x | `-uttests` 单元测试构建 | `scripts/build.sh` 自动从 GitCode 拉取 | 预置到 `3rdparty/googletest` |
