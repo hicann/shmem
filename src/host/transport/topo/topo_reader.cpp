@@ -14,6 +14,7 @@
 #include <cstring>
 #include <exception>
 #include <fstream>
+#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -39,6 +40,133 @@ bool CheckTopoFilePath(const std::string& path, std::string& realPath)
         return false;
     }
     return true;
+}
+
+bool NetTypeFromString(const std::string& netType, NetType& out)
+{
+    if (netType == "TOPO_FILE_DESC") {
+        out = NetType::TopoFileDesc;
+        return true;
+    }
+    if (netType == "MESH") {
+        out = NetType::Mesh;
+        return true;
+    }
+    if (netType == "CLOS") {
+        out = NetType::Clos;
+        return true;
+    }
+    return false;
+}
+
+// addrType defaults to EID when the field is absent; IPV4 / IPV6 select the dotted-string
+// converters. Matching is case-insensitive: the caller upper-cases before calling.
+bool RankAddrTypeFromString(const std::string& addrType, RankAddrType& out)
+{
+    if (addrType == "EID") {
+        out = RankAddrType::EID;
+        return true;
+    }
+    if (addrType == "IPV4") {
+        out = RankAddrType::IPV4;
+        return true;
+    }
+    if (addrType == "IPV6") {
+        out = RankAddrType::IPV6;
+        return true;
+    }
+    return false;
+}
+
+const char* AddrTypeName(RankAddrType addrType)
+{
+    switch (addrType) {
+        case RankAddrType::EID:
+            return "EID";
+        case RankAddrType::IPV4:
+            return "IPV4";
+        case RankAddrType::IPV6:
+            return "IPV6";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// TryGet: extract a typed value from a json node. Returns true and writes out only when
+// the node holds a compatible value; never logs. One overload per supported field type.
+bool TryGet(const nlohmann::json& value, std::string& out)
+{
+    if (!value.is_string()) {
+        return false;
+    }
+    out = value.get<std::string>();
+    return true;
+}
+
+bool TryGet(const nlohmann::json& value, uint32_t& out)
+{
+    try {
+        if (value.is_string()) {
+            out = static_cast<uint32_t>(std::stoul(value.get<std::string>()));
+            return true;
+        }
+        if (value.is_number()) {
+            out = value.get<uint32_t>();
+            return true;
+        }
+    } catch (const std::exception&) {
+        // fall through to the failure return below
+    }
+    return false;
+}
+
+bool TryGet(const nlohmann::json& value, std::vector<std::string>& out)
+{
+    if (!value.is_array()) {
+        return false;
+    }
+    out.clear();
+    for (const auto& element : value) {
+        if (element.is_string()) {
+            out.push_back(element.get<std::string>());
+        }
+    }
+    return true;
+}
+
+// GetRequiredField: field must exist and hold a value of type T, else log and fail.
+// context carries caller-side locators (localId/phyId/eidIndex) for diagnostics.
+template <typename T>
+bool GetRequiredField(const nlohmann::json& obj, const char* key, T& out, const std::string& context = "")
+{
+    const auto item = obj.find(key);
+    if (item == obj.end() || !TryGet(*item, out)) {
+        SHM_LOG_ERROR("Rootinfo/Topo: missing or invalid field '" << key << "'. " << context);
+        return false;
+    }
+    return true;
+}
+
+// GetOptionalField: write out only when the field exists and matches type T, else leave
+// out untouched. Silent by design.
+template <typename T>
+bool GetOptionalField(const nlohmann::json& obj, const char* key, T& out)
+{
+    const auto item = obj.find(key);
+    return item != obj.end() && TryGet(*item, out);
+}
+
+// GetRequiredArray: returns a pointer to the array node for iteration, or nullptr (with a
+// log) when the field is missing, not an array, or empty while requireNonEmpty is set.
+const nlohmann::json* GetRequiredArray(
+    const nlohmann::json& obj, const char* key, bool requireNonEmpty, const std::string& context = "")
+{
+    const auto item = obj.find(key);
+    if (item == obj.end() || !item->is_array() || (requireNonEmpty && item->empty())) {
+        SHM_LOG_ERROR("Rootinfo/Topo: missing or invalid array '" << key << "'. " << context);
+        return nullptr;
+    }
+    return &(*item);
 }
 
 } // namespace
@@ -121,170 +249,143 @@ bool TopoReader::ParseRootInfo(uint32_t phyId, RootInfo& out)
 {
     out = RootInfo{};
     nlohmann::json rootInfoJson;
-
-    bool shouldFallback = false;
-    std::ifstream rootInfoFile(ROOTINFO_PATH);
-    if (!rootInfoFile.is_open()) {
-        SHM_LOG_WARN(
-            "Rootinfo file not found at " << ROOTINFO_PATH << ", fallback to generated rootinfo for phyId " << phyId);
-        shouldFallback = true;
-    } else {
-        try {
-            rootInfoFile >> rootInfoJson;
-        } catch (const std::exception& ex) {
-            SHM_LOG_ERROR("Parse rootinfo file failed, the path is " << ROOTINFO_PATH << ", error: " << ex.what());
-            SHM_LOG_WARN("Rootinfo file parse failed, fallback to generated rootinfo for phyId " << phyId);
-            shouldFallback = true;
-        }
-    }
-
-    if (!shouldFallback) {
-        SHM_LOG_INFO("Load rootinfo from file " << ROOTINFO_PATH);
-        if (ParseRootInfoJson(rootInfoJson, phyId, out)) {
-            return true;
-        }
-        out = RootInfo{};
-        SHM_LOG_WARN("Rootinfo file content is unusable, fallback to generated rootinfo for phyId " << phyId);
-        shouldFallback = true;
-    }
-
-    size_t rootInfoSize = 0;
-    int ret = topo_addr_info_get_size(static_cast<int>(phyId), &rootInfoSize);
-    if (ret != 0 || rootInfoSize == 0) {
-        SHM_LOG_ERROR(
-            "Failed to get generated rootinfo size for phyId " << phyId << ", ret = " << ret
-                                                               << ", size = " << rootInfoSize);
-        return false;
-    }
-    SHM_LOG_INFO("Generated rootinfo size for phyId " << phyId << " is " << rootInfoSize);
-
-    std::vector<char> rootInfoBuffer(rootInfoSize + 1, '\0');
-    size_t actualSize = rootInfoSize;
-    ret = topo_addr_info_get(static_cast<int>(phyId), rootInfoBuffer.data(), &actualSize);
-    if (ret != 0 || actualSize == 0) {
-        SHM_LOG_ERROR(
-            "Failed to get generated rootinfo for phyId " << phyId << ", ret = " << ret
-                                                          << ", actualSize = " << actualSize);
-        return false;
-    }
-    if (actualSize > rootInfoBuffer.size() - 1) {
-        SHM_LOG_ERROR(
-            "Generated rootinfo size overflow, actualSize " << actualSize << ", capacity " << rootInfoBuffer.size());
-        return false;
-    }
-    rootInfoBuffer[actualSize] = '\0';
-
-    try {
-        rootInfoJson = nlohmann::json::parse(rootInfoBuffer.data(), rootInfoBuffer.data() + actualSize);
-#ifdef DEBUG_MODE
-        SHM_LOG_DEBUG("Generated rootinfo json for phyId " << phyId << ":\n" << rootInfoJson.dump(2));
-#endif
-    } catch (const std::exception& ex) {
-        SHM_LOG_ERROR("Failed to parse generated rootinfo json for phyId " << phyId << ", error: " << ex.what());
+    if (!LoadRootInfoJson(phyId, rootInfoJson)) {
+        SHM_LOG_ERROR("Failed to load rootinfo for phyId " << phyId);
         return false;
     }
 
-    SHM_LOG_INFO("Use generated rootinfo fallback for phyId " << phyId);
     if (!ParseRootInfoJson(rootInfoJson, phyId, out)) {
-        SHM_LOG_ERROR("Generated rootinfo content is unusable for phyId " << phyId);
+        out = RootInfo{};
+        SHM_LOG_ERROR("Rootinfo content is unusable for phyId " << phyId);
         return false;
     }
     return true;
 }
 
+bool TopoReader::ParseLevelInfo(const nlohmann::json& levelJson, LevelInfo& out)
+{
+    std::string netType;
+    if (!GetRequiredField(levelJson, "net_type", netType)) {
+        return false;
+    }
+    if (!NetTypeFromString(netType, out.netType)) {
+        SHM_LOG_ERROR("Rootinfo: unsupported net_type " << netType);
+        return false;
+    }
+
+    out.netLayer = 0;
+    if (!GetRequiredField(levelJson, "net_layer", out.netLayer) ||
+        !GetRequiredField(levelJson, "net_instance_id", out.netInstanceId)) {
+        return false;
+    }
+    GetOptionalField(levelJson, "net_attr", out.netAttr);
+    return true;
+}
+
+bool TopoReader::ParseRankAddr(
+    const nlohmann::json& rankAddrJson, uint32_t localId, uint32_t eidIndex,
+    const std::shared_ptr<LevelInfo>& levelInfo, RankAddr& out)
+{
+    const std::string context = "localId " + std::to_string(localId) + ", eidIndex " + std::to_string(eidIndex);
+    if (!rankAddrJson.contains("addr")) {
+        SHM_LOG_ERROR("Rootinfo rank_addr entry missing addr, " << context);
+        return false;
+    }
+
+    out.levelInfo = levelInfo;
+
+    std::string addrTypeStr = "EID";
+    if (rankAddrJson.contains("addr_type") && !TryGet(rankAddrJson["addr_type"], addrTypeStr)) {
+        SHM_LOG_ERROR("Rootinfo addr_type format is unsupported, " << context);
+        return false;
+    }
+    std::transform(addrTypeStr.begin(), addrTypeStr.end(), addrTypeStr.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    if (!RankAddrTypeFromString(addrTypeStr, out.addrType)) {
+        SHM_LOG_ERROR("Rootinfo addr_type is unsupported: " << addrTypeStr << ", " << context);
+        return false;
+    }
+
+    if (!EidConverter::Convert(out.addrType, rankAddrJson["addr"], out.eidData)) {
+        SHM_LOG_ERROR("Rootinfo: failed to parse addr, " << context);
+        return false;
+    }
+
+    if (!GetRequiredField(rankAddrJson, "plane_id", out.planeId, context)) {
+        return false;
+    }
+    GetOptionalField(rankAddrJson, "ports", out.ports);
+    return true;
+}
+
 bool TopoReader::ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t phyId, RootInfo& out)
 {
-    if (!rootInfoJson.contains("topo_file_path") || !rootInfoJson["topo_file_path"].is_string()) {
-        SHM_LOG_ERROR("Topo file path not found in rootinfo.");
-        return false;
-    }
-    out.topo_file_path = rootInfoJson["topo_file_path"].get<std::string>();
-
-    if (!rootInfoJson.contains("rank_list") || !rootInfoJson["rank_list"].is_array()) {
-        SHM_LOG_ERROR("Rootinfo: rank_list not found.");
+    if (!GetRequiredField(rootInfoJson, "topo_file_path", out.topoFilePath)) {
         return false;
     }
 
-    const auto& rankListJson = rootInfoJson["rank_list"];
-    for (const auto& rankJson : rankListJson) {
-        if (!rankJson.contains("device_id") || !rankJson.contains("local_id")) {
+    const auto* rankList = GetRequiredArray(rootInfoJson, "rank_list", false);
+    if (rankList == nullptr) {
+        return false;
+    }
+
+    for (const auto& rankJson : *rankList) {
+        uint32_t deviceId = 0;
+        uint32_t localId = 0;
+        if (!GetRequiredField(rankJson, "device_id", deviceId) || !GetRequiredField(rankJson, "local_id", localId)) {
+            return false;
+        }
+        if (deviceId != phyId) {
             continue;
         }
 
-        RankInfo rankInfo;
-        if (!ParseUint(rankJson["device_id"], rankInfo.device_id) ||
-            !ParseUint(rankJson["local_id"], rankInfo.local_id)) {
-            SHM_LOG_ERROR("Rootinfo: invalid device_id or local_id entry.");
+        out.deviceId = deviceId;
+        out.localId = localId;
+        const std::string context = "phyId " + std::to_string(phyId) + ", localId " + std::to_string(localId);
+
+        const auto* levelList = GetRequiredArray(rankJson, "level_list", true, context);
+        if (levelList == nullptr) {
             return false;
         }
 
-        if (rankInfo.device_id != phyId) {
-            continue;
-        }
-
-        out.rank_list.push_back(rankInfo);
-        out.deviceLocalIdMap[rankInfo.device_id] = rankInfo.local_id;
-
-        if (!rankJson.contains("level_list") || !rankJson["level_list"].is_array() || rankJson["level_list"].empty()) {
-            SHM_LOG_ERROR(
-                "Rootinfo: missing level_list for current phyId " << phyId << ", localId " << rankInfo.local_id);
-            return false;
-        }
-
-        const auto& levelListJson = rankJson["level_list"];
-        bool foundTopoLevel = false;
-        for (const auto& levelJson : levelListJson) {
-            if (!levelJson.contains("net_type") || !levelJson["net_type"].is_string()) {
-                continue;
+        uint32_t eidIndex = 0;
+        for (const auto& levelJson : *levelList) {
+            auto levelInfo = std::make_shared<LevelInfo>();
+            if (!ParseLevelInfo(levelJson, *levelInfo)) {
+                return false;
             }
-            const auto& netType = levelJson["net_type"].get_ref<const std::string&>();
-            if (netType == "TOPO_FILE_DESC" || netType == "MESH") {
-                foundTopoLevel = true;
-                if (!levelJson.contains("rank_addr_list") || !levelJson["rank_addr_list"].is_array()) {
-                    SHM_LOG_ERROR(
-                        "Rootinfo: missing rank_addr_list for current phyId " << phyId << ", localId "
-                                                                              << rankInfo.local_id);
-                    return false;
-                }
-                const auto& rankAddrListJson = levelJson["rank_addr_list"];
-                out.eidCount = static_cast<uint32_t>(rankAddrListJson.size());
-                uint32_t eidIndex = 0;
-                for (const auto& rankAddrJson : rankAddrListJson) {
-                    std::array<uint8_t, URMA_EID_RAW_SIZE> rawAddr{};
-                    if (ParseRankAddrRaw(rankAddrJson, rankInfo.local_id, eidIndex, rawAddr)) {
-                        out.eidAddrMap[rankInfo.local_id][eidIndex] = rawAddr;
-                    } else {
-                        SHM_LOG_WARN(
-                            "Rootinfo: failed to parse rank_addr_list addr, localId " << rankInfo.local_id
-                                                                                      << ", eidIndex " << eidIndex);
-                    }
-                    if (rankAddrJson.contains("ports") && rankAddrJson["ports"].is_array()) {
-                        for (const auto& port : rankAddrJson["ports"]) {
-                            if (port.is_string()) {
-                                out.portEidMap[rankInfo.local_id][port.get<std::string>()] = eidIndex;
-                            }
-                        }
-                    }
+            out.levels.push_back(levelInfo);
+
+            const auto* rankAddrList = GetRequiredArray(levelJson, "rank_addr_list", false, context);
+            if (rankAddrList == nullptr) {
+                return false;
+            }
+
+            for (const auto& rankAddrJson : *rankAddrList) {
+                auto rankAddr = std::make_shared<RankAddr>();
+                if (!ParseRankAddr(rankAddrJson, localId, eidIndex, levelInfo, *rankAddr)) {
+                    SHM_LOG_WARN("Rootinfo: skip invalid rank_addr, localId " << localId << ", eidIndex " << eidIndex);
                     ++eidIndex;
+                    continue;
                 }
-                break;
+                out.eidIndexToRankAddr[eidIndex] = rankAddr;
+                for (const auto& port : rankAddr->ports) {
+                    out.portsToRankAddr[port] = rankAddr;
+                }
+                ++eidIndex;
             }
         }
-        if (!foundTopoLevel) {
-            SHM_LOG_ERROR(
-                "Rootinfo: missing topo level for current phyId " << phyId << ", localId " << rankInfo.local_id);
-            return false;
-        }
 
-        if (out.eidCount == 0) {
-            SHM_LOG_ERROR(
-                "Rootinfo: invalid eid count for current phyId " << phyId << ", localId " << rankInfo.local_id);
+        out.totalEidCount = static_cast<uint32_t>(out.eidIndexToRankAddr.size());
+        if (out.totalEidCount == 0) {
+            SHM_LOG_ERROR("Rootinfo: invalid eid count for phyId " << phyId << ", localId " << localId);
             return false;
         }
 
         SHM_LOG_INFO(
-            "Parse rootinfo success for phyId " << phyId << ", localId " << rankInfo.local_id << ", eidCount "
-                                                << out.eidCount);
+            "Parse rootinfo success for phyId " << phyId << ", localId " << localId << ", eidCount "
+                                                << out.totalEidCount);
         return true;
     }
 
@@ -294,6 +395,7 @@ bool TopoReader::ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t 
 
 bool TopoReader::ParseTopoInfo(const std::string& path, TopoInfo& out)
 {
+    out = TopoInfo{};
     std::string realPath;
     if (!CheckTopoFilePath(path, realPath)) {
         return false;
@@ -313,85 +415,128 @@ bool TopoReader::ParseTopoInfo(const std::string& path, TopoInfo& out)
     }
     SHM_LOG_INFO("Read topo json from " << realPath);
 
-    if (!topoInfoJson.contains("edge_list") || !topoInfoJson["edge_list"].is_array()) {
-        SHM_LOG_ERROR("Topo parse failed: edge_list not found.");
+    const auto* edgeList = GetRequiredArray(topoInfoJson, "edge_list", false);
+    if (edgeList == nullptr) {
         return false;
     }
-    const auto& edgeListJson = topoInfoJson["edge_list"];
-    out.edge_list.reserve(edgeListJson.size());
-    for (const auto& edgeObj : edgeListJson) {
-        if (!edgeObj.contains("local_a") || !edgeObj.contains("local_b")) {
+
+    for (const auto& edgeObj : *edgeList) {
+        if (!edgeObj.contains("local_a")) {
             continue;
         }
-        TopoEdge edge;
-        if (!ParseUint(edgeObj["local_a"], edge.local_a) || !ParseUint(edgeObj["local_b"], edge.local_b)) {
-            SHM_LOG_ERROR("Topo parse failed: local_a or local_b is invalid.");
+
+        // CLOS edges describe a scale-out attachment (single endpoint, no peer local_b);
+        // every other edge is a point-to-point mesh link between local_a and local_b.
+        bool isClos = false;
+        std::string topoType;
+        if (GetOptionalField(edgeObj, "topo_type", topoType)) {
+            isClos = topoType == "CLOS";
+        }
+        if (!edgeObj.contains("local_b")) {
+            isClos = true;
+        }
+
+        if (isClos) {
+            ClosTopoEdge edge;
+            edge.netLayer = 0;
+            edge.topoInstanceId = 0;
+            if (!GetRequiredField(edgeObj, "local_a", edge.localA) ||
+                !GetRequiredField(edgeObj, "net_layer", edge.netLayer) ||
+                !GetRequiredField(edgeObj, "topo_instance_id", edge.topoInstanceId)) {
+                return false;
+            }
+            GetOptionalField(edgeObj, "local_a_ports", edge.ports);
+            out.closTopoEdges.push_back(std::move(edge));
+            continue;
+        }
+
+        MeshTopoEdge edge;
+        if (!GetRequiredField(edgeObj, "local_a", edge.localA) || !GetRequiredField(edgeObj, "local_b", edge.localB)) {
             return false;
         }
-
-        if (edgeObj.contains("local_a_ports") && edgeObj["local_a_ports"].is_array()) {
-            edge.local_a_ports = edgeObj["local_a_ports"].get<std::vector<std::string>>();
-        }
-        if (edgeObj.contains("local_b_ports") && edgeObj["local_b_ports"].is_array()) {
-            edge.local_b_ports = edgeObj["local_b_ports"].get<std::vector<std::string>>();
-        }
-        out.edge_list.push_back(std::move(edge));
+        GetOptionalField(edgeObj, "local_a_ports", edge.localAPorts);
+        GetOptionalField(edgeObj, "local_b_ports", edge.localBPorts);
+        out.meshTopoEdges.push_back(std::move(edge));
     }
 
-    if (out.edge_list.empty()) {
+    if (out.meshTopoEdges.empty() && out.closTopoEdges.empty()) {
         SHM_LOG_ERROR("Topo parse failed: no valid edge entries parsed.");
         return false;
     }
+
+    // Keep CLOS edges ordered by netLayer ascending so route lookup probes the
+    // closest scale-out layer first.
+    std::stable_sort(
+        out.closTopoEdges.begin(), out.closTopoEdges.end(),
+        [](const ClosTopoEdge& lhs, const ClosTopoEdge& rhs) { return lhs.netLayer < rhs.netLayer; });
     return true;
 }
 
-// Resolves the local route used to connect from myLocalId to peerLocalId.
-// The remote EID index must be provided by the peer, because rootinfo only contains
-// port -- EID
+// Resolves the local route used to connect from myLocalId to peerLocalId. Only the
+// outbound (local) eid index can be derived here; the peer must supply its own remote index.
+// The mesh fabric is probed first; if no direct mesh link exists, the CLOS planes are
+// probed from the lowest netLayer up, matching a plane shared by both endpoints.
 bool TopoReader::GetLocalEidRouteForPeer(
     const RootInfo& root, const TopoInfo& topo, uint32_t myLocalId, uint32_t peerLocalId, uint32_t& localEidIndex,
-    std::array<uint8_t, URMA_EID_RAW_SIZE>& localEidRaw)
+    EidData& localEidRaw)
 {
     std::string localPort;
-    for (const auto& edge : topo.edge_list) {
-        if (edge.local_a == myLocalId && edge.local_b == peerLocalId && !edge.local_a_ports.empty()) {
-            localPort = edge.local_a_ports[0];
+    for (const auto& edge : topo.meshTopoEdges) {
+        if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty()) {
+            localPort = edge.localAPorts[0];
             break;
         }
-        if (edge.local_b == myLocalId && edge.local_a == peerLocalId && !edge.local_b_ports.empty()) {
-            localPort = edge.local_b_ports[0];
+        if (edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty()) {
+            localPort = edge.localBPorts[0];
             break;
         }
     }
+
+    if (localPort.empty()) {
+        for (const auto& myEdge : topo.closTopoEdges) {
+            if (myEdge.localA != myLocalId || myEdge.ports.empty()) {
+                continue;
+            }
+            for (const auto& peerEdge : topo.closTopoEdges) {
+                if (peerEdge.localA == peerLocalId && peerEdge.netLayer == myEdge.netLayer &&
+                    peerEdge.topoInstanceId == myEdge.topoInstanceId) {
+                    localPort = myEdge.ports[0];
+                    break;
+                }
+            }
+            if (!localPort.empty()) {
+                break;
+            }
+        }
+    }
+
     if (localPort.empty()) {
         SHM_LOG_ERROR(
             "Failed to get local eid route, no usable edge between localId " << myLocalId << " and " << peerLocalId);
         return false;
     }
 
-    const auto localRankItem = root.portEidMap.find(myLocalId);
-    if (localRankItem == root.portEidMap.end()) {
-        SHM_LOG_ERROR("Failed to get local eid index, localId " << myLocalId << " not found in portEidMap");
-        return false;
-    }
-    const auto localPortItem = localRankItem->second.find(localPort);
-    if (localPortItem == localRankItem->second.end()) {
+    const auto portItem = root.portsToRankAddr.find(localPort);
+    if (portItem == root.portsToRankAddr.end() || portItem->second == nullptr) {
         SHM_LOG_ERROR("Failed to get local eid index, port " << localPort << " not found for localId " << myLocalId);
         return false;
     }
-    localEidIndex = localPortItem->second;
+    const auto& rankAddr = portItem->second;
 
-    const auto localIt = root.eidAddrMap.find(myLocalId);
-    if (localIt == root.eidAddrMap.end()) {
-        SHM_LOG_ERROR("Failed to get eid route, localId " << myLocalId << " not found in eidAddrMap");
+    bool found = false;
+    for (const auto& item : root.eidIndexToRankAddr) {
+        if (item.second == rankAddr) {
+            localEidIndex = item.first;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        SHM_LOG_ERROR("Failed to get local eid index, rank addr for port " << localPort << " is not indexed");
         return false;
     }
-    const auto eidIt = localIt->second.find(localEidIndex);
-    if (eidIt == localIt->second.end()) {
-        SHM_LOG_ERROR("Failed to get eid route, eidIndex " << localEidIndex << " not found for localId " << myLocalId);
-        return false;
-    }
-    localEidRaw = eidIt->second;
+
+    localEidRaw = rankAddr->eidData;
     SHM_LOG_INFO(
         "Get local eid route success, myLocalId: " << myLocalId << ", peerLocalId: " << peerLocalId << ", localPort: "
                                                    << localPort << ", localEidIndex: " << localEidIndex);
@@ -400,9 +545,8 @@ bool TopoReader::GetLocalEidRouteForPeer(
 
 bool TopoReader::GetLocalId(const RootInfo& root, uint32_t deviceId, uint32_t& localId)
 {
-    const auto it = root.deviceLocalIdMap.find(deviceId);
-    if (it != root.deviceLocalIdMap.end()) {
-        localId = it->second;
+    if (!root.eidIndexToRankAddr.empty() && root.deviceId == deviceId) {
+        localId = root.localId;
         return true;
     }
     SHM_LOG_ERROR("RootInfo is invalid or incomplete, failed to find localId for deviceId " << deviceId);
@@ -411,11 +555,10 @@ bool TopoReader::GetLocalId(const RootInfo& root, uint32_t deviceId, uint32_t& l
 
 bool TopoReader::GetEidCount(const RootInfo& root, uint32_t& count)
 {
-    if (root.eidCount > 0) {
-        count = root.eidCount;
+    if (root.totalEidCount > 0) {
+        count = root.totalEidCount;
         return true;
     }
-
     SHM_LOG_ERROR("RootInfo is invalid or incomplete, failed to find a valid eid count.");
     return false;
 }
@@ -434,16 +577,12 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
     }
 
     bool found = false;
-    const auto& rankListJson = rootInfoJson["rank_list"];
-    for (const auto& rankJson : rankListJson) {
+    for (const auto& rankJson : rootInfoJson["rank_list"]) {
         if (!rankJson.contains("device_id") || !rankJson.contains("local_id")) {
             continue;
         }
         uint32_t rankDeviceId = 0;
-        if (!ParseUint(rankJson["device_id"], rankDeviceId)) {
-            continue;
-        }
-        if (rankDeviceId != phyId) {
+        if (!ParseUint(rankJson["device_id"], rankDeviceId) || rankDeviceId != phyId) {
             continue;
         }
 
@@ -452,8 +591,7 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
             return false;
         }
 
-        const auto& levelListJson = rankJson["level_list"];
-        for (const auto& levelJson : levelListJson) {
+        for (const auto& levelJson : rankJson["level_list"]) {
             if (!levelJson.contains("net_type") || !levelJson["net_type"].is_string()) {
                 continue;
             }
@@ -465,8 +603,7 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
                 return false;
             }
 
-            const auto& rankAddrListJson = levelJson["rank_addr_list"];
-            for (const auto& rankAddrJson : rankAddrListJson) {
+            for (const auto& rankAddrJson : levelJson["rank_addr_list"]) {
                 if (!rankAddrJson.contains("addr_type")) {
                     continue;
                 }
@@ -508,85 +645,41 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
     return found;
 }
 
-bool TopoReader::ParseRankAddrRaw(
-    const nlohmann::json& rankAddrJson, uint32_t localId, uint32_t eidIndex,
-    std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
+bool EidConverter::Convert(RankAddrType addrType, const nlohmann::json& addr, EidData& raw)
 {
-    if (!rankAddrJson.contains("addr")) {
-        SHM_LOG_ERROR(
-            "Rootinfo rank_addr_list entry does not contain addr, localId " << localId << ", eidIndex " << eidIndex);
+    bool converted = false;
+    switch (addrType) {
+        case RankAddrType::EID:
+            converted = FromPlainEid(addrType, addr, raw);
+            break;
+        case RankAddrType::IPV4:
+            converted = FromIpv4(addrType, addr, raw);
+            break;
+        case RankAddrType::IPV6:
+            converted = FromIpv6(addrType, addr, raw);
+            break;
+    }
+    if (!converted) {
+        SHM_LOG_ERROR("Rootinfo: failed to parse addr as " << AddrTypeName(addrType));
         return false;
     }
-
-    std::string addrType = "EID";
-    if (rankAddrJson.contains("addr_type")) {
-        if (!rankAddrJson["addr_type"].is_string()) {
-            SHM_LOG_ERROR("Rootinfo addr_type format is unsupported, localId " << localId << ", eidIndex " << eidIndex);
-            return false;
-        }
-        addrType = rankAddrJson["addr_type"].get<std::string>();
-        std::transform(addrType.begin(), addrType.end(), addrType.begin(), [](unsigned char ch) {
-            return static_cast<char>(std::toupper(ch));
-        });
-    }
-
-    if (addrType == "EID") {
-        return ParseEidRaw(rankAddrJson["addr"], raw);
-    }
-
-    if (!rankAddrJson["addr"].is_string()) {
-        SHM_LOG_ERROR(
-            "Rootinfo " << addrType << " addr must be a string, localId " << localId << ", eidIndex " << eidIndex);
-        return false;
-    }
-
-    const auto& addr = rankAddrJson["addr"].get_ref<const std::string&>();
-    if (addrType == "IPV4") {
-        const bool ret = ParseIpv4EidRaw(addr, raw);
-        if (ret) {
-            SHM_LOG_INFO(
-                "Rootinfo IPV4 addr converted to EID, localId " << localId << ", eidIndex " << eidIndex << ", addr "
-                                                                << addr);
-        } else {
-            SHM_LOG_ERROR(
-                "Rootinfo IPV4 addr conversion failed, localId " << localId << ", eidIndex " << eidIndex << ", addr "
-                                                                 << addr);
-        }
-        return ret;
-    }
-    if (addrType == "IPV6") {
-        const bool ret = ParseIpv6EidRaw(addr, raw);
-        if (ret) {
-            SHM_LOG_INFO(
-                "Rootinfo IPV6 addr converted to EID, localId " << localId << ", eidIndex " << eidIndex << ", addr "
-                                                                << addr);
-        } else {
-            SHM_LOG_ERROR(
-                "Rootinfo IPV6 addr conversion failed, localId " << localId << ", eidIndex " << eidIndex << ", addr "
-                                                                 << addr);
-        }
-        return ret;
-    }
-
-    SHM_LOG_ERROR(
-        "Rootinfo addr_type is unsupported: " << addrType << ", localId " << localId << ", eidIndex " << eidIndex);
-    return false;
+    return true;
 }
 
-bool TopoReader::ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
+bool EidConverter::FromPlainEid(RankAddrType addrType, const nlohmann::json& addr, EidData& raw)
 {
     raw.fill(0);
-    if (jsonValue.is_array()) {
-        if (jsonValue.size() != raw.size()) {
-            SHM_LOG_ERROR("Rootinfo addr array size is invalid: " << jsonValue.size());
+    if (addr.is_array()) {
+        if (addr.size() != raw.size()) {
+            SHM_LOG_ERROR("Rootinfo " << AddrTypeName(addrType) << " addr array size is invalid: " << addr.size());
             return false;
         }
         for (size_t i = 0; i < raw.size(); ++i) {
-            if (!jsonValue[i].is_number_unsigned() && !jsonValue[i].is_number_integer()) {
+            if (!addr[i].is_number_unsigned() && !addr[i].is_number_integer()) {
                 SHM_LOG_ERROR("Rootinfo addr array contains non-numeric value at index " << i);
                 return false;
             }
-            auto value = jsonValue[i].get<int32_t>();
+            auto value = addr[i].get<int32_t>();
             if (value < 0 || value > 0xff) {
                 SHM_LOG_ERROR("Rootinfo addr array value out of byte range at index " << i << ", value " << value);
                 return false;
@@ -596,12 +689,12 @@ bool TopoReader::ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t
         return true;
     }
 
-    if (!jsonValue.is_string()) {
+    if (!addr.is_string()) {
         SHM_LOG_ERROR("Rootinfo addr format is unsupported.");
         return false;
     }
 
-    const std::string& jsonString = jsonValue.get_ref<const std::string&>();
+    const std::string& jsonString = addr.get_ref<const std::string&>();
     std::string normalized;
     normalized.reserve(jsonString.size());
     for (const char ch : jsonString) {
@@ -610,6 +703,10 @@ bool TopoReader::ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t
         }
     }
 
+    // Tolerate odd-length hex by left-padding to the full EID width.
+    if (normalized.size() < URMA_EID_HEX_SIZE) {
+        normalized.insert(normalized.begin(), URMA_EID_HEX_SIZE - normalized.size(), '0');
+    }
     if (normalized.size() != URMA_EID_HEX_SIZE) {
         SHM_LOG_ERROR("Rootinfo addr hex length is invalid: " << normalized.size());
         return false;
@@ -627,11 +724,17 @@ bool TopoReader::ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t
     return true;
 }
 
-bool TopoReader::ParseIpv4EidRaw(const std::string& addr, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
+bool EidConverter::FromIpv4(RankAddrType addrType, const nlohmann::json& addr, EidData& raw)
 {
+    if (!addr.is_string()) {
+        SHM_LOG_ERROR("Rootinfo " << AddrTypeName(addrType) << " addr must be a string.");
+        return false;
+    }
+    const std::string& addrStr = addr.get_ref<const std::string&>();
+
     in_addr ipv4Addr{};
-    if (inet_pton(AF_INET, addr.c_str(), &ipv4Addr) != 1) {
-        SHM_LOG_ERROR("Rootinfo IPV4 addr is invalid: " << addr);
+    if (inet_pton(AF_INET, addrStr.c_str(), &ipv4Addr) != 1) {
+        SHM_LOG_ERROR("Rootinfo IPV4 addr is invalid: " << addrStr);
         return false;
     }
 
@@ -641,32 +744,202 @@ bool TopoReader::ParseIpv4EidRaw(const std::string& addr, std::array<uint8_t, UR
 
     const auto* ipv4Bytes = reinterpret_cast<const uint8_t*>(&ipv4Addr.s_addr);
     std::copy_n(ipv4Bytes, sizeof(ipv4Addr), raw.begin() + 12);
+    SHM_LOG_INFO("Rootinfo IPV4 addr converted to EID, addr " << addrStr);
     return true;
 }
 
-bool TopoReader::ParseIpv6EidRaw(const std::string& addr, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw)
+bool EidConverter::FromIpv6(RankAddrType addrType, const nlohmann::json& addr, EidData& raw)
 {
-    raw.fill(0);
-    if (inet_pton(AF_INET6, addr.c_str(), raw.data()) != 1) {
-        SHM_LOG_ERROR("Rootinfo IPV6 addr is invalid: " << addr);
+    if (!addr.is_string()) {
+        SHM_LOG_ERROR("Rootinfo " << AddrTypeName(addrType) << " addr must be a string.");
         return false;
     }
+    const std::string& addrStr = addr.get_ref<const std::string&>();
+
+    raw.fill(0);
+    if (inet_pton(AF_INET6, addrStr.c_str(), raw.data()) != 1) {
+        SHM_LOG_ERROR("Rootinfo IPV6 addr is invalid: " << addrStr);
+        return false;
+    }
+    SHM_LOG_INFO("Rootinfo IPV6 addr converted to EID, addr " << addrStr);
     return true;
 }
 
 bool TopoReader::ParseUint(const nlohmann::json& jsonValue, uint32_t& value)
 {
-    try {
-        if (jsonValue.is_string()) {
-            value = static_cast<uint32_t>(std::stoul(jsonValue.get<std::string>()));
-            return true;
-        }
-        value = jsonValue.get<uint32_t>();
-        return true;
-    } catch (const std::exception& ex) {
-        SHM_LOG_ERROR("Failed to parse uint value, error: " << ex.what());
+    if (!TryGet(jsonValue, value)) {
+        SHM_LOG_ERROR("Failed to parse uint value.");
         return false;
     }
+    return true;
+}
+
+namespace {
+
+std::string NetInstanceIdAt(
+    const std::vector<std::vector<SyncEndpoint>>& rankIdxToSyncEndpoint, uint32_t rank, uint32_t netLayer)
+{
+    if (rank >= rankIdxToSyncEndpoint.size()) {
+        return {};
+    }
+    for (const auto& endpoint : rankIdxToSyncEndpoint[rank]) {
+        if (endpoint.netLayer == netLayer) {
+            return endpoint.netInstanceId;
+        }
+    }
+    return {};
+}
+
+bool ResolveEidIndexByPort(
+    const std::vector<SyncEndpoint>& endpoints, const std::string& port, uint32_t netLayer, uint32_t& eidIndex)
+{
+    for (const auto& endpoint : endpoints) {
+        if (endpoint.netLayer != netLayer) {
+            continue;
+        }
+        for (const auto& ownedPort : endpoint.ports) {
+            if (ownedPort == port) {
+                eidIndex = endpoint.eidIndex;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ResolveLocalEidByPort(
+    const RootInfo& root, const std::string& localPort, uint32_t& localEidIndex, EidData& localEidRaw)
+{
+    const auto portItem = root.portsToRankAddr.find(localPort);
+    if (portItem == root.portsToRankAddr.end() || portItem->second == nullptr) {
+        SHM_LOG_ERROR("Failed to get local eid index, port " << localPort << " not found.");
+        return false;
+    }
+    const auto& rankAddr = portItem->second;
+
+    for (const auto& item : root.eidIndexToRankAddr) {
+        if (item.second == rankAddr) {
+            localEidIndex = item.first;
+            localEidRaw = rankAddr->eidData;
+            return true;
+        }
+    }
+    SHM_LOG_ERROR("Failed to get local eid index, rank addr for port " << localPort << " is not indexed.");
+    return false;
+}
+
+bool ResolveLocalEidByIndex(const RootInfo& root, uint32_t eidIndex, EidData& localEidRaw)
+{
+    const auto item = root.eidIndexToRankAddr.find(eidIndex);
+    if (item == root.eidIndexToRankAddr.end() || item->second == nullptr) {
+        SHM_LOG_ERROR("Failed to get local eid raw, eidIndex " << eidIndex << " not indexed.");
+        return false;
+    }
+    localEidRaw = item->second->eidData;
+    return true;
+}
+
+} // namespace
+
+bool TopoQuerier::GetEidRouteMesh1D(
+    uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
+{
+    constexpr uint32_t MESH_NET_LAYER = 0;
+    const std::string myInstance = NetInstanceIdAt(rankIdxToSyncEndpoint_, myRank_, MESH_NET_LAYER);
+    const std::string targetInstance = NetInstanceIdAt(rankIdxToSyncEndpoint_, targetRank, MESH_NET_LAYER);
+    if (myInstance.empty() || myInstance != targetInstance) {
+        SHM_LOG_DEBUG(
+            "Mesh1D route skipped, layer0 net_instance mismatch for rank "
+            << myRank_ << " (\"" << myInstance << "\") and target rank " << targetRank << " (\"" << targetInstance
+            << "\").");
+        return false;
+    }
+
+    if (myRank_ >= rankToLocalId_.size() || targetRank >= rankToLocalId_.size()) {
+        SHM_LOG_ERROR("Mesh1D route failed, rank out of range, myRank " << myRank_ << ", targetRank " << targetRank);
+        return false;
+    }
+    const uint32_t myLocalId = rankToLocalId_[myRank_];
+    const uint32_t peerLocalId = rankToLocalId_[targetRank];
+
+    std::string localPort;
+    std::string remotePort;
+    for (const auto& edge : topoInfo_.meshTopoEdges) {
+        if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty() &&
+            !edge.localBPorts.empty()) {
+            localPort = edge.localAPorts[0];
+            remotePort = edge.localBPorts[0];
+            break;
+        }
+        if (edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty() &&
+            !edge.localAPorts.empty()) {
+            localPort = edge.localBPorts[0];
+            remotePort = edge.localAPorts[0];
+            break;
+        }
+    }
+    if (localPort.empty() || remotePort.empty()) {
+        SHM_LOG_DEBUG(
+            "Mesh1D route not found, no direct mesh link between localId " << myLocalId << " and " << peerLocalId);
+        return false;
+    }
+
+    if (!ResolveLocalEidByPort(rootInfo_, localPort, localEidIndex, localEidRaw)) {
+        return false;
+    }
+    if (targetRank >= rankIdxToSyncEndpoint_.size() ||
+        !ResolveEidIndexByPort(rankIdxToSyncEndpoint_[targetRank], remotePort, MESH_NET_LAYER, remoteEidIndex)) {
+        SHM_LOG_ERROR(
+            "Mesh1D route failed, peer port " << remotePort << " not found in target rank " << targetRank
+                                              << " endpoints.");
+        return false;
+    }
+    SHM_LOG_INFO(
+        "Mesh1D route success, myRank " << myRank_ << ", targetRank " << targetRank << ", localPort " << localPort
+                                        << ", localEidIndex " << localEidIndex << ", remotePort " << remotePort
+                                        << ", remoteEidIndex " << remoteEidIndex);
+    return true;
+}
+
+bool TopoQuerier::GetEidRouteClos(
+    uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
+{
+    if (myRank_ >= rankIdxToSyncEndpoint_.size() || targetRank >= rankIdxToSyncEndpoint_.size()) {
+        SHM_LOG_ERROR("Clos route failed, rank out of range, myRank " << myRank_ << ", targetRank " << targetRank);
+        return false;
+    }
+    const auto& myEndpoints = rankIdxToSyncEndpoint_[myRank_];
+    const auto& peerEndpoints = rankIdxToSyncEndpoint_[targetRank];
+
+    for (const auto& mine : myEndpoints) {
+        for (const auto& peer : peerEndpoints) {
+            if (mine.netLayer != peer.netLayer || mine.netInstanceId != peer.netInstanceId ||
+                mine.planeId != peer.planeId || mine.netInstanceId.empty()) {
+                continue;
+            }
+            if (!ResolveLocalEidByIndex(rootInfo_, mine.eidIndex, localEidRaw)) {
+                return false;
+            }
+            localEidIndex = mine.eidIndex;
+            remoteEidIndex = peer.eidIndex;
+            SHM_LOG_INFO(
+                "Clos route success, myRank "
+                << myRank_ << ", targetRank " << targetRank << ", netLayer " << mine.netLayer << ", netInstanceId \""
+                << mine.netInstanceId << "\", planeId \"" << mine.planeId << "\", localEidIndex " << localEidIndex
+                << ", remoteEidIndex " << remoteEidIndex);
+            return true;
+        }
+    }
+
+    SHM_LOG_DEBUG("Clos route not found, no shared plane between rank " << myRank_ << " and " << targetRank);
+    return false;
+}
+
+bool TopoQuerier::GetEidRoute(
+    uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
+{
+    return GetEidRouteMesh1D(targetRank, localEidIndex, localEidRaw, remoteEidIndex) ||
+           GetEidRouteClos(targetRank, localEidIndex, localEidRaw, remoteEidIndex);
 }
 
 } // namespace transport

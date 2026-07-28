@@ -1009,6 +1009,62 @@ Result UdmaTransportManager::AsyncConnect()
     return ACLSHMEM_SUCCESS;
 }
 
+bool UdmaTransportManager::BuildSyncEndpoints(
+    const RootInfo& root_info, uint32_t rank_count, std::vector<std::vector<SyncEndpoint>>& out)
+{
+    std::vector<SyncEndpoint> local_endpoints;
+    for (const auto& item : root_info.eidIndexToRankAddr) {
+        const auto& rank_addr = item.second;
+        if (rank_addr == nullptr || rank_addr->levelInfo == nullptr) {
+            continue;
+        }
+        SyncEndpoint endpoint;
+        endpoint.netLayer = rank_addr->levelInfo->netLayer;
+        endpoint.netInstanceId = rank_addr->levelInfo->netInstanceId;
+        endpoint.planeId = rank_addr->planeId;
+        endpoint.ports = rank_addr->ports;
+        endpoint.eidIndex = item.first;
+        local_endpoints.push_back(std::move(endpoint));
+    }
+
+    const std::vector<uint8_t> local_blob = nlohmann::json::to_msgpack(nlohmann::json(local_endpoints));
+
+    uint32_t local_len = static_cast<uint32_t>(local_blob.size());
+    std::vector<uint32_t> all_len(rank_count, 0);
+    g_boot_handle.allgather(&local_len, all_len.data(), sizeof(uint32_t), &g_boot_handle);
+
+    uint32_t max_len = 0;
+    for (const uint32_t len : all_len) {
+        max_len = std::max(max_len, len);
+    }
+    if (max_len == 0) {
+        SHM_LOG_ERROR("No sync endpoints found on any rank.");
+        return false;
+    }
+
+    std::vector<uint8_t> send_buf(max_len, 0);
+    std::copy(local_blob.begin(), local_blob.end(), send_buf.begin());
+
+    std::vector<uint8_t> recv_buf(static_cast<size_t>(max_len) * rank_count, 0);
+    g_boot_handle.allgather(send_buf.data(), recv_buf.data(), static_cast<int>(max_len), &g_boot_handle);
+
+    out.assign(rank_count, std::vector<SyncEndpoint>{});
+    for (uint32_t rank = 0; rank < rank_count; ++rank) {
+        const uint32_t len = all_len[rank];
+        if (len == 0) {
+            continue;
+        }
+        const uint8_t* begin = recv_buf.data() + static_cast<size_t>(rank) * max_len;
+        try {
+            out[rank] = nlohmann::json::from_msgpack(begin, begin + len).get<std::vector<SyncEndpoint>>();
+        } catch (const std::exception& ex) {
+            SHM_LOG_ERROR("Failed to decode sync endpoints for rank " << rank << ": " << ex.what());
+            return false;
+        }
+    }
+    return true;
+}
+
 bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_count)
 {
     RootInfo root_info;
@@ -1032,8 +1088,8 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
     SHM_LOG_INFO(
         "Resolved phy id from current device mapping, user_id=" << user_id_ << ", logic_device_id=" << device_id
                                                                 << ", phy_id=" << phy_id_);
-    if (!TopoReader::ParseTopoInfo(root_info.topo_file_path, topo_info)) {
-        SHM_LOG_ERROR("Failed to parse the topology file at path " << root_info.topo_file_path);
+    if (!TopoReader::ParseTopoInfo(root_info.topoFilePath, topo_info)) {
+        SHM_LOG_ERROR("Failed to parse the topology file at path " << root_info.topoFilePath);
         return false;
     }
 
@@ -1057,6 +1113,17 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
 
     std::vector<uint32_t> local_id_list(rank_count);
     g_boot_handle.allgather(&local_id, local_id_list.data(), sizeof(uint32_t), &g_boot_handle);
+
+    std::vector<std::vector<SyncEndpoint>> rank_idx_to_sync_endpoint;
+    if (!BuildSyncEndpoints(root_info, rank_count, rank_idx_to_sync_endpoint)) {
+        SHM_LOG_ERROR("Failed to gather sync endpoints across ranks.");
+        return false;
+    }
+
+    TopoQuerier topo_querier(root_info, topo_info, rank_id_, local_id_list, rank_idx_to_sync_endpoint);
+
+    // Local outbound EID index toward each peer, later allgathered into the full N x N routing
+    // matrix the relay path consumes. INVALID_EID_INDEX marks self / unroutable slots.
     std::vector<int32_t> local_route_by_peer(rank_count, INVALID_EID_INDEX);
 
     for (uint32_t peer = 0; peer < rank_count; ++peer) {
@@ -1064,15 +1131,26 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
             continue;
         }
         uint32_t eid_index = 0;
-        std::array<uint8_t, URMA_EID_RAW_SIZE> eid_raw{};
-        uint32_t peer_local_id = local_id_list[peer];
-        if (!TopoReader::GetLocalEidRouteForPeer(root_info, topo_info, local_id, peer_local_id, eid_index, eid_raw)) {
+        uint32_t remote_eid_index = 0;
+        EidData eid_raw{};
+        if (!topo_querier.GetEidRoute(peer, eid_index, eid_raw, remote_eid_index)) {
             SHM_LOG_ERROR(
                 "Failed to resolve the local EID route for peer rank "
-                << peer << ". The local_id was " << local_id << " and the peer local_id was " << peer_local_id);
+                << peer << ". The local_id was " << local_id << " and the peer local_id was " << local_id_list[peer]);
             return false;
         }
+        if (remote_eid_index >= max_eid_count) {
+            SHM_LOG_ERROR(
+                "Invalid remote EID route for peer rank "
+                << peer << ", remote_eid_index = " << remote_eid_index << ", local rank = " << rank_id_
+                << ", local_id = " << local_id << ", peer_local_id = " << local_id_list[peer]
+                << ", eidSlotCount = " << max_eid_count);
+            return false;
+        }
+        // The Clos-aware router yields both the local outbound and the peer's inbound EID on the
+        // same plane, so the remote index is taken directly (no reverse-lookup allgather needed).
         peer_eid_index_map_[peer] = eid_index;
+        peer_remote_eid_index_map_[peer] = remote_eid_index;
         local_route_by_peer[peer] = static_cast<int32_t>(eid_index);
 
         if (!CreateEndpoint(eid_index, eid_raw)) {
@@ -1081,28 +1159,14 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
         }
     }
 
-    std::vector<int32_t> all_route_by_peer(rank_count * rank_count, INVALID_EID_INDEX);
-    g_boot_handle.allgather(
-        local_route_by_peer.data(), all_route_by_peer.data(), sizeof(int32_t) * rank_count, &g_boot_handle);
-
+    // Relay path only: allgather the per-peer local routes into the full N x N matrix so
+    // ResolveRelaySlotRoute can look up any (actual_pe, relay_pe) forwarding EID. The direct
+    // path relies solely on the peer maps filled above, so this is gated on the relay switch.
     if constexpr (ACLSHMEM_UDMA_RELAY_ENABLED) {
-        // Full N x N routing matrix; only the relay path needs it to resolve each slot's target EID.
-        all_local_routes_ = all_route_by_peer;
-    }
-
-    for (uint32_t peer = 0; peer < rank_count; ++peer) {
-        if (peer == rank_id_) {
-            continue;
-        }
-        int32_t remote_route = all_route_by_peer[peer * rank_count + rank_id_];
-        if (remote_route < 0 || static_cast<uint32_t>(remote_route) >= max_eid_count) {
-            SHM_LOG_ERROR(
-                "Invalid remote EID route for peer rank "
-                << peer << ", remote_route = " << remote_route << ", local rank = " << rank_id_ << ", local_id = "
-                << local_id << ", peer_local_id = " << local_id_list[peer] << ", eidSlotCount = " << max_eid_count);
-            return false;
-        }
-        peer_remote_eid_index_map_[peer] = static_cast<uint32_t>(remote_route);
+        std::vector<int32_t> all_route_by_peer(rank_count * rank_count, INVALID_EID_INDEX);
+        g_boot_handle.allgather(
+            local_route_by_peer.data(), all_route_by_peer.data(), sizeof(int32_t) * rank_count, &g_boot_handle);
+        all_local_routes_ = std::move(all_route_by_peer);
     }
 
     return true;

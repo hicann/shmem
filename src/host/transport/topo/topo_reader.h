@@ -14,9 +14,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
 #include <map>
+#include <memory>
+#include <ostream>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "nlohmann/json.hpp"
@@ -29,34 +31,84 @@ constexpr std::size_t URMA_EID_RAW_SIZE = 16;
 constexpr std::size_t URMA_EID_HEX_SIZE = URMA_EID_RAW_SIZE * 2;
 constexpr uint32_t URMA_EID_IPV4_PREFIX = 0x0000;
 
-struct RankInfo {
-    uint32_t device_id{0};
-    uint32_t local_id{0};
+using EidData = std::array<uint8_t, URMA_EID_RAW_SIZE>;
+using EidPort = std::string;
+using EidIndex = uint32_t;
+
+enum class NetType { Mesh = 0, Clos = 1, TopoFileDesc = 2 };
+
+enum class RankAddrType { EID = 0, IPV4 = 1, IPV6 = 2 };
+
+struct LevelInfo {
+    uint32_t netLayer{};
+    std::string netInstanceId{};
+    NetType netType{};
+    std::string netAttr{};
+};
+
+struct RankAddr {
+    RankAddrType addrType{};
+    EidData eidData{};
+    std::string planeId{};
+
+    std::vector<EidPort> ports{};
+    std::shared_ptr<LevelInfo> levelInfo{};
 };
 
 struct RootInfo {
-    std::string topo_file_path;
-    // The parsed view is scoped to the current device/phyId.
-    std::vector<RankInfo> rank_list;
-    // deviceId -> localId
-    std::unordered_map<uint32_t, uint32_t> deviceLocalIdMap;
-    // eid count for the current device only
-    uint32_t eidCount{0};
-    // localId -> port -> eidIndex
-    std::unordered_map<uint32_t, std::unordered_map<std::string, uint32_t>> portEidMap;
-    // localId -> eidIndex -> eid raw bytes from rootinfo addr
-    std::unordered_map<uint32_t, std::map<uint32_t, std::array<uint8_t, URMA_EID_RAW_SIZE>>> eidAddrMap;
+    std::string topoFilePath{};
+    uint32_t deviceId{};
+    uint32_t localId{};
+    uint32_t totalEidCount{};
+
+    std::vector<std::shared_ptr<LevelInfo>> levels{};
+    std::map<EidIndex, std::shared_ptr<RankAddr>> eidIndexToRankAddr{};
+    std::map<EidPort, std::shared_ptr<RankAddr>> portsToRankAddr{};
 };
 
-struct TopoEdge {
-    uint32_t local_a{0};
-    std::vector<std::string> local_a_ports;
-    uint32_t local_b{0};
-    std::vector<std::string> local_b_ports;
+struct MeshTopoEdge {
+    uint32_t localA{};
+    uint32_t localB{};
+    std::vector<EidPort> localAPorts{};
+    std::vector<EidPort> localBPorts{};
+};
+
+struct ClosTopoEdge {
+    uint32_t netLayer{};
+    uint32_t topoInstanceId{};
+
+    uint32_t localA{};
+    std::vector<EidPort> ports{};
 };
 
 struct TopoInfo {
-    std::vector<TopoEdge> edge_list;
+    std::vector<MeshTopoEdge> meshTopoEdges{};
+    std::vector<ClosTopoEdge> closTopoEdges{};
+};
+
+// Per-rank-addr view exchanged across ranks during PrepareOpenDevice. One SyncEndpoint
+// is emitted for every rank_addr on every level (including netLayer 0). Two ranks are
+// peers on a given plane when their (netLayer, netInstanceId, planeId) all match; the
+// peer's eidIndex/ports then identify the remote route. eidData is intentionally NOT
+// carried: the local eid raw is fetched from the local rootInfo by eidIndex.
+struct SyncEndpoint {
+    uint32_t netLayer{};
+    std::string netInstanceId{};
+    std::string planeId{};
+    std::vector<EidPort> ports{}; // used to reverse-map a peer port to its eidIndex
+    uint32_t eidIndex{};
+
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(SyncEndpoint, netLayer, netInstanceId, planeId, ports, eidIndex)
+};
+
+class EidConverter {
+public:
+    static bool Convert(RankAddrType addrType, const nlohmann::json& addr, EidData& raw);
+
+private:
+    static bool FromPlainEid(RankAddrType addrType, const nlohmann::json& addr, EidData& raw);
+    static bool FromIpv4(RankAddrType addrType, const nlohmann::json& addr, EidData& raw);
+    static bool FromIpv6(RankAddrType addrType, const nlohmann::json& addr, EidData& raw);
 };
 
 class TopoReader {
@@ -66,7 +118,7 @@ public:
     static bool ParseTopoInfo(const std::string& path, TopoInfo& out);
     static bool GetLocalEidRouteForPeer(
         const RootInfo& root, const TopoInfo& topo, uint32_t myLocalId, uint32_t peerLocalId, uint32_t& localEidIndex,
-        std::array<uint8_t, URMA_EID_RAW_SIZE>& localEidRaw);
+        EidData& localEidRaw);
     static bool GetLocalId(const RootInfo& root, uint32_t deviceId, uint32_t& localId);
 
     static bool GetEidCount(const RootInfo& root, uint32_t& count);
@@ -76,13 +128,38 @@ public:
 private:
     static bool LoadRootInfoJson(uint32_t phyId, nlohmann::json& out);
     static bool ParseRootInfoJson(const nlohmann::json& rootInfoJson, uint32_t phyId, RootInfo& out);
-    static bool ParseRankAddrRaw(
+    static bool ParseLevelInfo(const nlohmann::json& levelJson, LevelInfo& out);
+    static bool ParseRankAddr(
         const nlohmann::json& rankAddrJson, uint32_t localId, uint32_t eidIndex,
-        std::array<uint8_t, URMA_EID_RAW_SIZE>& raw);
-    static bool ParseEidRaw(const nlohmann::json& jsonValue, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw);
-    static bool ParseIpv4EidRaw(const std::string& addr, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw);
-    static bool ParseIpv6EidRaw(const std::string& addr, std::array<uint8_t, URMA_EID_RAW_SIZE>& raw);
+        const std::shared_ptr<LevelInfo>& levelInfo, RankAddr& out);
     static bool ParseUint(const nlohmann::json& jsonValue, uint32_t& value);
+};
+
+class TopoQuerier {
+public:
+    explicit TopoQuerier(
+        const RootInfo& r, const TopoInfo& t, uint32_t myRank, const std::vector<uint32_t>& rankToLocalId,
+        const std::vector<std::vector<SyncEndpoint>>& rankIdxToSyncEndpoint)
+        : rootInfo_(r),
+          topoInfo_(t),
+          myRank_(myRank),
+          rankToLocalId_(rankToLocalId),
+          rankIdxToSyncEndpoint_(rankIdxToSyncEndpoint)
+    {}
+
+    bool GetEidRouteMesh1D(
+        uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
+    bool GetEidRouteClos(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
+
+    bool GetEidRoute(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
+
+private:
+    const RootInfo& rootInfo_;
+    const TopoInfo& topoInfo_;
+    uint32_t myRank_;
+
+    const std::vector<uint32_t>& rankToLocalId_;
+    const std::vector<std::vector<SyncEndpoint>>& rankIdxToSyncEndpoint_;
 };
 
 } // namespace transport

@@ -10,22 +10,54 @@
 # -----------------------------------------------------------------------------------------------------------
 
 # Default test type: 0 for all-gather, 1 for put signal
-test_type=${1:-0}
+test_type=0
+# Global number of PEs across all machines (single-node default: 8)
+n_pes=8
+# Number of NPUs used on THIS machine
+g_npus=8
+# Bootstrap endpoint (IP:PORT). MUST be node0's IP, reachable by every node.
+ipport=127.0.0.1:8899
+# First global PE number used on THIS machine
+f_pe=0
+# Number of PEs (processes) to launch on THIS machine (defaults to n_pes)
+local_pes=
+# First NPU card number used on THIS machine
+f_npu=0
+
+# Positional arguments:
+#   run.sh <test_type> <n_pes> <g_npus> <ipport> <f_pe> <local_pes> <f_npu>
+test_type=${1:-${test_type}}
+n_pes=${2:-${n_pes}}
+g_npus=${3:-${g_npus}}
+ipport=${4:-${ipport}}
+f_pe=${5:-${f_pe}}
+local_pes=${6:-${local_pes}}
+f_npu=${7:-${f_npu}}
+
+# Default number of PEs on THIS machine to the global PE count
+local_pes=${local_pes:-${n_pes}}
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd ${script_dir}/../../ && pwd)"
 export PROJECT_ROOT=${project_root}
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:$LD_LIBRARY_PATH
 
-export SHMEM_UID_SESSION_ID=127.0.0.1:8899
+export SHMEM_UID_SESSION_ID=${ipport}
 cd ${PROJECT_ROOT}
 
-n_pes=8
-g_npus=8
 pids=()
+cleanup() {
+    echo -e "\n[Terminating] Caught Ctrl+C, killing background processes..."
+    if [ ${#pids[@]} -ne 0 ]; then
+        kill "${pids[@]}" 2>/dev/null
+    fi
+    exit 1
+}
+trap cleanup SIGINT SIGTERM
 
-for pe_id in $(seq 0 $((n_pes - 1))); do
-    ./build/bin/udma_demo ${n_pes} ${pe_id} tcp://127.0.0.1:8899 ${g_npus} 0 0  $test_type & # pe ${pe_id}
+for i in $(seq 0 $((local_pes - 1))); do
+    pe_id=$((f_pe + i))
+    ./build/bin/udma_demo ${n_pes} ${pe_id} tcp://${ipport} ${g_npus} ${f_pe} ${f_npu} $test_type & # pe ${pe_id}
     pid=$!
     pids+=("$pid")
 done

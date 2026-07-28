@@ -118,6 +118,12 @@ private:
         const std::vector<uint32_t>& channel_dst_pes, std::vector<SqContext>& sq_contexts_by_slot,
         std::vector<CqContext>& cq_contexts_by_slot, std::vector<RegedBufferEntity>& remote_buffers_by_slot,
         std::vector<bool>& slot_valid) const;
+    // Builds this rank's SyncEndpoint list (one entry per rank_addr across all levels,
+    // including netLayer 0) from rootInfo, then allgathers it across all ranks via a
+    // MessagePack blob so the TopoQuerier can resolve both the local and remote eidIndex
+    // (with Clos plane alignment) for every peer. Output index is rankId.
+    bool BuildSyncEndpoints(
+        const RootInfo& root_info, uint32_t rank_count, std::vector<std::vector<SyncEndpoint>>& out);
     Result PrepareUdmaInfoBuffers(std::vector<uint8_t>& eid_table_host);
     void InitHostUdmaInfo(
         uint32_t qp_num, std::vector<uint8_t>& udma_info_buffer, aclshmemi_aiv_udma_info_t*& copy_info);
