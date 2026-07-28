@@ -16,28 +16,24 @@
 #include "shmem.h"
 #include "../utils/utils.h"
 
-const char *ipport = "tcp://127.0.0.1:8998";
+const char* ipport = "tcp://127.0.0.1:8998";
 aclshmemx_uniqueid_t default_flag_uid;
 
 // 定义传输大小(传输COPY_SIZE个int32_t的数据)
 constexpr int32_t COPY_SIZE = 4096;
 
 __simt_vf__ __launch_bounds__(1024) inline void transfer_data(
-    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next,
-    uint32_t elem_size,
-    int32_t prev_pe, int32_t next_pe, int32_t mype
-)
+    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, uint32_t elem_size, int32_t prev_pe,
+    int32_t next_pe, int32_t mype)
 {
     __ubuf__ int32_t ub_buf[COPY_SIZE];
-    simt::aclshmem_int32_get_nbi(ub_buf, origin, elem_size, mype);
-    simt::aclshmem_int32_put_nbi(res_next, ub_buf, elem_size, next_pe);
-    simt::aclshmem_int32_get_nbi(ub_buf, origin, elem_size, prev_pe);
-    simt::aclshmem_int32_put_nbi(res_prev, ub_buf, elem_size, mype);
+    simt::aclshmemx_int32_get_nbi_warp(ub_buf, origin, elem_size, mype);
+    simt::aclshmemx_int32_put_nbi_warp(res_next, ub_buf, elem_size, next_pe);
+    simt::aclshmemx_int32_get_nbi_warp(ub_buf, origin, elem_size, prev_pe);
+    simt::aclshmemx_int32_put_nbi_warp(res_prev, ub_buf, elem_size, mype);
 }
 
-__global__ __vector__ void demo_call(
-    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next
-)
+__global__ __vector__ void demo_call(__gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next)
 {
     int32_t mype = aclshmem_my_pe();
     int32_t npes = aclshmem_n_pes();
@@ -45,7 +41,7 @@ __global__ __vector__ void demo_call(
     int32_t prev_pe = (mype - 1 + npes) % npes;
     int32_t next_pe = (mype + 1) % npes;
 
-    asc_vf_call<transfer_data>(dim3(1), origin, res_prev, res_next, COPY_SIZE, prev_pe, next_pe, mype);
+    asc_vf_call<transfer_data>(dim3(32), origin, res_prev, res_next, COPY_SIZE, prev_pe, next_pe, mype);
 }
 
 void run_demo_mem(void* stream, int32_t* origin, int32_t* res_prev, int32_t* res_next)
@@ -58,7 +54,9 @@ void run_demo_mem(void* stream, int32_t* origin, int32_t* res_prev, int32_t* res
  * @param my_pe 当前节点的 ID，用于提示
  * @param print_all 是否打印全部元素。若为 false 且长度超过 20，则只打印首尾
  */
-void print_buffers(int my_pe, int32_t* origin, int32_t* res_prev, int32_t* res_next, int32_t size, bool print_all = true) {
+void print_buffers(
+    int my_pe, int32_t* origin, int32_t* res_prev, int32_t* res_next, int32_t size, bool print_all = true)
+{
     auto print_array = [&](const char* name, int32_t* arr) {
         printf("[PE %d] %s: [", my_pe, name);
         if (size <= 20 || print_all) {
@@ -67,7 +65,8 @@ void print_buffers(int my_pe, int32_t* origin, int32_t* res_prev, int32_t* res_n
             }
         } else {
             // 长度较长时只打印首尾
-            for (int i = 0; i < 10; ++i) printf("%d, ", arr[i]);
+            for (int i = 0; i < 10; ++i)
+                printf("%d, ", arr[i]);
             printf("... , ");
             for (int i = size - 5; i < size; ++i) {
                 printf("%d%s", arr[i], (i == size - 1 ? "" : ", "));
@@ -95,9 +94,15 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
     // 1. 准备 Host 端的初始化和校验缓冲区
     size_t data_bytes = COPY_SIZE * sizeof(int32_t);
     int32_t *origin_host, *res_prev_host, *res_next_host;
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&origin_host), data_bytes), ERROR_LOG("malloc origin_host failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&res_prev_host), data_bytes), ERROR_LOG("malloc res_prev_host failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&res_next_host), data_bytes), ERROR_LOG("malloc res_next_host failed"), return -1);
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&origin_host), data_bytes), ERROR_LOG("malloc origin_host failed"),
+        return -1);
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&res_prev_host), data_bytes), ERROR_LOG("malloc res_prev_host failed"),
+        return -1);
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&res_next_host), data_bytes), ERROR_LOG("malloc res_next_host failed"),
+        return -1);
 
     // 初始化 origin: Range[my_pe, my_pe + COPY_SIZE)
     for (int i = 0; i < COPY_SIZE; ++i) {
@@ -110,7 +115,8 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     aclshmemx_init_attr_t attributes;
     test_set_attr(my_pe, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
-    ACL_CHECK_WITH_RET(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ERROR_LOG("aclshmemx_init failed"), return -1);
+    ACL_CHECK_WITH_RET(
+        aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ERROR_LOG("aclshmemx_init failed"), return -1);
 
     int32_t* origin_device = (int32_t*)aclshmemx_malloc(data_bytes);
     int32_t* res_prev_device = (int32_t*)aclshmemx_malloc(data_bytes);
@@ -119,19 +125,13 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
     // 将初始化数据拷贝到 Device 对称堆
     ACL_CHECK_WITH_RET(
         aclrtMemcpy(origin_device, data_bytes, origin_host, data_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-        ERROR_LOG("memcpy origin to device failed"),
-        return -1
-    );
+        ERROR_LOG("memcpy origin to device failed"), return -1);
     ACL_CHECK_WITH_RET(
         aclrtMemcpy(res_prev_device, data_bytes, res_prev_host, data_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-        ERROR_LOG("memcpy res_prev to device failed"),
-        return -1
-    );
+        ERROR_LOG("memcpy res_prev to device failed"), return -1);
     ACL_CHECK_WITH_RET(
         aclrtMemcpy(res_next_device, data_bytes, res_next_host, data_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-        ERROR_LOG("memcpy res_next to device failed"),
-        return -1
-    );
+        ERROR_LOG("memcpy res_next to device failed"), return -1);
 
     // 3. 执行同步与计算
     aclshmem_barrier_all();
@@ -142,14 +142,10 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
     // 4. 拷贝回 Host 进行校验
     ACL_CHECK_WITH_RET(
         aclrtMemcpy(res_prev_host, data_bytes, res_prev_device, data_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-        ERROR_LOG("memcpy res_prev back failed"),
-        return -1
-    );
+        ERROR_LOG("memcpy res_prev back failed"), return -1);
     ACL_CHECK_WITH_RET(
         aclrtMemcpy(res_next_host, data_bytes, res_next_device, data_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-        ERROR_LOG("memcpy res_next back failed"),
-        return -1
-    );
+        ERROR_LOG("memcpy res_next back failed"), return -1);
 
     sleep(my_pe + 1); // prevent multi-process interference(printing)
     print_buffers(my_pe, origin_host, res_prev_host, res_next_host, COPY_SIZE, false);
@@ -180,7 +176,6 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
         ret = -1;
     }
 
-
     aclshmemx_free(origin_device);
     aclshmemx_free(res_prev_device);
     aclshmemx_free(res_next_device);
@@ -196,7 +191,7 @@ int32_t test_aclshmem_rma_mem(int32_t my_pe, int32_t n_pes)
     return ret;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     if (argc < 3) {
         ERROR_LOG("Usage: %s <n_pes> <my_pe>", argv[0]);
