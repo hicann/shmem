@@ -40,6 +40,7 @@ constexpr int32_t INVALID_EID_INDEX = -1;
 
 bool UdmaTransportManager::tsdOpened_ = false;
 bool UdmaTransportManager::raInitialized_ = false;
+bool UdmaTransportManager::raSelfOwned_ = false;
 std::map<uint32_t, void*> UdmaTransportManager::storedCtxHandleMap_;
 int UdmaTransportManager::subPid_ = 0;
 
@@ -50,6 +51,7 @@ UdmaTransportManager::~UdmaTransportManager() noexcept
     CleanupResources();
     tsdOpened_ = false;
     raInitialized_ = false;
+    raSelfOwned_ = false;
     storedCtxHandleMap_.clear();
     subPid_ = 0;
 }
@@ -328,9 +330,8 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t deviceId, uint32_t rankCou
     auto ret = DlAclApi::AclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(userId_), &phyId);
     SHM_ASSERT_LOG_AND_RETURN(
         ret == 0 && phyId >= 0,
-        "AclrtGetPhyDevIdByUserDevId() return=" << ret << ", userId=" << userId_
-                                                   << ", logicDeviceId=" << deviceId << ", output phyId="
-                                               << phyId,
+        "AclrtGetPhyDevIdByUserDevId() return=" << ret << ", userId=" << userId_ << ", logicDeviceId=" << deviceId
+                                                << ", output phyId=" << phyId,
         false);
 
     if (!TopoReader::ParseRootInfo(phyId, rootInfo)) {
@@ -338,8 +339,9 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t deviceId, uint32_t rankCou
         return false;
     }
     phyId_ = static_cast<uint32_t>(phyId);
-    SHM_LOG_INFO("Resolved phy id from current device mapping, userId=" << userId_
-                         << ", logicDeviceId=" << deviceId << ", phyId=" << phyId_);
+    SHM_LOG_INFO(
+        "Resolved phy id from current device mapping, userId=" << userId_ << ", logicDeviceId=" << deviceId
+                                                               << ", phyId=" << phyId_);
     if (!TopoReader::ParseTopoInfo(rootInfo.topo_file_path, topoInfo)) {
         SHM_LOG_ERROR("Failed to parse the topology file at path " << rootInfo.topo_file_path);
         return false;
@@ -488,11 +490,13 @@ bool UdmaTransportManager::RaInit(uint32_t deviceId)
         // maybe hccl have already initialized ra, wait 3s then return true.
         std::this_thread::sleep_for(WAIT_TIME);
         raInitialized_ = true;
+        raSelfOwned_ = false;
         return true;
     }
 
     SHM_LOG_DEBUG("RaInit for device id: " << deviceId << " success.");
     raInitialized_ = true;
+    raSelfOwned_ = true;
     return true;
 }
 
@@ -693,23 +697,25 @@ void UdmaTransportManager::CleanupResources()
     SHM_LOG_INFO("RaCtxDeinit success.");
 
     if (raInitialized_) {
-        RaInitConfig deinitConfig{};
-        deinitConfig.phyId = phyId_;
-        deinitConfig.nicPosition = NETWORK_OFFLINE;
-        deinitConfig.hdcType = HDC_SERVICE_TYPE_RDMA_V2;
-        deinitConfig.enableHdcAsync = 1;
-        auto ret = shm::DlHccpV2Api::RaDeinit(&deinitConfig);
-        if (ret != 0) {
-            SHM_LOG_WARN("RaDeinit failed, ret = " << ret << ", phy id: " << phyId_);
+        if (raSelfOwned_) {
+            RaInitConfig deinitConfig{};
+            deinitConfig.phyId = phyId_;
+            deinitConfig.nicPosition = NETWORK_OFFLINE;
+            deinitConfig.hdcType = HDC_SERVICE_TYPE_RDMA_V2;
+            deinitConfig.enableHdcAsync = 1;
+            auto ret = shm::DlHccpV2Api::RaDeinit(&deinitConfig);
+            if (ret != 0) {
+                SHM_LOG_WARN("RaDeinit failed, ret = " << ret << ", phy id: " << phyId_);
+            }
+        } else {
+            SHM_LOG_INFO("Skip RaDeinit in shmem.");
         }
-        SHM_LOG_INFO("RaDeinit success.");
     }
 
     if (tsdOpened_ && subPid_ > 0) {
         auto ret = shm::DlHccpV2Api::TsdProcessClose(userId_, subPid_);
         if (ret != 0) {
-            SHM_LOG_WARN(
-                "TsdProcessClose failed, userId: " << userId_ << ", subPid: " << subPid_ << ", ret = " << ret);
+            SHM_LOG_WARN("TsdProcessClose failed, userId: " << userId_ << ", subPid: " << subPid_ << ", ret = " << ret);
         }
         SHM_LOG_INFO("TsdProcessClose success.");
     }

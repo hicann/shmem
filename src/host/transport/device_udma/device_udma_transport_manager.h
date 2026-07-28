@@ -77,9 +77,9 @@ private:
     uint32_t phyId_{0};
     uint32_t eidCount_{0};
     hybm_role_type role_{HYBM_ROLE_PEER};
-    std::map<uint32_t, void*> ctxHandleMap_;              // peerRankId -> ctxHandle
-    std::map<uint32_t, uint32_t> peerEidIndexMap_;        // peerRankId -> local eidIndex
-    std::map<uint32_t, uint32_t> peerRemoteEidIndexMap_;  // peerRankId -> remote eidIndex
+    std::map<uint32_t, void*> ctxHandleMap_;             // peerRankId -> ctxHandle
+    std::map<uint32_t, uint32_t> peerEidIndexMap_;       // peerRankId -> local eidIndex
+    std::map<uint32_t, uint32_t> peerRemoteEidIndexMap_; // peerRankId -> remote eidIndex
 #if defined(ACLSHMEM_RELAY_SUPPORT)
     // Full N x N routing table from allgather: allLocalRoutes_[rank][peer] = the local-port
     // EID-index that `rank` uses to reach `peer`. Used to compute target EIDs for relay paths
@@ -90,6 +90,7 @@ private:
     static std::map<uint32_t, void*> storedCtxHandleMap_; // eidIndex -> ctxHandle
     static bool tsdOpened_;
     static bool raInitialized_;
+    static bool raSelfOwned_;
     DeviceJettyManager* deviceJettyManager_{nullptr};
     RegMemResultInfo localMR_;
     std::map<uint32_t, RegMemResultInfo> localMrMap_;       // eidIndex -> local registered MR info
