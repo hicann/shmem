@@ -1,5 +1,11 @@
 # 样例介绍
 
+## 版本和平台支持说明
+
+- UDMA 原子加样例仅支持 Ascend950 平台（`__NPU_ARCH__ == 3510`），非 Ascend950 平台不支持运行该样例。
+- CANN 需提供 Ascend950 UDMA/HCOMM 资源接口，并安装与 Ascend950 匹配的 toolkit 和 ops 包，建议使用 CANN 9.1.0 及以上版本。低版本 CANN 如果缺少 `HcommEndpointCreate`、`HcommMemReg`、`HcommChannelCreate` 等 HCOMM UDMA API，构建阶段会关闭 `ACLSHMEM_UDMA_SUPPORT`，该样例无法运行。
+- 编译前需完成 CANN 环境配置，例如执行 `source /usr/local/Ascend/ascend-toolkit/set_env.sh`，并使用 `-soc_type Ascend950` 编译。
+
 使用方式:
 
 1. 在shmem/目录编译:

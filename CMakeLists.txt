@@ -288,7 +288,10 @@ int main() {
     if(HAS_ACLSHMEM_UDMA_HCOMM_API)
         message(STATUS "Required Hcomm UDMA APIs found, keeping ACLSHMEM_UDMA_SUPPORT enabled")
     else()
-        message(STATUS "Required Hcomm UDMA APIs not found, disabling ACLSHMEM_UDMA_SUPPORT")
+        message(STATUS
+            "Required Hcomm UDMA APIs not found, disabling ACLSHMEM_UDMA_SUPPORT. "
+            "Please confirm that Ascend950-matching toolkit and ops packages are installed, "
+            "and use CANN 9.1.0 or later.")
         set(ACLSHMEM_UDMA_SUPPORT OFF CACHE BOOL "ACLSHMEM_UDMA_SUPPORT" FORCE)
     endif()
 endif()
