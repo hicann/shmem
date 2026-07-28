@@ -15,12 +15,6 @@
 #include "kernel_operator.h"
 #include "host_device/shmem_common_types.h"
 
-#if defined(USE_SIMT)
-#include "simt_api/asc_simt.h"
-
-#include "device_simt/shmem_simt_common_types.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,7 +27,7 @@ constexpr uint32_t ACLSHMEM_NUM_CQE_PER_POLL_CQ = 100;
 /**
  * @addtogroup group_structs
  * @{
-*/
+ */
 /**
  * @struct non_contiguous_copy_param
  * @brief Non-Contiguous Datacopy Param.
@@ -43,7 +37,7 @@ constexpr uint32_t ACLSHMEM_NUM_CQE_PER_POLL_CQ = 100;
  * - uint32_t src_ld: Src data leading dimension. Interval between the head of the repeat and the
  *   head of the following repeat.
  * - uint32_t dst_ld: Dst data leading dimension.
-*/
+ */
 struct non_contiguous_copy_param {
     uint32_t repeat;
     uint32_t length;

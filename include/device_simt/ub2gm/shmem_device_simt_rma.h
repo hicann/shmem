@@ -14,7 +14,7 @@
 #define SHMEM_DEVICE_SIMT_UB2GM_RMA_H
 
 #include "device_simt/ub2gm/engine/shmem_device_simt_mte.h"
-#include "device/shmem_def.h"
+#include "device_simt/shmem_simt_common_types.h"
 
 namespace simt {
 
@@ -58,7 +58,8 @@ namespace simt {
  * @brief  Automatically generates aclshmem put functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark __simt_callee__ inline void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_NAME_put(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, size_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  *      Synchronous interface. Copy a contiguous data on local ub to symmetric address on the specified PE.
@@ -69,10 +70,13 @@ namespace simt {
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_UB(NAME, TYPE)                                                                             \
-    __simt_callee__ inline void aclshmem_##NAME##_put(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_block(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_UB(NAME, TYPE)                             \
+    __simt_callee__ inline void aclshmem_##NAME##_put(                       \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_block(                \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_warp(                 \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB);
 
@@ -84,7 +88,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB);
  * @brief  Automatically generates aclshmem put functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  *
- * \remark __simt_callee__ inline void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_ubuf\_\_ void *src, size_t nelems, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_putBITS(\_\_gm\_\_ void *dst, \_\_ubuf\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy a contiguous data on local ub to symmetric address on the specified PE.
@@ -95,10 +100,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB);
  * - **nelems**      - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_UB(BITS)                                                                                     \
-    __simt_callee__ inline void aclshmem_put##BITS(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_put##BITS##_block(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_put##BITS##_warp(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe)
+#define ACLSHMEM_PUT_SIZE_MEM_UB(BITS)                                                                               \
+    __simt_callee__ inline void aclshmem_put##BITS(__gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS##_block(                                                         \
+        __gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe);                                            \
+    __simt_callee__ inline void aclshmemx_put##BITS##_warp(                                                          \
+        __gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_PUT_SIZE_MEM_UB(8);
 ACLSHMEM_PUT_SIZE_MEM_UB(16);
@@ -118,9 +125,9 @@ ACLSHMEM_PUT_SIZE_MEM_UB(128);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_putmem(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_putmem(__gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_block(__gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
@@ -128,7 +135,8 @@ __simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __ubuf__ voi
  * @brief  Automatically generates aclshmem get functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark __simt_callee__ inline void aclshmem_NAME_get(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_NAME_get(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size,
+ * int32_t pe)
  *
  * @par Function Description
  * Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local ub.
@@ -139,10 +147,13 @@ __simt_callee__ inline void aclshmemx_putmem_warp(__gm__ void *dst, __ubuf__ voi
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_UB(NAME, TYPE)                                                                             \
-    __simt_callee__ inline void aclshmem_##NAME##_get(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_block(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_UB(NAME, TYPE)                             \
+    __simt_callee__ inline void aclshmem_##NAME##_get(                       \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_block(                \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_warp(                 \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB);
 
@@ -154,7 +165,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB);
  * @brief  Automatically generates aclshmem get functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  *
- * \remark __simt_callee__ inline void aclshmem_getBITS(\_\_ubuf\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_getBITS(\_\_ubuf\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local ub.
@@ -165,10 +177,12 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB);
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_SIZE_MEM_UB(BITS)                                                                                     \
-    __simt_callee__ inline void aclshmem_get##BITS(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_get##BITS##_block(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_get##BITS##_warp(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM_UB(BITS)                                                                               \
+    __simt_callee__ inline void aclshmem_get##BITS(__ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS##_block(                                                         \
+        __ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe);                                            \
+    __simt_callee__ inline void aclshmemx_get##BITS##_warp(                                                          \
+        __ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_GET_SIZE_MEM_UB(8);
 ACLSHMEM_GET_SIZE_MEM_UB(16);
@@ -189,9 +203,9 @@ ACLSHMEM_GET_SIZE_MEM_UB(128);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_getmem(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_block(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_warp(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_getmem(__ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_block(__ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_warp(__ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
@@ -199,7 +213,8 @@ __simt_callee__ inline void aclshmemx_getmem_warp(__ubuf__ void *dst, __gm__ voi
  * @brief  Automatically generates aclshmem put nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark __simt_callee__ inline void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_NAME_put_nbi(\_\_gm\_\_ TYPE *dst, \_\_ubuf\_\_ TYPE *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  *      Asynchronous interface. Copy a contiguous data on local ub to symmetric address on the specified PE.
@@ -210,10 +225,13 @@ __simt_callee__ inline void aclshmemx_getmem_warp(__ubuf__ void *dst, __gm__ voi
  * - **elem_size**   - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI(NAME, TYPE)                                                                             \
-    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(__gm__ TYPE *dst, __ubuf__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI(NAME, TYPE)                         \
+    __simt_callee__ inline void aclshmem_##NAME##_put_nbi(                   \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_block(            \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_put_nbi_warp(             \
+        __gm__ TYPE* dst, __ubuf__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI);
 
@@ -225,7 +243,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI);
  * @brief  Automatically generates aclshmem put nbi functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  *
- * \remark __simt_callee__ inline void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_ubuf\_\_ void *src, size_t nelems, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_putBITS_nbi(\_\_gm\_\_ void *dst, \_\_ubuf\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy a contiguous data on local ub to symmetric address on the specified PE.
@@ -236,10 +255,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_UB_NBI);
  * - **nelems**      - [in] Number of elements in the destination and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_PUT_SIZE_MEM_UB_NBI(BITS)                                                                                     \
-    __simt_callee__ inline void aclshmem_put##BITS##_nbi(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_block(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_warp(__gm__ void *dst, __ubuf__ void *src, size_t nelems, int32_t pe)
+#define ACLSHMEM_PUT_SIZE_MEM_UB_NBI(BITS)                                \
+    __simt_callee__ inline void aclshmem_put##BITS##_nbi(                 \
+        __gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_block(          \
+        __gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_put##BITS##_nbi_warp(           \
+        __gm__ void* dst, __ubuf__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_PUT_SIZE_MEM_UB_NBI(8);
 ACLSHMEM_PUT_SIZE_MEM_UB_NBI(16);
@@ -259,9 +281,11 @@ ACLSHMEM_PUT_SIZE_MEM_UB_NBI(128);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_nbi_block(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __ubuf__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_putmem_nbi(__gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_nbi_block(
+    __gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_putmem_nbi_warp(
+    __gm__ void* dst, __ubuf__ void* src, size_t elem_size, int32_t pe);
 
 // ========================================================
 
@@ -269,7 +293,8 @@ __simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __ubuf__
  * @brief  Automatically generates aclshmem get nbi functions for different data types (e.g., float, int8_t).
  *        The macro parameters: NAME is the function name suffix, TYPE is the operation data type.
  *
- * \remark __simt_callee__ inline void aclshmem_NAME_get_nbi(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t elem_size, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_NAME_get_nbi(\_\_ubuf\_\_ TYPE *dst, \_\_gm\_\_ TYPE *src, size_t
+ * elem_size, int32_t pe)
  *
  * @par Function Description
  * Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local ub.
@@ -280,10 +305,13 @@ __simt_callee__ inline void aclshmemx_putmem_nbi_warp(__gm__ void *dst, __ubuf__
  * - **elem_size**   - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_TYPENAME_MEM_UB_NBI(NAME, TYPE)                                                                             \
-    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(__ubuf__ TYPE *dst, __gm__ TYPE *src, size_t elem_size, int32_t pe)
+#define ACLSHMEM_GET_TYPENAME_MEM_UB_NBI(NAME, TYPE)                         \
+    __simt_callee__ inline void aclshmem_##NAME##_get_nbi(                   \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_block(            \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_##NAME##_get_nbi_warp(             \
+        __ubuf__ TYPE* dst, __gm__ TYPE* src, size_t elem_size, int32_t pe)
 
 ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_NBI);
 
@@ -295,7 +323,8 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_NBI);
  * @brief  Automatically generates aclshmem get nbi functions for different bits (e.g., 8, 16).
  *         The macro parameters: BITS is the bits.
  *
- * \remark __simt_callee__ inline void aclshmem_getBITS_nbi(\_\_ubuf\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems, int32_t pe)
+ * \remark __simt_callee__ inline void aclshmem_getBITS_nbi(\_\_ubuf\_\_ void *dst, \_\_gm\_\_ void *src, size_t nelems,
+ * int32_t pe)
  *
  * @par Function Description
  *    Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local ub.
@@ -306,10 +335,13 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_UB_NBI);
  * - **nelems**      - [in] Number of elements in the dest and source arrays.
  * - **pe**          - [in] PE number of the remote PE.
  */
-#define ACLSHMEM_GET_SIZE_MEM_UB_NBI(BITS)                                                                                     \
-    __simt_callee__ inline void aclshmem_get##BITS##_nbi(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe);        \
-    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_block(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe); \
-    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_warp(__ubuf__ void *dst, __gm__ void *src, size_t nelems, int32_t pe)
+#define ACLSHMEM_GET_SIZE_MEM_UB_NBI(BITS)                                \
+    __simt_callee__ inline void aclshmem_get##BITS##_nbi(                 \
+        __ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_block(          \
+        __ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe); \
+    __simt_callee__ inline void aclshmemx_get##BITS##_nbi_warp(           \
+        __ubuf__ void* dst, __gm__ void* src, size_t nelems, int32_t pe)
 
 ACLSHMEM_GET_SIZE_MEM_UB_NBI(8);
 ACLSHMEM_GET_SIZE_MEM_UB_NBI(16);
@@ -330,9 +362,11 @@ ACLSHMEM_GET_SIZE_MEM_UB_NBI(128);
  * @param elem_size         [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  */
-__simt_callee__ inline void aclshmem_getmem_nbi(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_nbi_block(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
-__simt_callee__ inline void aclshmemx_getmem_nbi_warp(__ubuf__ void *dst, __gm__ void *src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmem_getmem_nbi(__ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_nbi_block(
+    __ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
+__simt_callee__ inline void aclshmemx_getmem_nbi_warp(
+    __ubuf__ void* dst, __gm__ void* src, size_t elem_size, int32_t pe);
 
 #undef ACLSHMEM_TYPE_FUNC
 

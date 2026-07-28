@@ -10,13 +10,13 @@
 #ifndef SHMEMI_DEVICE_SIMT_COMMON_H
 #define SHMEMI_DEVICE_SIMT_COMMON_H
 
+#include "device_simt/shmem_simt_common_types.h"
 #include "shmemi_def.h"
 #include "shmemi_device_simt_common.hpp"
 
-namespace simt
-{
+namespace simt {
 
-__simt_callee__ inline __gm__ aclshmem_device_host_state_simt_t *aclshmemi_get_state();
+__simt_callee__ inline __gm__ aclshmem_device_host_state_simt_t* aclshmemi_get_state();
 
 __simt_callee__ inline int aclshmemi_get_my_pe();
 
@@ -24,11 +24,11 @@ __simt_callee__ inline int aclshmemi_get_total_pe();
 
 __simt_callee__ inline uint64_t aclshmemi_get_heap_size();
 
-template<typename T>
-__simt_callee__ inline void aclshmemi_store(__gm__ T *addr, T val);
+template <typename T>
+__simt_callee__ inline void aclshmemi_store(__gm__ T* addr, T val);
 
-template<typename T>
-__simt_callee__ inline T aclshmemi_load(__gm__ T *cache);
+template <typename T>
+__simt_callee__ inline T aclshmemi_load(__gm__ T* cache);
 
 } // namespace simt
 
