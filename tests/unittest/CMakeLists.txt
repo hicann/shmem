@@ -25,7 +25,7 @@ set_target_properties(aclshmem_unittest PROPERTIES
 )
 
 if(IS_NEW_VERSION)
-    set(UT_LIBRARIES 
+    set(UT_LIBRARIES
         ascendc_runtime
         mmpa
         ascend_dump
@@ -36,10 +36,6 @@ if(IS_NEW_VERSION)
     )
 else()
     set(UT_LIBRARIES "")
-endif()
-
-if(SOC_TYPE STREQUAL "Ascend950")
-    list(APPEND UT_LIBRARIES hcomm)
 endif()
 
 target_link_libraries(aclshmem_unittest PRIVATE ${UT_LIBRARIES} aclshmem_unittest_device gtest gmock gcov aclshmem_unittest_include shmem_utils)

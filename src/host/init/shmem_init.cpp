@@ -499,6 +499,42 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     });
     ACLSHMEM_CHECK_RET(aclshmemx_instance_ctx_set_impl(id));
 
+    bool init_succeeded = false;
+    bool bootstrap_initialized = false;
+    bool backend_counted = false;
+    bool entity_bound = false;
+    bool device_state_initialized = false;
+    bool heap_reserved = false;
+    auto init_abort_guard = shm::utils::make_scope_guard(static_cast<void*>(nullptr), [&](void*) {
+        if (init_succeeded) {
+            return;
+        }
+
+        SHM_LOG_WARN("ACL SHMEM initialization failed; releasing partial resources without synchronization.");
+        memory_manager_destroy();
+        if (init_manager != nullptr && entity_bound) {
+            if (heap_reserved) {
+                (void)init_manager->remove_heap();
+            }
+            (void)init_manager->release_heap();
+            if (device_state_initialized) {
+                (void)init_manager->finalize_device_state();
+            }
+            (void)init_manager->release_aclshmem_entity(id);
+        }
+        if (bootstrap_initialized) {
+            aclshmemi_bootstrap_finalize();
+        }
+        if (backend_counted) {
+            --g_init_manager_count;
+            if (g_init_manager_count == 0) {
+                delete init_manager;
+                init_manager = nullptr;
+            }
+        }
+        g_state.is_aclshmem_initialized = false;
+    });
+
     // config init
     ACLSHMEM_CHECK_RET(
         aclshmemx_init_status() != ACLSHMEM_STATUS_NOT_INITIALIZED,
@@ -511,10 +547,12 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
 
     // init bootstrap
     ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_init(bootstrap_flags, attributes));
+    bootstrap_initialized = true;
     ACLSHMEM_CHECK_RET(aclshmemi_state_init_attr(attributes));
 
     // init backend for memory manager
     g_init_manager_count++;
+    backend_counted = true;
     if (init_manager == nullptr) {
         init_manager = new aclshmemi_init_backend();
     } else {
@@ -523,8 +561,11 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
 
     // aclshmem_entity init
     ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle));
+    entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
+    device_state_initialized = true;
     ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
+    heap_reserved = true;
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
 
     // shmem submodules init
@@ -544,6 +585,8 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
+    init_succeeded = true;
+    init_abort_guard.release();
     ctx_guard.release();
     return ACLSHMEM_SUCCESS;
 }

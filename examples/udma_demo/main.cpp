@@ -41,18 +41,45 @@ int init_acl_shmem(
     int status = 0;
     device_id = pe_id % g_npus + f_npu;
 
-    status |= aclInit(nullptr);
-    status |= aclrtSetDevice(device_id);
-    status |= aclrtCreateStream(&stream);
+    status = aclInit(nullptr);
+    if (status != ACL_SUCCESS) {
+        return status;
+    }
+    status = aclrtSetDevice(device_id);
+    if (status != ACL_SUCCESS) {
+        (void)aclFinalize();
+        return status;
+    }
+    status = aclrtCreateStream(&stream);
+    if (status != ACL_SUCCESS) {
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(pe_id, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_UDMA;
-    status |= aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    if (status != ACLSHMEM_SUCCESS) {
+        (void)aclrtDestroyStream(stream);
+        stream = nullptr;
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
 
     ptr = static_cast<uint8_t*>(aclshmem_malloc(1024));
-    return status;
+    if (ptr == nullptr) {
+        (void)aclshmem_finalize();
+        (void)aclrtDestroyStream(stream);
+        stream = nullptr;
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return ACLSHMEM_INNER_ERROR;
+    }
+    return ACLSHMEM_SUCCESS;
 }
 
 // Common data initialization function

@@ -48,7 +48,7 @@ list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/log")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/under_api")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/utils/mstx")
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo/rootinfo")
-if(NOT ACLSHMEM_UDMA_SUPPORT)
+if(NOT SOC_TYPE STREQUAL "Ascend950")
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/device_udma")
 endif()
 if(NOT SOC_TYPE STREQUAL "Ascend950")
@@ -112,7 +112,7 @@ target_include_directories(shmem_utils
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/host/utils
 )
-if(ACLSHMEM_UDMA_SUPPORT)
+if(SOC_TYPE STREQUAL "Ascend950")
     target_include_directories(shmem_utils PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/json/single_include)
 endif()
 install(TARGETS shmem_utils
@@ -121,11 +121,7 @@ install(TARGETS shmem_utils
 
 add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
 target_link_options(shmem PRIVATE --cce-fatobj-link)
-if(SOC_TYPE STREQUAL "Ascend950")
-    target_link_libraries(shmem PRIVATE shmem_utils hcomm)
-else()
-    target_link_libraries(shmem PRIVATE shmem_utils)
-endif()
+target_link_libraries(shmem PRIVATE shmem_utils)
 
 # MPI
 if(ACLSHMEM_MPI_SUPPORT)

@@ -11,6 +11,7 @@
 #include "dl_acl_api.h"
 #include "dl_hal_api.h"
 #include "dl_hccp_api.h"
+#include "dl_hcomm_api.h"
 #include "dl_rt_api.h"
 #include "dl_opapi_api.h"
 #include "utils/shmemi_logger.h"
@@ -35,6 +36,7 @@ Result DlApi::LoadLibrary(const std::string& libDirPath)
 
 void DlApi::CleanupLibrary()
 {
+    DlHcommApi::CleanupLibrary();
     DlHccpApi::CleanupLibrary();
     DlAclApi::CleanupLibrary();
     DlHalApi::CleanupLibrary();
@@ -44,7 +46,7 @@ Result DlApi::LoadExtendLibrary(DlApiExtendLibraryType libraryType)
 {
     if (libraryType == DL_EXT_LIB_DEVICE_RDMA) {
 #if defined(ACLSHMEM_RDMA_V2_SUPPORT)
-        return ACLSHMEM_SUCCESS;
+        return DlHcommApi::LoadLibrary();
 #else
         return DlHccpApi::LoadLibrary();
 #endif
@@ -59,6 +61,9 @@ Result DlApi::LoadExtendLibrary(DlApiExtendLibraryType libraryType)
             DlRtApi::CleanupLibrary();
             return result;
         }
+    }
+    if (libraryType == DL_EXT_LIB_DEVICE_UDMA) {
+        return DlHcommApi::LoadLibrary();
     }
     return ACLSHMEM_SUCCESS;
 }

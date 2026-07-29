@@ -16,7 +16,7 @@
 #include "device_rdma_transport_manager_v2.h"
 #endif
 #include "device_sdma_transport_manager.h"
-#if defined(ACLSHMEM_UDMA_SUPPORT)
+#if defined(ACLSHMEM_SOC_950)
 #include "device_udma_transport_manager.h"
 #endif
 
@@ -34,7 +34,7 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
 #endif
         case TT_SDMA:
             return std::make_shared<device::SdmaTransportManager>();
-#if defined(ACLSHMEM_UDMA_SUPPORT)
+#if defined(ACLSHMEM_SOC_950)
         case TT_UDMA:
             return std::make_shared<device::UdmaTransportManager>();
 #endif
@@ -44,13 +44,13 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
     }
 }
 
-const void *TransportManager::GetQpInfo() const
+const void* TransportManager::GetQpInfo() const
 {
     SHM_LOG_DEBUG("Not Implement GetQpInfo()");
     return nullptr;
 }
 
-Result TransportManager::ConnectWithOptions(const HybmTransPrepareOptions &options)
+Result TransportManager::ConnectWithOptions(const HybmTransPrepareOptions& options)
 {
     SHM_LOG_DEBUG("ConnectWithOptions now connected=" << connected_);
     if (!connected_) {
@@ -73,5 +73,5 @@ Result TransportManager::ConnectWithOptions(const HybmTransPrepareOptions &optio
     return UpdateRankOptions(options);
 }
 
-}  // namespace transport
-}  // namespace shm
+} // namespace transport
+} // namespace shm

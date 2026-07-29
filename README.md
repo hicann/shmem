@@ -21,7 +21,40 @@
 
 ## ⚡️快速入门
 
-若您希望快速体验项目，请访问[快速入门](docs/quickstart.md)获取简易教程，包括环境搭建、编译执行、本地验证等操作。
+### 安装
+
+SHMEM 提供三种安装方式，按需选择：
+
+**方式一：pip 安装**
+
+```bash
+pip install cann-shmem -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+shmem-config --version  # 验证安装，输出版本号即成功
+```
+
+> 注意：
+> - 运行环境 glibc 版本需 ≥ 2.34，否则可能因缺少符号导致 `libshmem.so` 加载失败。可通过 `ldd --version` 查看本地 glibc 版本。
+
+**方式二：二进制包安装**
+
+```bash
+# 获取软件包 SHMEM_{version}_linux-{arch}.run（见 release 页面或本地构建）
+chmod +x 软件包名.run
+./软件包名.run --install
+source /usr/local/Ascend/shmem/latest/set_env.sh
+```
+
+**方式三：源码编译**
+
+```bash
+git clone https://gitcode.com/cann/shmem.git
+cd shmem
+bash scripts/build.sh             # A2/A3 平台
+# bash scripts/build.sh -soc_type Ascend950  # 950 平台
+source install/set_env.sh
+```
+
+> 完整安装步骤（含 CANN 环境准备、依赖说明、Docker 容器等）详见 [快速入门文档](docs/quickstart.md)。
 
 若您需要了解文档和接口中出现的缩写与名词，请参考[术语表](docs/glossary.md)。
 

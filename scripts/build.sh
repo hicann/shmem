@@ -102,22 +102,17 @@ function print_usage()
 function fn_build()
 {
     mkdir -p build && cd build
-    local enable_udma_support=OFF
-    if [ "$SOC_TYPE" = "Ascend950" ]; then
-        enable_udma_support=ON
-    fi
-
     # Relay depends on UDMA (Ascend950 only). When UDMA is off, drop the relay flag so this build
     # does not hit the top-level CMake FATAL_ERROR (relates to the -full path building examples /
     # unittests on non-950 SOCs while COMPILE_OPTIONS still carries -DACLSHMEM_RELAY_SUPPORT=ON).
     local build_compile_options="${COMPILE_OPTIONS}"
-    if [ "$enable_udma_support" != "ON" ] && \
+    if [ "$SOC_TYPE" != "Ascend950" ] && \
        [ -n "$(echo "$build_compile_options" | grep -o '\-DACLSHMEM_RELAY_SUPPORT=ON')" ]; then
         echo "[WARN] -enable_relay ignored for SOC_TYPE='${SOC_TYPE}': relay requires UDMA (Ascend950 only)."
         build_compile_options=$(echo "${build_compile_options}" | sed 's/-DACLSHMEM_RELAY_SUPPORT=ON//g')
     fi
 
-    cmake $build_compile_options -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE -DACLSHMEM_UDMA_SUPPORT=$enable_udma_support ..
+    cmake $build_compile_options -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE ..
     make install -j$(nproc)
     cd -
 }
@@ -158,6 +153,11 @@ function _write_version_info() {
     local build_type_display="${BUILD_TYPE:-RELEASE}"
     local soc_display="${SOC_TYPE:-Ascend910B}"
     local rdma_display="${RDMA_BACKEND:-NONE}"
+    # Wheel with dual RDMA backends: auto-detect from filesystem if both 950 variants exist
+    if [ -d "${PROJECT_ROOT}/install/shmem/backends/950_hns1825" ] && \
+       [ -d "${PROJECT_ROOT}/install/shmem/backends/950_xscale" ]; then
+        rdma_display="XSCALE, HNS_1825"
+    fi
     local cann_version=$(_get_cann_build_version)
 
     local has_root_info="否"
@@ -168,7 +168,7 @@ function _write_version_info() {
     fi
 
     local udma_support="否"
-    if grep -q 'ACLSHMEM_UDMA_SUPPORT:\w*=ON' "${PROJECT_ROOT}/build/CMakeCache.txt" 2>/dev/null; then
+    if grep -q 'SOC_TYPE:.*=Ascend950' "${PROJECT_ROOT}/build/CMakeCache.txt" 2>/dev/null; then
         udma_support="是"
     fi
 
@@ -196,10 +196,6 @@ function fn_whl_build()
     # (e.g. -DACLSHMEM_RELAY_SUPPORT/-DACLSHMEM_RDMA_SUPPORT/-DACLSHMEM_SIMT_SUPPORT), producing a
     # wheel whose C++ build differs from the native fn_build output.
     export COMPILE_OPTIONS=${COMPILE_OPTIONS}
-    if [ "$SOC_TYPE" = "Ascend950" ]; then
-        export ACLSHMEM_UDMA_SUPPORT=ON
-    fi
-
     cd "${PROJECT_ROOT}/src/python"
     rm -rf shmem.egg-info ${PROJECT_ROOT}/dist
     cd "${PROJECT_ROOT}"
@@ -222,7 +218,7 @@ function fn_whl_build()
     # Build SOC 910 (default / Ascend910)
     # ============================================================
     # Relay is a UDMA-only (Ascend950) feature. The 910 backend is built with UDMA support OFF,
-    # and the top-level CMake FATAL_ERRORs when ACLSHMEM_RELAY_SUPPORT=ON && ACLSHMEM_UDMA_SUPPORT=OFF.
+    # and the top-level CMake FATAL_ERRORs when relay is requested for a non-950 backend.
     # Strip the relay flag from the 910 backend options; the 950 backend below keeps it.
     COMPILE_OPTIONS_910=${COMPILE_OPTIONS}
     if [ -n "$(echo "$COMPILE_OPTIONS_910" | grep -o '\-DACLSHMEM_RELAY_SUPPORT=ON')" ]; then
@@ -230,7 +226,12 @@ function fn_whl_build()
         COMPILE_OPTIONS_910=$(echo "${COMPILE_OPTIONS_910}" | sed 's/-DACLSHMEM_RELAY_SUPPORT=ON//g')
     fi
 
-    echo "===== [1/3] Building backend: 910 ====="
+    # Determine step total early for correct [1/N] label
+    local _step_total=4
+    if [ -z "$(echo "$COMPILE_OPTIONS" | grep -o '\-DACLSHMEM_RDMA_SUPPORT=ON')" ]; then
+        _step_total=3
+    fi
+    echo "===== [1/${_step_total}] Building backend: 910 ====="
     # Ascend910B backend covers Ascend910 A2/A3 series.
     # 910B 不依赖特定 RDMA Backend，剔除 -DACLSHMEM_RDMA_BACKEND 但保留 RDMA_SUPPORT
     local compile_opts_910=$COMPILE_OPTIONS
@@ -244,7 +245,6 @@ function fn_whl_build()
         -DUSE_MSSANITIZER=${USE_MSSANITIZER} \
         -DSOC_TYPE="Ascend910B" \
         -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
-        -DACLSHMEM_UDMA_SUPPORT=OFF \
         -DBUILD_PYTHON=ON \
         .. || { echo "[ERROR] cmake failed for backend 910"; exit 1; }
     make install -j$(nproc) || { echo "[ERROR] make install failed for backend 910"; exit 1; }
@@ -254,37 +254,83 @@ function fn_whl_build()
     cd -
     echo "===== Backend 910 built ====="
 
-    # ============================================================
-    # Build SOC 950 (Ascend950)
-    # ============================================================
-    echo "===== [2/3] Building backend: 950 ====="
-    [ -d build ] && rm -rf build
-
-    # nlohmann_json is required for Ascend950 UDMA
+    # nlohmann_json is required for Ascend950 UDMA（两轮 950 构建共用）
     fn_build_nlohmann_json || { echo "[ERROR] Failed to build nlohmann_json dependency for backend 950"; exit 1; }
+
+    # 判断是否需要构建双 RDMA 后端（仅当 RDMA 启用时）
+    local rdma_enabled=false
+    if [ -n "$(echo "$COMPILE_OPTIONS" | grep -o '\-DACLSHMEM_RDMA_SUPPORT=ON')" ]; then
+        rdma_enabled=true
+    fi
+
+    # ============================================================
+    # Build SOC 950 - XSCALE backend（默认，backends/950/ + backends/950_xscale/）
+    # ============================================================
+    local step_950=2
+    local step_total=4
+    if [ "$rdma_enabled" != "true" ]; then
+        step_total=3
+    fi
+    echo "===== [${step_950}/${step_total}] Building backend: 950 (XSCALE) ====="
+    [ -d build ] && rm -rf build
 
     # _pyshmem.so is built only once in the 910 pass (BUILD_PYTHON=ON) and
     # reused for 950.  It is a thin SOC-agnostic pybind11 wrapper around the
     # uniform aclshmem_* C API surface.  At runtime, __init__.py preloads the
     # SOC-specific libshmem.so from backends/<soc>/, so the 910-compiled
     # _pyshmem.so resolves 950 symbols correctly on A5 hardware.
+    local compile_opts_950_xscale=${COMPILE_OPTIONS}
+    compile_opts_950_xscale=$(echo "$compile_opts_950_xscale" | sed 's/-DACLSHMEM_RDMA_BACKEND=\S*//g')
+    if [ "$rdma_enabled" = "true" ]; then
+        compile_opts_950_xscale="${compile_opts_950_xscale} -DACLSHMEM_RDMA_BACKEND=XSCALE"
+    fi
     mkdir -p build && cd build
-    cmake ${COMPILE_OPTIONS} \
+    cmake ${compile_opts_950_xscale} \
         -DCMAKE_INSTALL_PREFIX=../install \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DUSE_CXX11_ABI=${USE_CXX11_ABI} \
         -DUSE_MSSANITIZER=${USE_MSSANITIZER} \
         -DSOC_TYPE="Ascend950" \
         -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
-        -DACLSHMEM_UDMA_SUPPORT=ON \
         -DBUILD_PYTHON=OFF \
-        .. || { echo "[ERROR] cmake failed for backend 950"; exit 1; }
-    make install -j$(nproc) || { echo "[ERROR] make install failed for backend 950"; exit 1; }
+        .. || { echo "[ERROR] cmake failed for backend 950 (XSCALE)"; exit 1; }
+    make install -j$(nproc) || { echo "[ERROR] make install failed for backend 950 (XSCALE)"; exit 1; }
     # Copy shared libraries from install/shmem/lib/ to wheel backend directory
     mkdir -p ../install/shmem/backends/950
-    cp ../install/shmem/lib/*.so ../install/shmem/backends/950/ || { echo "[ERROR] Failed to copy 950 backend libraries"; exit 1; }
+    cp ../install/shmem/lib/*.so ../install/shmem/backends/950/ || { echo "[ERROR] Failed to copy 950 (XSCALE) backend libraries (default)"; exit 1; }
+    if [ "$rdma_enabled" = "true" ]; then
+        mkdir -p ../install/shmem/backends/950_xscale
+        cp ../install/shmem/lib/*.so ../install/shmem/backends/950_xscale/ || { echo "[ERROR] Failed to copy 950 (XSCALE) backend libraries (symmetry)"; exit 1; }
+    fi
     cd -
-    echo "===== Backend 950 built ====="
+    echo "===== Backend 950 (XSCALE) built ====="
+
+    # ============================================================
+    # Build SOC 950 - HNS_1825 backend（backends/950_hns1825/）
+    # ============================================================
+    if [ "$rdma_enabled" = "true" ]; then
+        echo "===== [3/${step_total}] Building backend: 950 (HNS_1825) ====="
+        [ -d build ] && rm -rf build
+
+        local compile_opts_950_hns=${COMPILE_OPTIONS}
+        compile_opts_950_hns=$(echo "$compile_opts_950_hns" | sed 's/-DACLSHMEM_RDMA_BACKEND=\S*//g')
+        compile_opts_950_hns="${compile_opts_950_hns} -DACLSHMEM_RDMA_BACKEND=HNS_1825"
+        mkdir -p build && cd build
+        cmake ${compile_opts_950_hns} \
+            -DCMAKE_INSTALL_PREFIX=../install \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DUSE_CXX11_ABI=${USE_CXX11_ABI} \
+            -DUSE_MSSANITIZER=${USE_MSSANITIZER} \
+            -DSOC_TYPE="Ascend950" \
+            -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
+            -DBUILD_PYTHON=OFF \
+            .. || { echo "[ERROR] cmake failed for backend 950 (HNS_1825)"; exit 1; }
+        make install -j$(nproc) || { echo "[ERROR] make install failed for backend 950 (HNS_1825)"; exit 1; }
+        mkdir -p ../install/shmem/backends/950_hns1825
+        cp ../install/shmem/lib/*.so ../install/shmem/backends/950_hns1825/ || { echo "[ERROR] Failed to copy 950 (HNS_1825) backend libraries"; exit 1; }
+        cd -
+        echo "===== Backend 950 (HNS_1825) built ====="
+    fi
 
     # Write unified version info after all backends are built
     _write_version_info "${PROJECT_ROOT}/src/python/shmem/version.info"
@@ -292,7 +338,8 @@ function fn_whl_build()
     # ============================================================
     # Package wheel (skip cmake in setup.py via _SHMEM_PREBUILT)
     # ============================================================
-    echo "===== [3/3] Packaging wheel ====="
+    local pkg_step_label="[${step_total}/${step_total}]"
+    echo "===== ${pkg_step_label} Packaging wheel ====="
 
     # Assert backends exist before packaging
     if [ ! -d "${PROJECT_ROOT}/install/shmem/backends/910" ]; then
@@ -302,6 +349,16 @@ function fn_whl_build()
     if [ ! -d "${PROJECT_ROOT}/install/shmem/backends/950" ]; then
         echo "[ERROR] Backend 950 directory not found: ${PROJECT_ROOT}/install/shmem/backends/950"
         exit 1
+    fi
+    if [ "$rdma_enabled" = "true" ]; then
+        if [ ! -d "${PROJECT_ROOT}/install/shmem/backends/950_xscale" ]; then
+            echo "[ERROR] Backend 950_xscale directory not found: ${PROJECT_ROOT}/install/shmem/backends/950_xscale"
+            exit 1
+        fi
+        if [ ! -d "${PROJECT_ROOT}/install/shmem/backends/950_hns1825" ]; then
+            echo "[ERROR] Backend 950_hns1825 directory not found: ${PROJECT_ROOT}/install/shmem/backends/950_hns1825"
+            exit 1
+        fi
     fi
 
     export _SHMEM_PREBUILT=1
@@ -590,7 +647,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate relay parameter dependencies: relay is built on top of UDMA, which is only enabled for
-# Ascend950 (see fn_build -DACLSHMEM_UDMA_SUPPORT). Fail early with a clear message instead of
+# Ascend950. Fail early with a clear message instead of
 # relying solely on the CMake FATAL_ERROR.
 # Exception: the wheel/package build (fn_whl_build) always builds both the 910B and 950 backends
 # internally and only enables relay on the 950 (UDMA) backend, so -enable_relay is allowed there
@@ -625,7 +682,10 @@ fi
 if [ "$SOC_TYPE" = "Ascend950" ] || [ "$PACKAGE" = "ON" ]; then
     if [ -n "$(echo "$COMPILE_OPTIONS" | grep -o '\-DACLSHMEM_RDMA_SUPPORT=ON')" ]; then
         if [ -z "$RDMA_BACKEND" ]; then
-            if [ "$SOC_TYPE" = "Ascend950" ]; then
+            # wheel 构建（-python_extension / -package / -full）会自动构建 XSCALE + HNS_1825 双后端
+            if [ "$PYEXPAND_TYPE" = "ON" ] || [ "$BUILD_ALL" = "ON" ]; then
+                echo "[INFO] -enable_rdma specified without -rdma_backend. Wheel will build both XSCALE and HNS_1825 backends."
+            elif [ "$SOC_TYPE" = "Ascend950" ]; then
                 echo "Error: -rdma_backend must be specified when SOC_TYPE is Ascend950 and RDMA is enabled."
                 print_usage
                 exit 1

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You can not use this file except in compliance with the License.
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
@@ -11,16 +11,17 @@
 #ifndef RDMA_DL_HCOMM_DEF_H
 #define RDMA_DL_HCOMM_DEF_H
 
-#include <hcomm/hcomm_res.h>
-
 #include <cstdint>
 #include <cstring>
 
+#include "securec.h"
+
+#include "hcomm_entity_compat.h"
 #include "dl_comm_def.h"
 
 namespace shm {
 
-typedef void *ChannelEntityHandle;
+typedef void* ChannelEntityHandle;
 
 enum ProtectionType {
     PROTECTION_TYPE_RESERVED = -1,
@@ -178,12 +179,12 @@ struct ChannelEntity {
     uint32_t remoteBufferNum;
     uint32_t sqNum;
     uint32_t cqNum;
-    RegedNotifyEntity *localNotifyAddr;
-    RegedNotifyEntity *remoteNotifyAddr;
-    RegedBufferEntity *localBufferAddr;
-    RegedBufferEntity *remoteBufferAddr;
-    SqContext *sqContextAddr;
-    CqContext *cqContextAddr;
+    RegedNotifyEntity* localNotifyAddr;
+    RegedNotifyEntity* remoteNotifyAddr;
+    RegedBufferEntity* localBufferAddr;
+    RegedBufferEntity* remoteBufferAddr;
+    SqContext* sqContextAddr;
+    CqContext* cqContextAddr;
     uint8_t reserve[160];
 };
 
@@ -198,8 +199,8 @@ struct SqContextRoceV1 {
     uint32_t qpn;
     uint32_t wqeSize;
     uint32_t depth;
-    int8_t   dbMode;
-    uint8_t  sl;
+    int8_t dbMode;
+    uint8_t sl;
 };
 
 struct CqContextRoceV1 {
@@ -210,21 +211,21 @@ struct CqContextRoceV1 {
     uint32_t cqn;
     uint32_t cqeSize;
     uint32_t cqDepth;
-    int8_t   dbMode;
+    int8_t dbMode;
 };
 
 // 检测 SqContext 是否为新版 V2 格式 (2026-07-07 及之后)
 // 通过 $ASCEND_HOME_PATH/share/info/hcomm/version.info 中的 timestamp 字段判断
-inline bool IsRoceSqV2Format(const SqContext &ctx)
+inline bool IsRoceSqV2Format(const SqContext& ctx)
 {
     if (ctx.type != SQ_CONTEXT_TYPE_ROCE) {
-        return true;  // 非 ROCE 类型无需区分
+        return true; // 非 ROCE 类型无需区分
     }
     return IsHcommV2();
 }
 
 // 检测 CqContext 是否为新版 V2 格式
-inline bool IsRoceCqV2Format(const CqContext &ctx)
+inline bool IsRoceCqV2Format(const CqContext& ctx)
 {
     if (ctx.type != CQ_CONTEXT_TYPE_ROCE) {
         return true;
@@ -233,7 +234,7 @@ inline bool IsRoceCqV2Format(const CqContext &ctx)
 }
 
 // 从 SqContext 的原始字节中提取旧版 V1 字段 (SqContext::raws 覆盖整个 union)
-inline SqContextRoceV1 ExtractSqContextRoceV1(const SqContext &ctx)
+inline SqContextRoceV1 ExtractSqContextRoceV1(const SqContext& ctx)
 {
     SqContextRoceV1 v1{};
     static_assert(sizeof(v1) <= sizeof(ctx.contextInfo.raws), "SqContextRoceV1 too large");
@@ -242,7 +243,7 @@ inline SqContextRoceV1 ExtractSqContextRoceV1(const SqContext &ctx)
 }
 
 // 从 CqContext 的原始字节中提取旧版 V1 字段
-inline CqContextRoceV1 ExtractCqContextRoceV1(const CqContext &ctx)
+inline CqContextRoceV1 ExtractCqContextRoceV1(const CqContext& ctx)
 {
     CqContextRoceV1 v1{};
     static_assert(sizeof(v1) <= sizeof(ctx.contextInfo.raws), "CqContextRoceV1 too large");

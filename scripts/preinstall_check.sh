@@ -681,6 +681,117 @@ _check_rdma_950() {
     log_info "请手动执行以下命令设置 RDMA QoS 环境变量："
     echo "  export HCCL_RDMA_TC=132"
     echo "  export HCCL_RDMA_SL=4"
+
+    # RDMA 后端 so 自动切换：检测到 1825 时切换到 HNS_1825 内核
+    # 检查返回值，cp 失败时更新 RDMA_SUPPORT 反映后端切换失败
+    _switch_950_rdma_backend || {
+        RDMA_SUPPORT="否（后端切换失败）"
+    }
+}
+
+_switch_950_rdma_backend() {
+    # 仅在指定包目录时执行（import shmem 时由 __init__.py 传入 --package）
+    if [ -z "${PKG_DIR:-}" ] || [ ! -d "$PKG_DIR" ]; then
+        return 0
+    fi
+
+    # 定位 backends 目录（兼容直接安装和 wheel 两种布局）
+    local backends_dir=""
+    for candidate in \
+        "$PKG_DIR/backends" \
+        "$PKG_DIR/shmem/backends"; do
+        if [ -d "$candidate" ]; then
+            backends_dir="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$backends_dir" ]; then
+        return 0
+    fi
+
+    local target_950="${backends_dir}/950"
+    local src_dir=""
+
+    # 根据 RDMA_NIC_TYPE（由 _check_rdma_950 设置）选择源目录
+    case "$RDMA_NIC_TYPE" in
+        "1825 网卡（HRN）")
+            src_dir="${backends_dir}/950_hns1825"
+            ;;
+        "云脉网卡（XSCALE）")
+            src_dir="${backends_dir}/950_xscale"
+            ;;
+        *)
+            # 未识别的 NIC 类型，保持默认（950 目录下已为 XSCALE）
+            return 0
+            ;;
+    esac
+
+    if [ ! -d "$src_dir" ]; then
+        log_warn "RDMA 后端目录不存在：$src_dir（wheel 可能未包含此后端）"
+        return 0
+    fi
+
+    if [ ! -d "$target_950" ]; then
+        log_warn "目标后端目录不存在：$target_950"
+        return 0
+    fi
+
+    # 检查源目录中是否有 .so 文件
+    local so_count
+    so_count=$(find "$src_dir" -maxdepth 1 -name "*.so" -type f 2>/dev/null | wc -l)
+    if [ "$so_count" -eq 0 ]; then
+        log_warn "RDMA 后端目录为空：$src_dir"
+        return 0
+    fi
+
+    log_info "检测到 ${RDMA_NIC_TYPE}，切换到对应 RDMA 内核后端"
+    cp "$src_dir"/*.so "$target_950/" || {
+        log_error "RDMA 后端 so 切换失败：cp $src_dir/*.so -> $target_950/"
+        return 1
+    }
+    log_info "RDMA 后端 so 切换完成：$(basename "$src_dir") -> 950/"
+}
+
+_detect_950_active_rdma_backend() {
+    # 通过对比 backends/950/libshmem.so 与已知变体的 md5，判断当前激活的 RDMA 后端
+    local backends_dir=""
+    for candidate in \
+        "$PKG_DIR/backends" \
+        "$PKG_DIR/shmem/backends"; do
+        if [ -d "$candidate" ]; then
+            backends_dir="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$backends_dir" ]; then
+        PKG_RDMA_BACKEND="未知（未找到 backends 目录）"
+        return 0
+    fi
+
+    local active_so="${backends_dir}/950/libshmem.so"
+    if [ ! -f "$active_so" ]; then
+        PKG_RDMA_BACKEND="未知（未找到 libshmem.so）"
+        return 0
+    fi
+
+    local md5_active
+    md5_active=$(md5sum "$active_so" 2>/dev/null | awk '{print $1}') || true
+
+    local md5_xscale
+    md5_xscale=$(md5sum "${backends_dir}/950_xscale/libshmem.so" 2>/dev/null | awk '{print $1}') || true
+
+    local md5_hns1825
+    md5_hns1825=$(md5sum "${backends_dir}/950_hns1825/libshmem.so" 2>/dev/null | awk '{print $1}') || true
+
+    if [ -n "$md5_active" ] && [ -n "$md5_hns1825" ] && [ "$md5_active" = "$md5_hns1825" ]; then
+        PKG_RDMA_BACKEND="HNS_1825"
+    elif [ -n "$md5_active" ] && [ -n "$md5_xscale" ] && [ "$md5_active" = "$md5_xscale" ]; then
+        PKG_RDMA_BACKEND="XSCALE"
+    else
+        PKG_RDMA_BACKEND="未知（md5 不匹配）"
+    fi
 }
 
 _check_rdma_generic() {
@@ -814,13 +925,11 @@ step7_check_package() {
         fi
     fi
 
-    # 包 RDMA 后端：910 有 RdmaTransportManager 则为默认，950 读编译信息
+    # 包 RDMA 后端：910 有 RdmaTransportManager 则为默认，950 通过对比实际 .so 判断
     if [ "$target_backend" = "910" ] && [ "$PKG_HAS_RDM_TRANSPORT" = "是" ]; then
         PKG_RDMA_BACKEND="默认"
     elif [ "$target_backend" = "950" ]; then
-        if [ "$PKG_RDMA_BACKEND" = "NONE" ] || [ "$PKG_RDMA_BACKEND" = "UNKNOWN" ] || [ -z "$PKG_RDMA_BACKEND" ]; then
-            PKG_RDMA_BACKEND="None"
-        fi
+        _detect_950_active_rdma_backend
     fi
     log_info "包 ${target_backend} RDMA 后端：${PKG_RDMA_BACKEND}"
 

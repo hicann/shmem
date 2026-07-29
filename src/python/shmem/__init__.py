@@ -172,6 +172,12 @@ def _run_pre_import_env_check():
     if _env_already_checked:
         return
 
+    # 通过 shmem-config --check 调用时跳过自动检测，由 cmd_check() 统一处理，
+    # 避免 import __init__.py 和 cmd_check() 各跑一次 preinstall_check.sh 导致两份报告。
+    if "--check" in sys.argv:
+        _env_already_checked = True
+        return
+
     sentinel = Path.home() / ".cache" / "shmem" / ".env_checked"
     current_version = _read_version()
 
@@ -219,11 +225,47 @@ _run_pre_import_env_check()
 _pre_load_guard()
 
 
+_CANN_RUNTIME_ONLY_SYMBOLS = frozenset({
+    "aclrtGetFuncBySymbol",
+    "aclrtBinaryLoadFromData",
+    "aclrtLaunchKernelWithHostArgs",
+})
+
+
+def _diagnose_cann_mismatch(oserror_msg):
+    """Check whether an OSError from CDLL is caused by CANN version mismatch.
+
+    When libshmem.so is built with a newer CANN toolkit (bisheng >= 2026-03-27,
+    -xasc mode), the CCE compiler injects references to runtime symbols that
+    don't exist in older CANN releases.  This function extracts the missing
+    symbol from the error message and returns a targeted diagnostic, or None
+    if the failure is unrelated.
+    """
+    if not isinstance(oserror_msg, str):
+        return None
+    for sym in _CANN_RUNTIME_ONLY_SYMBOLS:
+        if sym in oserror_msg:
+            return (
+                f"Symbol '{sym}' is not available in the current CANN runtime.\n"
+                f"The installed shmem wheel was compiled with a newer CANN toolkit "
+                f"whose CCE compiler (-xasc mode) injects references to this API.\n"
+                f"The older CANN runtime on this system does not export it.\n"
+                f"Options:\n"
+                f"  1) Upgrade the CANN runtime to match the wheel's build environment.\n"
+                f"  2) Rebuild the shmem wheel against the currently installed CANN version."
+            )
+    return None
+
+
 def _load_native():
     """Load native .so files.
 
     Failures are demoted to warnings in debug builds so that
-    `shmem-config --diagnose` always runs.
+    ``shmem-config --diagnose`` always runs.
+
+    When a CANN runtime version mismatch is detected (new-compiler symbols
+    missing from an older CANN installation), the error message includes a
+    targeted diagnostic explaining the root cause.
     """
     required_so_files = [
         "libshmem_utils.so",
@@ -238,7 +280,11 @@ def _load_native():
         except FileNotFoundError:
             raise RuntimeError(f"Shared library file not found: {lib_path}")
         except OSError as e:
-            raise RuntimeError(f"Failed to load shared library {lib_path}: {e}")
+            hint = _diagnose_cann_mismatch(str(e))
+            msg = f"Failed to load shared library {lib_path}: {e}"
+            if hint:
+                msg += f"{os.linesep}{hint}"
+            raise RuntimeError(msg)
 
     _post_load_guard()
 
@@ -270,81 +316,112 @@ def _import_bindings():
     globals()["aclshmem_finialize"] = aclshmem_finalize
 
 
-try:
-    _load_native()
-    _import_bindings()
-except Exception as exc:
-    if _STRICT_MODE:
+_NATIVE_LOADED = False
+_NATIVE_LOAD_ERROR = None
+
+# Public API surface — always defined so that introspection tools (help(), dir(),
+# shmem-config --diagnose) work without native libraries being loaded.
+# Accessing any exported name triggers lazy native loading via __getattr__.
+__all__ = [
+    'aclshmem_init',
+    'aclshmem_get_unique_id',
+    'aclshmem_init_using_unique_id',
+    'aclshmem_finalize',
+    'aclshmem_malloc',
+    'aclshmem_free',
+    'aclshmem_ptr',
+    'aclshmemx_get_heap_base',
+    'my_pe',
+    'pe_count',
+    'set_conf_store_tls_key',
+    'set_conf_store_tls',
+    'team_my_pe',
+    'team_n_pes',
+    'team_split_strided',
+    'team_split_2d',
+    'team_translate_pe',
+    'team_destroy',
+    'InitAttr',
+    'InitStatus',
+    'OpEngineType',
+    'aclshmem_calloc',
+    'aclshmem_align',
+    'aclshmemx_init_status',
+    'get_ffts_config',
+    'aclshmem_global_exit',
+    'aclshmem_putmem_nbi',
+    'aclshmem_getmem_nbi',
+    'aclshmemx_putmem_signal',
+    'aclshmemx_putmem_signal_nbi',
+    'aclshmem_putmem',
+    'aclshmem_getmem',
+    'aclshmem_info_get_version',
+    'aclshmem_info_get_name',
+    'aclshmem_team_get_config',
+    'set_log_level',
+    'set_extern_logger',
+    'aclshmem_create_tensor',
+    'aclshmem_free_tensor',
+    'aclshmem_signal_wait_until',
+]
+
+
+def _ensure_native():
+    """Lazily load native .so files and import pybind11 bindings.
+
+    Called automatically on first access to any exported SHMEM API name.
+    Subsequent calls are no-ops once loading succeeds.
+
+    Raises:
+        RuntimeError: Native libraries cannot be loaded (includes a CANN
+            version-mismatch diagnostic when the CCE-compiler-injected
+            symbols (aclrtGetFuncBySymbol etc.) are missing from the runtime).
+    """
+    global _NATIVE_LOADED, _NATIVE_LOAD_ERROR
+    if _NATIVE_LOADED:
+        return
+    try:
+        _load_native()
+        _import_bindings()
+    except Exception as exc:
+        _NATIVE_LOAD_ERROR = exc
         raise
-    _NATIVE_LOADED = False
-    logging.warning(
-        "[SHMEM startup guard] Native bindings failed to load "
-        "(proceeding in degraded mode). "
-        "All SHMEM APIs will be unavailable. "
-        "Run 'shmem-config --diagnose' for details. "
-        "Exception: %s",
-        exc,
-    )
-else:
-    from . import core
-    from .construct_tensor import calc_nbytes, construct_tensor_from_ptr
+    from . import core  # noqa: E402
+    from .construct_tensor import calc_nbytes, construct_tensor_from_ptr  # noqa: E402
+    globals().update({
+        'core': core,
+        'calc_nbytes': calc_nbytes,
+        'construct_tensor_from_ptr': construct_tensor_from_ptr,
+    })
     _NATIVE_LOADED = True
 
-if _NATIVE_LOADED:
-    __all__ = [
-        'aclshmem_init',
-        'aclshmem_get_unique_id',
-        'aclshmem_init_using_unique_id',
-        'aclshmem_finalize',
-        'aclshmem_malloc',
-        'aclshmem_free',
-        'aclshmem_ptr',
-        'aclshmemx_get_heap_base',
-        'my_pe',
-        'pe_count',
-        'set_conf_store_tls_key',
-        'set_conf_store_tls',
-        'team_my_pe',
-        'team_n_pes',
-        'team_split_strided',
-        'team_split_2d',
-        'team_translate_pe',
-        'team_destroy',
-        'InitAttr',
-        'InitStatus',
-        'OpEngineType',
-        'aclshmem_calloc',
-        'aclshmem_align',
-        'aclshmemx_init_status',
-        'get_ffts_config',
-        'aclshmem_global_exit',
-        'aclshmem_putmem_nbi',
-        'aclshmem_getmem_nbi',
-        'aclshmemx_putmem_signal',
-        'aclshmemx_putmem_signal_nbi',
-        'aclshmem_putmem',
-        'aclshmem_getmem',
-        'aclshmem_info_get_version',
-        'aclshmem_info_get_name',
-        'aclshmem_team_get_config',
-        'set_log_level',
-        'set_extern_logger',
-        'aclshmem_create_tensor',
-        'aclshmem_free_tensor',
-        'aclshmem_signal_wait_until',
-    ]
 
-    def aclshmem_create_tensor(shape, dtype: torch.dtype = torch.float32, device_id=0) -> torch.Tensor:
-        nbytes = calc_nbytes(shape, dtype)
-        data_ptr = aclshmem_malloc(nbytes)
+def _get_native_load_error():
+    """Return the exception from the last failed native-load attempt, or None."""
+    return _NATIVE_LOAD_ERROR
 
-        if data_ptr == 0:
-            raise RuntimeError("aclshmem_malloc failed")
 
-        device = torch.device(f"npu:{device_id}")
-        tensor = construct_tensor_from_ptr(data_ptr, shape, dtype, device)
-        return tensor
+def __getattr__(name):
+    if name in __all__:
+        _ensure_native()
+        return globals()[name]
+    raise AttributeError(f"module 'shmem' has no attribute {name!r}")
 
-    def aclshmem_free_tensor(tensor: torch.Tensor):
-        data_ptr = tensor.data_ptr()
-        aclshmem_free(data_ptr)
+
+def aclshmem_create_tensor(shape, dtype: torch.dtype = torch.float32, device_id=0) -> torch.Tensor:
+    _ensure_native()
+    nbytes = calc_nbytes(shape, dtype)
+    data_ptr = aclshmem_malloc(nbytes)
+
+    if data_ptr == 0:
+        raise RuntimeError("aclshmem_malloc failed")
+
+    device = torch.device(f"npu:{device_id}")
+    tensor = construct_tensor_from_ptr(data_ptr, shape, dtype, device)
+    return tensor
+
+
+def aclshmem_free_tensor(tensor: torch.Tensor):
+    _ensure_native()
+    data_ptr = tensor.data_ptr()
+    aclshmem_free(data_ptr)

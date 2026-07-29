@@ -21,7 +21,7 @@ from setuptools.dist import Distribution
 from setuptools.command.build_py import build_py
 
 # 消除whl压缩包的时间戳差异
-os.environ['SOURCE_DATE_EPOCH'] = '0'
+os.environ['SOURCE_DATE_EPOCH'] = '315532800'  # 1980-01-01, min valid ZIP timestamp
 current_version = os.getenv('VERSION', '1.0.0')
 
 class BinaryDistribution(Distribution):

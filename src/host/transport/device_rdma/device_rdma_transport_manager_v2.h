@@ -21,6 +21,7 @@
 #include "mem_entity_def.h"
 #include "transport_manager.h"
 #include "device_rdma_common.h"
+#include "hcomm_entity_compat.h"
 #include "dl_hcomm_def.h"
 
 namespace shm {

@@ -19,7 +19,8 @@
 
 #include "transport_manager.h"
 #include "transport/topo/topo_reader.h"
-#include "hcomm/hcomm_res_entity_defs.h"
+#include "hcomm_entity_compat.h"
+#include "dl_hcomm_def.h"
 #include "device_udma_def.h"
 
 namespace shm {

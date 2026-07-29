@@ -207,7 +207,21 @@ def cmd_diagnose():
         "package_root": pkg_root,
     }
 
-    has_errors = conflict or not backend_ok
+    # Attempt native .so loading (lazy guard — first access triggers load)
+    native_ok = True
+    native_error = None
+    try:
+        import shmem
+        shmem._ensure_native()
+    except Exception as exc:
+        native_ok = False
+        native_error = str(exc)
+    result["native_load"] = {
+        "ok": native_ok,
+        "error": native_error,
+    }
+
+    has_errors = conflict or not backend_ok or not native_ok
     if detected_soc is None:
         result["degraded"] = True
         result["degraded_reason"] = "Auto SoC detection failed, fallback to default 910 backend"
@@ -215,6 +229,8 @@ def cmd_diagnose():
         result["degraded"] = False
 
     next_steps = []
+    if not native_ok:
+        next_steps.append(f"Native library load failed: {native_error}")
     if conflict:
         next_steps.append(
             "Multiple libshmem.so paths detected in process. "
@@ -249,7 +265,20 @@ def cmd_check(package=None):
         shell_args += ["--package", package]
     else:
         shell_args += ["--package", str(_PKG_ROOT)]
-    sys.exit(subprocess.run(shell_args).returncode)
+    ret = subprocess.run(shell_args).returncode
+
+    # 写入 sentinel（与 __init__.py 中 _run_pre_import_env_check 逻辑一致），
+    # 当通过 shmem-config --check 首次运行时，__init__.py 的自动检测被跳过，
+    # 此处补写 sentinel 保证后续 import shmem 不再重复检测。
+    if ret == 0:
+        try:
+            sentinel = Path.home() / ".cache" / "shmem" / ".env_checked"
+            sentinel.parent.mkdir(parents=True, exist_ok=True)
+            sentinel.write_text(_read_version() or "unknown", encoding="utf-8")
+        except OSError:
+            pass
+
+    sys.exit(ret)
 
 
 def main():

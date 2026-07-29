@@ -17,9 +17,10 @@
 
 #include "securec.h"
 #include "dl_acl_api.h"
+#include "dl_hcomm_api.h"
+#include "dl_hcomm_def.h"
 #include "device_udma_def.h"
-#include "hcomm/hcomm_res.h"
-#include "hcomm/hcomm_res_entity_defs.h"
+#include "hcomm_entity_compat.h"
 #include "hybm_mem_segment.h"
 #include "shmemi_host_common.h"
 #include "../host_device/shmemi_host_device_constant.h"
@@ -49,7 +50,7 @@ Result WaitHcommChannelReady(const std::vector<ChannelHandle>& channels)
     std::vector<int32_t> statuses(channel_num, HCOMM_CHANNEL_STATUS_CONNECTING);
     uint32_t elapsed_ms = 0;
     while (elapsed_ms <= CHANNEL_STATUS_POLL_TIMEOUT_MS) {
-        auto hcomm_ret = HcommChannelGetStatus(channels.data(), channel_num, statuses.data());
+        auto hcomm_ret = DlHcommApi::HcommChannelGetStatus(channels.data(), channel_num, statuses.data());
         if (hcomm_ret != 0) {
             SHM_LOG_ERROR("HcommChannelGetStatus failed, ret = " << hcomm_ret << ", channelNum = " << channel_num);
             return ACLSHMEM_INNER_ERROR;
@@ -278,7 +279,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
         SHM_LOG_ERROR("Invalid memory region flags for Hcomm MR, flags = " << mr.flags);
         return ACLSHMEM_INVALID_PARAM;
     }
-    CommMemType mem_type = is_hbm ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
+    CommMemType mem_type = is_hbm ? CommMemType::DEVICE : CommMemType::HOST;
 
     std::map<uint32_t, HcommMemHandle> hcomm_handles;
     auto rollback_registered_handles = [this, &hcomm_handles]() {
@@ -288,7 +289,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
                 registered.second == nullptr) {
                 continue;
             }
-            auto hcomm_ret = HcommMemUnreg(registered_endpoint_it->second, registered.second);
+            auto hcomm_ret = DlHcommApi::HcommMemUnreg(registered_endpoint_it->second, registered.second);
             if (hcomm_ret != 0) {
                 SHM_LOG_WARN(
                     "Rollback Hcomm memory registration failed for EID index " << registered.first
@@ -311,7 +312,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
         mem.size = mr.size;
 
         HcommMemHandle hcomm_mem_handle = nullptr;
-        auto hcomm_ret = HcommMemReg(endpoint_handle, ACLSHMEM_HCOMM_MEM_TAG, &mem, &hcomm_mem_handle);
+        auto hcomm_ret = DlHcommApi::HcommMemReg(endpoint_handle, ACLSHMEM_HCOMM_MEM_TAG, &mem, &hcomm_mem_handle);
         if (hcomm_ret != 0 || hcomm_mem_handle == nullptr) {
             SHM_LOG_ERROR("Failed to register hcomm memory for EID index " << eid_index << ", ret = " << hcomm_ret);
             rollback_registered_handles();
@@ -347,7 +348,7 @@ Result UdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
             hcomm_mem_entry.second == nullptr) {
             continue;
         }
-        auto hcomm_ret = HcommMemUnreg(endpoint_it->second, hcomm_mem_entry.second);
+        auto hcomm_ret = DlHcommApi::HcommMemUnreg(endpoint_it->second, hcomm_mem_entry.second);
         if (hcomm_ret != 0) {
             SHM_LOG_WARN(
                 "Failed to unregister hcomm memory for EID index " << hcomm_mem_entry.first << ", ret = " << hcomm_ret);
@@ -876,7 +877,7 @@ Result UdmaTransportManager::CreateChannelForSlot(
     }
 
     HcommChannelDesc channel_desc{};
-    auto desc_init_ret = HcommChannelDescInit(&channel_desc, ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER);
+    auto desc_init_ret = ShmemHcommChannelDescInit(&channel_desc, ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER);
     if (desc_init_ret != 0) {
         SHM_LOG_ERROR("HcommChannelDescInit failed for dst_pe " << dst_pe << ", ret = " << desc_init_ret);
         return ACLSHMEM_INNER_ERROR;
@@ -886,15 +887,35 @@ Result UdmaTransportManager::CreateChannelForSlot(
     channel_desc.exchangeAllMems = false;
     channel_desc.memHandles = mem_handles.data();
     channel_desc.memHandleNum = static_cast<uint32_t>(mem_handles.size());
+#if defined(HCOMM_CHANNEL_DESC_ABI_V1_SIZE)
+    // CANN HCOM ABI v2 moves the communication-domain QoS out of the
+    // protocol-specific union.
     channel_desc.qos = ACLSHMEM_HCOMM_DEFAULT_QOS;
+    SHM_LOG_INFO(
+        "HCOMM channel descriptor ABI v2, header={version="
+        << channel_desc.header.version << ", magic=" << channel_desc.header.magicWord << ", size="
+        << channel_desc.header.size << "}, qos=" << channel_desc.qos << ", memHandleNum=" << channel_desc.memHandleNum);
+#elif defined(SHMEM_HCOMM_ENTITY_FROM_CANN) || defined(SHMEM_HCOMM_RES_FROM_CANN)
+    channel_desc.hccsAttr.qos = ACLSHMEM_HCOMM_DEFAULT_QOS;
+    SHM_LOG_INFO(
+        "HCOMM channel descriptor ABI v1, header={version="
+        << channel_desc.header.version << ", magic=" << channel_desc.header.magicWord
+        << ", size=" << channel_desc.header.size << "}, qos=" << channel_desc.hccsAttr.qos
+        << ", memHandleNum=" << channel_desc.memHandleNum);
+#else
+    channel_desc.hccsAttr.qos = ACLSHMEM_HCOMM_DEFAULT_QOS;
+    SHM_LOG_INFO(
+        "HCOMM channel descriptor fallback ABI, qos=" << channel_desc.hccsAttr.qos
+                                                      << ", memHandleNum=" << channel_desc.memHandleNum);
+#endif
 
     ChannelHandle channel_handle = 0;
-    auto hcomm_ret = HcommChannelCreate(
+    auto hcomm_ret = DlHcommApi::HcommChannelCreate(
         endpoint_it->second, COMM_ENGINE_AIV, &channel_desc, ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER, &channel_handle);
     if (hcomm_ret != 0 || channel_handle == 0) {
         SHM_LOG_ERROR("HcommChannelCreate failed for dst_pe " << dst_pe << ", ret = " << hcomm_ret);
         if (channel_handle != 0) {
-            (void)HcommChannelDestroy(&channel_handle, ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER);
+            (void)DlHcommApi::HcommChannelDestroy(&channel_handle, ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER);
         }
         return ACLSHMEM_INNER_ERROR;
     }
@@ -979,7 +1000,7 @@ Result UdmaTransportManager::AsyncConnect()
     if (BuildChannels(exchange, state) != ACLSHMEM_SUCCESS) {
         // Destroy any channels created before the failure.
         if (!state.handles.empty()) {
-            (void)HcommChannelDestroy(state.handles.data(), static_cast<uint32_t>(state.handles.size()));
+            (void)DlHcommApi::HcommChannelDestroy(state.handles.data(), static_cast<uint32_t>(state.handles.size()));
         }
         return ACLSHMEM_INNER_ERROR;
     }
@@ -1211,7 +1232,7 @@ bool UdmaTransportManager::CreateEndpoint(
     endpoint_desc.loc.device.superPodIdx = super_pod_id;
 
     EndpointHandle endpoint_handle = nullptr;
-    auto ret = HcommEndpointCreate(&endpoint_desc, &endpoint_handle);
+    auto ret = DlHcommApi::HcommEndpointCreate(&endpoint_desc, &endpoint_handle);
     if (ret != 0 || endpoint_handle == nullptr) {
         SHM_LOG_ERROR("HcommEndpointCreate failed for EID index " << eid_index << ", ret = " << ret);
         return false;
@@ -1271,7 +1292,8 @@ void UdmaTransportManager::FreeDeviceInfo()
 void UdmaTransportManager::DestroyChannels()
 {
     if (!channel_handles_.empty()) {
-        auto hcomm_ret = HcommChannelDestroy(channel_handles_.data(), static_cast<uint32_t>(channel_handles_.size()));
+        auto hcomm_ret =
+            DlHcommApi::HcommChannelDestroy(channel_handles_.data(), static_cast<uint32_t>(channel_handles_.size()));
         if (hcomm_ret != 0) {
             SHM_LOG_WARN("HcommChannelDestroy failed, ret = " << hcomm_ret);
         }
@@ -1292,7 +1314,7 @@ void UdmaTransportManager::CleanupResources()
                 mem_entry.second == nullptr) {
                 continue;
             }
-            auto hcomm_ret = HcommMemUnreg(endpoint_it->second, mem_entry.second);
+            auto hcomm_ret = DlHcommApi::HcommMemUnreg(endpoint_it->second, mem_entry.second);
             if (hcomm_ret != 0) {
                 SHM_LOG_WARN("HcommMemUnreg failed for EID index " << mem_entry.first << ", ret = " << hcomm_ret);
             }
@@ -1305,7 +1327,7 @@ void UdmaTransportManager::CleanupResources()
         if (endpoint_entry.second == nullptr) {
             continue;
         }
-        auto ret = HcommEndpointDestroy(endpoint_entry.second);
+        auto ret = DlHcommApi::HcommEndpointDestroy(endpoint_entry.second);
         if (ret != 0) {
             SHM_LOG_WARN("HcommEndpointDestroy failed for EID index " << endpoint_entry.first << ", ret = " << ret);
         }

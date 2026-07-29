@@ -12,6 +12,8 @@
 #include "shmemi_logger.h"
 #include "shmemi_scope_guard.h"
 #include "dl_acl_api.h"
+#include "dl_hcomm_api.h"
+#include "dl_hcomm_def.h"
 #include "device_rdma_common.h"
 #include "device_rdma_helper.h"
 #include "transport/topo/topo_reader.h"
@@ -135,7 +137,7 @@ Result RdmaTransportManagerV2::CreateEndpoint()
     SHM_LOG_DEBUG(
         "rank[" << rankId_ << "] HcommEndpointCreate, protocol=COMM_PROTOCOL_ROCE, locType=ENDPOINT_LOC_TYPE_HOST"
                 << ", devPhyId=" << phyId_);
-    HcommResult hret = HcommEndpointCreate(&endpointDesc, &endpointHandle_);
+    HcommResult hret = DlHcommApi::HcommEndpointCreate(&endpointDesc, &endpointHandle_);
     if (hret != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] HcommEndpointCreate failed: " << hret);
         return ACLSHMEM_INNER_ERROR;
@@ -148,7 +150,7 @@ Result RdmaTransportManagerV2::CreateEndpoint()
 void RdmaTransportManagerV2::DestroyEndpoint()
 {
     if (atomicMemHandle_ != nullptr && endpointHandle_ != nullptr) {
-        HcommResult hret = HcommMemUnreg(endpointHandle_, atomicMemHandle_);
+        HcommResult hret = DlHcommApi::HcommMemUnreg(endpointHandle_, atomicMemHandle_);
         if (hret != 0) {
             SHM_LOG_WARN("rank[" << rankId_ << "] HcommMemUnreg for atomic memory failed: " << hret);
         }
@@ -157,7 +159,7 @@ void RdmaTransportManagerV2::DestroyEndpoint()
     }
 
     if (endpointHandle_ != nullptr) {
-        HcommResult hret = HcommEndpointDestroy(endpointHandle_);
+        HcommResult hret = DlHcommApi::HcommEndpointDestroy(endpointHandle_);
         if (hret != 0) {
             SHM_LOG_WARN("rank[" << rankId_ << "] HcommEndpointDestroy failed: " << hret);
         }
@@ -177,7 +179,7 @@ void RdmaTransportManagerV2::DestroyEndpoint()
 
 Result RdmaTransportManagerV2::CloseDevice()
 {
-    HcommChannelDestroy(reinterpret_cast<const ChannelHandle*>(channelPtrs_.data()), channelPtrs_.size());
+    DlHcommApi::HcommChannelDestroy(reinterpret_cast<const ChannelHandle*>(channelPtrs_.data()), channelPtrs_.size());
     channelPtrs_.clear();
 
     ClearAllRegisterMRs();
@@ -194,17 +196,18 @@ Result RdmaTransportManagerV2::RegisterMemoryRegion(const TransportMemoryRegion&
 
     CommMem commMem{};
     if ((mr.flags & REG_MR_FLAG_HBM) || IsVirtualAddressNpu(mr.addr)) {
-        commMem.type = COMM_MEM_TYPE_DEVICE;
+        commMem.type = CommMemType::DEVICE;
     } else {
-        commMem.type = COMM_MEM_TYPE_HOST;
+        commMem.type = CommMemType::HOST;
     }
     commMem.addr = reinterpret_cast<void*>(static_cast<ptrdiff_t>(mr.addr));
     commMem.size = mr.size;
 
     HcommMemHandle memHandle = nullptr;
     SHM_LOG_DEBUG(
-        "rank[" << rankId_ << "] HcommMemReg, addr=" << mr.addr << ", size=" << mr.size << ", type=" << commMem.type);
-    HcommResult hret = HcommMemReg(endpointHandle_, "HcclBuffer", &commMem, &memHandle);
+        "rank[" << rankId_ << "] HcommMemReg, addr=" << mr.addr << ", size=" << mr.size
+                << ", type=" << static_cast<int32_t>(commMem.type));
+    HcommResult hret = DlHcommApi::HcommMemReg(endpointHandle_, "HcclBuffer", &commMem, &memHandle);
     if (hret != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] HcommMemReg failed: " << hret);
         return ACLSHMEM_INNER_ERROR;
@@ -228,7 +231,7 @@ Result RdmaTransportManagerV2::UnregisterMemoryRegion(uint64_t addr)
         return ACLSHMEM_INVALID_PARAM;
     }
 
-    HcommResult hret = HcommMemUnreg(endpointHandle_, pos->second.memHandle);
+    HcommResult hret = DlHcommApi::HcommMemUnreg(endpointHandle_, pos->second.memHandle);
     if (hret != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] HcommMemUnreg failed: " << hret);
         return ACLSHMEM_INNER_ERROR;
@@ -241,7 +244,7 @@ Result RdmaTransportManagerV2::UnregisterMemoryRegion(uint64_t addr)
 void RdmaTransportManagerV2::ClearAllRegisterMRs()
 {
     for (auto it = registeredMRs_.begin(); it != registeredMRs_.end(); ++it) {
-        HcommResult hret = HcommMemUnreg(endpointHandle_, it->second.memHandle);
+        HcommResult hret = DlHcommApi::HcommMemUnreg(endpointHandle_, it->second.memHandle);
         if (hret != 0) {
             SHM_LOG_WARN("rank[" << rankId_ << "] HcommMemUnreg addr=" << it->first << " failed: " << hret);
         }
@@ -291,7 +294,11 @@ Result RdmaTransportManagerV2::Connect()
     uint32_t channelNum = rankCount_ - 1;
 
     std::vector<HcommChannelDesc> channelDescs(channelNum);
-    HcommChannelDescInit(channelDescs.data(), channelNum);
+    auto desc_init_ret = ShmemHcommChannelDescInit(channelDescs.data(), channelNum);
+    if (desc_init_ret != 0) {
+        SHM_LOG_ERROR("HcommChannelDescInit failed, ret = " << desc_init_ret);
+        return ACLSHMEM_INNER_ERROR;
+    }
 
     uint8_t roceTc = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
     uint8_t roceSl = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
@@ -340,7 +347,7 @@ Result RdmaTransportManagerV2::Connect()
         return ACLSHMEM_INNER_ERROR;
     }
 
-    auto hcommRet = HcommChannelCreate(
+    auto hcommRet = DlHcommApi::HcommChannelCreate(
         endpointHandle_, COMM_ENGINE_AIV, channelDescs.data(), channelNum,
         reinterpret_cast<ChannelHandle*>(channelPtrs_.data()));
     if (hcommRet != 0) {
@@ -350,7 +357,7 @@ Result RdmaTransportManagerV2::Connect()
     SHM_LOG_DEBUG("rank[" << rankId_ << "] HcommChannelCreate success, channelNum=" << channelNum);
 
     auto channelGuard = shm::utils::make_scope_guard(channelPtrs_.data(), [this, channelNum](ChannelHandle*) {
-        HcommChannelDestroy(reinterpret_cast<const ChannelHandle*>(channelPtrs_.data()), channelNum);
+        DlHcommApi::HcommChannelDestroy(reinterpret_cast<const ChannelHandle*>(channelPtrs_.data()), channelNum);
         channelPtrs_.clear();
     });
 
@@ -361,7 +368,7 @@ Result RdmaTransportManagerV2::Connect()
     bool connectFailed = false;
     uint32_t elapsedMs = 0;
     while (elapsedMs <= pollTimeoutMs) {
-        auto statusRet = HcommChannelGetStatus(channelPtrs_.data(), channelNum, statusList.data());
+        auto statusRet = DlHcommApi::HcommChannelGetStatus(channelPtrs_.data(), channelNum, statusList.data());
         if (statusRet != 0) {
             SHM_LOG_ERROR("rank[" << rankId_ << "] HcommChannelGetStatus failed: " << statusRet);
             return ACLSHMEM_INNER_ERROR;
@@ -840,7 +847,7 @@ bool RdmaTransportManagerV2::RegisterAtomicMemory() noexcept
     atomicSize = ALIGN_UP(atomicSize, 4096);
 
     CommMem commMem{};
-    commMem.type = COMM_MEM_TYPE_DEVICE;
+    commMem.type = CommMemType::DEVICE;
     commMem.addr = atomicSharedMemory_;
     commMem.size = atomicSize;
 
@@ -848,7 +855,7 @@ bool RdmaTransportManagerV2::RegisterAtomicMemory() noexcept
     SHM_LOG_DEBUG(
         "rank[" << rankId_ << "] HcommMemReg for atomic memory, addr=" << atomicSharedMemory_
                 << ", size=" << atomicSize);
-    HcommResult hret = HcommMemReg(endpointHandle_, "AtomicBuffer", &commMem, &memHandle);
+    HcommResult hret = DlHcommApi::HcommMemReg(endpointHandle_, "AtomicBuffer", &commMem, &memHandle);
     if (hret != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] HcommMemReg for atomic memory failed: " << hret);
         return false;

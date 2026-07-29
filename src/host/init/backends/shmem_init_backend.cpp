@@ -43,15 +43,16 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
     }
 }
 
-int aclshmemi_init_backend::bind_aclshmem_entity(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *state, aclshmemi_bootstrap_handle_t *handle)
+int aclshmemi_init_backend::bind_aclshmem_entity(
+    aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle)
 {
     std::lock_guard<std::mutex> lock(entity_map_mutex_);
     // fetch entity resources
     int instance_id = attr->instance_id;
-    entity_member *elem = new entity_member;
+    entity_member* elem = new entity_member;
     elem->entity_attr = attr;
     elem->entity_host_state = state;
-    elem->entity_device_state = (aclshmem_device_host_state_t *)std::calloc(1, sizeof(aclshmem_device_host_state_t));
+    elem->entity_device_state = (aclshmem_device_host_state_t*)std::calloc(1, sizeof(aclshmem_device_host_state_t));
     if (elem->entity_device_state == nullptr) {
         SHM_LOG_ERROR("Failed to allocate memory for entity_device_state.");
         delete elem;
@@ -73,7 +74,7 @@ int aclshmemi_init_backend::release_aclshmem_entity(uint64_t instance_id)
         SHM_LOG_ERROR("Inner backend find instance context failed !");
         return ACLSHMEM_INNER_ERROR;
     }
-    entity_member *elem = it->second;
+    entity_member* elem = it->second;
 
     if (elem->entity_host_state != nullptr) {
         elem->entity_host_state->is_aclshmem_created = false;
@@ -93,7 +94,7 @@ int aclshmemi_init_backend::release_aclshmem_entity(uint64_t instance_id)
 int aclshmemi_init_backend::init_device_state()
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -113,14 +114,19 @@ int aclshmemi_init_backend::init_device_state()
             return ACLSHMEM_SMEM_ERROR;
         }
 
-        mstx_reg_ptr_->add_mem_regions((void *)shm::HYBM_DEVICE_META_ADDR, shm::HYBM_DEVICE_INFO_SIZE, MSTX_GROUP_FOR_STATE);
+        mstx_reg_ptr_->add_mem_regions(
+            (void*)shm::HYBM_DEVICE_META_ADDR, shm::HYBM_DEVICE_INFO_SIZE, MSTX_GROUP_FOR_STATE);
         mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_STATE);
     }
     hybm_init_count++;
 
-    ret = aclshmemi_control_barrier_all();  // 保证所有rank都初始化了
+    ret = aclshmemi_control_barrier_all(); // 保证所有rank都初始化了
     if (ret != 0) {
         SHM_LOG_ERROR("aclshmemi_control_barrier_all failed, result: " << ret);
+        hybm_init_count--;
+        if (hybm_init_count == 0) {
+            hybm_uninit();
+        }
         return ACLSHMEM_SMEM_ERROR;
     }
 
@@ -132,7 +138,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
 {
     uint64_t instance_id = g_instance_ctx->id;
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(instance_id);
@@ -204,7 +210,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
 int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -224,18 +230,27 @@ int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
         return ACLSHMEM_INNER_ERROR;
     }
 
-    int32_t ptr_size = host_state->npes * sizeof(void *);
+    int32_t ptr_size = host_state->npes * sizeof(void*);
 
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->p2p_device_heap_base, ptr_size, host_state->p2p_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->rdma_device_heap_base, ptr_size, host_state->rdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-    ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->sdma_device_heap_base, ptr_size, host_state->sdma_device_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(
+        device_state->p2p_device_heap_base, ptr_size, host_state->p2p_device_heap_base, ptr_size,
+        ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(
+        device_state->rdma_device_heap_base, ptr_size, host_state->rdma_device_heap_base, ptr_size,
+        ACL_MEMCPY_HOST_TO_DEVICE));
+    ACLSHMEM_CHECK_RET(aclrtMemcpy(
+        device_state->sdma_device_heap_base, ptr_size, host_state->sdma_device_heap_base, ptr_size,
+        ACL_MEMCPY_HOST_TO_DEVICE));
     if (host_state->host_heap_base != nullptr) {
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->p2p_host_heap_base, ptr_size,
-            host_state->p2p_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->rdma_host_heap_base, ptr_size,
-            host_state->rdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
-        ACLSHMEM_CHECK_RET(aclrtMemcpy(device_state->sdma_host_heap_base, ptr_size,
-            host_state->sdma_host_heap_base, ptr_size, ACL_MEMCPY_HOST_TO_DEVICE));
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(
+            device_state->p2p_host_heap_base, ptr_size, host_state->p2p_host_heap_base, ptr_size,
+            ACL_MEMCPY_HOST_TO_DEVICE));
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(
+            device_state->rdma_host_heap_base, ptr_size, host_state->rdma_host_heap_base, ptr_size,
+            ACL_MEMCPY_HOST_TO_DEVICE));
+        ACLSHMEM_CHECK_RET(aclrtMemcpy(
+            device_state->sdma_host_heap_base, ptr_size, host_state->sdma_host_heap_base, ptr_size,
+            ACL_MEMCPY_HOST_TO_DEVICE));
     }
     auto backup_p2p = device_state->p2p_device_heap_base;
     auto backup_rdma = device_state->rdma_device_heap_base;
@@ -262,7 +277,7 @@ int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
 int aclshmemi_init_backend::finalize_device_state()
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -296,7 +311,7 @@ int aclshmemi_init_backend::reserve_heap(aclshmem_mem_type_t mem_type)
     }
 
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -315,7 +330,7 @@ int aclshmemi_init_backend::reserve_heap(aclshmem_mem_type_t mem_type)
         return ACLSHMEM_INNER_ERROR;
     }
 
-    void *gva = nullptr;
+    void* gva = nullptr;
     ret = hybm_reserve_mem_space(entity, 0, &gva);
     auto aligned = ALIGN_UP(host_state->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
     if (ret != 0 || gva == nullptr) {
@@ -324,22 +339,24 @@ int aclshmemi_init_backend::reserve_heap(aclshmem_mem_type_t mem_type)
     }
     if (mem_type == HOST_SIDE) {
         elem->dram_gva = gva;
-        mstx_reg_ptr_->add_mem_regions_multi_pe_align(elem->dram_gva, host_state->heap_size, aligned, host_state->npes, MSTX_GROUP_FOR_HOST_HEAP);
+        mstx_reg_ptr_->add_mem_regions_multi_pe_align(
+            elem->dram_gva, host_state->heap_size, aligned, host_state->npes, MSTX_GROUP_FOR_HOST_HEAP);
         mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_HOST_HEAP);
     } else {
         elem->hbm_gva = gva;
-        mstx_reg_ptr_->add_mem_regions_multi_pe_align(elem->hbm_gva, host_state->heap_size, aligned, host_state->npes, MSTX_GROUP_FOR_DEVICE_HEAP);
+        mstx_reg_ptr_->add_mem_regions_multi_pe_align(
+            elem->hbm_gva, host_state->heap_size, aligned, host_state->npes, MSTX_GROUP_FOR_DEVICE_HEAP);
         mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_DEVICE_HEAP);
     }
     SHM_LOG_INFO("reserve_heap success, mem_type: " << mem_type << ".");
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_backend::reach_info_init(void *&gva)
+int aclshmemi_init_backend::reach_info_init(void*& gva)
 {
     uint64_t instance_id = g_instance_ctx->id;
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(instance_id);
@@ -367,7 +384,7 @@ int aclshmemi_init_backend::reach_info_init(void *&gva)
             SHM_LOG_ERROR("hybm_entity_reach_types failed: " << ret);
             return ACLSHMEM_SMEM_ERROR;
         }
-        host_state->p2p_device_heap_base[i] = (void *)((uintptr_t)gva + aligned * static_cast<uint32_t>(i));
+        host_state->p2p_device_heap_base[i] = (void*)((uintptr_t)gva + aligned * static_cast<uint32_t>(i));
         SHM_LOG_DEBUG("rank " << i << " p2p_heap_base: " << host_state->p2p_device_heap_base[i]);
         if (reaches_types & HYBM_DOP_TYPE_MTE) {
             host_state->topo_list[i] |= ACLSHMEM_TRANSPORT_MTE;
@@ -390,7 +407,7 @@ int aclshmemi_init_backend::exchange_slice(aclshmem_mem_type_t mem_type)
 {
     uint64_t instance_id = g_instance_ctx->id;
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(instance_id);
@@ -424,7 +441,7 @@ int aclshmemi_init_backend::exchange_slice(aclshmem_mem_type_t mem_type)
     }
 
     hybm_exchange_info all_ex_info[host_state->npes];
-    ret = boot_handle->allgather((void *)&ex_info, (void *)all_ex_info, sizeof(hybm_exchange_info), boot_handle);
+    ret = boot_handle->allgather((void*)&ex_info, (void*)all_ex_info, sizeof(hybm_exchange_info), boot_handle);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm gather export slice failed, result: " << ret);
         return ret;
@@ -449,7 +466,7 @@ int aclshmemi_init_backend::exchange_entity(aclshmem_mem_type_t mem_type)
 {
     uint64_t instance_id = g_instance_ctx->id;
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(instance_id);
@@ -483,7 +500,7 @@ int aclshmemi_init_backend::exchange_entity(aclshmem_mem_type_t mem_type)
     }
 
     hybm_exchange_info all_ex_info[host_state->npes];
-    ret = boot_handle->allgather((void *)&ex_info, (void *)all_ex_info, sizeof(hybm_exchange_info), boot_handle);
+    ret = boot_handle->allgather((void*)&ex_info, (void*)all_ex_info, sizeof(hybm_exchange_info), boot_handle);
     if (ret != 0) {
         SHM_LOG_ERROR("hybm gather export entity failed, result: " << ret);
         return ret;
@@ -506,7 +523,7 @@ int aclshmemi_init_backend::exchange_entity(aclshmem_mem_type_t mem_type)
 int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -559,31 +576,43 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
     }
     if (mem_type == HOST_SIDE) {
         auto aligned = ALIGN_UP(host_state->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
-        host_state->host_heap_base = (void *)((uintptr_t)elem->dram_gva + aligned * static_cast<uint32_t>(attributes->my_pe));
-        ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->p2p_host_heap_base, host_state->npes * sizeof(void *)));
-        ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->rdma_host_heap_base, host_state->npes * sizeof(void *)));
-        ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->sdma_host_heap_base, host_state->npes * sizeof(void *)));
+        host_state->host_heap_base =
+            (void*)((uintptr_t)elem->dram_gva + aligned * static_cast<uint32_t>(attributes->my_pe));
+        ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->p2p_host_heap_base, host_state->npes * sizeof(void*)));
+        ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->rdma_host_heap_base, host_state->npes * sizeof(void*)));
+        ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->sdma_host_heap_base, host_state->npes * sizeof(void*)));
 
-        ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->p2p_host_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-        ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->rdma_host_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-        ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->sdma_host_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
+        ACLSHMEM_CHECK_RET(aclrtMalloc(
+            (void**)&device_state->p2p_host_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
+        ACLSHMEM_CHECK_RET(aclrtMalloc(
+            (void**)&device_state->rdma_host_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
+        ACLSHMEM_CHECK_RET(aclrtMalloc(
+            (void**)&device_state->sdma_host_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
         for (int32_t i = 0; i < host_state->npes; i++) {
-            host_state->p2p_host_heap_base[i] = (void *)((uintptr_t)elem->dram_gva + aligned * static_cast<uint32_t>(i));
+            host_state->p2p_host_heap_base[i] = (void*)((uintptr_t)elem->dram_gva + aligned * static_cast<uint32_t>(i));
         }
-        SHM_LOG_DEBUG("host side dram heap setup succeeded, host_state->host_heap_base: " << (void *)(uintptr_t)host_state->host_heap_base);
+        SHM_LOG_DEBUG(
+            "host side dram heap setup succeeded, host_state->host_heap_base: "
+            << (void*)(uintptr_t)host_state->host_heap_base);
         return ACLSHMEM_SUCCESS;
     }
     // device side heap info save
     auto aligned = ALIGN_UP(host_state->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
-    host_state->heap_base = (void *)((uintptr_t)elem->hbm_gva + aligned * static_cast<uint32_t>(attributes->my_pe));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->p2p_device_heap_base, host_state->npes * sizeof(void *)));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->rdma_device_heap_base, host_state->npes * sizeof(void *)));
-    ACLSHMEM_CHECK_RET(aclrtMallocHost((void **)&host_state->sdma_device_heap_base, host_state->npes * sizeof(void *)));
+    host_state->heap_base = (void*)((uintptr_t)elem->hbm_gva + aligned * static_cast<uint32_t>(attributes->my_pe));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->p2p_device_heap_base, host_state->npes * sizeof(void*)));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->rdma_device_heap_base, host_state->npes * sizeof(void*)));
+    ACLSHMEM_CHECK_RET(aclrtMallocHost((void**)&host_state->sdma_device_heap_base, host_state->npes * sizeof(void*)));
 
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->p2p_device_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->rdma_device_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-    ACLSHMEM_CHECK_RET(aclrtMalloc((void **)&device_state->sdma_device_heap_base, host_state->npes * sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST));
-    SHM_LOG_DEBUG("device side hbm heap setup succeeded, host_state->heap_base: " << (void *)(uintptr_t)host_state->heap_base << " p2p_device_heap_base: " << (void *)(uintptr_t)device_state->p2p_device_heap_base);
+    ACLSHMEM_CHECK_RET(aclrtMalloc(
+        (void**)&device_state->p2p_device_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMalloc(
+        (void**)&device_state->rdma_device_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
+    ACLSHMEM_CHECK_RET(aclrtMalloc(
+        (void**)&device_state->sdma_device_heap_base, host_state->npes * sizeof(void*), ACL_MEM_MALLOC_HUGE_FIRST));
+    SHM_LOG_DEBUG(
+        "device side hbm heap setup succeeded, host_state->heap_base: "
+        << (void*)(uintptr_t)host_state->heap_base
+        << " p2p_device_heap_base: " << (void*)(uintptr_t)device_state->p2p_device_heap_base);
     ret = reach_info_init(elem->hbm_gva);
     if (ret != 0) {
         SHM_LOG_ERROR("reach_info_init failed, result: " << ret);
@@ -597,7 +626,7 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
 int aclshmemi_init_backend::remove_heap(aclshmem_mem_type_t mem_type)
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -660,7 +689,7 @@ int aclshmemi_init_backend::remove_heap(aclshmem_mem_type_t mem_type)
 int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto it = entity_map_.find(g_instance_ctx->id);
@@ -694,8 +723,7 @@ int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
         elem->dram_slice = nullptr;
         elem->dram_gva = nullptr;
         elem->dram_entity = nullptr;
-    }
-    else {
+    } else {
         elem->hbm_slice = nullptr;
         elem->hbm_gva = nullptr;
         elem->hbm_entity = nullptr;
@@ -703,15 +731,12 @@ int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
     return ACLSHMEM_SUCCESS;
 }
 
-int aclshmemi_init_backend::aclshmemi_control_barrier_all()
-{
-    return g_boot_handle.barrier(&g_boot_handle);
-}
+int aclshmemi_init_backend::aclshmemi_control_barrier_all() { return g_boot_handle.barrier(&g_boot_handle); }
 
 int aclshmemi_init_backend::is_alloc_size_symmetric(size_t size)
 {
     // fetch entity_member
-    entity_member *elem = nullptr;
+    entity_member* elem = nullptr;
     {
         std::lock_guard<std::mutex> lock(entity_map_mutex_);
         auto iter = entity_map_.find(g_instance_ctx->id);
@@ -735,7 +760,7 @@ int aclshmemi_init_backend::is_alloc_size_symmetric(size_t size)
     int ret = 0;
     ret = boot_handle->allgather(&size, all_size.data(), static_cast<int>(sizeof(size_t)), boot_handle);
     if (ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("bootstrap allgather failed, ret: " <<ret);
+        SHM_LOG_ERROR("bootstrap allgather failed, ret: " << ret);
         return ret;
     }
 
@@ -745,16 +770,17 @@ int aclshmemi_init_backend::is_alloc_size_symmetric(size_t size)
 
     size_t ref = all_size[0];
 
-    auto it = std::find_if(all_size.begin() + 1, all_size.end(), [ref](size_t alloc_size) {
-        return alloc_size != ref;
-    });
+    auto it =
+        std::find_if(all_size.begin() + 1, all_size.end(), [ref](size_t alloc_size) { return alloc_size != ref; });
 
     if (it != all_size.end()) {
         int bad_pe = std::distance(all_size.begin(), it);
         size_t bad_val = *it;
 
-        SHM_LOG_ERROR("Asymmetric alloc size detected, ref(pe0) = " << ref << ", first detected bad(pe" << bad_pe << ")= "  
-                                        << bad_val << ", cur(pe" << host_state->mype << ")= " << all_size[host_state->mype]);
+        SHM_LOG_ERROR(
+            "Asymmetric alloc size detected, ref(pe0) = " << ref << ", first detected bad(pe" << bad_pe
+                                                          << ")= " << bad_val << ", cur(pe" << host_state->mype
+                                                          << ")= " << all_size[host_state->mype]);
         return ACLSHMEM_INVALID_PARAM;
     }
     return ACLSHMEM_SUCCESS;

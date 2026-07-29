@@ -250,21 +250,23 @@ source ${install_path}/shmem/latest/set_env.sh
 pip install cann-shmem -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
 ```
 
-安装完成后可通过 `shmem-config --backend` 验证：
+安装完成后可通过 `shmem-config --version` 验证安装，输出版本号即表示安装成功：
 
 ```bash
-shmem-config --backend
+shmem-config --version
 ```
 
 更多 `shmem-config` 命令（`--diagnose`、`--check`、`--ldflags` 等）详见 [shmem-config 命令参考](tools/shmem_config_guide.md)。
 
-shmem 默认开启tls通信加密。如果需要关闭，需要调用接口主动关闭：
+#### 5.1.4 通用配置（可选）
+
+SHMEM 默认开启 TLS 通信加密，适用于上述三种安装方式。如果需要关闭，需在初始化前主动调用接口：
 
 ```c
 int32_t ret = aclshmemx_set_conf_store_tls(false, NULL, 0);
 ```
 
-具体细节详见安全声明章节
+具体细节详见安全声明章节。
 
 ### 5.2 样例执行
 
