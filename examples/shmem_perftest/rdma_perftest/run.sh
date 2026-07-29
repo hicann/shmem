@@ -30,8 +30,8 @@ MIN_EXPONENT="3"
 MAX_EXPONENT="17"
 # 默认循环次数
 LOOP_COUNT="1000"
-# 默认UB size(B) - RDMA需要至少128B的UB空间
-UB_SIZE="128"
+# 默认UB size(B) - RDMA需要至少192B的UB空间
+UB_SIZE="192"
 # RDMA特有参数
 BATCH="0"
 SYNC_ID="0"
@@ -127,12 +127,12 @@ while [[ $# -gt 0 ]]; do
             echo "使用方法: $0 [选项]"
             echo "  -t|--test-type <type>           put|bi_put|get|bi_get|all"
             echo "  -d|--datatype <type>            float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all"
-            echo "  -b|--block-size <size>          RDMA 强制为 1，输入其他值会打印 WARN 后忽略"
-            echo "  --block-range <min> <max>       RDMA 强制为 1，输入其他值会打印 WARN 后忽略"
+            echo "  -b|--block-size <size>          RDMA 强制为 1, 输入其他值会打印 WARN 后忽略"
+            echo "  --block-range <min> <max>       RDMA 强制为 1, 输入其他值会打印 WARN 后忽略"
             echo "  -e|--exponent <exponent>        数据量幂数"
             echo "  --exponent-range <min> <max>    数据量幂数范围"
             echo "  --loop-count <count>            循环次数 (默认 1000)"
-            echo "  --ub-size <size>                UB size(B), 128B~64KB, 自动对齐 (默认 128)"
+            echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐 (默认 192)"
             echo "  --batch <count>                 单 QP 上每次调用 quiet 之前连续提交的 NBI 个数 (默认 1)"
             echo "  --sync-id <id>                  显式传给 Put、Get、Quiet 的同步 ID (默认 0)"
             echo "  -q|--qp <num>                   QP 的个数，当前版本仅支持单 QP (默认 1)"
@@ -237,8 +237,8 @@ if [[ "$PE_SIZE" != "2" ]]; then
     PE_SIZE="2"
 fi
 
-if [[ "$UB_SIZE" -lt "128" || "$UB_SIZE" -gt "65536" ]]; then
-    echo "错误: UB size 必须在 128B~65536B(64KB)之间"
+if [[ "$UB_SIZE" -lt "192" || "$UB_SIZE" -gt "131136" ]]; then
+    echo "错误: UB size 必须在 192B~131136B(128.0625KB)之间"
     exit 1
 fi
 

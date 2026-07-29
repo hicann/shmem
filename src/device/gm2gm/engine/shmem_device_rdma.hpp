@@ -262,6 +262,81 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
 }
 
 template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_get_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr(src, pe);
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_stage_rma_wqe_ub_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)dst, pe, 0, elem_size * sizeof(T), wqes_buf, sync_id, action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_get_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr(src, pe);
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(buf) + UB_ALIGN_SIZE;
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_commit_rma_wqes_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)dst, pe, 0, elem_size * sizeof(T), ub_tensor_64, ub_tensor_32, wqes_buf,
+        sync_id, action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id, aclshmemx_defer_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_get_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr((__gm__ void*)src.GetPhyAddr(), pe);
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf.GetPhyAddr() + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_stage_rma_wqe_ub_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)dst.GetPhyAddr(), pe, 0, elem_size * sizeof(T), wqes_buf, sync_id,
+        action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id, aclshmemx_submit_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_get_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr((__gm__ void*)src.GetPhyAddr(), pe);
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr()) + UB_ALIGN_SIZE;
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf.GetPhyAddr() + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_commit_rma_wqes_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)dst.GetPhyAddr(), pe, 0, elem_size * sizeof(T), ub_tensor_64,
+        ub_tensor_32, wqes_buf, sync_id, action);
+}
+
+template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe)
 {
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
@@ -315,7 +390,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
     ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
 
     aclshmemi_roce_write(
-        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)(src.GetPhyAddr()), pe, 0, elem_size * sizeof(T), ub_tensor_64,
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src.GetPhyAddr(), pe, 0, elem_size * sizeof(T), ub_tensor_64,
         ub_tensor_32, sync_id);
 }
 
@@ -335,8 +410,83 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
     ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
 
     aclshmemi_roce_write(
-        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)(src.GetPhyAddr()), pe, 0, elem_size * sizeof(T), ub_tensor_64,
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src.GetPhyAddr(), pe, 0, elem_size * sizeof(T), ub_tensor_64,
         ub_tensor_32, sync_id);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id, aclshmemx_defer_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_put_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr((__gm__ void*)dst.GetPhyAddr(), pe);
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf.GetPhyAddr() + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_stage_rma_wqe_ub_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src.GetPhyAddr(), pe, 0, elem_size * sizeof(T), wqes_buf, sync_id,
+        action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t sync_id, aclshmemx_submit_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_put_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr((__gm__ void*)dst.GetPhyAddr(), pe);
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr()) + UB_ALIGN_SIZE;
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf.GetPhyAddr() + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_commit_rma_wqes_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src.GetPhyAddr(), pe, 0, elem_size * sizeof(T), ub_tensor_64,
+        ub_tensor_32, wqes_buf, sync_id, action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_put_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr(dst, pe);
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_stage_rma_wqe_ub_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src, pe, 0, elem_size * sizeof(T), wqes_buf, sync_id, action);
+}
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
+        "aclshmemx_roce_put_nbi with aggregate stage/commit requires XSCALE backend");
+    auto ptr = aclshmem_ptr(dst, pe);
+    AscendC::LocalTensor<uint32_t> ub_tensor_32;
+    ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    ub_tensor_32.address_.dataLen = UB_ALIGN_SIZE;
+    AscendC::LocalTensor<uint64_t> ub_tensor_64;
+    ub_tensor_64.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor_64.address_.bufferAddr = reinterpret_cast<uint64_t>(buf) + UB_ALIGN_SIZE;
+    ub_tensor_64.address_.dataLen = UB_ALIGN_SIZE;
+    __ubuf__ uint8_t* wqes_buf = (__ubuf__ uint8_t*)buf + UB_ALIGN_SIZE * 2;
+    aclshmemi_roce_commit_rma_wqes_xscale<aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
+        (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src, pe, 0, elem_size * sizeof(T), ub_tensor_64, ub_tensor_32, wqes_buf,
+        sync_id, action);
 }
 
 template <typename T>

@@ -18,7 +18,7 @@
 #include "perftest_common_types.h"
 #include "mte_perftest_common.h"
 
-constexpr int UB_ALIGN_SIZE = 128;
+constexpr int UB_ALIGN_SIZE = 64;
 
 #define CHECK_ACL_GOTO(call, ret_var, label)                        \
     do {                                                            \

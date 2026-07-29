@@ -45,6 +45,45 @@ struct non_contiguous_copy_param {
     uint32_t dst_ld;
 };
 
+/**
+ * @brief State shared by aclshmemx_defer_t and aclshmemx_submit_t actions in one active batch.
+ *
+ * Value-initialize the object as aclshmemx_submit_state_t state{} before the first operation.
+ * The library maintains pending_count and resets it to zero after a successful submit; callers
+ * must not modify the fields directly. Use one state object for only one active batch, and keep
+ * it alive until every action that references it is no longer used.
+ *
+ * @note If submit validation or completion polling fails, the calling device kernel is aborted
+ *       and pending_count is not reset.
+ * @note reserved is retained for ABI-compatible extension and must remain zero.
+ */
+struct aclshmemx_submit_state_t {
+    uint32_t pending_count = 0; ///< Number of operations currently added to the batch.
+    uint32_t reserved = 0;      ///< Reserved for future extension; callers must keep it zero.
+};
+
+/**
+ * @brief Action that adds the current operation to a batch without submitting the batch.
+ */
+struct aclshmemx_defer_t {
+    aclshmemx_submit_state_t& state; ///< Submit state for the active batch.
+    /**
+     * @param st [in] Submit state that must outlive this action.
+     */
+    ACLSHMEM_DEVICE explicit aclshmemx_defer_t(aclshmemx_submit_state_t& st) : state(st) {}
+};
+
+/**
+ * @brief Action that adds the current operation and submits all operations in the batch.
+ */
+struct aclshmemx_submit_t {
+    aclshmemx_submit_state_t& state; ///< Submit state for the active batch.
+    /**
+     * @param st [in] Submit state that must outlive this action.
+     */
+    ACLSHMEM_DEVICE explicit aclshmemx_submit_t(aclshmemx_submit_state_t& st) : state(st) {}
+};
+
 /**@} */ // end of group_structs
 
 #ifdef __cplusplus

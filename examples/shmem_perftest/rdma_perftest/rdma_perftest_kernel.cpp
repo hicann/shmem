@@ -46,18 +46,57 @@ __aicore__ inline void rdma_perf_test_put_impl(
     int warmup = perftest::PERFTEST_WARMUP_ITERS;
     int loop_test = loop_count;
     int batch_size = (batch <= 0 || batch > loop_test) ? loop_test : batch;
+
+    const uint64_t msg_size = static_cast<uint64_t>(elements) * sizeof(T);
+    const bool use_aggregate =
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        (msg_size < (64 * 1024));
+#else
+        false;
+#endif
+
     AscendC::PipeBarrier<PIPE_ALL>();
 
     if (metric == static_cast<int>(perftest::PERF_METRIC_LAT)) {
         // Latency: time loop_count nbi submits in a single window, quiet outside.
-        for (int i = 0; i < warmup; ++i) {
-            aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && warmup > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < warmup - 1; ++i) {
+                aclshmemx_roce_put_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_put_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < warmup; ++i) {
+                aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t api_time_start = AscendC::GetSystemCycle();
-        for (int i = 0; i < loop_test; ++i) {
-            aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && loop_test > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < loop_test - 1; ++i) {
+                aclshmemx_roce_put_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_put_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < loop_test; ++i) {
+                aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t api_time_end = AscendC::GetSystemCycle();
@@ -80,8 +119,23 @@ __aicore__ inline void rdma_perf_test_put_impl(
 
     } else {
         // Bandwidth: submit NBIs in groups of `batch_size`, quiet at each group boundary.
-        for (int i = 0; i < warmup; ++i) {
-            aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && warmup > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < warmup - 1; ++i) {
+                aclshmemx_roce_put_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_put_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < warmup; ++i) {
+                aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         int full_groups = loop_test / batch_size;
@@ -89,13 +143,43 @@ __aicore__ inline void rdma_perf_test_put_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t waiting_time_start = AscendC::GetSystemCycle();
         for (int g = 0; g < full_groups; ++g) {
-            for (int j = 0; j < batch_size; ++j) {
-                aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+            if (use_aggregate && batch_size > 1) {
+                aclshmemx_submit_state_t submit_state;
+                aclshmemx_defer_t defer_action(submit_state);
+                aclshmemx_submit_t submit_action(submit_state);
+                for (int j = 0; j < batch_size - 1; ++j) {
+                    aclshmemx_roce_put_nbi(
+                        dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+                }
+                aclshmemx_roce_put_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+            } else
+#endif
+            {
+                for (int j = 0; j < batch_size; ++j) {
+                    aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+                }
             }
             aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         }
-        for (int j = 0; j < remainder; ++j) {
-            aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && remainder > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int j = 0; j < remainder - 1; ++j) {
+                aclshmemx_roce_put_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_put_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int j = 0; j < remainder; ++j) {
+                aclshmemx_roce_put_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         if (remainder > 0) {
             aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
@@ -103,7 +187,7 @@ __aicore__ inline void rdma_perf_test_put_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t waiting_time_end = AscendC::GetSystemCycle();
 
-        // Output: PE0 → timing_out[0], PE1 → timing_out[1]
+        // Output: PE0 -> timing_out[0], PE1 -> timing_out[1]
         if (timing_out != nullptr) {
             int64_t waiting_total_time = waiting_time_end - waiting_time_start;
             if (pe == 0) {
@@ -154,18 +238,57 @@ __aicore__ inline void rdma_perf_test_get_impl(
     int warmup = perftest::PERFTEST_WARMUP_ITERS;
     int loop_test = loop_count;
     int batch_size = (batch <= 0 || batch > loop_test) ? loop_test : batch;
+
+    const uint64_t msg_size = static_cast<uint64_t>(elements) * sizeof(T);
+    const bool use_aggregate =
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        (msg_size < (64 * 1024));
+#else
+        false;
+#endif
+
     AscendC::PipeBarrier<PIPE_ALL>();
 
     if (metric == static_cast<int>(perftest::PERF_METRIC_LAT)) {
         // Latency: time loop_count get_nbi submits in a single window, quiet outside.
-        for (int i = 0; i < warmup; ++i) {
-            aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && warmup > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < warmup - 1; ++i) {
+                aclshmemx_roce_get_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_get_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < warmup; ++i) {
+                aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t api_time_start = AscendC::GetSystemCycle();
-        for (int i = 0; i < loop_test; ++i) {
-            aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && loop_test > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < loop_test - 1; ++i) {
+                aclshmemx_roce_get_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_get_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < loop_test; ++i) {
+                aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t api_time_end = AscendC::GetSystemCycle();
@@ -188,8 +311,23 @@ __aicore__ inline void rdma_perf_test_get_impl(
 
     } else {
         // Bandwidth: submit NBIs in groups of `batch_size`, quiet at each group boundary.
-        for (int i = 0; i < warmup; ++i) {
-            aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && warmup > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int i = 0; i < warmup - 1; ++i) {
+                aclshmemx_roce_get_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_get_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int i = 0; i < warmup; ++i) {
+                aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         int full_groups = loop_test / batch_size;
@@ -197,13 +335,43 @@ __aicore__ inline void rdma_perf_test_get_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t get_time_start = AscendC::GetSystemCycle();
         for (int g = 0; g < full_groups; ++g) {
-            for (int j = 0; j < batch_size; ++j) {
-                aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+            if (use_aggregate && batch_size > 1) {
+                aclshmemx_submit_state_t submit_state;
+                aclshmemx_defer_t defer_action(submit_state);
+                aclshmemx_submit_t submit_action(submit_state);
+                for (int j = 0; j < batch_size - 1; ++j) {
+                    aclshmemx_roce_get_nbi(
+                        dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+                }
+                aclshmemx_roce_get_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+            } else
+#endif
+            {
+                for (int j = 0; j < batch_size; ++j) {
+                    aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+                }
             }
             aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
         }
-        for (int j = 0; j < remainder; ++j) {
-            aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        if (use_aggregate && remainder > 1) {
+            aclshmemx_submit_state_t submit_state;
+            aclshmemx_defer_t defer_action(submit_state);
+            aclshmemx_submit_t submit_action(submit_state);
+            for (int j = 0; j < remainder - 1; ++j) {
+                aclshmemx_roce_get_nbi(
+                    dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, defer_action);
+            }
+            aclshmemx_roce_get_nbi(
+                dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id, submit_action);
+        } else
+#endif
+        {
+            for (int j = 0; j < remainder; ++j) {
+                aclshmemx_roce_get_nbi(dst_gm, src_gm, ub_ptr, static_cast<uint32_t>(elements), peer_pe, sync_id);
+            }
         }
         if (remainder > 0) {
             aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
@@ -211,7 +379,7 @@ __aicore__ inline void rdma_perf_test_get_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t get_time_end = AscendC::GetSystemCycle();
 
-        // Output: PE0 → timing_out[0], PE1 → timing_out[1]
+        // Output: PE0 -> timing_out[0], PE1 -> timing_out[1]
         if (timing_out != nullptr) {
             int64_t get_total_time = get_time_end - get_time_start;
             if (pe == 0) {

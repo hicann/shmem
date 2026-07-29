@@ -20,7 +20,7 @@
 | 引擎 | 默认 MTE | 显式 `ACLSHMEM_DATA_OP_UDMA` | RDMA 引擎 |
 | 多核并发 | 同 peer 多核 (默认 32 核切分数据) | **强制单核** (`block_dim=1`)：UDMA 不允许同 peer 多核并发 | **强制单核** (`block_dim=1`)：RDMA 不允许同 peer 多核并发 |
 | `-b/--block-size`、`--block-range` | 控制核数 | 入参兼容，但**强制 1**，输入其他值会打印 WARN 后忽略 | 入参兼容，但**强制 1**，输入其他值会打印 WARN 后忽略 |
-| UB 缓冲 | MTE 必需，影响传输 | UDMA 必须，用于低阶接口 UB 入参 | RDMA 必须，大小至少为 64B，默认为 64B，自动 64B 对齐 |
+| UB 缓冲 | MTE 必需，影响传输 | UDMA 必须，用于低阶接口 UB 入参 | RDMA 必须，大小至少为 192B，默认为 192B，自动 64B 对齐 |
 | 测试模式 | put / bi_put / get / bi_get | put / bi_put / get / bi_get / **put_signal** | put / bi_put / get / bi_get |
 | SOC 限制 | 通用 | **仅 Ascend950**：非 950 上 device kernel 内置 abort | **Ascend950（需指定 `XSCALE` 或 `HNS_1825` 后端）或 A2/A3* |
 | CSV 文件名 | `<test>_<dtype>_<pe>.csv` | `udma_<test>_<dtype>_<pe>.csv` | `rdma_<test>_<dtype>_<pe>.csv` |
@@ -55,7 +55,7 @@ bash run.sh [选项]
 | `--exponent <exponent>` | `-e <exponent>` | 数据量幂数 (2^exponent 字节) | - |
 | `--exponent-range <min> <max>` | - | 数据量幂数范围 | 3 17 |
 | `--loop-count <count>` | - | 循环次数 | 1000 |
-| `--ub-size <size>` | - | UB size (B)；自动 64B 对齐；至少 64B | 64 |
+| `--ub-size <size>` | - | UB size (B)；自动 64B 对齐；至少 192B；云脉/XSCALE 网卡使用聚合路径时需至少 `64 + 128 * batch` 字节，`batch=0` 按 `loop-count` 计算 | 192 |
 | `--batch <count>` | - | 单 QP 上每次调用 quiet 之前连续提交的 NBI 个数 (0 表示全异步) | 0 |
 | `--metric <bw\|lat>` | - | 性能指标: `bw`=带宽, `lat`=接口延迟 | `bw` |
 | `--sync-id <id>` | - | 显式传给 Put、Get、Quiet 的同步 ID | 0 |
@@ -115,15 +115,15 @@ DataSize/B, Npus, Blocks, UBsize/KB, Bandwidth/GB/s, Bandwidth/GiB/s, CoreMaxTim
 数据类型: float
 幂数范围: 11-20
 循环次数: 1000
-UB size(B): 64
+UB size(B): 192
 Batch size: 0
 Sync ID: 0
 QP num: 1
 Metric: lat
 PE_SIZE: 2, GNPU_NUM: 2
 FIRST_NPU: 0
-[INFO] rdma_perftest start, pe=0, t=bi_get, d=float, exp=11-20, loop=1000, ub=64B, metric=lat, batch=1000, sync_id=0, qp=1
-[INFO] rdma_perftest start, pe=1, t=bi_get, d=float, exp=11-20, loop=1000, ub=64B, metric=lat, batch=1000, sync_id=0, qp=1
+[INFO] rdma_perftest start, pe=0, t=bi_get, d=float, exp=11-20, loop=1000, ub=192B, metric=lat, batch=1000, sync_id=0, qp=1
+[INFO] rdma_perftest start, pe=1, t=bi_get, d=float, exp=11-20, loop=1000, ub=192B, metric=lat, batch=1000, sync_id=0, qp=1
 ```
 
 ## 已知约束
