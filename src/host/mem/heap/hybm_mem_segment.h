@@ -28,20 +28,20 @@ using MemSegmentPtr = std::shared_ptr<MemSegment>;
 
 struct MemSliceStatus {
     std::shared_ptr<MemSlice> slice;
-    void *handle;
+    void* handle;
 
     explicit MemSliceStatus(std::shared_ptr<MemSlice> s) noexcept : slice{std::move(s)}, handle(nullptr) {}
-    MemSliceStatus(std::shared_ptr<MemSlice> s, void *h) noexcept : slice{std::move(s)}, handle(h) {}
+    MemSliceStatus(std::shared_ptr<MemSlice> s, void* h) noexcept : slice{std::move(s)}, handle(h) {}
 };
 
 class MemSegment {
 public:
-    static MemSegmentPtr Create(const MemSegmentOptions &options, int entityId);
+    static MemSegmentPtr Create(const MemSegmentOptions& options, int entityId);
 
-    static Result GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId);
+    static Result GetDeviceInfo(uint32_t& sdId, uint32_t& serverId, uint32_t& superPodId);
 
 public:
-    explicit MemSegment(const MemSegmentOptions &options, int eid) : options_{options}, entityId_{eid} {}
+    explicit MemSegment(const MemSegmentOptions& options, int eid) : options_{options}, entityId_{eid} {}
     virtual ~MemSegment() = default;
 
     /*
@@ -50,7 +50,7 @@ public:
      */
     virtual Result ValidateOptions() noexcept = 0;
 
-    virtual Result ReserveMemorySpace(void **address) noexcept = 0;
+    virtual Result ReserveMemorySpace(void** address) noexcept = 0;
 
     virtual Result UnReserveMemorySpace() noexcept = 0;
 
@@ -58,35 +58,35 @@ public:
      * Allocate memory according to segType
      * @return 0 if successful
      */
-    virtual Result AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice> &slice) noexcept = 0;
+    virtual Result AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept = 0;
 
     /*
      * register memory according to segType
      * @return 0 if successful
      */
-    virtual Result RegisterMemory(const void *addr, uint64_t size, std::shared_ptr<MemSlice> &slice) noexcept = 0;
+    virtual Result RegisterMemory(const void* addr, uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept = 0;
 
     /*
      * release one slice
      * @return 0 if successful
      */
-    virtual Result ReleaseSliceMemory(const std::shared_ptr<MemSlice> &slice) noexcept = 0;
+    virtual Result ReleaseSliceMemory(const std::shared_ptr<MemSlice>& slice) noexcept = 0;
 
     /*
      * Export exchange info according to infoExType
      * @return exchange info
      */
-    virtual Result Export(std::string &exInfo) noexcept = 0;
+    virtual Result Export(std::string& exInfo) noexcept = 0;
 
-    virtual Result Export(const std::shared_ptr<MemSlice> &slice, std::string &exInfo) noexcept = 0;
+    virtual Result Export(const std::shared_ptr<MemSlice>& slice, std::string& exInfo) noexcept = 0;
 
-    virtual Result GetExportSliceSize(size_t &size) noexcept = 0;
+    virtual Result GetExportSliceSize(size_t& size) noexcept = 0;
 
     /*
      * Import exchange info and translate it into data structure
      * @param allExInfo
      */
-    virtual Result Import(const std::vector<std::string> &allExInfo, void *addresses[]) noexcept = 0;
+    virtual Result Import(const std::vector<std::string>& allExInfo, void* addresses[]) noexcept = 0;
 
     /*
      * delete imported memory area according to rankid
@@ -112,13 +112,13 @@ public:
      * check memery area in this segment
      * @return true if in range
      */
-    virtual bool MemoryInRange(const void *begin, uint64_t size) const noexcept = 0;
+    virtual bool MemoryInRange(const void* begin, uint64_t size) const noexcept = 0;
 
     /*
      * check memery area in this segment
      * @return true if in range
-    */
-    virtual bool GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept = 0;
+     */
+    virtual bool GetRankIdByAddr(const void* addr, uint64_t size, uint32_t& rankId) const noexcept = 0;
 
     /*
      * get memory type
@@ -144,6 +144,12 @@ protected:
      */
     static bool IsSdmaAccessible(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept;
 
+    /**
+     * get the platform-specific invalid serverId sentinel by SoC type
+     * @return 0xFFFFU for Ascend950, 0x3FFU for others
+     */
+    static uint32_t GetInvalidServerIdBySocType(AscendSocType socType) noexcept;
+
 protected:
     const MemSegmentOptions options_;
     const int entityId_;
@@ -160,6 +166,6 @@ protected:
     static std::string sysBoolId_;
     static uint32_t bootIdHead_;
 };
-}
+} // namespace shm
 
 #endif // MEM_FABRIC_HYBRID_HYBM_MEM_SEGMENT_H

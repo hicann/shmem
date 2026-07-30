@@ -135,11 +135,10 @@ Result MemSegment::InitDeviceInfo()
         return ACLSHMEM_DL_FUNC_FAILED;
     }
     socType_ = DlApi::GetAscendSocType();
-    uint32_t invalidSrvId = (socType_ == AscendSocType::ASCEND_950) ? invalidServerIdAscend950 : invalidServerId;
 
     FillSysBootIdInfo();
     superPodId_ = static_cast<uint32_t>(value);
-    if (superPodId_ == invalidSuperPodId && serverId_ == invalidSrvId) {
+    if (superPodId_ == invalidSuperPodId && serverId_ == GetInvalidServerIdBySocType(socType_)) {
         if (bootIdHead_ != 0) {
             serverId_ = bootIdHead_;
         } else {
@@ -167,6 +166,11 @@ void MemSegment::FillSysBootIdInfo() noexcept
     std::stringstream ss(sysBoolId_);
     ss >> std::hex >> bootIdHead_;
     SHM_LOG_DEBUG("os-boot-id: " << sysBoolId_ << ", head u32: " << std::hex << bootIdHead_);
+}
+
+uint32_t MemSegment::GetInvalidServerIdBySocType(AscendSocType socType) noexcept
+{
+    return (socType == AscendSocType::ASCEND_950) ? invalidServerIdAscend950 : invalidServerId;
 }
 
 bool MemSegment::CanLocalHostReaches(uint32_t superPodId, uint32_t serverId, uint32_t deviceId) noexcept
