@@ -121,6 +121,7 @@ endif()
 
 # mssanitizer 编译选项：依赖 bisheng 版本时间戳判断是否启用 --cce-enable-sanitizer
 if(USE_MSSANITIZER)
+    add_compile_definitions(ACLSHMEM_MSSANITIZER_BUILD)
     if(SOC_TYPE STREQUAL "Ascend950")
         if(CURRENT_TIMESTAMP GREATER_EQUAL ${MSSANITIZER_CCE_FLAG_TIMESTAMP})
             set(SANITIZER_FLAGS

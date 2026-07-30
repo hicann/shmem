@@ -9,7 +9,7 @@ shmem后续会适配[msprof算子调优工具](https://www.hiascend.com/document
 
 shmem已适配[mssanitizer内存检测工具](https://www.hiascend.com/document/detail/zh/mindstudio/830/ODtools/Operatordevelopmenttools/atlasopdev_16_0039.html)，以下功能的相关接口暂不支持该工具的使用：
 
-- SDMA/RDMA/UDMA相关接口和用例不支持使用mssanitizer进行内存检测
+- SDMA/RDMA相关接口和用例不支持使用mssanitizer进行内存检测
 
 **该功能需 CANN 9.1.0 及以上支持**
 

@@ -37,6 +37,13 @@ f_npu=${7:-${f_npu}}
 # Default number of PEs on THIS machine to the global PE count
 local_pes=${local_pes:-${n_pes}}
 
+# To run memory checks, launch the whole script with mssanitizer, for example:
+#   mssanitizer -- bash examples/udma_demo/run.sh 1
+# Both kernels initialize their complete WQE staging scratch once (see
+# init_udma_wqe_scratch in udma_demo_kernel.cpp). This experiment verifies
+# whether caller-side initialization is sufficient for structure-field WQE
+# construction and the full-block DataCopyPad observed by initcheck.
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd ${script_dir}/../../ && pwd)"
 export PROJECT_ROOT=${project_root}

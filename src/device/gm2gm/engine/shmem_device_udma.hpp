@@ -499,7 +499,8 @@ ACLSHMEM_DEVICE void aclshmemi_udma_copy_wqe_from_ub(
     __gm__ uint8_t* dst_gm, AscendC::LocalTensor<uint8_t>& ub_local, uint32_t copy_len, uint32_t sync_id)
 {
     AscendC::GlobalTensor<uint8_t> gm_tensor;
-    gm_tensor.SetGlobalBuffer(dst_gm);
+    gm_tensor.SetGlobalBuffer(dst_gm, copy_len);
+    ub_local.address_.dataLen = copy_len;
     AscendC::DataCopyExtParams copyParams{1, copy_len, 0, 0, 0};
 
     AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(sync_id);
@@ -565,11 +566,11 @@ ACLSHMEM_DEVICE void aclshmemi_udma_post_send_mte3(
     // MTE3->S ordering as the RDMA backend before ringing the SQ doorbell.
     __gm__ aclshmemi_sqe_ctx_t* sqe_gm = aclshmemi_udma_get_sqe_ctx(qp_ctx_entry, cur_head, wqe_size);
     constexpr uint32_t WQE_BB_CNT = get_wqe_bb_cnt<OP_CODE>();
+    uint32_t copy_len = static_cast<uint32_t>(wqe_size * WQE_BB_CNT);
     AscendC::LocalTensor<uint8_t> ub_local;
     ub_local.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
     ub_local.address_.bufferAddr = reinterpret_cast<uint64_t>(ub_scratch);
-    aclshmemi_udma_copy_wqe_from_ub(
-        (__gm__ uint8_t*)sqe_gm, ub_local, static_cast<uint32_t>(wqe_size * WQE_BB_CNT), sync_id);
+    aclshmemi_udma_copy_wqe_from_ub((__gm__ uint8_t*)sqe_gm, ub_local, copy_len, sync_id);
 
     cur_head += WQE_BB_CNT;
     aclshmemi_udma_post_send_update_info(cur_head, qp_ctx_entry);

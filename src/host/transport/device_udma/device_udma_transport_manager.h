@@ -17,11 +17,18 @@
 #include <vector>
 #include <cstdint>
 
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+#include <memory>
+#endif
+
 #include "transport_manager.h"
 #include "transport/topo/topo_reader.h"
 #include "hcomm_entity_compat.h"
 #include "dl_hcomm_def.h"
 #include "device_udma_def.h"
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+#include "mstx/mstx_mem_register.h"
+#endif
 
 namespace shm {
 namespace transport {
@@ -142,6 +149,12 @@ private:
         const SqContext& sq_context, const RegedBufferEntity& remote_buffer, aclshmemi_ubmem_info_t& dst_mem) const;
     void PrintHostUdmaInfo(const aclshmemi_aiv_udma_info_t& host_info) const;
     std::vector<HcommMemHandle> CollectChannelMemHandles(uint32_t eid_index) const;
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    // mssanitizer: report/withdraw the URMA-allocated (non-rtMalloc) SQ/CQ rings and doorbells
+    // for every active slot/QP context. Compiled out of normal builds.
+    void RegisterUdmaQpSanitizerRegions(const aclshmemi_aiv_udma_info_t& copy_info);
+    void UnregisterUdmaQpSanitizerRegions();
+#endif
     void FreeDeviceInfo();
     void DestroyChannels();
     Result CheckPrepareOptions(const HybmTransPrepareOptions& options);
@@ -180,6 +193,11 @@ private:
     // per-peer uint64_t AMO scratch device buffers, sized rank_count_ and indexed by the actual
     // destination pe in both builds (relay recovers dst_pe = slot / rank_count_).
     std::vector<void*> amo_dev_list_;
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    // Owns the mssanitizer registrar only in instrumented builds.
+    std::unique_ptr<shm::mstx_mem_register_base> mstx_reg_ptr_;
+    bool udma_qp_regions_registered_{false};
+#endif
 };
 } // namespace device
 } // namespace transport

@@ -447,6 +447,12 @@ Result UdmaTransportManager::BuildUdmaInfo(
     // buffer here) for maintenance/debugging before rebasing to device addresses.
     PrintHostUdmaInfo(*copy_info);
 
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    // Report the URMA-allocated SQ/CQ rings to mssanitizer while the section pointers still
+    // reference the host buffer (CopyUdmaInfoToDevice rebases them to device addresses next).
+    RegisterUdmaQpSanitizerRegions(*copy_info);
+#endif
+
     ret = CopyUdmaInfoToDevice(qp_num, udma_info_buffer, *copy_info);
     if (ret != ACLSHMEM_SUCCESS) {
         FreeDeviceInfo();
@@ -1269,6 +1275,86 @@ Result UdmaTransportManager::CheckPrepareOptions(const HybmTransPrepareOptions& 
     return ACLSHMEM_SUCCESS;
 }
 
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+void UdmaTransportManager::RegisterUdmaQpSanitizerRegions(const aclshmemi_aiv_udma_info_t& copy_info)
+{
+    // Drop any regions reported by a previous BuildUdmaInfo (e.g. reconnect) so the sanitizer's
+    // region list does not accumulate stale URMA ring addresses.
+    if (udma_qp_regions_registered_) {
+        UnregisterUdmaQpSanitizerRegions();
+    }
+    if (mstx_reg_ptr_ == nullptr) {
+        mstx_reg_ptr_.reset(shm::create_mstx_mem_register_instance());
+    }
+    if (mstx_reg_ptr_ == nullptr) {
+        SHM_LOG_WARN("create mstx_mem_register instance failed, skip UDMA QP region report");
+        return;
+    }
+
+    // At the call site the section pointers still reference the host-side blob, and buf_addr
+    // holds the URMA/HCOMM device VA of each ring (see FillWqCtx / FillCqCtx).
+    const aclshmemi_udma_qp_table_t& tbl = ActiveUdmaTable(copy_info);
+    const auto* wq_array = reinterpret_cast<const aclshmemi_udma_wq_ctx_t*>(tbl.sq_ptr);
+    const auto* cq_array = reinterpret_cast<const aclshmemi_udma_cq_ctx_t*>(tbl.scq_ptr);
+
+    bool has_region = false;
+    const uint64_t qp_count = static_cast<uint64_t>(copy_info.qp_num);
+    const uint64_t context_count = SlotCount() * qp_count;
+    for (uint64_t context_idx = 0; context_idx < context_count; ++context_idx) {
+        // The data plane writes a 32-bit index into the SQ/CQ doorbells (db_addr = dbVa),
+        // which are separate URMA MMIO addresses (see post_send_update_info / poll_cq_update_info).
+        // They must be reported too, otherwise the doorbell ring is flagged as an illegal write.
+        constexpr uint64_t doorbell_report_size = sizeof(uint32_t);
+        const auto& wq = wq_array[context_idx];
+        if (wq.buf_addr != 0 && wq.wqe_size != 0 && wq.depth != 0) {
+            mstx_reg_ptr_->add_mem_regions(
+                reinterpret_cast<void*>(wq.buf_addr), static_cast<uint64_t>(wq.depth) * wq.wqe_size,
+                MSTX_GROUP_FOR_UDMA_QP);
+            has_region = true;
+        }
+        if (wq.db_addr != 0) {
+            mstx_reg_ptr_->add_mem_regions(
+                reinterpret_cast<void*>(wq.db_addr), doorbell_report_size, MSTX_GROUP_FOR_UDMA_QP);
+            has_region = true;
+        }
+        const auto& cq = cq_array[context_idx];
+        if (cq.buf_addr != 0 && cq.cqe_size != 0 && cq.depth != 0) {
+            mstx_reg_ptr_->add_mem_regions(
+                reinterpret_cast<void*>(cq.buf_addr), static_cast<uint64_t>(cq.depth) * cq.cqe_size,
+                MSTX_GROUP_FOR_UDMA_QP);
+            has_region = true;
+        }
+        if (cq.db_addr != 0) {
+            mstx_reg_ptr_->add_mem_regions(
+                reinterpret_cast<void*>(cq.db_addr), doorbell_report_size, MSTX_GROUP_FOR_UDMA_QP);
+            has_region = true;
+        }
+    }
+
+    if (has_region) {
+        mstx_reg_ptr_->mstx_mem_regions_register(MSTX_GROUP_FOR_UDMA_QP);
+        udma_qp_regions_registered_ = true;
+        SHM_LOG_INFO(
+            "Reported UDMA SQ/CQ rings to mssanitizer, slot_count = " << SlotCount()
+                                                                      << ", qp_num = " << copy_info.qp_num);
+    }
+}
+
+void UdmaTransportManager::UnregisterUdmaQpSanitizerRegions()
+{
+    if (mstx_reg_ptr_ == nullptr) {
+        return;
+    }
+    mstx_reg_ptr_->mstx_mem_regions_unregister(MSTX_GROUP_FOR_UDMA_QP);
+    // The registrar keeps the range descriptors cached after unregister and exposes no
+    // per-group clear; drop the instance so the next report starts from a clean list.
+    // RegisterUdmaQpSanitizerRegions recreates it on demand, which keeps teardown paths
+    // from building a domain only to destroy it right away.
+    mstx_reg_ptr_.reset();
+    udma_qp_regions_registered_ = false;
+}
+#endif
+
 void UdmaTransportManager::FreeDeviceInfo()
 {
     if (udma_info_dev_ != nullptr) {
@@ -1291,6 +1377,17 @@ void UdmaTransportManager::FreeDeviceInfo()
 
 void UdmaTransportManager::DestroyChannels()
 {
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    // mssanitizer: withdraw the UDMA SQ/CQ ring/doorbell regions BEFORE the HCOMM channels
+    // (and the URMA-owned sqVa/scqVa/dbVa they hold) are torn down. Converging the unregister
+    // here makes every channel-teardown path do it in the right order: CleanupResources
+    // (destructor), UnregisterMemoryRegion, AsyncConnect rollback and the BuildUdmaInfo failure that
+    // falls back to AsyncConnect. This guarantees each register has exactly one matching
+    // unregister that precedes the channel release, so no stale region survives a VA reuse.
+    if (udma_qp_regions_registered_) {
+        UnregisterUdmaQpSanitizerRegions();
+    }
+#endif
     if (!channel_handles_.empty()) {
         auto hcomm_ret =
             DlHcommApi::HcommChannelDestroy(channel_handles_.data(), static_cast<uint32_t>(channel_handles_.size()));
@@ -1306,6 +1403,13 @@ void UdmaTransportManager::CleanupResources()
 {
     DestroyChannels();
     FreeDeviceInfo();
+
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    // DestroyChannels() already withdrew the UDMA SQ/CQ regions and dropped the registrar, so
+    // this only covers the path where regions were never reported.
+    mstx_reg_ptr_.reset();
+    udma_qp_regions_registered_ = false;
+#endif
 
     for (const auto& mem_by_addr : mem_record_map_) {
         for (const auto& mem_entry : mem_by_addr.second) {

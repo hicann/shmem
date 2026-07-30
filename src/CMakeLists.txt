@@ -32,6 +32,7 @@ target_compile_options(aclshmem_device
     PRIVATE
     ${CMAKE_CCE_COMPILE_OPTIONS}
     ${CCE_AICORE_ARCH}
+    ${SANITIZER_FLAGS}
 )
 target_include_directories(aclshmem_device
     PUBLIC
@@ -40,6 +41,11 @@ target_include_directories(aclshmem_device
     ${PROJECT_SOURCE_DIR}/src/device/
     ${PROJECT_SOURCE_DIR}/src/device_simt/
 )
+if(USE_MSSANITIZER)
+    target_include_directories(aclshmem_device PRIVATE
+        ${ASCEND_HOME_PATH}/tools/mssanitizer/include
+    )
+endif()
 
 file(GLOB_RECURSE ACLSHMEM_HOST_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/*.cpp)
 list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "python_wrapper")
@@ -120,8 +126,12 @@ install(TARGETS shmem_utils
 )
 
 add_library(shmem SHARED $<TARGET_OBJECTS:aclshmem_device> $<TARGET_OBJECTS:aclshmem_host>)
-target_link_options(shmem PRIVATE --cce-fatobj-link)
-target_link_libraries(shmem PRIVATE shmem_utils)
+target_link_options(shmem PRIVATE --cce-fatobj-link ${SANITIZER_FLAGS})
+if(SOC_TYPE STREQUAL "Ascend950")
+    target_link_libraries(shmem PRIVATE shmem_utils hcomm)
+else()
+    target_link_libraries(shmem PRIVATE shmem_utils)
+endif()
 
 # MPI
 if(ACLSHMEM_MPI_SUPPORT)

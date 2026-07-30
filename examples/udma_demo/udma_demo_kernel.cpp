@@ -17,6 +17,17 @@ constexpr uint64_t INIT_DUMP_SIZE = 200 * 1024 * 1024;
 // SQ basebk_shift.
 constexpr uint32_t UDMA_WQE_SCRATCH_BYTES = ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE;
 
+// Initialize the complete caller-owned WQE scratch once. This defines every
+// byte before structure-field updates perform read-modify-write operations and
+// before DataCopyPad reads either a one-BB or two-BB staged WQE.
+__aicore__ inline void init_udma_wqe_scratch(__ubuf__ uint8_t* scratch, uint32_t bytes)
+{
+    __ubuf__ uint64_t* scratch_u64 = reinterpret_cast<__ubuf__ uint64_t*>(scratch);
+    for (uint32_t i = 0; i < bytes / sizeof(uint64_t); ++i) {
+        scratch_u64[i] = 0U;
+    }
+}
+
 // Minimal all-gather implementation using UDMA on the default PIPE_MTE3 path.
 extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_all_gather_kernel(
     GM_ADDR gva, GM_ADDR dump, int message_length)
@@ -30,6 +41,9 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_all_gat
     AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_WQE_SCRATCH_BYTES, 0);
     constexpr uint32_t SYNC_ID = 0;
 
+    __ubuf__ uint8_t* wqe_scratch = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+    init_udma_wqe_scratch(wqe_scratch, UDMA_WQE_SCRATCH_BYTES);
+
     int64_t my_pe = aclshmem_my_pe();
     int64_t pe_size = aclshmem_n_pes();
     // Push the local segment to every other PE.
@@ -38,8 +52,7 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_all_gat
             continue;
         }
         aclshmemx_udma_put_nbi(
-            gva + message_length * my_pe, gva + message_length * my_pe, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(),
-            message_length, i, SYNC_ID);
+            gva + message_length * my_pe, gva + message_length * my_pe, wqe_scratch, message_length, i, SYNC_ID);
         aclshmemx_udma_quiet(i);
     }
     aclshmemx_barrier_all_vec();
@@ -63,6 +76,9 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_put_sig
     AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_WQE_SCRATCH_BYTES, 0);
     constexpr uint32_t SYNC_ID = 0;
 
+    __ubuf__ uint8_t* wqe_scratch = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+    init_udma_wqe_scratch(wqe_scratch, UDMA_WQE_SCRATCH_BYTES);
+
     int64_t my_pe = aclshmem_my_pe();
     int64_t pe_size = aclshmem_n_pes();
 
@@ -75,7 +91,7 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_put_sig
         auto dst_sig_addr = sig_addr + sizeof(uint64_t) * my_pe;
         aclshmemx_udma_put_signal_nbi(
             gva + message_length * my_pe, gva + message_length * my_pe, message_length, (__gm__ uint64_t*)dst_sig_addr,
-            signal, i, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), SYNC_ID);
+            signal, i, wqe_scratch, SYNC_ID);
         aclshmemx_udma_quiet(i);
     }
     aclshmemx_barrier_all_vec();

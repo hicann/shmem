@@ -14,9 +14,11 @@
 #include <cstdint>
 #include <vector>
 
-constexpr uint32_t MSTX_GROUP_FOR_STATE = 0; 
-constexpr uint32_t MSTX_GROUP_FOR_HOST_HEAP = 1; 
+constexpr uint32_t MSTX_GROUP_FOR_STATE = 0;
+constexpr uint32_t MSTX_GROUP_FOR_HOST_HEAP = 1;
 constexpr uint32_t MSTX_GROUP_FOR_DEVICE_HEAP = 2;
+constexpr uint32_t MSTX_GROUP_FOR_UDMA_QP = 3;
+constexpr int MSTX_REGISTER_GROUP_NUM = 4;
 
 #ifdef __cplusplus
 namespace shm {
@@ -27,8 +29,9 @@ public:
     virtual ~mstx_mem_register_base() noexcept = default;
     virtual void mstx_mem_regions_register(int group = 0) = 0;
     virtual void mstx_mem_regions_unregister(int group = 0) = 0;
-    virtual void add_mem_regions(void *ptr, uint64_t size, int group = 0) = 0;
-    virtual void add_mem_regions_multi_pe_align(void *ptr, uint64_t size, uint64_t align_size, uint32_t pe_size, int group = 0) = 0;
+    virtual void add_mem_regions(void* ptr, uint64_t size, int group = 0) = 0;
+    virtual void add_mem_regions_multi_pe_align(
+        void* ptr, uint64_t size, uint64_t align_size, uint32_t pe_size, int group = 0) = 0;
 
     mstx_mem_register_base(const mstx_mem_register_base&) = delete;
     mstx_mem_register_base& operator=(const mstx_mem_register_base&) = delete;
