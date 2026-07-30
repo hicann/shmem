@@ -103,6 +103,7 @@ if(SOC_TYPE STREQUAL "Ascend950")
 endif()
 
 file(GLOB_RECURSE ACLSHMEM_UTILS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/utils/*.cpp)
+list(FILTER ACLSHMEM_UTILS_FILES EXCLUDE REGEX "host/utils/exception")
 if(USE_MSSANITIZER)
     list(FILTER ACLSHMEM_UTILS_FILES EXCLUDE REGEX "host/utils/mstx/mstx_mem_register_empty.cpp")
     message(STATUS "USE_MSSANITIZER=ON")

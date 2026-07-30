@@ -29,6 +29,8 @@ using aclrtFreeFunc = int (*)(void*);
 using aclrtMemcpyFunc = int32_t (*)(void*, size_t, const void*, size_t, uint32_t);
 using aclrtMemcpyAsyncFunc = int32_t (*)(void*, size_t, const void*, size_t, uint32_t, void*);
 using aclrtMemsetFunc = int32_t (*)(void*, size_t, int32_t, size_t);
+using aclrtSetExceptionInfoCallbackFunc = int32_t (*)(aclrtExceptionInfoCallback);
+using aclrtGetExceptionInfoFieldFunc = uint32_t (*)(const aclrtExceptionInfo*);
 using rtDeviceGetBareTgidFunc = int32_t (*)(uint32_t*);
 using rtGetDeviceInfoFunc = int32_t (*)(uint32_t, int32_t, int32_t, int64_t* val);
 using rtIpcSetMemoryNameFunc = int32_t (*)(const void*, uint64_t, char*, uint32_t);
@@ -139,6 +141,46 @@ public:
             return ACLSHMEM_UNDER_API_UNLOAD;
         }
         return pAclrtMemset(dst, destMax, value, count);
+    }
+
+    static inline bool AclrtExceptionInfoApisAvailable()
+    {
+        return pAclrtSetExceptionInfoCallback != nullptr && pAclrtGetTaskIdFromExceptionInfo != nullptr &&
+               pAclrtGetStreamIdFromExceptionInfo != nullptr && pAclrtGetThreadIdFromExceptionInfo != nullptr &&
+               pAclrtGetDeviceIdFromExceptionInfo != nullptr && pAclrtGetErrorCodeFromExceptionInfo != nullptr;
+    }
+
+    static inline Result AclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback)
+    {
+        if (pAclrtSetExceptionInfoCallback == nullptr) {
+            return ACLSHMEM_UNDER_API_UNLOAD;
+        }
+        return pAclrtSetExceptionInfoCallback(callback);
+    }
+
+    static inline uint32_t AclrtGetTaskIdFromExceptionInfo(const aclrtExceptionInfo* info)
+    {
+        return pAclrtGetTaskIdFromExceptionInfo == nullptr ? 0 : pAclrtGetTaskIdFromExceptionInfo(info);
+    }
+
+    static inline uint32_t AclrtGetStreamIdFromExceptionInfo(const aclrtExceptionInfo* info)
+    {
+        return pAclrtGetStreamIdFromExceptionInfo == nullptr ? 0 : pAclrtGetStreamIdFromExceptionInfo(info);
+    }
+
+    static inline uint32_t AclrtGetThreadIdFromExceptionInfo(const aclrtExceptionInfo* info)
+    {
+        return pAclrtGetThreadIdFromExceptionInfo == nullptr ? 0 : pAclrtGetThreadIdFromExceptionInfo(info);
+    }
+
+    static inline uint32_t AclrtGetDeviceIdFromExceptionInfo(const aclrtExceptionInfo* info)
+    {
+        return pAclrtGetDeviceIdFromExceptionInfo == nullptr ? 0 : pAclrtGetDeviceIdFromExceptionInfo(info);
+    }
+
+    static inline uint32_t AclrtGetErrorCodeFromExceptionInfo(const aclrtExceptionInfo* info)
+    {
+        return pAclrtGetErrorCodeFromExceptionInfo == nullptr ? 0 : pAclrtGetErrorCodeFromExceptionInfo(info);
     }
 
     static inline Result RtDeviceGetBareTgid(uint32_t* pid)
@@ -290,6 +332,12 @@ private:
     static aclrtMemcpyFunc pAclrtMemcpy;
     static aclrtMemcpyAsyncFunc pAclrtMemcpyAsync;
     static aclrtMemsetFunc pAclrtMemset;
+    static aclrtSetExceptionInfoCallbackFunc pAclrtSetExceptionInfoCallback;
+    static aclrtGetExceptionInfoFieldFunc pAclrtGetTaskIdFromExceptionInfo;
+    static aclrtGetExceptionInfoFieldFunc pAclrtGetStreamIdFromExceptionInfo;
+    static aclrtGetExceptionInfoFieldFunc pAclrtGetThreadIdFromExceptionInfo;
+    static aclrtGetExceptionInfoFieldFunc pAclrtGetDeviceIdFromExceptionInfo;
+    static aclrtGetExceptionInfoFieldFunc pAclrtGetErrorCodeFromExceptionInfo;
     static rtDeviceGetBareTgidFunc pRtDeviceGetBareTgid;
     static rtGetDeviceInfoFunc pRtGetDeviceInfo;
     static rtSetIpcMemorySuperPodPidFunc pRtSetIpcMemorySuperPodPid;

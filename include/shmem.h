@@ -41,6 +41,7 @@
 #include "host/shmem_host_def.h"
 #include "host/mem/shmem_host_heap.h"
 #include "host/init/shmem_host_init.h"
+#include "host/utils/shmem_host_exception.h"
 #include "host/data_plane/shmem_host_rma.h"
 #include "host/data_plane/shmem_host_so.h"
 #include "host/data_plane/shmem_host_p2p_sync.h"

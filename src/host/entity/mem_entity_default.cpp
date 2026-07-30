@@ -13,6 +13,7 @@
 #include "dl_acl_api.h"
 #include "hybm_device_mem_segment.h"
 #include "hybm_ex_info_transfer.h"
+#include "init/shmemi_init.h"
 #include "mem_entity_default.h"
 #include "mem_entity_inter.h"
 
@@ -557,6 +558,9 @@ void MemEntityDefault::SetHybmDeviceInfo(HybmDeviceMeta& info)
     info.extraContextSize = 0;
     if (transportManager_ != nullptr) {
         info.qpInfoAddress = (uint64_t)(ptrdiff_t)transportManager_->GetQpInfo();
+        if (info.qpInfoAddress != 0UL) {
+            g_state.qp_info = info.qpInfoAddress;
+        }
     } else {
         info.qpInfoAddress = 0UL;
     }

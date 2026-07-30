@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <gtest/gtest.h>
 #include "shmemi_host_common.h"
+#include "utils/exception/shmem_exception_report.h"
 #include "host/shmem_host_def.h"
 #include "unittest_main_test.h"
 #include "unittest/utils/scope_env.h"
@@ -28,6 +29,8 @@ void logger_test_example(int level, const char* msg)
 {
     // do print here
 }
+
+void exception_report_test_callback(void* exception_info) { (void)exception_info; }
 } // namespace shm
 
 void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -647,6 +650,47 @@ TEST(TestInitAPI, TestShmemSetLogLevel)
         free(original_log_level);
         original_log_level = NULL;
     }
+}
+
+TEST(TestExceptionReportAPI, TestReportNoPending)
+{
+    EXPECT_FALSE(aclshmemi_exception_report_pending());
+    EXPECT_EQ(aclshmemx_report_exception(), ACLSHMEM_SUCCESS);
+}
+
+TEST(TestExceptionReportAPI, TestEnableReport)
+{
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_INFO), ACLSHMEM_SUCCESS);
+    EXPECT_FALSE(aclshmemi_exception_report_pending());
+    aclshmemi_exception_report_finalize();
+
+    EXPECT_EQ(
+        aclshmemx_enable_exception_report(shm::exception_report_test_callback, ACLSHMEMX_EXCEPTION_REPORT_DEBUG),
+        ACLSHMEM_SUCCESS);
+    EXPECT_FALSE(aclshmemi_exception_report_pending());
+    aclshmemi_exception_report_finalize();
+
+    EXPECT_EQ(
+        aclshmemx_enable_exception_report(
+            nullptr, static_cast<aclshmemx_exception_report_level_t>(ACLSHMEMX_EXCEPTION_REPORT_DEBUG + 1)),
+        ACLSHMEM_INVALID_PARAM);
+}
+
+TEST(TestExceptionReportAPI, TestReportSnapshotWatermark)
+{
+    aclshmemi_exception_report_finalize();
+    EXPECT_FALSE(aclshmemi_exception_report_record_snapshot(1, 2, 3, 4, 5));
+    EXPECT_FALSE(aclshmemi_exception_report_pending());
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_INFO), ACLSHMEM_SUCCESS);
+    EXPECT_TRUE(aclshmemi_exception_report_record_snapshot(10, 20, 30, 40, 50));
+    EXPECT_TRUE(aclshmemi_exception_report_pending());
+    EXPECT_EQ(aclshmemx_report_exception(), ACLSHMEM_SUCCESS);
+    EXPECT_FALSE(aclshmemi_exception_report_pending());
+
+    EXPECT_TRUE(aclshmemi_exception_report_record_snapshot(11, 21, 31, 41, 51));
+    EXPECT_TRUE(aclshmemi_exception_report_pending());
+    aclshmemi_exception_report_finalize();
 }
 
 TEST(TestInitAPI, TestShmemInitAlias)

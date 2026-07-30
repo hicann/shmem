@@ -31,6 +31,12 @@ aclrtFreeFunc DlAclApi::pAclrtFree = nullptr;
 aclrtMemcpyFunc DlAclApi::pAclrtMemcpy = nullptr;
 aclrtMemcpyAsyncFunc DlAclApi::pAclrtMemcpyAsync = nullptr;
 aclrtMemsetFunc DlAclApi::pAclrtMemset = nullptr;
+aclrtSetExceptionInfoCallbackFunc DlAclApi::pAclrtSetExceptionInfoCallback = nullptr;
+aclrtGetExceptionInfoFieldFunc DlAclApi::pAclrtGetTaskIdFromExceptionInfo = nullptr;
+aclrtGetExceptionInfoFieldFunc DlAclApi::pAclrtGetStreamIdFromExceptionInfo = nullptr;
+aclrtGetExceptionInfoFieldFunc DlAclApi::pAclrtGetThreadIdFromExceptionInfo = nullptr;
+aclrtGetExceptionInfoFieldFunc DlAclApi::pAclrtGetDeviceIdFromExceptionInfo = nullptr;
+aclrtGetExceptionInfoFieldFunc DlAclApi::pAclrtGetErrorCodeFromExceptionInfo = nullptr;
 rtDeviceGetBareTgidFunc DlAclApi::pRtDeviceGetBareTgid = nullptr;
 rtGetDeviceInfoFunc DlAclApi::pRtGetDeviceInfo = nullptr;
 rtSetIpcMemorySuperPodPidFunc DlAclApi::pRtSetIpcMemorySuperPodPid = nullptr;
@@ -80,6 +86,21 @@ Result DlAclApi::LoadLibrary(const std::string& libDirPath)
     DL_LOAD_SYM(pAclrtMemcpy, aclrtMemcpyFunc, rtHandle, "aclrtMemcpy");
     DL_LOAD_SYM(pAclrtMemcpyAsync, aclrtMemcpyAsyncFunc, rtHandle, "aclrtMemcpyAsync");
     DL_LOAD_SYM(pAclrtMemset, aclrtMemsetFunc, rtHandle, "aclrtMemset");
+    pAclrtSetExceptionInfoCallback =
+        reinterpret_cast<aclrtSetExceptionInfoCallbackFunc>(dlsym(rtHandle, "aclrtSetExceptionInfoCallback"));
+    pAclrtGetTaskIdFromExceptionInfo =
+        reinterpret_cast<aclrtGetExceptionInfoFieldFunc>(dlsym(rtHandle, "aclrtGetTaskIdFromExceptionInfo"));
+    pAclrtGetStreamIdFromExceptionInfo =
+        reinterpret_cast<aclrtGetExceptionInfoFieldFunc>(dlsym(rtHandle, "aclrtGetStreamIdFromExceptionInfo"));
+    pAclrtGetThreadIdFromExceptionInfo =
+        reinterpret_cast<aclrtGetExceptionInfoFieldFunc>(dlsym(rtHandle, "aclrtGetThreadIdFromExceptionInfo"));
+    pAclrtGetDeviceIdFromExceptionInfo =
+        reinterpret_cast<aclrtGetExceptionInfoFieldFunc>(dlsym(rtHandle, "aclrtGetDeviceIdFromExceptionInfo"));
+    pAclrtGetErrorCodeFromExceptionInfo =
+        reinterpret_cast<aclrtGetExceptionInfoFieldFunc>(dlsym(rtHandle, "aclrtGetErrorCodeFromExceptionInfo"));
+    if (!AclrtExceptionInfoApisAvailable()) {
+        SHM_LOG_DEBUG("Optional runtime exception report symbols are not fully loaded.");
+    }
     DL_LOAD_SYM(pRtDeviceGetBareTgid, rtDeviceGetBareTgidFunc, rtHandle, "rtDeviceGetBareTgid");
     DL_LOAD_SYM(pRtGetDeviceInfo, rtGetDeviceInfoFunc, rtHandle, "rtGetDeviceInfo");
     DL_LOAD_SYM(pRtSetIpcMemorySuperPodPid, rtSetIpcMemorySuperPodPidFunc, rtHandle, "rtSetIpcMemorySuperPodPid");
@@ -213,6 +234,12 @@ void DlAclApi::CleanupLibrary()
     pAclrtMemcpy = nullptr;
     pAclrtMemcpyAsync = nullptr;
     pAclrtMemset = nullptr;
+    pAclrtSetExceptionInfoCallback = nullptr;
+    pAclrtGetTaskIdFromExceptionInfo = nullptr;
+    pAclrtGetStreamIdFromExceptionInfo = nullptr;
+    pAclrtGetThreadIdFromExceptionInfo = nullptr;
+    pAclrtGetDeviceIdFromExceptionInfo = nullptr;
+    pAclrtGetErrorCodeFromExceptionInfo = nullptr;
     pRtDeviceGetBareTgid = nullptr;
     pRtGetDeviceInfo = nullptr;
     pRtSetIpcMemorySuperPodPid = nullptr;

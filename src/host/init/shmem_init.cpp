@@ -24,6 +24,7 @@
 #include "host/shmem_host_def.h"
 #include "prof/prof_util.h"
 #include "shmemi_scope_guard.h"
+#include "utils/exception/shmem_exception_report.h"
 
 #define DEFAULT_MY_PE (-1)
 #define DEFAULT_N_PES (-1)
@@ -102,6 +103,7 @@ struct aclshmem_context {
 
     std::shared_ptr<memory_manager> dev_mem_manager = nullptr;
     std::shared_ptr<memory_manager> host_mem_manager = nullptr;
+    aclshmemi_exception_report_context_t exception_report_context{};
 
     explicit aclshmem_context(uint64_t id) : instance_id(id) {}
 };
@@ -463,6 +465,7 @@ int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
         current_context->boot_handle = g_boot_handle;
         current_context->dev_mem_manager = aclshmemi_memory_manager;
         current_context->host_mem_manager = aclshmemi_host_memory_manager;
+        aclshmemi_exception_report_save_context(current_context->exception_report_context);
 
         // Set Global_vars by new_context
         g_state = new_context->state;
@@ -471,6 +474,7 @@ int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
         g_boot_handle = new_context->boot_handle;
         aclshmemi_memory_manager = new_context->dev_mem_manager;
         aclshmemi_host_memory_manager = new_context->host_mem_manager;
+        aclshmemi_exception_report_restore_context(new_context->exception_report_context);
 
         // Set New aclshmem context
         g_instance_ctx = aclshmem_ctx_domain[instance_id];
@@ -564,6 +568,9 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
+    auto exception_guard =
+        shm::utils::make_scope_guard(static_cast<void*>(nullptr), [](void*) { aclshmemi_exception_report_finalize(); });
+    ACLSHMEM_CHECK_RET(aclshmemi_exception_report_apply_deferred_config(attributes->option_attr.data_op_engine_type));
     ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
     heap_reserved = true;
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
@@ -585,6 +592,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
+    exception_guard.release();
     init_succeeded = true;
     init_abort_guard.release();
     ctx_guard.release();
@@ -607,6 +615,10 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
         g_state.is_aclshmem_initialized = false;
         ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_destroy(instance_id));
         return ACLSHMEM_SUCCESS;
+    }
+
+    if (g_init_manager_count == 1) {
+        aclshmemi_exception_report_finalize();
     }
 
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
