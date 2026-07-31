@@ -9,6 +9,9 @@
 # -----------------------------------------------------------------------------------------------------------
 set(CMAKE_LINK_DEPENDS_NO_SHARED 1)
 
+set(CATLASS_ROOT "${PROJECT_SOURCE_DIR}/3rdparty/catlass" CACHE PATH
+    "Path to the Catlass source tree")
+
 include_directories(
     ${PROJECT_SOURCE_DIR}/src/device/
     ${PROJECT_SOURCE_DIR}/src/device_simt/
@@ -45,8 +48,8 @@ function(aclshmem_add_fusion_example NAME)
         target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH} ${SANITIZER_FLAGS})
         target_include_directories(${NAME} PRIVATE
             ${PROJECT_SOURCE_DIR}/include
-            ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
-            ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+            ${CATLASS_ROOT}/include
+            ${CATLASS_ROOT}/examples/common
             ${PROJECT_SOURCE_DIR}/examples/${NAME}
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${PROJECT_SOURCE_DIR}/examples/utils
@@ -74,8 +77,8 @@ function(aclshmem_add_fusion_example NAME)
         target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220 ${SANITIZER_FLAGS})
         target_include_directories(${NAME}_kernel PRIVATE
             ${PROJECT_SOURCE_DIR}/include
-            ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
-            ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+            ${CATLASS_ROOT}/include
+            ${CATLASS_ROOT}/examples/common
             ${PROJECT_SOURCE_DIR}/examples/${NAME}
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${PROJECT_SOURCE_DIR}/examples/utils
@@ -105,8 +108,8 @@ function(aclshmem_add_collective_example NAME)
     target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH} ${SANITIZER_FLAGS})
     target_include_directories(${NAME}_kernel PRIVATE
         ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+        ${CATLASS_ROOT}/include
+        ${CATLASS_ROOT}/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/examples/utils
@@ -125,7 +128,7 @@ function(aclshmem_add_collective_example NAME)
         target_compile_options(${NAME} PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
         target_include_directories(${NAME} PRIVATE
             ${PROJECT_SOURCE_DIR}/include
-            ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+            ${CATLASS_ROOT}/examples/common
             ${PROJECT_SOURCE_DIR}/examples/${NAME}
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${PROJECT_SOURCE_DIR}/examples/utils
