@@ -32,6 +32,9 @@
 #endif
 
 constexpr uint32_t MAX_RETRY_TIMES = 1000000;
+constexpr uint32_t ACLSHMEM_UDMA_AGGREGATE_CREDIT_GUARD = 10;
+constexpr uint32_t ACLSHMEM_UDMA_DATA_MOVER_WQE_SIZE = sizeof(aclshmemi_sqe_ctx_t) + sizeof(aclshmemi_sge_ctx_t);
+constexpr uint32_t ACLSHMEM_UDMA_REMOTE_JETTY_TYPE = 1;
 
 ACLSHMEM_DEVICE void aclshmemi_dump_sge(__gm__ uint8_t* wqe_addr, uint32_t sge_num);
 ACLSHMEM_DEVICE void aclshmemi_dump_wqe(__gm__ uint8_t* wqe_addr, uint32_t atomic_len);
@@ -255,41 +258,33 @@ ACLSHMEM_DEVICE constexpr uint32_t get_wqe_bb_cnt()
 }
 
 template <typename T, aclshmemi_udma_opcode_t OP_CODE, typename SQE_PTR>
-ACLSHMEM_DEVICE void aclshmemi_fill_reduce(SQE_PTR sqe_ctx)
-{
-    if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_REDUCE) {
-        static_assert(
-            AscendC::IsSameType<SQE_PTR, __gm__ aclshmemi_sqe_ctx_t*>::value,
-            "WRITE_WITH_REDUCE requires SQE in HBM (PIPE_S path); UB-staged SQE not supported");
-
-        sqe_ctx->udf_type = 0;        // inline reduce
-        sqe_ctx->reduce_opcode = 0xa; // reduce add
-        if constexpr (AscendC::IsSameType<T, float>::value) {
-            sqe_ctx->reduce_data_type = 0x7; // fp32
-        }
-    }
-}
-
-template <typename T, aclshmemi_udma_opcode_t OP_CODE, typename SQE_PTR>
 ACLSHMEM_DEVICE void aclshmemi_fill_notify_data(
     SQE_PTR sqe_ctx, uint32_t tid, uint32_t token_value, const aclshmemi_udma_params_t<T, OP_CODE>& params)
 {
     if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY) {
         // The notify ctx lives immediately after the SQE in the same address space.
-        using NotifyPtr = typename AscendC::Std::conditional<
-            AscendC::IsSameType<SQE_PTR, __ubuf__ aclshmemi_sqe_ctx_t*>::value, __ubuf__ aclshmemi_notify_ctx_t*,
-            __gm__ aclshmemi_notify_ctx_t*>::type;
         using BytePtr = typename AscendC::Std::conditional<
             AscendC::IsSameType<SQE_PTR, __ubuf__ aclshmemi_sqe_ctx_t*>::value, __ubuf__ uint8_t*,
             __gm__ uint8_t*>::type;
-        NotifyPtr notify_ctx = (NotifyPtr)((BytePtr)sqe_ctx + sizeof(aclshmemi_sqe_ctx_t));
-        notify_ctx->notify_token_id = tid & 0xFFFFF; // 20 bits
-        notify_ctx->notify_token_value = token_value;
-        notify_ctx->notify_addr_l = reinterpret_cast<uint64_t>(params.sig_addr) & 0xFFFFFFFF;
-        notify_ctx->notify_addr_h = (reinterpret_cast<uint64_t>(params.sig_addr) >> 32) & 0xFFFFFFFF;
-        notify_ctx->notify_data_l = params.signal & 0xFFFFFFFF;
-        notify_ctx->notify_data_h = (params.signal >> 32) & 0xFFFFFFFF;
+        using NotifyQwordPtr = typename AscendC::Std::conditional<
+            AscendC::IsSameType<SQE_PTR, __ubuf__ aclshmemi_sqe_ctx_t*>::value, __ubuf__ uint64_t*,
+            __gm__ uint64_t*>::type;
+        NotifyQwordPtr notify64 = (NotifyQwordPtr)((BytePtr)sqe_ctx + sizeof(aclshmemi_sqe_ctx_t));
+        notify64[0] = static_cast<uint64_t>(tid & 0xFFFFFU) | (static_cast<uint64_t>(token_value) << 32);
+        notify64[1] = reinterpret_cast<uint64_t>(params.sig_addr);
+        notify64[2] = params.signal;
+        notify64[3] = 0;
     }
+}
+
+template <typename SGE_PTR>
+ACLSHMEM_DEVICE void aclshmemi_fill_sge_header_ctx(SGE_PTR sge_ctx, uint64_t message_len, uint64_t va)
+{
+    using SgeQwordPtr = typename AscendC::Std::conditional<
+        AscendC::IsSameType<SGE_PTR, __ubuf__ aclshmemi_sge_ctx_t*>::value, __ubuf__ uint64_t*, __gm__ uint64_t*>::type;
+    SgeQwordPtr sge64 = (SgeQwordPtr)sge_ctx;
+    sge64[0] = static_cast<uint64_t>(static_cast<uint32_t>(message_len));
+    sge64[1] = va;
 }
 
 template <typename T, aclshmemi_udma_opcode_t OP_CODE>
@@ -298,15 +293,14 @@ ACLSHMEM_DEVICE void aclshmemi_fill_sge_ctx(
     __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry, const aclshmemi_udma_params_t<T, OP_CODE>& params)
 {
     // default
-    sge_ctx->len = message_len;
     if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OPCODE_FAA) { // fetch and add
         auto amo_addr = qp_ctx_entry->amo_addr;
-        sge_ctx->va = amo_addr;
+        aclshmemi_fill_sge_header_ctx(sge_ctx, message_len, amo_addr);
         __gm__ T* addDataAddr = (__gm__ T*)((__gm__ uint8_t*)sge_ctx + sizeof(aclshmemi_sge_ctx_t));
         *addDataAddr = params.value;                                        // fill in add_data
     } else if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_CAS) { // compare and swap
         auto amo_addr = qp_ctx_entry->amo_addr;
-        sge_ctx->va = amo_addr;
+        aclshmemi_fill_sge_header_ctx(sge_ctx, message_len, amo_addr);
         __gm__ T* swap_data_addr = (__gm__ T*)((__gm__ uint8_t*)sge_ctx + sizeof(aclshmemi_sge_ctx_t));
         *swap_data_addr = params.value; // fill in swap_data
         __gm__ T* cmp_data_addr = (__gm__ T*)((__gm__ uint8_t*)swap_data_addr + sizeof(T));
@@ -315,9 +309,9 @@ ACLSHMEM_DEVICE void aclshmemi_fill_sge_ctx(
         auto amo_addr = qp_ctx_entry->amo_addr;
         *(__gm__ T*)amo_addr = params.value;
         dcci_cachelines((__gm__ uint8_t*)amo_addr, sizeof(T));
-        sge_ctx->va = amo_addr;
+        aclshmemi_fill_sge_header_ctx(sge_ctx, message_len, amo_addr);
     } else {
-        sge_ctx->va = reinterpret_cast<uint64_t>(local_addr);
+        aclshmemi_fill_sge_header_ctx(sge_ctx, message_len, reinterpret_cast<uint64_t>(local_addr));
     }
 }
 
@@ -345,44 +339,59 @@ ACLSHMEM_DEVICE void poll_cq_when_sq_overflow(
     }
 }
 
+ACLSHMEM_DEVICE void assert_remote_jetty_type_valid(__gm__ aclshmemi_ubmem_info_t* remote_mem_info)
+{
+    uint32_t rmt_jetty_type = remote_mem_info->rmt_jetty_type;
+    if (rmt_jetty_type != ACLSHMEM_UDMA_REMOTE_JETTY_TYPE) {
+        AscendC::printf(
+            "udma_post_send: remote jetty type %u is not %u\n", rmt_jetty_type, ACLSHMEM_UDMA_REMOTE_JETTY_TYPE);
+        trap();
+    }
+}
+
+template <typename T, aclshmemi_udma_opcode_t OP_CODE>
+ACLSHMEM_DEVICE constexpr uint32_t aclshmemi_udma_get_reduce_attr()
+{
+    if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_REDUCE) {
+        uint32_t reduce_data_type = 0;
+        if constexpr (AscendC::IsSameType<T, float>::value) {
+            reduce_data_type = 0x7; // fp32
+        }
+        return (reduce_data_type << 8) | (0xaU << 12);
+    } else {
+        return 0;
+    }
+}
+
 template <typename T, aclshmemi_udma_opcode_t OP_CODE, typename SQE_PTR = __gm__ aclshmemi_sqe_ctx_t*>
 ACLSHMEM_DEVICE void aclshmemi_udma_fill_sqe_ctx(
     SQE_PTR sqe_ctx, __gm__ uint8_t* remote_addr, __gm__ aclshmemi_ubmem_info_t* remote_mem_info, uint32_t cur_head,
     const aclshmemi_udma_params_t<T, OP_CODE>& params)
 {
-    // Fill SQE control information (reference udma_fill_write_sqe logic).
-    // Templated on SQE_PTR so the same fill logic targets either HBM (PIPE_S path)
-    // or UB scratch (PIPE_MTE3 path).
-    if constexpr (OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_REDUCE) {
-        sqe_ctx->opcode = static_cast<uint32_t>(aclshmemi_udma_opcode_t::UDMA_OP_WRITE);
-        // udf_flag = 1 for write with reduce; last 2 bits = 00 (NO, no ordering) for higher throughput.
-        sqe_ctx->flag = 0b10100000;
-    } else {
-        sqe_ctx->opcode = static_cast<uint32_t>(OP_CODE);
-        // Last 2 bits = 00 (NO, no ordering) for higher throughput.
-        // Note: aclshmemx_udma_quiet only guarantees completion of submitted WQEs,
-        // it does NOT restore inter-submission ordering — the framework currently
-        // does not provide a strong-ordering primitive for this path.
-        sqe_ctx->flag = 0b00100000;
-    }
-    sqe_ctx->nf = 0; // Need fence
-    sqe_ctx->token_en = remote_mem_info->token_value_valid;
-    sqe_ctx->rmt_jetty_type = remote_mem_info->rmt_jetty_type;
-    sqe_ctx->owner = (cur_head & shm::UDMA_SQ_BASKBLK_CNT) == 0 ? 1 : 0; // depth: baseblk_cnt
-    sqe_ctx->target_hint = remote_mem_info->target_hint;
-    sqe_ctx->inline_msg_len = 0; // No inline data
-    sqe_ctx->tp_id = remote_mem_info->tpn;
-    sqe_ctx->sge_num = 1; // Single SGE
-    sqe_ctx->rmt_jetty_or_seg_id = remote_mem_info->tid;
-    sqe_ctx->rmt_token_value = remote_mem_info->rmt_token_value;
-    aclshmemi_fill_reduce<T, OP_CODE>(sqe_ctx);
-    // Set remote address (reference udma_fill_write_sqe logic)
-    uint64_t remote_addr_value = reinterpret_cast<uint64_t>(remote_addr);
-    sqe_ctx->rmt_addr_l_or_token_id = remote_addr_value & 0xFFFFFFFF;
-    sqe_ctx->rmt_addr_h_or_token_value = (remote_addr_value >> 32) & 0xFFFFFFFF;
-    auto rmt_eid = (__gm__ uint64_t*)(remote_mem_info->eid_addr);
-    sqe_ctx->rmt_eid_l = rmt_eid[0];
-    sqe_ctx->rmt_eid_h = rmt_eid[1];
+    ACLSHMEM_DEBUG_FUNC(assert_remote_jetty_type_valid, remote_mem_info);
+    using SqeQwordPtr = typename AscendC::Std::conditional<
+        AscendC::IsSameType<SQE_PTR, __ubuf__ aclshmemi_sqe_ctx_t*>::value, __ubuf__ uint64_t*, __gm__ uint64_t*>::type;
+    SqeQwordPtr sqe64 = (SqeQwordPtr)sqe_ctx;
+
+    constexpr uint32_t flag = OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_REDUCE ? 0b10100000 : 0b00100000;
+    constexpr uint32_t opcode = OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_REDUCE ?
+                                    static_cast<uint32_t>(aclshmemi_udma_opcode_t::UDMA_OP_WRITE) :
+                                    static_cast<uint32_t>(OP_CODE);
+    uint32_t dw0 = (flag << 16) | (static_cast<uint32_t>(remote_mem_info->token_value_valid) << 28) |
+                   (ACLSHMEM_UDMA_REMOTE_JETTY_TYPE << 29);
+    uint32_t dw1 = (remote_mem_info->target_hint & 0xFFU) | (opcode << 8);
+    uint32_t dw2 = (remote_mem_info->tpn & 0xFFFFFFU) | (1U << 24);
+    uint32_t dw3 = remote_mem_info->tid & 0xFFFFFU;
+    uint32_t dw4 = remote_mem_info->rmt_token_value;
+    uint32_t dw5 = aclshmemi_udma_get_reduce_attr<T, OP_CODE>();
+    __gm__ uint64_t* rmt_eid = (__gm__ uint64_t*)(remote_mem_info->eid_addr);
+    sqe64[0] = static_cast<uint64_t>(dw0) | (static_cast<uint64_t>(dw1) << 32);
+    sqe64[1] = static_cast<uint64_t>(dw2) | (static_cast<uint64_t>(dw3) << 32);
+    sqe64[2] = rmt_eid[0];
+    sqe64[3] = rmt_eid[1];
+    sqe64[4] = static_cast<uint64_t>(dw4) | (static_cast<uint64_t>(dw5) << 32);
+    sqe64[5] = reinterpret_cast<uint64_t>(remote_addr);
+    (void)cur_head;
     aclshmemi_fill_notify_data<T, OP_CODE>(sqe_ctx, remote_mem_info->tid, remote_mem_info->rmt_token_value, params);
 }
 
@@ -510,6 +519,104 @@ ACLSHMEM_DEVICE void aclshmemi_udma_copy_wqe_from_ub(
     AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(sync_id);
 }
 
+static_assert(
+    (sizeof(aclshmemi_sqe_ctx_t) + sizeof(aclshmemi_sge_ctx_t)) % sizeof(uint64_t) == 0,
+    "UDMA WQE copy requires u64 alignment");
+static_assert(ACLSHMEM_UDMA_DATA_MOVER_WQE_SIZE == 64, "UDMA aggregate data mover WQE must be one 64B WQEBB");
+
+ACLSHMEM_DEVICE void aclshmemi_udma_poll_before_aggregate_flush(
+    __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry, uint32_t pe, uint32_t qp_idx, uint32_t staged_bb_cnt)
+{
+    uint32_t used_after_flush = qp_ctx_entry->head + staged_bb_cnt - qp_ctx_entry->tail;
+    if (used_after_flush + ACLSHMEM_UDMA_AGGREGATE_CREDIT_GUARD >= shm::UDMA_SQ_BASKBLK_CNT) {
+        (void)aclshmemi_udma_poll_cq(pe, qp_idx, qp_ctx_entry->wqe_cnt);
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_udma_flush_aggregate_wqes(
+    __ubuf__ uint8_t* ub_wqe_base, __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry, uint32_t pe, uint32_t qp_idx,
+    uint32_t sync_id, uint32_t pending_wqe_cnt, uint32_t wqe_size)
+{
+    uint32_t remaining_wqe_cnt = pending_wqe_cnt;
+    if (remaining_wqe_cnt == 0) {
+        return;
+    }
+
+    constexpr uint32_t depth = shm::UDMA_SQ_BASKBLK_CNT;
+    constexpr uint32_t max_copy_wqe_cnt = depth - ACLSHMEM_UDMA_AGGREGATE_CREDIT_GUARD;
+    uint32_t cur_head = qp_ctx_entry->head;
+    uint32_t ub_slot = 0;
+    uint32_t wqe_cnt = qp_ctx_entry->wqe_cnt;
+    while (remaining_wqe_cnt != 0) {
+        uint32_t sq_slot = cur_head % depth;
+        uint32_t copy_wqe_cnt = depth - sq_slot;
+        if (copy_wqe_cnt > remaining_wqe_cnt) {
+            copy_wqe_cnt = remaining_wqe_cnt;
+        }
+        if (copy_wqe_cnt > max_copy_wqe_cnt) {
+            copy_wqe_cnt = max_copy_wqe_cnt;
+        }
+        aclshmemi_udma_poll_before_aggregate_flush(qp_ctx_entry, pe, qp_idx, copy_wqe_cnt);
+
+        __gm__ uint8_t* sq_addr = (__gm__ uint8_t*)(qp_ctx_entry->buf_addr + sq_slot * wqe_size);
+        __ubuf__ uint8_t* ub_wqe = ub_wqe_base + ub_slot * wqe_size;
+        AscendC::LocalTensor<uint8_t> ub_local;
+        ub_local.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+        ub_local.address_.bufferAddr = reinterpret_cast<uint64_t>(ub_wqe);
+        aclshmemi_udma_copy_wqe_from_ub(sq_addr, ub_local, copy_wqe_cnt * wqe_size, sync_id);
+
+        cur_head += copy_wqe_cnt;
+        wqe_cnt += copy_wqe_cnt;
+        ub_slot += copy_wqe_cnt;
+        remaining_wqe_cnt -= copy_wqe_cnt;
+        aclshmemi_udma_post_send_update_info(cur_head, qp_ctx_entry);
+        qp_ctx_entry->wqe_cnt = wqe_cnt;
+    }
+}
+
+template <typename T, aclshmemi_udma_opcode_t OP_CODE>
+ACLSHMEM_DEVICE void aclshmemi_udma_stage_send_wqe(
+    __gm__ uint8_t* remote_addr, __gm__ uint8_t* local_addr, uint32_t pe, uint32_t qp_idx, uint64_t message_len,
+    __ubuf__ uint8_t* ub_scratch, aclshmemx_submit_state_t& state, uint32_t relay_pe = static_cast<uint32_t>(-1))
+{
+    static_assert(
+        OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_WRITE || OP_CODE == aclshmemi_udma_opcode_t::UDMA_OP_READ,
+        "UDMA aggregate action only supports UDMA_OP_WRITE / UDMA_OP_READ");
+    __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+    ACLSHMEM_DEBUG_FUNC(assert_not_self_send, pe);
+    uint32_t slot = aclshmemi_udma_compute_slot(pe, relay_pe);
+    __gm__ aclshmemi_ubmem_info_t* remote_mem_info =
+        (__gm__ aclshmemi_ubmem_info_t*)(aclshmemi_udma_active_table(udma_info)->mem_ptr +
+                                         sizeof(aclshmemi_ubmem_info_t) * slot);
+
+    uint32_t pending_count = state.pending_count;
+    __ubuf__ uint8_t* ub_wqe = ub_scratch + pending_count * ACLSHMEM_UDMA_DATA_MOVER_WQE_SIZE;
+    __ubuf__ aclshmemi_sqe_ctx_t* sqe_ub = (__ubuf__ aclshmemi_sqe_ctx_t*)ub_wqe;
+    aclshmemi_udma_params_t<T, OP_CODE> params{};
+    aclshmemi_udma_fill_sqe_ctx<T, OP_CODE, __ubuf__ aclshmemi_sqe_ctx_t*>(
+        sqe_ub, remote_addr, remote_mem_info, pending_count, params);
+    __ubuf__ aclshmemi_sge_ctx_t* sge_ub = (__ubuf__ aclshmemi_sge_ctx_t*)(ub_wqe + sizeof(aclshmemi_sqe_ctx_t));
+    aclshmemi_fill_sge_header_ctx(sge_ub, message_len, reinterpret_cast<uint64_t>(local_addr));
+    state.pending_count = pending_count + 1;
+    (void)qp_idx;
+}
+
+template <typename T, aclshmemi_udma_opcode_t OP_CODE>
+ACLSHMEM_DEVICE void aclshmemi_udma_submit_send_wqes(
+    __gm__ uint8_t* remote_addr, __gm__ uint8_t* local_addr, uint32_t pe, uint32_t qp_idx, uint64_t message_len,
+    __ubuf__ uint8_t* ub_scratch, uint32_t sync_id, aclshmemx_submit_state_t& state,
+    uint32_t relay_pe = static_cast<uint32_t>(-1))
+{
+    __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+    uint32_t slot = aclshmemi_udma_compute_slot(pe, relay_pe);
+    aclshmemi_udma_stage_send_wqe<T, OP_CODE>(
+        remote_addr, local_addr, pe, qp_idx, message_len, ub_scratch, state, relay_pe);
+    __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry = aclshmemi_udma_get_qp_ctx(udma_info, slot, qp_idx);
+    aclshmemi_udma_flush_aggregate_wqes(
+        ub_scratch, qp_ctx_entry, slot, qp_idx, sync_id, state.pending_count, ACLSHMEM_UDMA_DATA_MOVER_WQE_SIZE);
+    state.pending_count = 0;
+}
+
 // ---- MTE3-staged WQE construction (PIPE_MTE3 path) -------------------------------
 // The default PIPE_S path above writes the SQE/SGE directly to HBM via scalar stores
 // + dcci_cachelines. The MTE3 path stages the full WQE block in caller-provided UB
@@ -559,8 +666,7 @@ ACLSHMEM_DEVICE void aclshmemi_udma_post_send_mte3(
     __ubuf__ aclshmemi_sge_ctx_t* sge_ub = (__ubuf__ aclshmemi_sge_ctx_t*)((__ubuf__ uint8_t*)ub_scratch + SGE_OFF);
     // OP_CODE is restricted to non-AMO/non-REDUCE here, so the SGE only needs
     // len + va. The full FAA/CAS/REDUCE fan-out is intentionally unused in this path.
-    sge_ub->len = message_len;
-    sge_ub->va = reinterpret_cast<uint64_t>(local_addr);
+    aclshmemi_fill_sge_header_ctx(sge_ub, message_len, reinterpret_cast<uint64_t>(local_addr));
 
     // Single-shot DMA UB -> SQ ring entry. The helper uses the same S->MTE3 and
     // MTE3->S ordering as the RDMA backend before ringing the SQ doorbell.
@@ -711,6 +817,59 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
         elem_size, pe, sync_id);
 }
 
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action get requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        (void)sync_id;
+        auto ptr = aclshmem_ptr(src, pe);
+        aclshmemi_udma_stage_send_wqe<T, aclshmemi_udma_opcode_t::UDMA_OP_READ>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(dst), static_cast<uint32_t>(pe),
+            0, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), action.state);
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action get requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        auto ptr = aclshmem_ptr(src, pe);
+        aclshmemi_udma_submit_send_wqes<T, aclshmemi_udma_opcode_t::UDMA_OP_READ>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(dst), static_cast<uint32_t>(pe),
+            0, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id, action.state);
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action)
+{
+    aclshmemx_udma_get_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, sync_id, action);
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action)
+{
+    aclshmemx_udma_get_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, sync_id, action);
+}
+
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_udma_put_nbi(__gm__ T* dst, __gm__ T* src, uint32_t elem_size, int pe)
 {
@@ -730,15 +889,48 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
         WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
     if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         if constexpr (WQE_PIPE == PIPE_MTE3) {
+            __ubuf__ uint8_t* ub_scratch = reinterpret_cast<__ubuf__ uint8_t*>(buf);
             auto ptr = aclshmem_ptr(dst, pe);
             aclshmemi_udma_write_mte3<T>(
-                (__gm__ T*)ptr, src, static_cast<uint32_t>(pe), 0, elem_size * sizeof(T),
-                reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id);
+                (__gm__ T*)ptr, src, static_cast<uint32_t>(pe), 0, elem_size * sizeof(T), ub_scratch, sync_id);
         } else {
             (void)buf;
             (void)sync_id;
             aclshmemi_udma_put_nbi(dst, src, elem_size, pe);
         }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action put requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        (void)sync_id;
+        auto ptr = aclshmem_ptr(dst, pe);
+        aclshmemi_udma_stage_send_wqe<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(src), static_cast<uint32_t>(pe),
+            0, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), action.state);
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action put requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        auto ptr = aclshmem_ptr(dst, pe);
+        aclshmemi_udma_submit_send_wqes<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(src), static_cast<uint32_t>(pe),
+            0, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id, action.state);
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
@@ -755,10 +947,10 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
         auto dst_phy_addr = (__gm__ T*)dst.GetPhyAddr();
         auto src_phy_addr = (__gm__ T*)src.GetPhyAddr();
         if constexpr (WQE_PIPE == PIPE_MTE3) {
+            __ubuf__ uint8_t* ub_scratch = reinterpret_cast<__ubuf__ uint8_t*>(buf.GetPhyAddr());
             auto ptr = aclshmem_ptr(dst_phy_addr, pe);
             aclshmemi_udma_write_mte3<T>(
-                (__gm__ T*)ptr, src_phy_addr, static_cast<uint32_t>(pe), 0, elem_size * sizeof(T),
-                reinterpret_cast<__ubuf__ uint8_t*>(buf.GetPhyAddr()), sync_id);
+                (__gm__ T*)ptr, src_phy_addr, static_cast<uint32_t>(pe), 0, elem_size * sizeof(T), ub_scratch, sync_id);
         } else {
             (void)buf;
             (void)sync_id;
@@ -767,6 +959,42 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action)
+{
+    aclshmemx_udma_put_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, sync_id, action);
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action)
+{
+    aclshmemx_udma_put_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, sync_id, action);
+}
+
+ACLSHMEM_DEVICE bool aclshmemi_udma_relay_params_valid(int pe, int relay_pe)
+{
+    int rank_count = aclshmemi_get_total_pe();
+    int my_pe = aclshmemi_get_my_pe();
+    if (pe < 0 || pe >= rank_count || relay_pe < 0 || relay_pe >= rank_count || pe == relay_pe || pe == my_pe ||
+        relay_pe == my_pe) {
+        ACLSHMEM_DEBUG_FUNC(
+            aclshmemi_kernel_abort,
+            "udma relay: invalid pe=%d relay_pe=%d (myPe=%d rankCount=%d); "
+            "require 0<=actual,relay<rankCount, actual!=relay, neither equals myPe\n",
+            pe, relay_pe, my_pe, rank_count);
+        return false;
+    }
+    return true;
 }
 
 template <typename T, pipe_t WQE_PIPE>
@@ -782,15 +1010,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
             sizeof(T) == 0, "aclshmemx_udma_relay_put_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay put: pe=%d relay_pe=%d\n", pe, relay_pe);
-        int rank_count = aclshmemi_get_total_pe();
-        int my_pe = aclshmemi_get_my_pe();
-        if (pe < 0 || pe >= rank_count || relay_pe < 0 || relay_pe >= rank_count || pe == relay_pe || pe == my_pe ||
-            relay_pe == my_pe) {
-            ACLSHMEM_DEBUG_FUNC(
-                aclshmemi_kernel_abort,
-                "udma relay put: invalid pe=%d relay_pe=%d (myPe=%d rankCount=%d); "
-                "require 0<=actual,relay<rankCount, actual!=relay, neither equals myPe\n",
-                pe, relay_pe, my_pe, rank_count);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
             return;
         }
         auto ptr = aclshmem_ptr(dst, pe);
@@ -805,6 +1025,55 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
                 (__gm__ uint8_t*)ptr, (__gm__ uint8_t*)src, static_cast<uint32_t>(pe), 0u, elem_size * sizeof(T),
                 static_cast<uint32_t>(relay_pe));
         }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action relay put requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (!ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(
+            sizeof(T) == 0, "aclshmemx_udma_relay_put_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay put: pe=%d relay_pe=%d\n", pe, relay_pe);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
+            return;
+        }
+        auto ptr = aclshmem_ptr(dst, pe);
+        aclshmemi_udma_stage_send_wqe<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(src), static_cast<uint32_t>(pe),
+            0u, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), action.state,
+            static_cast<uint32_t>(relay_pe));
+        (void)sync_id;
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action relay put requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (!ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(
+            sizeof(T) == 0, "aclshmemx_udma_relay_put_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay put: pe=%d relay_pe=%d\n", pe, relay_pe);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
+            return;
+        }
+        auto ptr = aclshmem_ptr(dst, pe);
+        aclshmemi_udma_submit_send_wqes<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(src), static_cast<uint32_t>(pe),
+            0u, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id, action.state,
+            static_cast<uint32_t>(relay_pe));
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
@@ -833,6 +1102,26 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
 }
 
 template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action)
+{
+    aclshmemx_udma_relay_put_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, relay_pe, sync_id, action);
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action)
+{
+    aclshmemx_udma_relay_put_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, relay_pe, sync_id, action);
+}
+
+template <typename T, pipe_t WQE_PIPE>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id)
 {
@@ -845,15 +1134,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
             sizeof(T) == 0, "aclshmemx_udma_relay_get_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay get: pe=%d relay_pe=%d\n", pe, relay_pe);
-        int rank_count = aclshmemi_get_total_pe();
-        int my_pe = aclshmemi_get_my_pe();
-        if (pe < 0 || pe >= rank_count || relay_pe < 0 || relay_pe >= rank_count || pe == relay_pe || pe == my_pe ||
-            relay_pe == my_pe) {
-            ACLSHMEM_DEBUG_FUNC(
-                aclshmemi_kernel_abort,
-                "udma relay get: invalid pe=%d relay_pe=%d (myPe=%d rankCount=%d); "
-                "require 0<=actual,relay<rankCount, actual!=relay, neither equals myPe\n",
-                pe, relay_pe, my_pe, rank_count);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
             return;
         }
         auto ptr = aclshmem_ptr(src, pe);
@@ -870,6 +1151,55 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
                 (__gm__ uint8_t*)dst, (__gm__ uint8_t*)ptr, static_cast<uint32_t>(pe), 0u, elem_size * sizeof(T),
                 static_cast<uint32_t>(relay_pe));
         }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_defer_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action relay get requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (!ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(
+            sizeof(T) == 0, "aclshmemx_udma_relay_get_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay get: pe=%d relay_pe=%d\n", pe, relay_pe);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
+            return;
+        }
+        auto ptr = aclshmem_ptr(src, pe);
+        aclshmemi_udma_stage_send_wqe<T, aclshmemi_udma_opcode_t::UDMA_OP_READ>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(dst), static_cast<uint32_t>(pe),
+            0u, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), action.state,
+            static_cast<uint32_t>(relay_pe));
+        (void)sync_id;
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_submit_t action)
+{
+    static_assert(WQE_PIPE == PIPE_MTE3, "UDMA aggregate action relay get requires WQE_PIPE == PIPE_MTE3");
+    if constexpr (!ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(
+            sizeof(T) == 0, "aclshmemx_udma_relay_get_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_printf, "udma relay get: pe=%d relay_pe=%d\n", pe, relay_pe);
+        if (!aclshmemi_udma_relay_params_valid(pe, relay_pe)) {
+            return;
+        }
+        auto ptr = aclshmem_ptr(src, pe);
+        aclshmemi_udma_submit_send_wqes<T, aclshmemi_udma_opcode_t::UDMA_OP_READ>(
+            reinterpret_cast<__gm__ uint8_t*>(ptr), reinterpret_cast<__gm__ uint8_t*>(dst), static_cast<uint32_t>(pe),
+            0u, elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id, action.state,
+            static_cast<uint32_t>(relay_pe));
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
@@ -895,6 +1225,26 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
         static_assert(
             sizeof(T) == 0, "aclshmemx_udma_relay_get_nbi requires ACLSHMEM_RELAY_SUPPORT=ON; rebuild with it enabled");
     }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action)
+{
+    aclshmemx_udma_relay_get_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, relay_pe, sync_id, action);
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action)
+{
+    aclshmemx_udma_relay_get_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, relay_pe, sync_id, action);
 }
 
 template <typename T>

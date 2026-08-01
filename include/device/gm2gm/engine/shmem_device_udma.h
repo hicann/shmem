@@ -15,57 +15,111 @@
 #include <stdint.h>
 
 #include "kernel_operator.h"
+#include "device/shmem_def.h"
 #include "host_device/shmem_common_types.h"
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local device.
- *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations
- * to the same PE are not supported.
+ * @anchor udma_submit_action_contract
+ * @par UDMA submit action contract
+ * UDMA defer/submit overloads add operations to a caller-managed batch through
+ * @ref aclshmemx_defer_t and @ref aclshmemx_submit_t.
+ * - Action overloads support PIPE_MTE3 only.
+ * - Use one initialized @ref aclshmemx_submit_state_t for one active batch.
+ * - Every call in a batch must use the same operation kind, state, PE arguments, buf base, and sync_id.
+ * - n is the total number of operations in the batch, including the final submit call. The batch must be
+ *   smaller than the SQ ring depth.
+ * - @p buf is caller-provided UB scratch. Its capacity must be at least 64 * n bytes and must not exceed the
+ *   caller's available UB capacity; split larger batches into multiple submit batches.
+ * - The submit call contributes one operation to n, submits all pending operations, and resets pending_count
+ *   after a successful submit.
+ * - On a submit failure, the calling device kernel is aborted and the submit state is not reset.
+ * - After submit, call @ref aclshmemx_udma_quiet for the target PE before consuming Get destinations or reusing
+ *   Put sources whose contents must remain stable.
+ */
+
+/**
+ * @name aclshmemx_udma_get_nbi
+ * @brief Asynchronously copy contiguous data from symmetric address on the specified PE to the local PE.
+ *
+ * @warning When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same PE are not
+ *          supported.
+ *
+ * @details Common semantics:
+ * - @p dst is a local destination address and @p src is a symmetric source address.
+ * - @p elem_size is the number of T elements; one UDMA get request transfers at most 256 MB.
+ * - After submitting asynchronous requests, call @ref aclshmemx_udma_quiet before reading @p dst.
+ *
+ * @{
+ */
+/**
+ * @brief Pointer overload with immediate submission.
  *
  * @tparam T                  Element type of the transfer.
- * @tparam WQE_PIPE           Pipe used to publish the WQE to the SQ ring. PIPE_MTE3 (default)
- *                            stages the WQE in the caller-provided UB scratch (see @p buf)
- *                            and DataCopyPads it to HBM in one shot, useful for hot loops.
- *                            PIPE_S scalar-writes the SQE/SGE block directly to HBM and
- *                            ignores @p buf / @p sync_id. Other pipe values are not supported.
- *
- * @param dst                 [in] Pointer on local device of the destination data.
- * @param src                 [in] Pointer on Symmetric memory of the source data.
- * @param buf                 [in] Pointer on local UB. Used as WQE staging scratch when
- *                                 WQE_PIPE == PIPE_MTE3 (must hold one full WQE block;
- *                                 128 B is safe for all current opcodes); ignored when
- *                                 WQE_PIPE == PIPE_S.
- * @param elem_size           [in] Number of elements in the destination and source arrays.
- * @param pe                  [in] PE number of the remote PE.
- * @param sync_id             [in] Hardware event ID used by the MTE3->S sync after
- *                                 DataCopyPad in the PIPE_MTE3 path. Ignored when
- *                                 WQE_PIPE == PIPE_S. Defaults to 0 for backward
- *                                 compatibility with existing callers.
+ * @tparam WQE_PIPE           Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                            PIPE_S writes directly and ignores @p buf / @p sync_id.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by pe.
+ * @param buf               [in] Local UB scratch used when WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id = 0);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified
- * PE to address on the local PE.
- *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations
- * to the same PE are not supported.
+ * @brief Adds the current nonblocking UDMA Get operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by pe.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking UDMA Get operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_quiet(pe) before reading
+ *          or reusing dst.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by pe.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
+ * @brief GlobalTensor overload with immediate submission.
  *
  * @tparam T                  Element type of the transfer.
- * @tparam WQE_PIPE           Pipe used to publish the WQE to the SQ ring. See the bare-pointer
- *                            overload for semantics.
- *
- * @param dst                 [in] GlobalTensor on local device of the destination data.
- * @param src                 [in] GlobalTensor on Symmetric memory of the source data.
- * @param buf                 [in] LocalTensor on local UB. WQE staging scratch when
- *                                 WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
- * @param elem_size           [in] Number of elements in the destination and source arrays.
- * @param pe                  [in] PE number of the remote PE.
- * @param sync_id             [in] Hardware event ID used by the MTE3->S sync after
- *                                 DataCopyPad in the PIPE_MTE3 path. Ignored when
- *                                 WQE_PIPE == PIPE_S.
+ * @tparam WQE_PIPE           Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                            PIPE_S writes directly and ignores @p buf / @p sync_id.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on the target PE specified by pe.
+ * @param buf               [in] Local UB LocalTensor used when WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
@@ -73,70 +127,181 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     uint32_t elem_size, int pe, uint32_t sync_id = 0);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
- *        are not supported.
+ * @brief Adds the current nonblocking UDMA Get operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on the target PE specified by pe.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking UDMA Get operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_quiet(pe) before reading
+ *          or reusing dst.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on the target PE specified by pe.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action);
+/** @} */
+
+/**
+ * @name aclshmemx_udma_put_nbi
+ * @brief Asynchronously copy contiguous data on the local PE to symmetric address on the specified PE.
+ *
+ * @warning When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same PE are not
+ *          supported.
+ *
+ * @details Common semantics:
+ * - @p dst is a symmetric destination address and @p src is a local source address.
+ * - @p elem_size is the number of T elements; one UDMA put request transfers at most 256 MB.
+ * - After submitting asynchronous requests, call @ref aclshmemx_udma_quiet before reading the destination data or
+ *   reusing buffers whose contents must remain stable.
+ *
+ * @{
+ */
+/**
+ * @brief Pointer overload with immediate submission.
  *
  * @tparam T                  Element type of the transfer.
- * @tparam WQE_PIPE           Pipe used to publish the WQE to the SQ ring. See the get_nbi
- *                            overload for semantics.
- *
- * @note A single UDMA put request transfers at most 256 MB
- *       (256 * 1024 * 1024 bytes). @p elem_size is the number of T
- *       elements, so the transfer size is @p elem_size * sizeof(T) bytes.
- *       Split larger transfers into multiple put requests whose byte size
- *       does not exceed 256 MB. After submitting one or more asynchronous
- *       requests, call the matching completion/synchronization interface,
- *       such as @ref aclshmemx_udma_quiet, before reading the destination
- *       data or reusing buffers whose contents must remain stable.
- *
- * @param dst                 [in] Pointer on Symmetric memory of the destination data.
- * @param src                 [in] Pointer on local device of the source data.
- * @param buf                 [in] Pointer on local UB. WQE staging scratch when
- *                                 WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
- * @param elem_size           [in] Number of elements in the destination and source arrays.
- * @param pe                  [in] PE number of the remote PE.
- * @param sync_id             [in] Hardware event ID used by the MTE3->S sync after
- *                                 DataCopyPad in the PIPE_MTE3 path. Ignored when
- *                                 WQE_PIPE == PIPE_S. Defaults to 0 for backward
- *                                 compatibility with existing callers.
+ * @tparam WQE_PIPE           Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                            PIPE_S writes directly and ignores @p buf / @p sync_id.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB scratch used when WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id = 0);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
- *        WARNING: When using UDMA as the underlying transport, concurrent RMA/AMO operations to the same
- *        PE are not supported.
+ * @brief Adds the current nonblocking UDMA Put operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action;
+ *          src must remain valid and unchanged until quiet returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking UDMA Put operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_quiet(pe);
+ *          src must remain valid and unchanged until it returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
+ * @brief GlobalTensor overload with immediate submission.
  *
  * @tparam T                  Element type of the transfer.
- * @tparam WQE_PIPE           Pipe used to publish the WQE to the SQ ring. See the get_nbi
- *                            overload for semantics.
- *
- * @note A single UDMA put request transfers at most 256 MB
- *       (256 * 1024 * 1024 bytes). @p elem_size is the number of T
- *       elements, so the transfer size is @p elem_size * sizeof(T) bytes.
- *       Split larger transfers into multiple put requests whose byte size
- *       does not exceed 256 MB. After submitting one or more asynchronous
- *       requests, call the matching completion/synchronization interface,
- *       such as @ref aclshmemx_udma_quiet, before reading the destination
- *       data or reusing buffers whose contents must remain stable.
- *
- * @param dst                 [in] GlobalTensor on Symmetric memory of the destination data.
- * @param src                 [in] GlobalTensor on local device of the source data.
- * @param buf                 [in] LocalTensor on local UB. WQE staging scratch when
- *                                 WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
- * @param elem_size           [in] Number of elements in the destination and source arrays.
- * @param pe                  [in] PE number of the remote PE.
- * @param sync_id             [in] Hardware event ID used by the MTE3->S sync after
- *                                 DataCopyPad in the PIPE_MTE3 path. Ignored when
- *                                 WQE_PIPE == PIPE_S.
+ * @tparam WQE_PIPE           Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                            PIPE_S writes directly and ignores @p buf / @p sync_id.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on the target PE specified by
+ * pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor used when WQE_PIPE == PIPE_MTE3; ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id);
+
+/**
+ * @brief Adds the current nonblocking UDMA Put operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action;
+ *          src must remain valid and unchanged until quiet returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on the target PE specified by
+ * pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking UDMA Put operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_quiet(pe);
+ *          src must remain valid and unchanged until it returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on the target PE specified by
+ * pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action);
+/** @} */
 
 /**
  * @brief Asynchronous relay-mode UDMA Put. Copy contiguous data from local PE to symmetric address on
@@ -188,6 +353,51 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
 
 /**
+ * @brief Adds the current nonblocking relay UDMA Put operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Put
+ *          overload. Finish the batch with an aclshmemx_submit_t action; src must remain valid and unchanged until
+ *          quiet returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Symmetric destination address on pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Actual destination PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Put operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Put
+ *          overload. After submit, call aclshmemx_udma_quiet(pe); src must remain valid and unchanged until it
+ *          returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Symmetric destination address on pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Actual destination PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
  * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_relay_put_nbi.
  *
  * @note  Same PE-argument preconditions and non-blocking completion semantics as the bare-pointer
@@ -216,6 +426,51 @@ template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Put operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Put
+ *          overload. Finish the batch with an aclshmemx_submit_t action; src must remain valid and unchanged until
+ *          quiet returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Actual destination PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Put operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Put
+ *          overload. After submit, call aclshmemx_udma_quiet(pe); src must remain valid and unchanged until it
+ *          returns.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Actual destination PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action);
 
 /**
  * @brief Asynchronous relay-mode UDMA Get. Symmetric to @ref aclshmemx_udma_relay_put_nbi.
@@ -256,6 +511,49 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
 
 /**
+ * @brief Adds the current nonblocking relay UDMA Get operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Get
+ *          overload. Finish the batch with an aclshmemx_submit_t action.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on pe.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Actual source PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Get operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Get
+ *          overload. After submit, call aclshmemx_udma_quiet(pe) before reading or reusing dst.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on pe.
+ * @param buf               [in] Local UB workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Actual source PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
  * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_relay_get_nbi.
  *
  * @note  Same PE-argument preconditions and non-blocking completion semantics as the bare-pointer
@@ -284,6 +582,49 @@ template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Get operation to a batch and keeps the batch pending.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Get
+ *          overload. Finish the batch with an aclshmemx_submit_t action.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on pe.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Actual source PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
+ *                          aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief Adds the current nonblocking relay UDMA Get operation and submits all operations in the batch.
+ *
+ * @details See @ref udma_submit_action_contract. Same PE-argument preconditions as the immediate relay Get
+ *          overload. After submit, call aclshmemx_udma_quiet(pe) before reading or reusing dst.
+ *
+ * @tparam WQE_PIPE           Must be PIPE_MTE3 for this action overload.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on pe.
+ * @param buf               [in] Local UB LocalTensor workspace shared by all calls in this batch.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Actual source PE.
+ * @param relay_pe          [in] PE whose port path is used to forward the packet.
+ * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
+ * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action);
 
 /**
  * @brief Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and

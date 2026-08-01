@@ -11,8 +11,15 @@
 
 #include "shmem.h"
 constexpr uint64_t MESSAGE_SIZE = 64;
+constexpr uint32_t UDMA_ACTION_BATCH_COUNT = 2;
+constexpr uint32_t UDMA_ACTION_UB_SIZE = MESSAGE_SIZE * UDMA_ACTION_BATCH_COUNT;
 
-extern "C" __global__ __aicore__ void UDMAGetTest(GM_ADDR gva)
+ACLSHMEM_DEVICE GM_ADDR get_udma_action_slot(GM_ADDR gva, int64_t rank, uint32_t batch_idx)
+{
+    return gva + (rank * UDMA_ACTION_BATCH_COUNT + batch_idx) * MESSAGE_SIZE;
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAGetTest(GM_ADDR gva)
 {
     AscendC::TPipe pipe;
     AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
@@ -28,17 +35,90 @@ extern "C" __global__ __aicore__ void UDMAGetTest(GM_ADDR gva)
             continue;
         }
         dest_addr = gva + peer * MESSAGE_SIZE;
-        aclshmemx_udma_get_nbi<uint8_t, PIPE_S>(dest_addr, dest_addr, (__ubuf__ uint8_t *)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_udma_get_nbi<uint8_t, PIPE_S>(
+            dest_addr, dest_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
         aclshmemx_udma_quiet(peer);
     }
 }
 
-void test_udma_get(uint32_t block_dim, void *stream, uint8_t *gva)
+void test_udma_get(uint32_t block_dim, void* stream, uint8_t* gva) { UDMAGetTest<<<block_dim, nullptr, stream>>>(gva); }
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAGetActionPointerTest(GM_ADDR gva)
 {
-    UDMAGetTest<<<block_dim, nullptr, stream>>>(gva);
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+    __ubuf__ uint8_t* ub_ptr = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        aclshmemx_submit_state_t state{};
+        aclshmemx_defer_t defer_action(state);
+        aclshmemx_submit_t submit_action(state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR dest_addr = get_udma_action_slot(gva, peer, i);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3>(
+                    dest_addr, dest_addr, ub_ptr, MESSAGE_SIZE, peer, 0, submit_action);
+            } else {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3>(
+                    dest_addr, dest_addr, ub_ptr, MESSAGE_SIZE, peer, 0, defer_action);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+    }
 }
 
-extern "C" __global__ __aicore__ void UDMAPutTest(GM_ADDR gva)
+void test_udma_get_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAGetActionPointerTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAGetActionTensorTest(GM_ADDR gva)
+{
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        aclshmemx_submit_state_t state{};
+        aclshmemx_defer_t defer_action(state);
+        aclshmemx_submit_t submit_action(state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR dest_addr = get_udma_action_slot(gva, peer, i);
+            AscendC::GlobalTensor<uint8_t> dst_tensor;
+            AscendC::GlobalTensor<uint8_t> src_tensor;
+            dst_tensor.SetGlobalBuffer((__gm__ uint8_t*)dest_addr, MESSAGE_SIZE);
+            src_tensor.SetGlobalBuffer((__gm__ uint8_t*)dest_addr, MESSAGE_SIZE);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3>(
+                    dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, peer, 0, submit_action);
+            } else {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3>(
+                    dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, peer, 0, defer_action);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+    }
+}
+
+void test_udma_get_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAGetActionTensorTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutTest(GM_ADDR gva)
 {
     AscendC::TPipe pipe;
     AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
@@ -54,22 +134,147 @@ extern "C" __global__ __aicore__ void UDMAPutTest(GM_ADDR gva)
             continue;
         }
         src_addr = gva + rank * MESSAGE_SIZE;
-        aclshmemx_udma_put_nbi<uint8_t, PIPE_S>(src_addr, src_addr, (__ubuf__ uint8_t *)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
+        aclshmemx_udma_put_nbi<uint8_t, PIPE_S>(
+            src_addr, src_addr, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), MESSAGE_SIZE, peer);
         aclshmemx_udma_quiet(peer);
     }
 }
 
-void test_udma_put(uint32_t block_dim, void *stream, uint8_t *gva)
+void test_udma_put(uint32_t block_dim, void* stream, uint8_t* gva) { UDMAPutTest<<<block_dim, nullptr, stream>>>(gva); }
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutActionPointerTest(GM_ADDR gva)
 {
-    UDMAPutTest<<<block_dim, nullptr, stream>>>(gva);
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+    __ubuf__ uint8_t* ub_ptr = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        aclshmemx_submit_state_t state{};
+        aclshmemx_defer_t defer_action(state);
+        aclshmemx_submit_t submit_action(state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR src_addr = get_udma_action_slot(gva, rank, i);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3>(
+                    src_addr, src_addr, ub_ptr, MESSAGE_SIZE, peer, 0, submit_action);
+            } else {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3>(
+                    src_addr, src_addr, ub_ptr, MESSAGE_SIZE, peer, 0, defer_action);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+    }
 }
 
-extern "C" __global__ __aicore__ void UDMAPutSignalTest(GM_ADDR gva, GM_ADDR sig_addr)
-{    
+void test_udma_put_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAPutActionPointerTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutActionTensorTest(GM_ADDR gva)
+{
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        aclshmemx_submit_state_t state{};
+        aclshmemx_defer_t defer_action(state);
+        aclshmemx_submit_t submit_action(state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR src_addr = get_udma_action_slot(gva, rank, i);
+            AscendC::GlobalTensor<uint8_t> dst_tensor;
+            AscendC::GlobalTensor<uint8_t> src_tensor;
+            dst_tensor.SetGlobalBuffer((__gm__ uint8_t*)src_addr, MESSAGE_SIZE);
+            src_tensor.SetGlobalBuffer((__gm__ uint8_t*)src_addr, MESSAGE_SIZE);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3>(
+                    dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, peer, 0, submit_action);
+            } else {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3>(
+                    dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, peer, 0, defer_action);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+    }
+}
+
+void test_udma_put_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAPutActionTensorTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
+#ifdef ACLSHMEM_RELAY_SUPPORT
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMARelayActionCompileTest(GM_ADDR gva)
+{
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+    __ubuf__ uint8_t* ub_ptr = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+
+    int my_pe = static_cast<int>(aclshmem_my_pe());
+    int npes = static_cast<int>(aclshmem_n_pes());
+    if (npes < 3) {
+        return;
+    }
+    int pe = (my_pe + 1) % npes;
+    int relay_pe = (my_pe + 2) % npes;
+    GM_ADDR addr = get_udma_action_slot(gva, my_pe, 0);
+    AscendC::GlobalTensor<uint8_t> dst_tensor;
+    AscendC::GlobalTensor<uint8_t> src_tensor;
+    dst_tensor.SetGlobalBuffer((__gm__ uint8_t*)addr, MESSAGE_SIZE);
+    src_tensor.SetGlobalBuffer((__gm__ uint8_t*)addr, MESSAGE_SIZE);
+
+    aclshmemx_submit_state_t put_ptr_state{};
+    aclshmemx_defer_t put_ptr_defer(put_ptr_state);
+    aclshmemx_submit_t put_ptr_submit(put_ptr_state);
+    aclshmemx_udma_relay_put_nbi<uint8_t, PIPE_MTE3>(addr, addr, ub_ptr, MESSAGE_SIZE, pe, relay_pe, 0, put_ptr_defer);
+    aclshmemx_udma_relay_put_nbi<uint8_t, PIPE_MTE3>(addr, addr, ub_ptr, MESSAGE_SIZE, pe, relay_pe, 0, put_ptr_submit);
+
+    aclshmemx_submit_state_t put_tensor_state{};
+    aclshmemx_defer_t put_tensor_defer(put_tensor_state);
+    aclshmemx_submit_t put_tensor_submit(put_tensor_state);
+    aclshmemx_udma_relay_put_nbi<uint8_t, PIPE_MTE3>(
+        dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, pe, relay_pe, 0, put_tensor_defer);
+    aclshmemx_udma_relay_put_nbi<uint8_t, PIPE_MTE3>(
+        dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, pe, relay_pe, 0, put_tensor_submit);
+
+    aclshmemx_submit_state_t get_ptr_state{};
+    aclshmemx_defer_t get_ptr_defer(get_ptr_state);
+    aclshmemx_submit_t get_ptr_submit(get_ptr_state);
+    aclshmemx_udma_relay_get_nbi<uint8_t, PIPE_MTE3>(addr, addr, ub_ptr, MESSAGE_SIZE, pe, relay_pe, 0, get_ptr_defer);
+    aclshmemx_udma_relay_get_nbi<uint8_t, PIPE_MTE3>(addr, addr, ub_ptr, MESSAGE_SIZE, pe, relay_pe, 0, get_ptr_submit);
+
+    aclshmemx_submit_state_t get_tensor_state{};
+    aclshmemx_defer_t get_tensor_defer(get_tensor_state);
+    aclshmemx_submit_t get_tensor_submit(get_tensor_state);
+    aclshmemx_udma_relay_get_nbi<uint8_t, PIPE_MTE3>(
+        dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, pe, relay_pe, 0, get_tensor_defer);
+    aclshmemx_udma_relay_get_nbi<uint8_t, PIPE_MTE3>(
+        dst_tensor, src_tensor, ubLocal, MESSAGE_SIZE, pe, relay_pe, 0, get_tensor_submit);
+}
+#endif
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutSignalTest(GM_ADDR gva, GM_ADDR sig_addr)
+{
     int64_t my_pe = aclshmem_my_pe();
     int64_t npes = aclshmem_n_pes();
     GM_ADDR src_addr;
-    
+
     for (int64_t peer = 0; peer < npes; peer++) {
         if (peer == my_pe) {
             continue;
@@ -82,7 +287,7 @@ extern "C" __global__ __aicore__ void UDMAPutSignalTest(GM_ADDR gva, GM_ADDR sig
     }
 }
 
-void test_udma_put_signal(uint32_t block_dim, void *stream, uint8_t *gva, uint8_t *sig_addr)
+void test_udma_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr)
 {
     UDMAPutSignalTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
 }
