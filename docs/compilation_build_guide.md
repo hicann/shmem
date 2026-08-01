@@ -37,10 +37,10 @@ SHMEM的基本编译命令是`bash build.sh`，默认构建模式下生成版本
 - `-enable_rdma`：构建并启用RDMA相关能力。A2/A3 默认配置 RDMA 后端类型，Ascend950 需要配合 `-rdma_backend` 来指定后端类型。
 - `-rdma_backend`：指定RDMA后端类型（A2/A3 不支持该选项），可选值为 `XSCALE`（使用云脉网卡）或 `HNS_1825`（使用 1825 网卡）。**必须配合 `-enable_rdma` 使用**，否则会报错。参数顺序不限。
 - `-enable_ascendc_dump`：启用`AscendC_Dump`模式，用于对算子内核代码进行调测
-- `-package`：构建交付安装包，同时生成 run 包和 whl 包（包含 `-python_extension` 行为）
-    * 生成 run 包 SHMEM\_{version}\_linux-{arch}.run，路径为 `{project_root}/package/{arch}/`
-    * 生成 whl 包 `cann_shmem-xxx.whl`，路径为 `{project_root}/package/{arch}/`
-- `-python_extension`：仅生成 python whl 包 `cann_shmem-xxx.whl`，路径为 `{project_root}/dist/`
+- `-package`：构建交付安装包，同时生成 run 包和 Python wheel（包含 `-python_extension` 行为）
+    * 生成 run 包 `SHMEM_{version}_linux-{arch}.run`，路径为 `{project_root}/package/{arch}/`
+    * 生成同时包含 910/950 后端的 Python wheel `cann_shmem-*.whl`，路径为 `{project_root}/package/{arch}/`
+- `-python_extension`：生成同时包含 910/950 后端的 Python wheel `cann_shmem-*.whl`，路径为 `{project_root}/dist/`
 - `-gendoc`：生成文档
 - `-onlygendoc`: 生成文档，不构建源码
 - `-debug`：设置构建类型为 `Debug` 模式
@@ -128,6 +128,7 @@ bash scripts/build.sh -enable_rdma -rdma_backend XSCALE
    - `build.sh`: 编译脚本
    - `release.sh`：全自动构建与打包脚本
    - `set_env.sh`：SHMEM的环境变量设置文件
+   - `preinstall_check.sh`：芯片、版本、拓扑、通信能力和包产物环境检测脚本
 
 ### run.sh脚本使用
 
@@ -156,6 +157,14 @@ bash scripts/run.sh -ranks 8 -ipport 127.0.0.1:8666 -test_filter Init
 ### install.sh
 
 打包生成的run包的安装/卸载脚本，提供安装和卸载的功能。
+
+- `软件包名.run --check`：仅执行环境和包能力检查。
+- `软件包名.run --install --check`：先执行环境检查，再安装。
+- `软件包名.run --install`：直接安装。
+- `软件包名.run --install-path=/absolute/path`：安装到指定绝对路径下的 `shmem` 目录。
+
+`--check` 输出的 `WARN` 用于提示不满足或需要人工确认的能力。当前检测以输出内容和最终汇总为判断依据，命令退出成功不代表所有可选通信能力均通过。
+
 安装目录
 
 ```sh

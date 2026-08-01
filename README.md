@@ -29,7 +29,8 @@ SHMEM 提供三种安装方式，按需选择：
 
 ```bash
 pip install cann-shmem -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
-shmem-config --version  # 验证安装，输出版本号即成功
+shmem-config --version   # 查询安装版本
+shmem-config --diagnose  # 检查 native 加载和包完整性
 ```
 
 > 注意：
@@ -54,7 +55,9 @@ bash scripts/build.sh             # A2/A3 平台
 source install/set_env.sh
 ```
 
-> 完整安装步骤（含 CANN 环境准备、依赖说明、Docker 容器等）详见 [快速入门文档](docs/quickstart.md)。
+> 完整安装步骤（含 CANN 环境准备、依赖说明、Docker 容器、编译执行和本地验证等）详见 [快速入门文档](docs/quickstart.md)。
+
+安装 Python wheel 后，可通过 [shmem-config 命令参考](docs/tools/shmem_config_guide.md)查询后端和安装路径，执行环境检查及问题诊断。
 
 若您需要了解文档和接口中出现的缩写与名词，请参考[术语表](docs/glossary.md)。
 
