@@ -88,6 +88,10 @@ private:
     void* atomicSharedMemory_{nullptr};
     HcommMemHandle atomicMemHandle_{nullptr};
     uint32_t atomicLkey_{0};
+    uint32_t cqAttrFlags_{SHMEM_IBV_CREATE_CQ_ATTR_IGNORE_OVERRUN}; // 默认启用 cq overrun 功能
+
+private:
+    static constexpr uint32_t SHMEM_IBV_CREATE_CQ_ATTR_IGNORE_OVERRUN = 2; // IBV_CREATE_CQ_ATTR_IGNORE_OVERRUN = 1 << 1
 };
 } // namespace device
 } // namespace transport
