@@ -225,22 +225,13 @@ int aclshmemx_set_attr_uniqueid_args(
     return ACLSHMEM_SUCCESS;
 }
 
-bool check_support_d2h()
+static bool check_support_d2h()
 {
-    int32_t major_version = -1;
-    int32_t minor_version = -1;
-    int32_t patch_version = -1;
-    if (aclrtGetVersion(&major_version, &minor_version, &patch_version) != 0) {
-        SHM_LOG_INFO("aclrtGetVersion failed, disable d2h feature");
-        return false;
-    }
-    if (major_version <= 1 && minor_version < 15) {
-        SHM_LOG_INFO(
-            "The current AscendCL version is " << major_version << "." << minor_version << "." << patch_version
-                                               << ", which does not support d2h.");
-        return false;
-    }
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     return true;
+#else
+    return false;
+#endif
 }
 
 int32_t aclshmemi_signal_finalize()
@@ -578,12 +569,10 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     // shmem submodules init
     ACLSHMEM_CHECK_RET(memory_manager_initialize(g_state.heap_base, g_state.heap_size));
 
-#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     if (check_support_d2h()) {
         // only reserve dramp heap, skip setup_heap for host dram, setup heap when malloc on host
         ACLSHMEM_CHECK_RET(init_manager->reserve_heap(HOST_SIDE));
     }
-#endif
     ACLSHMEM_CHECK_RET(aclshmemi_signal_init());
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
@@ -632,12 +621,10 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     ACLSHMEM_CHECK_RET(init_manager->release_heap());
     ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
     SHM_LOG_INFO("release_heap success.");
-#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
     if (check_support_d2h()) {
         ACLSHMEM_CHECK_RET(init_manager->remove_heap(HOST_SIDE));
         ACLSHMEM_CHECK_RET(init_manager->release_heap(HOST_SIDE));
     }
-#endif
     ACLSHMEM_CHECK_RET(init_manager->release_aclshmem_entity(instance_id));
     if (g_state_host.default_stream != nullptr) {
         auto ret = aclrtSynchronizeStream(g_state_host.default_stream);
