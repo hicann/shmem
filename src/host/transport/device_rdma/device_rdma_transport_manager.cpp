@@ -21,20 +21,21 @@ namespace shm {
 namespace transport {
 namespace device {
 bool RdmaTransportManager::tsdOpened_ = false;
-bool RdmaTransportManager::deviceIpRetired_ = false;
-bool RdmaTransportManager::raInitialized_ = false;
-void* RdmaTransportManager::storedRdmaHandle_ = nullptr;
+std::mutex RdmaTransportManager::raMutex_;
+std::map<uint32_t, RdmaTransportManager::RaResourceState> RdmaTransportManager::raInstances_;
 
 RdmaTransportManager::~RdmaTransportManager()
 {
     ClearAllRegisterMRs();
-    tsdOpened_ = false;
-    raInitialized_ = false;
-    deviceIpRetired_ = false;
-    storedRdmaHandle_ = nullptr;
+    if (raReferenced_) {
+        RaDeinit(phyId_);
+        raReferenced_ = false;
+    } else {
+        ResetOpenDeviceState(phyId_);
+    }
 }
 
-void RdmaTransportManager::InitializeDeviceAddress(mf_sockaddr &deviceAddr)
+void RdmaTransportManager::InitializeDeviceAddress(mf_sockaddr& deviceAddr)
 {
     if (deviceIp_.type == IpV4) {
         deviceAddr.ip.ipv4.sin_family = AF_INET;
@@ -49,34 +50,36 @@ void RdmaTransportManager::InitializeDeviceAddress(mf_sockaddr &deviceAddr)
     }
 }
 
-Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
+Result RdmaTransportManager::OpenDevice(const TransportOptions& options)
 {
     int32_t userId = -1;
     int32_t logicId = -1;
 
     SHM_LOG_DEBUG(rankId_ << " begin to open device with " << options);
     auto ret = DlAclApi::AclrtGetDevice(&userId);
-    SHM_ASSERT_LOG_AND_RETURN(ret == 0 && userId >= 0,
-                             "AclrtGetDevice() return=" << ret << ", output deviceId=" << userId,
-                             ACLSHMEM_DL_FUNC_FAILED);
+    SHM_ASSERT_LOG_AND_RETURN(
+        ret == 0 && userId >= 0, "AclrtGetDevice() return=" << ret << ", output deviceId=" << userId,
+        ACLSHMEM_DL_FUNC_FAILED);
 
     ret = DlAclApi::RtGetLogicDevIdByUserDevId(userId, &logicId);
-    SHM_ASSERT_LOG_AND_RETURN(ret == 0 && logicId >= 0,
-                             "RtGetLogicDevIdByUserDevId() return=" << ret << ", output deviceId=" << logicId,
-                             ACLSHMEM_DL_FUNC_FAILED);
+    SHM_ASSERT_LOG_AND_RETURN(
+        ret == 0 && logicId >= 0, "RtGetLogicDevIdByUserDevId() return=" << ret << ", output deviceId=" << logicId,
+        ACLSHMEM_DL_FUNC_FAILED);
 
     int32_t phyId = -1;
     // HCCP/topo use global phyId; pass userId to deprecated API (MR !407), not logicId.
     ret = DlAclApi::AclrtGetPhyDevIdByLogicDevId(userId, &phyId);
-    SHM_ASSERT_LOG_AND_RETURN(ret == 0 && phyId >= 0,
-                             "AclrtGetPhyDevIdByLogicDevId() return=" << ret << ", userId=" << userId
-                                 << ", logicDeviceId=" << logicId << ", output phyId=" << phyId,
-                             ACLSHMEM_DL_FUNC_FAILED);
+    SHM_ASSERT_LOG_AND_RETURN(
+        ret == 0 && phyId >= 0,
+        "AclrtGetPhyDevIdByLogicDevId() return=" << ret << ", userId=" << userId << ", logicDeviceId=" << logicId
+                                                 << ", output phyId=" << phyId,
+        ACLSHMEM_DL_FUNC_FAILED);
 
     deviceId_ = static_cast<uint32_t>(logicId);
     phyId_ = static_cast<uint32_t>(phyId);
-    SHM_LOG_INFO(rankId_ << " resolved device mapping: userId=" << userId << ", logicDeviceId=" << deviceId_
-                         << ", phyId=" << phyId_);
+    SHM_LOG_INFO(
+        rankId_ << " resolved device mapping: userId=" << userId << ", logicDeviceId=" << deviceId_
+                << ", phyId=" << phyId_);
     rankId_ = options.rankId;
     rankCount_ = options.rankCount;
     role_ = options.role;
@@ -103,8 +106,8 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions &options)
     if (role_ == HYBM_ROLE_PEER) {
         qpManager_ = std::make_shared<FixedRanksQpManager>(userId, phyId_, rankId_, rankCount_, deviceAddr);
     } else {
-        qpManager_ = std::make_shared<DynamicRanksQpManager>(userId, phyId_, rankId_, rankCount_, deviceAddr,
-                                                             role_ == HYBM_ROLE_RECEIVER);
+        qpManager_ = std::make_shared<DynamicRanksQpManager>(
+            userId, phyId_, rankId_, rankCount_, deviceAddr, role_ == HYBM_ROLE_RECEIVER);
     }
 
     deviceChipInfo_ = std::make_shared<DeviceChipInfo>(userId);
@@ -126,11 +129,11 @@ Result RdmaTransportManager::CloseDevice()
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion &mr)
+Result RdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& mr)
 {
-    void *mrHandle = nullptr;
+    void* mrHandle = nullptr;
     HccpMrInfo info{};
-    info.addr = (void *)(ptrdiff_t)mr.addr;
+    info.addr = (void*)(ptrdiff_t)mr.addr;
     info.size = mr.size;
     info.access = mr.access;
     auto ret = DlHccpApi::RaRegisterMR(rdmaHandle_, &info, mrHandle);
@@ -175,7 +178,7 @@ Result RdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::QueryMemoryKey(uint64_t addr, TransportMemoryKey &key)
+Result RdmaTransportManager::QueryMemoryKey(uint64_t addr, TransportMemoryKey& key)
 {
     RegMemKeyUnion keyUnion{};
     auto pos = registerMRS_.lower_bound(addr);
@@ -190,7 +193,7 @@ Result RdmaTransportManager::QueryMemoryKey(uint64_t addr, TransportMemoryKey &k
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::ParseMemoryKey(const TransportMemoryKey &key, uint64_t &addr, uint64_t &size)
+Result RdmaTransportManager::ParseMemoryKey(const TransportMemoryKey& key, uint64_t& addr, uint64_t& size)
 {
     RegMemKeyUnion keyUnion{};
     keyUnion.commonKey = key;
@@ -204,7 +207,7 @@ Result RdmaTransportManager::ParseMemoryKey(const TransportMemoryKey &key, uint6
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::Prepare(const HybmTransPrepareOptions &options)
+Result RdmaTransportManager::Prepare(const HybmTransPrepareOptions& options)
 {
     SHM_LOG_DEBUG(rankId_ << " RdmaTransportManager Prepare with : " << options);
     int ret;
@@ -257,10 +260,7 @@ Result RdmaTransportManager::Connect()
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::AsyncConnect()
-{
-    return ACLSHMEM_SUCCESS;
-}
+Result RdmaTransportManager::AsyncConnect() { return ACLSHMEM_SUCCESS; }
 
 Result RdmaTransportManager::WaitForConnected(int64_t timeoutNs)
 {
@@ -278,7 +278,7 @@ Result RdmaTransportManager::WaitForConnected(int64_t timeoutNs)
     return ACLSHMEM_SUCCESS;
 }
 
-Result RdmaTransportManager::UpdateRankOptions(const HybmTransPrepareOptions &options)
+Result RdmaTransportManager::UpdateRankOptions(const HybmTransPrepareOptions& options)
 {
     SHM_LOG_DEBUG(rankId_ << " RdmaTransportManager Prepare with : " << options);
     if (qpManager_ == nullptr) {
@@ -308,12 +308,9 @@ Result RdmaTransportManager::UpdateRankOptions(const HybmTransPrepareOptions &op
     return ACLSHMEM_SUCCESS;
 }
 
-const std::string &RdmaTransportManager::GetNic() const
-{
-    return nicInfo_;
-}
+const std::string& RdmaTransportManager::GetNic() const { return nicInfo_; }
 
-const void *RdmaTransportManager::GetQpInfo() const
+const void* RdmaTransportManager::GetQpInfo() const
 {
     if (qpManager_ == nullptr) {
         SHM_LOG_ERROR(rankId_ << " GetQpInfo(): connection manager not created.");
@@ -322,16 +319,21 @@ const void *RdmaTransportManager::GetQpInfo() const
     return qpManager_->GetQpInfoAddress();
 }
 
-bool RdmaTransportManager::PrepareOpenDevice(uint32_t userId, uint32_t phyId, uint32_t rankCount,
-                                             net_addr_t &deviceIp, void *&rdmaHandle)
+bool RdmaTransportManager::PrepareOpenDevice(
+    uint32_t userId, uint32_t phyId, uint32_t rankCount, net_addr_t& deviceIp, void*& rdmaHandle)
 {
     // If can get rdmaHandle, maybe the device has been opened, can try get rdmaHandle directly.
-    if (DlHccpApi::RaRdevGetHandle(phyId, rdmaHandle) == 0) {
+    bool referenced = false;
+    if (TryGetRdmaHandleAndReferenceManagedRa(phyId, rdmaHandle, referenced)) {
         if (rdmaHandle != nullptr) {
             if (!RetireDeviceIp(phyId, deviceIp)) {
                 SHM_LOG_ERROR("phyId=" << phyId << " RetireDeviceIp failed.");
+                if (referenced) {
+                    RaDeinit(phyId);
+                }
                 return false;
             }
+            raReferenced_ = referenced;
             SHM_LOG_DEBUG("phyId=" << phyId << " Had prepared device and get rdmaHandle success.");
             return true;
         }
@@ -346,6 +348,7 @@ bool RdmaTransportManager::PrepareOpenDevice(uint32_t userId, uint32_t phyId, ui
         SHM_LOG_ERROR("phyId=" << phyId << " RaInit failed.");
         return false;
     }
+    raReferenced_ = true;
 
     if (!RetireDeviceIp(phyId, deviceIp)) {
         SHM_LOG_ERROR("phyId=" << phyId << " RetireDeviceIp failed.");
@@ -359,8 +362,27 @@ bool RdmaTransportManager::PrepareOpenDevice(uint32_t userId, uint32_t phyId, ui
     return true;
 }
 
+bool RdmaTransportManager::TryGetRdmaHandleAndReferenceManagedRa(uint32_t phyId, void*& rdmaHandle, bool& referenced)
+{
+    referenced = false;
+    std::lock_guard<std::mutex> lock(raMutex_);
+    if (DlHccpApi::RaRdevGetHandle(phyId, rdmaHandle) != 0) {
+        return false;
+    }
+
+    auto it = raInstances_.find(phyId);
+    if (rdmaHandle != nullptr && it != raInstances_.end() && it->second.refCount != 0) {
+        ++it->second.refCount;
+        it->second.rdmaHandle = rdmaHandle;
+        referenced = true;
+        SHM_LOG_INFO("phyId=" << phyId << " reference managed ra, ref=" << it->second.refCount << ".");
+    }
+    return true;
+}
+
 bool RdmaTransportManager::OpenTsd(uint32_t userId, uint32_t rankCount)
 {
+    std::lock_guard<std::mutex> lock(raMutex_);
     if (tsdOpened_) {
         SHM_LOG_INFO("userId=" << userId << " tsd already opened.");
         return true;
@@ -379,15 +401,19 @@ bool RdmaTransportManager::OpenTsd(uint32_t userId, uint32_t rankCount)
 
 bool RdmaTransportManager::RaInit(uint32_t phyId)
 {
-    if (raInitialized_) {
-        SHM_LOG_INFO("phyId=" << phyId << " ra already initialized.");
+    std::lock_guard<std::mutex> lock(raMutex_);
+    auto& state = raInstances_[phyId];
+    if (state.refCount != 0) {
+        ++state.refCount;
+        SHM_LOG_INFO("phyId=" << phyId << " ra already initialized, ref=" << state.refCount << ".");
         return true;
     }
+
     const std::chrono::seconds WAIT_TIME(3);
     HccpRaInitConfig initConfig{};
     initConfig.phyId = phyId;
     initConfig.nicPosition = NETWORK_OFFLINE;
-    initConfig.hdcType = 6;  // HDC_SERVICE_TYPE_RDMA = 6
+    initConfig.hdcType = 6; // HDC_SERVICE_TYPE_RDMA = 6
     SHM_LOG_DEBUG("phyId=" << phyId << " RaInit=" << initConfig);
     std::this_thread::sleep_for(WAIT_TIME); // avoid hccl init conflict
     auto ret = DlHccpApi::RaInit(initConfig);
@@ -395,36 +421,94 @@ bool RdmaTransportManager::RaInit(uint32_t phyId)
         SHM_LOG_WARN("phyId=" << phyId << " Hccp Init RA failed: " << ret);
         // maybe hccl have already initialized ra, wait 3s then return true.
         std::this_thread::sleep_for(WAIT_TIME);
-        raInitialized_ = true;
+        state.refCount = 1;
+        state.selfOwned = false;
         return true;
     }
 
     SHM_LOG_DEBUG("phyId=" << phyId << " ra init success.");
-    raInitialized_ = true;
+    state.refCount = 1;
+    state.selfOwned = true;
     return true;
 }
 
-bool RdmaTransportManager::HandleRetiredDeviceIp(uint32_t phyId, net_addr_t &deviceIp, net_addr_t &retiredIp)
+void RdmaTransportManager::RaDeinit(uint32_t phyId)
 {
-    if (deviceIpRetired_ && deviceIp.type == IpV4) {
-        SHM_LOG_INFO("phyId=" << phyId << " device ip already retired : " << inet_ntoa(retiredIp.ip.ipv4));
-        deviceIp = retiredIp;
+    std::lock_guard<std::mutex> lock(raMutex_);
+    auto it = raInstances_.find(phyId);
+    if (it == raInstances_.end() || it->second.refCount == 0) {
+        SHM_LOG_WARN("phyId=" << phyId << " not ra init.");
+        return;
+    }
+
+    --it->second.refCount;
+    SHM_LOG_INFO("phyId=" << phyId << " release ra, ref=" << it->second.refCount << ".");
+    if (it->second.refCount != 0) {
+        return;
+    }
+
+    if (!it->second.selfOwned) {
+        SHM_LOG_INFO("phyId=" << phyId << " skip RaDeinit in shmem.");
+        raInstances_.erase(it);
+        if (raInstances_.empty()) {
+            tsdOpened_ = false;
+        }
+        return;
+    }
+
+    HccpRaInitConfig deinitConfig{};
+    deinitConfig.phyId = phyId;
+    deinitConfig.nicPosition = NETWORK_OFFLINE;
+    deinitConfig.hdcType = 6; // HDC_SERVICE_TYPE_RDMA = 6
+    auto ret = DlHccpApi::RaDeinit(deinitConfig);
+    if (ret != 0) {
+        SHM_LOG_WARN("phyId=" << phyId << " Hccp Deinit RA failed: " << ret);
+    } else {
+        SHM_LOG_DEBUG("phyId=" << phyId << " ra deinit success.");
+    }
+
+    raInstances_.erase(it);
+    if (raInstances_.empty()) {
+        tsdOpened_ = false;
+    }
+}
+
+void RdmaTransportManager::ResetOpenDeviceState(uint32_t phyId)
+{
+    std::lock_guard<std::mutex> lock(raMutex_);
+    auto it = raInstances_.find(phyId);
+    if (it != raInstances_.end() && it->second.refCount == 0) {
+        raInstances_.erase(it);
+    }
+    if (raInstances_.empty()) {
+        tsdOpened_ = false;
+    }
+}
+
+bool RdmaTransportManager::HandleRetiredDeviceIp(uint32_t phyId, net_addr_t& deviceIp)
+{
+    std::lock_guard<std::mutex> lock(raMutex_);
+    auto it = raInstances_.find(phyId);
+    if (it == raInstances_.end() || !it->second.deviceIpRetired || it->second.retiredIp.type != deviceIp.type) {
+        return false;
+    }
+
+    deviceIp = it->second.retiredIp;
+    if (deviceIp.type == IpV4) {
+        SHM_LOG_INFO("phyId=" << phyId << " device ip already retired : " << inet_ntoa(deviceIp.ip.ipv4));
         return true;
-    } else if (deviceIpRetired_ && deviceIp.type == IpV6) {
+    } else if (deviceIp.type == IpV6) {
         char ipv6Str[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET6, &retiredIp.ip.ipv6, ipv6Str, INET6_ADDRSTRLEN);
+        inet_ntop(AF_INET6, &deviceIp.ip.ipv6, ipv6Str, INET6_ADDRSTRLEN);
         SHM_LOG_INFO("phyId=" << phyId << " device ip already retired : " << ipv6Str);
-        deviceIp = retiredIp;
         return true;
     }
     return false;
 }
 
-bool RdmaTransportManager::RetireDeviceIp(uint32_t phyId, net_addr_t &deviceIp)
+bool RdmaTransportManager::RetireDeviceIp(uint32_t phyId, net_addr_t& deviceIp)
 {
-    net_addr_t retiredIp{};
-
-    auto isRetire = HandleRetiredDeviceIp(phyId, deviceIp, retiredIp);
+    auto isRetire = HandleRetiredDeviceIp(phyId, deviceIp);
     if (isRetire) {
         return true;
     }
@@ -450,21 +534,31 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t phyId, net_addr_t &deviceIp)
         return false;
     }
 
-    for (auto &info : infos) {
-        SHM_LOG_DEBUG("phyId=" << phyId << " found interface: ifname=" << info.ifname 
-                      << ", scopeId=" << info.scopeId 
-                      << ", family=" << info.family);
-        if (info.family == AF_INET) {
-            deviceIp.ip.ipv4 = retiredIp.ip.ipv4 = info.ifaddr.ip.addr;
+    for (auto& info : infos) {
+        SHM_LOG_DEBUG(
+            "phyId=" << phyId << " found interface: ifname=" << info.ifname << ", scopeId=" << info.scopeId
+                     << ", family=" << info.family);
+        if (info.family == AF_INET && deviceIp.type == IpV4) {
+            deviceIp.ip.ipv4 = info.ifaddr.ip.addr;
             deviceIp.type = IpV4;
-            deviceIpRetired_ = true;
+            {
+                std::lock_guard<std::mutex> lock(raMutex_);
+                auto& state = raInstances_[phyId];
+                state.retiredIp = deviceIp;
+                state.deviceIpRetired = true;
+            }
             SHM_LOG_DEBUG("phyId=" << phyId << " retire device ip success : " << inet_ntoa(deviceIp.ip.ipv4));
             return true;
         }
-        if (info.family == AF_INET6) {
-            deviceIp.ip.ipv6 = retiredIp.ip.ipv6 = info.ifaddr.ip.addr6;
+        if (info.family == AF_INET6 && deviceIp.type == IpV6) {
+            deviceIp.ip.ipv6 = info.ifaddr.ip.addr6;
             deviceIp.type = IpV6;
-            deviceIpRetired_ = true;
+            {
+                std::lock_guard<std::mutex> lock(raMutex_);
+                auto& state = raInstances_[phyId];
+                state.retiredIp = deviceIp;
+                state.deviceIpRetired = true;
+            }
             char ipv6Str[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, &deviceIp.ip.ipv6, ipv6Str, INET6_ADDRSTRLEN);
             SHM_LOG_DEBUG("phyId=" << phyId << " retire device ip success : " << ipv6Str);
@@ -472,15 +566,17 @@ bool RdmaTransportManager::RetireDeviceIp(uint32_t phyId, net_addr_t &deviceIp)
         }
     }
 
-    SHM_LOG_ERROR("phyId=" << phyId << " not found network device of AF_INET or AF_INET6 on NPU.");
+    SHM_LOG_ERROR("phyId=" << phyId << " not found requested network device type " << deviceIp.type << " on NPU.");
     return false;
 }
 
-bool RdmaTransportManager::RaRdevInit(uint32_t phyId, net_addr_t deviceIp, void *&rdmaHandle)
+bool RdmaTransportManager::RaRdevInit(uint32_t phyId, net_addr_t deviceIp, void*& rdmaHandle)
 {
-    if (storedRdmaHandle_ != nullptr) {
+    std::lock_guard<std::mutex> lock(raMutex_);
+    auto& state = raInstances_[phyId];
+    if (state.rdmaHandle != nullptr) {
         SHM_LOG_INFO("phyId=" << phyId << " ra rdev already initialized.");
-        rdmaHandle = storedRdmaHandle_;
+        rdmaHandle = state.rdmaHandle;
         return true;
     }
 
@@ -504,7 +600,7 @@ bool RdmaTransportManager::RaRdevInit(uint32_t phyId, net_addr_t deviceIp, void 
         return false;
     }
 
-    storedRdmaHandle_ = rdmaHandle;
+    state.rdmaHandle = rdmaHandle;
     SHM_LOG_INFO("phyId=" << phyId << " initialize RDev success.");
     return true;
 }
@@ -514,13 +610,14 @@ void RdmaTransportManager::ClearAllRegisterMRs()
     for (auto it = registerMRS_.begin(); it != registerMRS_.end(); ++it) {
         auto ret = DlHccpApi::RaDeregisterMR(rdmaHandle_, it->second.mrHandle);
         if (ret != 0) {
-            SHM_LOG_WARN(rankId_ << " Unregister:" << (void *)(ptrdiff_t)it->first << " : " << it->second << " failed: " << ret);
+            SHM_LOG_WARN(
+                rankId_ << " Unregister:" << (void*)(ptrdiff_t)it->first << " : " << it->second << " failed: " << ret);
         }
     }
     registerMRS_.clear();
 }
 
-int RdmaTransportManager::CheckPrepareOptions(const shm::transport::HybmTransPrepareOptions &options)
+int RdmaTransportManager::CheckPrepareOptions(const shm::transport::HybmTransPrepareOptions& options)
 {
     if (role_ != HYBM_ROLE_PEER) {
         SHM_LOG_INFO(rankId_ << " transport role: " << role_ << " check options passed.");
@@ -528,7 +625,8 @@ int RdmaTransportManager::CheckPrepareOptions(const shm::transport::HybmTransPre
     }
 
     if (options.options.size() > rankCount_) {
-        SHM_LOG_ERROR(rankId_ << " options size():" << options.options.size() << " larger than rank count: " << rankCount_);
+        SHM_LOG_ERROR(
+            rankId_ << " options size():" << options.options.size() << " larger than rank count: " << rankCount_);
         return ACLSHMEM_INVALID_PARAM;
     }
 
@@ -539,13 +637,14 @@ int RdmaTransportManager::CheckPrepareOptions(const shm::transport::HybmTransPre
 
     for (auto it = options.options.begin(); it != options.options.end(); ++it) {
         if (it->first >= rankCount_) {
-            SHM_LOG_ERROR(rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
+            SHM_LOG_ERROR(
+                rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
             return ACLSHMEM_INVALID_PARAM;
         }
     }
 
     return ACLSHMEM_SUCCESS;
 }
-}
-}
-}
+} // namespace device
+} // namespace transport
+} // namespace shm

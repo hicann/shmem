@@ -31,34 +31,46 @@ namespace device {
 class RdmaTransportManager : public TransportManager {
 public:
     ~RdmaTransportManager() override;
-    Result OpenDevice(const TransportOptions &options) override;
+    Result OpenDevice(const TransportOptions& options) override;
     Result CloseDevice() override;
-    Result RegisterMemoryRegion(const TransportMemoryRegion &mr) override;
+    Result RegisterMemoryRegion(const TransportMemoryRegion& mr) override;
     Result UnregisterMemoryRegion(uint64_t addr) override;
-    Result QueryMemoryKey(uint64_t addr, TransportMemoryKey &key) override;
-    Result ParseMemoryKey(const TransportMemoryKey &key, uint64_t &addr, uint64_t &size) override;
-    Result Prepare(const HybmTransPrepareOptions &options) override;
+    Result QueryMemoryKey(uint64_t addr, TransportMemoryKey& key) override;
+    Result ParseMemoryKey(const TransportMemoryKey& key, uint64_t& addr, uint64_t& size) override;
+    Result Prepare(const HybmTransPrepareOptions& options) override;
     Result Connect() override;
     Result AsyncConnect() override;
     Result WaitForConnected(int64_t timeoutNs) override;
-    Result UpdateRankOptions(const HybmTransPrepareOptions &options) override;
-    const std::string &GetNic() const override;
-    const void *GetQpInfo() const override;
+    Result UpdateRankOptions(const HybmTransPrepareOptions& options) override;
+    const std::string& GetNic() const override;
+    const void* GetQpInfo() const override;
 
 private:
-    static bool PrepareOpenDevice(uint32_t userId, uint32_t phyId, uint32_t rankCount, net_addr_t &deviceIp,
-        void *&rdmaHandle);
+    struct RaResourceState {
+        uint32_t refCount{0};
+        bool selfOwned{false};
+        bool deviceIpRetired{false};
+        net_addr_t retiredIp{};
+        void* rdmaHandle{nullptr};
+    };
+
+    bool PrepareOpenDevice(
+        uint32_t userId, uint32_t phyId, uint32_t rankCount, net_addr_t& deviceIp, void*& rdmaHandle);
     static bool OpenTsd(uint32_t userId, uint32_t rankCount);
+    static bool TryGetRdmaHandleAndReferenceManagedRa(uint32_t phyId, void*& rdmaHandle, bool& referenced);
     static bool RaInit(uint32_t phyId);
-    static bool HandleRetiredDeviceIp(uint32_t phyId, net_addr_t &deviceIp, net_addr_t &retiredIp);
-    static bool RetireDeviceIp(uint32_t phyId, net_addr_t &deviceIp);
-    static bool RaRdevInit(uint32_t phyId, net_addr_t deviceIp, void *&rdmaHandle);
+    static void RaDeinit(uint32_t phyId);
+    static void ResetOpenDeviceState(uint32_t phyId);
+    static bool HandleRetiredDeviceIp(uint32_t phyId, net_addr_t& deviceIp);
+    static bool RetireDeviceIp(uint32_t phyId, net_addr_t& deviceIp);
+    static bool RaRdevInit(uint32_t phyId, net_addr_t deviceIp, void*& rdmaHandle);
     void ClearAllRegisterMRs();
-    int CheckPrepareOptions(const HybmTransPrepareOptions &options);
-    void InitializeDeviceAddress(mf_sockaddr &deviceAddr);
+    int CheckPrepareOptions(const HybmTransPrepareOptions& options);
+    void InitializeDeviceAddress(mf_sockaddr& deviceAddr);
 
 private:
     bool started_{false};
+    bool raReferenced_{false};
     uint32_t rankId_{0};
     uint32_t rankCount_{1};
     uint32_t deviceId_{0};
@@ -66,18 +78,17 @@ private:
     hybm_role_type role_{HYBM_ROLE_PEER};
     net_addr_t deviceIp_{};
     uint16_t devicePort_{0};
-    void *rdmaHandle_{nullptr};
-    static void *storedRdmaHandle_;
+    void* rdmaHandle_{nullptr};
     static bool tsdOpened_;
-    static bool raInitialized_;
-    static bool deviceIpRetired_;
+    static std::mutex raMutex_;
+    static std::map<uint32_t, RaResourceState> raInstances_;
     std::string nicInfo_;
     MemoryRegionMap registerMRS_;
     std::shared_ptr<DeviceQpManager> qpManager_;
     std::shared_ptr<DeviceChipInfo> deviceChipInfo_;
 };
-}
-}
-}
+} // namespace device
+} // namespace transport
+} // namespace shm
 
-#endif  // MF_HYBRID_DEVICE_RDMA_TRANSPORT_MANAGER_H
+#endif // MF_HYBRID_DEVICE_RDMA_TRANSPORT_MANAGER_H
