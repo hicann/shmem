@@ -278,7 +278,7 @@ function fn_whl_build()
     # reused for 950.  It is a thin SOC-agnostic pybind11 wrapper around the
     # uniform aclshmem_* C API surface.  At runtime, __init__.py preloads the
     # SOC-specific libshmem.so from backends/<soc>/, so the 910-compiled
-    # _pyshmem.so resolves 950 symbols correctly on A5 hardware.
+    # _pyshmem.so resolves 950 symbols correctly on Ascend950 hardware.
     local compile_opts_950_xscale=${COMPILE_OPTIONS}
     compile_opts_950_xscale=$(echo "$compile_opts_950_xscale" | sed 's/-DACLSHMEM_RDMA_BACKEND=\S*//g')
     if [ "$rdma_enabled" = "true" ]; then

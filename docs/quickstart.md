@@ -195,6 +195,16 @@ python3 -m pip install -r requirements-examples.txt
 
 ### 5.1 安装方式
 
+本节适用于 A2/A3 和 Ascend950。安装前请完成[环境准备](#4-环境准备)，加载 CANN 环境变量，并通过 `npu-smi info` 确认设备可见。
+
+根据使用场景选择一种安装方式：
+
+| 使用场景 | 安装方式 | 产物或安装位置 |
+| --- | --- | --- |
+| 从源码开发 C/C++ 算子 | 源码编译 | 仓库的 `install/` 目录 |
+| 部署 C/C++ 动态库 | 二进制 run 包 | `/usr/local/Ascend/shmem`、`$HOME/Ascend/shmem` 或自定义路径 |
+| 使用 Python 接口 | pip 或本地 Python wheel | 当前 Python 环境的 `site-packages` |
+
 #### 5.1.1 方式一：源码编译
 
 ```bash
@@ -210,9 +220,12 @@ bash scripts/build.sh -soc_type Ascend950
 
 # 配置环境变量
 source install/set_env.sh
+
+# 确认核心动态库已生成
+test -f install/shmem/lib/libshmem.so
 ```
 
-备注：build.sh 的参数可以参考 [compilation_build_guide.md](./compilation_build_guide.md)
+默认构建不包含 xDMA 能力。RDMA 等通信能力的构建参数及参数依赖参见[编译与构建](compilation_build_guide.md)。
 
 #### 5.1.2 方式二：二进制包安装
 
@@ -221,42 +234,80 @@ source install/set_env.sh
 - A2/A3 平台：`bash scripts/build.sh -package`
 - Ascend950 平台：`bash scripts/build.sh -soc_type Ascend950 -package`
 
-软件包格式：`SHMEM_{version}_linux-{arch}.run`
+构建产物位于 `package/$(uname -m)/`：
 
-其中，`{version}`表示软件版本号，`{arch}`表示`CPU`架构。<br>
+- `SHMEM_{version}_linux-{arch}.run`：C/C++ 库安装包。
+- `cann_shmem-*.whl`：同时包含 910 和 950 后端的 Python wheel。
 
-```sh
-chmod +x 软件包名.run # 增加对软件包的可执行权限
-./软件包名.run --check # 校验软件包安装文件的一致性和完整性
-./软件包名.run --install # 安装软件，可使用--help查询相关安装选项
+其中，`{version}` 表示软件版本号，`{arch}` 表示 CPU 架构。
+
+```bash
+chmod +x package/$(uname -m)/SHMEM_*.run
+
+# 仅执行芯片、版本、拓扑、通信能力和包产物检查
+package/$(uname -m)/SHMEM_*.run --check
+
+# 以下安装方式三选一
+package/$(uname -m)/SHMEM_*.run --install --check  # 先检查再安装
+package/$(uname -m)/SHMEM_*.run --install          # 直接安装
+package/$(uname -m)/SHMEM_*.run --install-path=/opt/ascend
 ```
 
-出现提示`xxx install success!`则安装成功
+run 包安装前会检查 CANN 环境变量，并确认当前用户与 CANN 安装目录的所有者一致。`--install-path` 必须使用绝对路径，示例会安装到 `/opt/ascend/shmem`。
 
-配置环境变量：
+`--check` 会输出芯片和设备数量、HDK/CANN 版本、MTE/SDMA/UDMA/RDMA 支持情况及包产物状态。检查项出现 `WARN` 时请根据最终汇总处理；当前命令退出成功不代表所有可选通信能力均满足要求。详细检查项参见 [shmem-config 命令参考](tools/shmem_config_guide.md)。
 
-```sh
-# 配置环境变量
-# （默认路径：/usr/local/Ascend/shmem）
+终端输出 `SHMEM install success` 后，根据执行用户加载环境变量：
+
+```bash
+# root 用户默认路径
 source /usr/local/Ascend/shmem/latest/set_env.sh
-# （自定义路径：${install_path}/shmem）
-source ${install_path}/shmem/latest/set_env.sh
+
+# 非 root 用户默认路径
+source "${HOME}/Ascend/shmem/latest/set_env.sh"
+
+# 自定义路径 /opt/ascend
+source /opt/ascend/shmem/latest/set_env.sh
+
+# 确认安装结果
+test -f "${SHMEM_HOME_PATH}/shmem/lib/libshmem.so"
 ```
 
 #### 5.1.3 方式三：pip 安装
 
+可以从昇腾 PyPI 源安装，也可以在仓库根目录构建本地 wheel，两种方式任选其一：
+
 ```bash
-# 从昇腾 PyPI 源直接安装
-pip install cann-shmem -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+# 从昇腾 PyPI 源安装
+python3 -m pip install cann-shmem \
+  -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+
+# 或构建并安装本地 wheel
+bash scripts/build.sh -python_extension
+python3 -m pip install --force-reinstall dist/cann_shmem-*.whl
 ```
 
-安装完成后可通过 `shmem-config --version` 验证安装，输出版本号即表示安装成功：
+Python wheel 同时包含 A2/A3 的 910 后端和 Ascend950 的 950 后端，运行时自动选择。安装后执行：
 
 ```bash
 shmem-config --version
+shmem-config --backend
+shmem-config --diagnose
 ```
 
-更多 `shmem-config` 命令（`--diagnose`、`--check`、`--ldflags` 等）详见 [shmem-config 命令参考](tools/shmem_config_guide.md)。
+通过标准如下：
+
+- `--diagnose` 中 `native_load.ok` 为 `true`，且 `degraded` 为 `false`。
+- A2/A3 的 `--backend` 输出 `910`，Ascend950 输出 `950`。
+- `--diagnose` 输出有效 JSON，`backend_artifacts.complete` 为 `true`，`multi_so_conflict.detected` 为 `false`。
+
+从源码构建 wheel 后，还可以执行完整冒烟脚本：
+
+```bash
+bash tests/package_smoke/run_install_smoke.sh dist/cann_shmem-*.whl
+```
+
+首次 `import shmem` 自动检查、`--check`、`--diagnose` 及其他参数详见 [shmem-config 命令参考](tools/shmem_config_guide.md)。
 
 #### 5.1.4 通用配置（可选）
 
@@ -324,39 +375,9 @@ bash scripts/run.sh -ranks 8 -ipport 127.0.0.1:8666 -test_filter Init
 
 [Python 接口 API 列表](api/pythonAPI.md)
 
-1. 在 shmem 根目录下编译时，带上 build python 的选项
+1. 按照[安装方式](#51-安装方式)中的“方式三：pip 安装”构建或安装 Python wheel，并完成后端和安装完整性检查。
 
-    - A2/A3 平台:
-
-    ```sh
-    bash scripts/build.sh -python_extension
-    ```
-
-    - Ascend950 平台:
-
-    ```sh
-    bash scripts/build.sh -soc_type Ascend950 -python_extension
-    ```
-
-2. 在 install 目录下，source 环境变量
-
-   ```sh
-   source set_env.sh
-   ```
-
-3. 在 src/python 目录下，进行 setup ，获取到 wheel 安装包
-
-   ```sh
-   python3 setup.py bdist_wheel
-   ```
-
-4. 在src/python/dist目录下，安装wheel包
-
-   ```sh
-   pip3 install cann_shmem-xxx.whl --force-reinstall
-   ```
-
-5. 设置是否开启 TLS 认证，默认开启，若关闭 TLS 认证，请使用如下接口
+2. 设置是否开启 TLS 认证，默认开启，若关闭 TLS 认证，请使用如下接口
 
 ```python
 import shmem as shm
@@ -369,7 +390,7 @@ shm.set_conf_store_tls(False, "")   # 关闭TLS认证
    shm.set_conf_store_tls(True, tls_info)      # 开启TLS认证
    ```
 
-6. 使用torchrun运行测试demo
+3. 使用torchrun运行测试demo
 
 `test.py` 为用户自行编写的测试脚本，可参考仓库中 `examples/python_extension/test/` 目录下的已有测试文件（如 `core/test_init_final.py`）进行编写。
 
@@ -499,20 +520,13 @@ bash scripts/run_examples.sh
 ### 9.4 运行 Python 测试用例
 
 ```bash
-# 编译 Python 扩展
-# A2/A3 平台
+# 构建同时包含 910 和 950 后端的 Python wheel
 bash scripts/build.sh -python_extension
-# Ascend950 平台
-bash scripts/build.sh -soc_type Ascend950 -python_extension
 # 安装构建脚本生成的 wheel 包
-pip3 install dist/cann_shmem-xxx.whl --force-reinstall
-```
-
-也可以在仓库根目录手动构建并安装 wheel 包：
-
-```bash
-python3 setup.py bdist_wheel
-pip3 install dist/cann_shmem-xxx.whl --force-reinstall
+python3 -m pip install --force-reinstall dist/cann_shmem-*.whl
+# 确认运行环境选择了正确后端
+shmem-config --backend
+shmem-config --diagnose
 ```
 
 ```bash

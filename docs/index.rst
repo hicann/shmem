@@ -19,6 +19,7 @@ Welcome to Shmem's Documentation!
     debug/tools_debug.md
     debug/profiling.md
     debug/dump_debug.md
+    tools/shmem_config_guide.md
 
 .. toctree::
     :maxdepth: 2

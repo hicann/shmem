@@ -161,9 +161,9 @@ def _post_load_guard():
 def _run_pre_import_env_check():
     """首次 import shmem 时执行一次环境检测，后续跳过。
 
-    调用打包的 preinstall_check.sh，与 shmem-config check 使用同一检测逻辑。
+    调用打包的 preinstall_check.sh，与 shmem-config --check 使用同一检测逻辑。
     检测结果写入 ~/.cache/shmem/.env_checked 标记文件，
-    之后 import 不再重复检测。用户可随时手动运行 shmem-config check 命令。
+    之后 import 不再重复检测。用户可随时手动运行 shmem-config --check 命令。
 
     哨兵文件读写全部包裹 OSError 保护，避免 HOME 不可写或只读文件系统
     导致 import shmem 直接崩溃。
@@ -201,7 +201,7 @@ def _run_pre_import_env_check():
             timeout=15
         )
     except subprocess.TimeoutExpired:
-        print("\n[SHMEM env check] 环境检测超时（>15s），跳过。请手动运行 shmem-config check。",
+        print("\n[SHMEM env check] 环境检测超时（>15s），跳过。请手动运行 shmem-config --check。",
               file=sys.stderr)
         _env_already_checked = True
         return

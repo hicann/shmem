@@ -960,7 +960,7 @@ print_usage() {
     cat <<EOF
 用法：$0
 
-通过 shmem-config check 或 import shmem 自动调用。
+通过 shmem-config --check 或 import shmem 自动调用。
 手动执行将仅输出环境检测结果（不含包级别检查）。
 EOF
 }
@@ -996,7 +996,7 @@ main() {
     parse_args "$@"
 
     echo "======================================================================"
-    echo "  SHMEM 安装前环境检测"
+    echo "  SHMEM 包导入前环境检测"
     echo "  开始时间：$(date '+%Y-%m-%d %H:%M:%S')"
     echo "======================================================================"
 
