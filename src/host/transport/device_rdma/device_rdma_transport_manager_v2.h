@@ -56,17 +56,18 @@ public:
 
 private:
     Result CreateEndpoint();
+    Result InitActualListenPort();
     void DestroyEndpoint();
     Result BuildEndpointDesc(EndpointDesc& desc);
     void ClearAllRegisterMRs();
     int CheckPrepareOptions(const HybmTransPrepareOptions& options);
-    int ValidateRanksPerNic() const;
     void PrintHostInfo(AiQpRMAQueueInfo& copyInfo);
     Result FillRdmaInfo();
     void CopyAiWQInfo(struct AiQpRMAWQ& dest, const SqContext& src) noexcept;
     void CopyAiCQInfo(struct AiQpRMACQ& dest, const CqContext& src) noexcept;
     bool ReserveRdmaInfoSpace() noexcept;
     bool RegisterAtomicMemory() noexcept;
+    Result GetPrimaryMemoryHandle(HcommMemHandle& memHandle) const;
     void FillQpPreSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo);
     void FillQpPostSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo);
     Result GetRdmaInfoFromChannelEntity(AiQpRMAQueueInfo* copyInfo, const std::vector<ChannelHandle>& channelPtrs);

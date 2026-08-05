@@ -181,7 +181,7 @@ A：确认已安装 CANN toolkit，并已执行 `source /usr/local/Ascend/ascend
 
 **Q2：运行示例时报「卡间通信超时」？**
 
-A：检查网卡是否开启 RDMA、防火墙是否放行通信端口（默认 8666，RDMA 建链端口范围见 [Troubleshooting - RDMA 端口分配规则](docs/debug/Troubleshooting_FAQs.md#rdma-端口分配规则)）、各节点时钟是否同步。
+A：检查 RDMA 网卡是否可用、节点间网络是否连通、防火墙是否放行初始化通信端口（默认 8666）、交换机无损网络配置是否正确，以及各节点时钟是否同步。RDMA 建链监听端口由系统自动分配，无需手工配置，RDMA 端口使用规则见 [Troubleshooting - RDMA 端口分配规则](docs/debug/Troubleshooting_FAQs.md#RDMA-端口管理规则)。
 
 **Q3：Python 导入 shmem 时报「找不到模块」？**
 

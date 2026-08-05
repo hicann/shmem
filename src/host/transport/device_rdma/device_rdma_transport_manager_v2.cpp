@@ -20,19 +20,21 @@
 #include "device_rdma_transport_manager_v2.h"
 
 #include <chrono>
-#include <cstdlib>
+#include <limits>
 #include <thread>
 
 namespace shm {
 namespace transport {
 namespace device {
+namespace {
 
-constexpr uint32_t RDMA_PORT_PREFIX = 60032;
-constexpr uint32_t MAX_RANKS_PER_NIC = 16;
 constexpr uint32_t ATOMIC_MAX_NUM = 128;
+constexpr uint32_t RDMA_CHANNEL_MEM_HANDLE_NUM = 2;
 // 非阻塞建链状态轮询参数(按通道个数缩放)
 constexpr uint32_t CHANNEL_STATUS_POLL_INTERVAL_PER_CH_MS = 10;   // 单通道单次轮询间隔(ms)
 constexpr uint32_t CHANNEL_STATUS_POLL_TIMEOUT_PER_CH_MS = 60000; // 单通道建链就绪等待超时(ms) = 1min
+
+} // namespace
 
 RdmaTransportManagerV2::~RdmaTransportManagerV2()
 {
@@ -76,13 +78,10 @@ Result RdmaTransportManagerV2::OpenDevice(const TransportOptions& options)
         deviceIp_.type = IpV6;
     }
 
-    devicePort_ = RDMA_PORT_PREFIX + (rankId_ % MAX_RANKS_PER_NIC);
     if (!TopoReader::ParseRdmaNetAddr(phyId_, deviceIp_)) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] ParseRdmaNetAddr failed for phyId " << phyId_);
         return ACLSHMEM_INNER_ERROR;
     }
-    nicInfo_ = GenerateDeviceNic(deviceIp_, devicePort_);
-    SHM_LOG_DEBUG("rank[" << rankId_ << "] nicInfo_=" << nicInfo_);
 
     ret = CreateEndpoint();
     if (ret != ACLSHMEM_SUCCESS) {
@@ -90,12 +89,45 @@ Result RdmaTransportManagerV2::OpenDevice(const TransportOptions& options)
         return ret;
     }
 
+    ret = InitActualListenPort();
+    if (ret != ACLSHMEM_SUCCESS) {
+        DestroyEndpoint();
+        return ret;
+    }
+
+    nicInfo_ = GenerateDeviceNic(deviceIp_, devicePort_);
+    SHM_LOG_DEBUG("rank[" << rankId_ << "] nicInfo_=" << nicInfo_);
+
     if (!ReserveRdmaInfoSpace()) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] reserve rdma info space failed.");
+        DestroyEndpoint();
         return ACLSHMEM_INNER_ERROR;
     }
 
     SHM_LOG_INFO("rank[" << rankId_ << "] open device with " << options << " success.");
+    return ACLSHMEM_SUCCESS;
+}
+
+Result RdmaTransportManagerV2::InitActualListenPort()
+{
+    if (endpointHandle_ == nullptr) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] endpoint not created, cannot get listen port.");
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    uint32_t listenPort = 0U;
+    HcommResult hret = DlHcommApi::HcommEndpointGetListenPort(endpointHandle_, &listenPort);
+    if (hret != 0) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] HcommEndpointGetListenPort failed: " << hret);
+        return ACLSHMEM_INNER_ERROR;
+    }
+    if (listenPort == 0U || listenPort > std::numeric_limits<uint16_t>::max()) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] invalid actual rdma listen port: " << listenPort);
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    devicePort_ = static_cast<uint16_t>(listenPort);
+    SHM_LOG_INFO("rank[" << rankId_ << "] actual rdma listen port: " << devicePort_);
     return ACLSHMEM_SUCCESS;
 }
 
@@ -189,6 +221,11 @@ Result RdmaTransportManagerV2::CloseDevice()
 
 Result RdmaTransportManagerV2::RegisterMemoryRegion(const TransportMemoryRegion& mr)
 {
+    if (!channelPtrs_.empty()) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] cannot register MR after RDMA channels are connected.");
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
     if (endpointHandle_ == nullptr) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] endpoint not created, cannot register MR.");
         return ACLSHMEM_INNER_ERROR;
@@ -225,6 +262,11 @@ Result RdmaTransportManagerV2::RegisterMemoryRegion(const TransportMemoryRegion&
 
 Result RdmaTransportManagerV2::UnregisterMemoryRegion(uint64_t addr)
 {
+    if (!channelPtrs_.empty()) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] cannot unregister MR after RDMA channels are connected.");
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
     auto pos = registeredMRs_.find(addr);
     if (pos == registeredMRs_.end()) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] input address not registered!");
@@ -238,6 +280,22 @@ Result RdmaTransportManagerV2::UnregisterMemoryRegion(uint64_t addr)
     }
 
     registeredMRs_.erase(pos);
+    return ACLSHMEM_SUCCESS;
+}
+
+Result RdmaTransportManagerV2::GetPrimaryMemoryHandle(HcommMemHandle& memHandle) const
+{
+    if (registeredMRs_.empty()) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] no registered user MR before RDMA channel create.");
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    memHandle = registeredMRs_.begin()->second.memHandle;
+    if (memHandle == nullptr) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] primary user MR handle is null.");
+        return ACLSHMEM_INNER_ERROR;
+    }
+
     return ACLSHMEM_SUCCESS;
 }
 
@@ -286,12 +344,17 @@ Result RdmaTransportManagerV2::Connect()
         return ACLSHMEM_INNER_ERROR;
     }
 
-    auto validateRet = ValidateRanksPerNic();
-    if (validateRet != ACLSHMEM_SUCCESS) {
-        return static_cast<Result>(validateRet);
+    uint32_t channelNum = rankCount_ - 1;
+
+    if (!RegisterAtomicMemory()) {
+        return ACLSHMEM_INNER_ERROR;
     }
 
-    uint32_t channelNum = rankCount_ - 1;
+    HcommMemHandle primaryMemHandle = nullptr;
+    auto ret = GetPrimaryMemoryHandle(primaryMemHandle);
+    if (ret != ACLSHMEM_SUCCESS) {
+        return ret;
+    }
 
     std::vector<HcommChannelDesc> channelDescs(channelNum);
     auto desc_init_ret = ShmemHcommChannelDescInit(channelDescs.data(), channelNum);
@@ -299,6 +362,7 @@ Result RdmaTransportManagerV2::Connect()
         SHM_LOG_ERROR("HcommChannelDescInit failed, ret = " << desc_init_ret);
         return ACLSHMEM_INNER_ERROR;
     }
+    std::vector<HcommMemHandle> channelMemHandles(channelNum * RDMA_CHANNEL_MEM_HANDLE_NUM);
 
     uint8_t roceTc = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
     uint8_t roceSl = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
@@ -325,7 +389,12 @@ Result RdmaTransportManagerV2::Connect()
             channelDescs[chIdx].remoteEndpoint.commAddr.addr6 = rankIt->second.network.ip.ipv6.sin6_addr;
         }
         channelDescs[chIdx].notifyNum = 3;
-        channelDescs[chIdx].exchangeAllMems = true;
+        channelDescs[chIdx].exchangeAllMems = false;
+        HcommMemHandle* memHandles = channelMemHandles.data() + chIdx * RDMA_CHANNEL_MEM_HANDLE_NUM;
+        memHandles[0] = primaryMemHandle;
+        memHandles[1] = atomicMemHandle_;
+        channelDescs[chIdx].memHandles = memHandles;
+        channelDescs[chIdx].memHandleNum = RDMA_CHANNEL_MEM_HANDLE_NUM;
         channelDescs[chIdx].roceAttr.queueNum = 1;
         channelDescs[chIdx].roceAttr.tc = roceTc;
         channelDescs[chIdx].roceAttr.sl = roceSl;
@@ -334,24 +403,27 @@ Result RdmaTransportManagerV2::Connect()
         channelDescs[chIdx].socket = nullptr;
         bool isServer = (rankId_ < remoteRank);
         channelDescs[chIdx].role = isServer ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
-        uint32_t serverRank = isServer ? rankId_ : remoteRank;
-        uint32_t clientRank = isServer ? remoteRank : rankId_;
-        channelDescs[chIdx].port = static_cast<uint16_t>(
-            RDMA_PORT_PREFIX + (serverRank % MAX_RANKS_PER_NIC) * MAX_RANKS_PER_NIC + (clientRank % MAX_RANKS_PER_NIC));
+        uint16_t remotePort = 0U;
+        auto portRet = GetDeviceNicPort(rankIt->second.network, remotePort);
+        if (portRet != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("rank[" << rankId_ << "] rank " << remoteRank << " has invalid rdma port.");
+            return portRet;
+        }
+        channelDescs[chIdx].port = isServer ? devicePort_ : remotePort;
+        SHM_LOG_INFO(
+            "rank[" << rankId_ << "] rdma channel to rank[" << remoteRank
+                    << "] role=" << (isServer ? "server" : "client") << ", port=" << channelDescs[chIdx].port);
         ++chIdx;
     }
 
     channelPtrs_.resize(channelNum);
-
-    if (!RegisterAtomicMemory()) {
-        return ACLSHMEM_INNER_ERROR;
-    }
 
     auto hcommRet = DlHcommApi::HcommChannelCreate(
         endpointHandle_, COMM_ENGINE_AIV, channelDescs.data(), channelNum,
         reinterpret_cast<ChannelHandle*>(channelPtrs_.data()));
     if (hcommRet != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] HcommChannelCreate failed: " << hcommRet);
+        channelPtrs_.clear();
         return ACLSHMEM_INNER_ERROR;
     }
     SHM_LOG_DEBUG("rank[" << rankId_ << "] HcommChannelCreate success, channelNum=" << channelNum);
@@ -456,38 +528,6 @@ int RdmaTransportManagerV2::CheckPrepareOptions(const shm::transport::HybmTransP
         }
     }
 
-    return ACLSHMEM_SUCCESS;
-}
-
-int RdmaTransportManagerV2::ValidateRanksPerNic() const
-{
-    uint32_t sameIpCount = 1;
-    for (const auto& entry : rankInfo_) {
-        if (entry.first == rankId_) {
-            continue;
-        }
-        const auto& network = entry.second.network;
-        if (network.type != deviceIp_.type) {
-            continue;
-        }
-        bool sameIp = false;
-        if (network.type == IpV4) {
-            sameIp = (network.ip.ipv4.sin_addr.s_addr == deviceIp_.ip.ipv4.s_addr);
-        } else {
-            sameIp = (memcmp(&network.ip.ipv6.sin6_addr, &deviceIp_.ip.ipv6, sizeof(deviceIp_.ip.ipv6)) == 0);
-        }
-        if (sameIp) {
-            sameIpCount++;
-            if (sameIpCount > MAX_RANKS_PER_NIC) {
-                SHM_LOG_ERROR(
-                    "rank[" << rankId_ << "] ranks per NIC/IP exceeded: " << sameIpCount << " > " << MAX_RANKS_PER_NIC
-                            << ", conflict rank: " << entry.first);
-                return ACLSHMEM_INVALID_PARAM;
-            }
-        }
-    }
-    SHM_LOG_DEBUG(
-        "rank[" << rankId_ << "] ranks on same NIC/IP: " << sameIpCount << ", max allowed: " << MAX_RANKS_PER_NIC);
     return ACLSHMEM_SUCCESS;
 }
 
@@ -649,6 +689,16 @@ Result RdmaTransportManagerV2::GetRdmaInfoFromChannelEntity(
             SHM_LOG_ERROR("rank[" << rankId_ << "] pre-read channel entity failed: " << aclRet);
             continue;
         }
+        if (hostEntity.localBufferNum != RDMA_CHANNEL_MEM_HANDLE_NUM) {
+            SHM_LOG_ERROR(
+                "rank[" << rankId_ << "] invalid localBufferNum=" << hostEntity.localBufferNum << ", expected "
+                        << RDMA_CHANNEL_MEM_HANDLE_NUM);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        if (hostEntity.localBufferAddr == nullptr) {
+            SHM_LOG_ERROR("rank[" << rankId_ << "] localBufferAddr is null.");
+            return ACLSHMEM_INNER_ERROR;
+        }
         if (hostEntity.localBufferNum > 0 && hostEntity.localBufferAddr != nullptr) {
             RegedBufferEntity localBuffer{};
             aclRet = DlAclApi::AclrtMemcpy(
@@ -717,6 +767,15 @@ Result RdmaTransportManagerV2::GetRdmaInfoFromChannelEntity(
         if (aclRet != 0) {
             SHM_LOG_ERROR("rank[" << rankId_ << "] copy channel entity from device failed: " << aclRet);
             continue;
+        }
+        if (hostEntity.sqNum != 1U || hostEntity.cqNum != 1U ||
+            hostEntity.remoteBufferNum != RDMA_CHANNEL_MEM_HANDLE_NUM) {
+            SHM_LOG_ERROR(
+                "rank[" << rankId_ << "] invalid channel entity for rank " << it->first
+                        << ", sqNum=" << hostEntity.sqNum << ", cqNum=" << hostEntity.cqNum
+                        << ", remoteBufferNum=" << hostEntity.remoteBufferNum << ", expected sqNum=1, cqNum=1"
+                        << ", remoteBufferNum=" << RDMA_CHANNEL_MEM_HANDLE_NUM);
+            return ACLSHMEM_INNER_ERROR;
         }
 
         if (hostEntity.remoteBufferNum > 0 && hostEntity.remoteBufferAddr != nullptr) {

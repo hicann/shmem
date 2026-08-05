@@ -32,6 +32,7 @@ Result ParseDeviceNic(const std::string& nic, mf_sockaddr& address);
 std::string GenerateDeviceNic(net_addr_t ip, uint16_t port);
 uint8_t GetEnvUint8(
     const char* envName, uint8_t defaultValue, long minVal, long maxVal, bool requireMultipleOf4 = false);
+Result GetDeviceNicPort(const mf_sockaddr& address, uint16_t& port);
 } // namespace device
 } // namespace transport
 } // namespace shm

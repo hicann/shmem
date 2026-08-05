@@ -24,6 +24,7 @@ const char* DlHcommApi::gHcommLibName = "libhcomm.so";
 
 HcommEndpointCreateFunc DlHcommApi::gHcommEndpointCreate = nullptr;
 HcommEndpointDestroyFunc DlHcommApi::gHcommEndpointDestroy = nullptr;
+HcommEndpointGetListenPortFunc DlHcommApi::gHcommEndpointGetListenPort = nullptr;
 HcommMemRegFunc DlHcommApi::gHcommMemReg = nullptr;
 HcommMemUnregFunc DlHcommApi::gHcommMemUnreg = nullptr;
 HcommChannelCreateFunc DlHcommApi::gHcommChannelCreate = nullptr;
@@ -49,6 +50,8 @@ Result DlHcommApi::LoadLibrary()
 
     DL_LOAD_SYM(gHcommEndpointCreate, HcommEndpointCreateFunc, gHcommHandle, "HcommEndpointCreate");
     DL_LOAD_SYM(gHcommEndpointDestroy, HcommEndpointDestroyFunc, gHcommHandle, "HcommEndpointDestroy");
+    DL_LOAD_SYM(
+        gHcommEndpointGetListenPort, HcommEndpointGetListenPortFunc, gHcommHandle, "HcommEndpointGetListenPort");
     DL_LOAD_SYM(gHcommMemReg, HcommMemRegFunc, gHcommHandle, "HcommMemReg");
     DL_LOAD_SYM(gHcommMemUnreg, HcommMemUnregFunc, gHcommHandle, "HcommMemUnreg");
     DL_LOAD_SYM(gHcommChannelCreate, HcommChannelCreateFunc, gHcommHandle, "HcommChannelCreate");
@@ -74,6 +77,7 @@ void DlHcommApi::CleanupLibrary()
 
     gHcommEndpointCreate = nullptr;
     gHcommEndpointDestroy = nullptr;
+    gHcommEndpointGetListenPort = nullptr;
     gHcommMemReg = nullptr;
     gHcommMemUnreg = nullptr;
     gHcommChannelCreate = nullptr;

@@ -21,7 +21,7 @@
 namespace shm {
 namespace transport {
 namespace device {
-Result ParseDeviceNic(const std::string &nic, uint16_t &port)
+Result ParseDeviceNic(const std::string& nic, uint16_t& port)
 {
     if (!utils::StringUtil::String2Uint(nic, port) || port == 0) {
         SHM_LOG_ERROR("failed to convert nic : " << nic << " to uint16_t, or port is 0.");
@@ -30,7 +30,7 @@ Result ParseDeviceNic(const std::string &nic, uint16_t &port)
     return ACLSHMEM_SUCCESS;
 }
 
-Result ParseDeviceNic(const std::string &nic, mf_sockaddr &address)
+Result ParseDeviceNic(const std::string& nic, mf_sockaddr& address)
 {
     SHM_LOG_DEBUG("parse device nic input nic(" << nic << ").");
     size_t proto_end = nic.find("://");
@@ -154,40 +154,59 @@ std::string GenerateDeviceNic(net_addr_t ip, uint16_t port)
     return ss.str();
 }
 
-uint8_t GetEnvUint8(const char *envName, uint8_t defaultValue, long minVal, long maxVal, bool requireMultipleOf4)
+uint8_t GetEnvUint8(const char* envName, uint8_t defaultValue, long minVal, long maxVal, bool requireMultipleOf4)
 {
-    const char *envVal = std::getenv(envName);
+    const char* envVal = std::getenv(envName);
     if (envVal == nullptr) {
         SHM_LOG_INFO("Environment " << envName << " is not set, use default value: " << static_cast<int>(defaultValue));
         return defaultValue;
     }
 
-    char *end = nullptr;
+    char* end = nullptr;
     errno = 0;
     long val = std::strtol(envVal, &end, 10L);
 
     if (errno != 0 || *end != '\0') {
-        SHM_LOG_WARN("Invalid Environment " << envName
-            << ", not a number or out of range, use default value: " << static_cast<int>(defaultValue));
+        SHM_LOG_WARN(
+            "Invalid Environment " << envName << ", not a number or out of range, use default value: "
+                                   << static_cast<int>(defaultValue));
         return defaultValue;
     }
 
     if (val < minVal || val > maxVal) {
-        SHM_LOG_WARN("Invalid Environment " << envName
-            << ", expected in range [" << minVal << "," << maxVal
-            << "], use default value: " << static_cast<int>(defaultValue));
+        SHM_LOG_WARN(
+            "Invalid Environment " << envName << ", expected in range [" << minVal << "," << maxVal
+                                   << "], use default value: " << static_cast<int>(defaultValue));
         return defaultValue;
     }
 
     if (requireMultipleOf4 && (val % 4) != 0) {
-        SHM_LOG_WARN("Invalid Environment " << envName
-            << ", expected a multiple of 4 in range [" << minVal << "," << maxVal
-            << "], use default value: " << static_cast<int>(defaultValue));
+        SHM_LOG_WARN(
+            "Invalid Environment " << envName << ", expected a multiple of 4 in range [" << minVal << "," << maxVal
+                                   << "], use default value: " << static_cast<int>(defaultValue));
         return defaultValue;
     }
 
     return static_cast<uint8_t>(val);
 }
+
+Result GetDeviceNicPort(const mf_sockaddr& address, uint16_t& port)
+{
+    if (address.type == IpV4) {
+        port = address.ip.ipv4.sin_port;
+    } else if (address.type == IpV6) {
+        port = ntohs(address.ip.ipv6.sin6_port);
+    } else {
+        SHM_LOG_ERROR("unsupported ip type: " << address.type);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    if (port == 0U) {
+        SHM_LOG_ERROR("invalid device nic port 0.");
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    return ACLSHMEM_SUCCESS;
 }
-}
-}
+} // namespace device
+} // namespace transport
+} // namespace shm
