@@ -26,6 +26,10 @@ __aicore__ inline void rdma_perf_test_put_impl(
     __gm__ int64_t* timing_out = reinterpret_cast<__gm__ int64_t*>(timing_out_gva);
 
     bool is_bidir = (test_mode == perftest::TEST_MODE_RDMA_BI_PUT);
+
+    // Ensure both PEs are synchronized before any RDMA operations begin
+    aclshmemx_roce_barrier_all();
+
     if (!is_bidir && pe != 0) {
         if (timing_out != nullptr) {
             timing_out[1] = 0;
@@ -218,6 +222,10 @@ __aicore__ inline void rdma_perf_test_get_impl(
     __gm__ int64_t* timing_out = reinterpret_cast<__gm__ int64_t*>(timing_out_gva);
 
     bool is_bidir = (test_mode == perftest::TEST_MODE_RDMA_BI_GET);
+
+    // Ensure both PEs are synchronized before any RDMA operations begin
+    aclshmemx_roce_barrier_all();
+
     if (!is_bidir && pe != 0) {
         if (timing_out != nullptr) {
             timing_out[1] = 0;
@@ -293,6 +301,7 @@ __aicore__ inline void rdma_perf_test_get_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t api_time_end = AscendC::GetSystemCycle();
         aclshmemx_roce_quiet(peer_pe, ub_ptr, sync_id);
+        // dcci removed — relying on host-side 64B-aligned allocation instead
         if (timing_out != nullptr) {
             int64_t api_total_time = api_time_end - api_time_start;
             if (pe == 0) {
@@ -379,6 +388,7 @@ __aicore__ inline void rdma_perf_test_get_impl(
         AscendC::PipeBarrier<PIPE_ALL>();
         int64_t get_time_end = AscendC::GetSystemCycle();
 
+        // dcci removed — relying on host-side 64B-aligned allocation instead
         // Output: PE0 -> timing_out[0], PE1 -> timing_out[1]
         if (timing_out != nullptr) {
             int64_t get_total_time = get_time_end - get_time_start;

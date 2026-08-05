@@ -135,6 +135,7 @@ int test_rdma_perf_test_impl(
     void* dst_ptr = nullptr;
     void* src_ptr = nullptr;
     void* timing_out_ptr = nullptr;
+    void* combo_ptr = nullptr;
     bool acl_initialized = false;
     bool device_set = false;
     bool stream_created = false;
@@ -162,25 +163,22 @@ int test_rdma_perf_test_impl(
         size_t datasize = static_cast<size_t>(1) << exponent;
         std::cout << "pe: " << pe_id << " size: " << datasize << std::endl;
 
-        dst_ptr = aclshmem_malloc(datasize);
-        src_ptr = aclshmem_malloc(datasize);
-        if (dst_ptr == nullptr) {
-            std::cerr << "[ERROR] [" << kFunc << "] aclshmem_malloc failed for dst_ptr, size=" << datasize << std::endl;
-            ret = -1;
-            goto cleanup;
-        }
-        if (src_ptr == nullptr) {
-            std::cerr << "[ERROR] [" << kFunc << "] aclshmem_malloc failed for src_ptr, size=" << datasize << std::endl;
-            ret = -1;
-            goto cleanup;
-        }
+        // 合并一次分配 dst + src + timing_out，各段 64B 对齐，避免同一 cache line
+        size_t dst_off = 0;
+        size_t src_off = ((dst_off + datasize) + 63) & ~(size_t)63;
+        size_t tim_off = ((src_off + datasize) + 63) & ~(size_t)63;
+        size_t total = tim_off + sizeof(int64_t) * 2;
 
-        timing_out_ptr = aclshmem_malloc(sizeof(int64_t) * 2);
-        if (timing_out_ptr == nullptr) {
-            std::cerr << "[ERROR] [" << kFunc << "] aclshmem_malloc failed for timing_out_ptr" << std::endl;
+        combo_ptr = aclshmem_malloc(total);
+        if (combo_ptr == nullptr) {
+            std::cerr << "[ERROR] [" << kFunc << "] aclshmem_malloc failed for combo, size=" << total << std::endl;
             ret = -1;
             goto cleanup;
         }
+        dst_ptr = static_cast<uint8_t*>(combo_ptr) + dst_off;
+        src_ptr = static_cast<uint8_t*>(combo_ptr) + src_off;
+        timing_out_ptr = static_cast<uint8_t*>(combo_ptr) + tim_off;
+
         {
             std::vector<int64_t> zero(2, 0);
             CHECK_ACL_GOTO(
@@ -279,8 +277,8 @@ int test_rdma_perf_test_impl(
         auto compare_values = [&](T* p1, T* p2, size_t count, const char* l1, const char* l2) -> bool {
             for (size_t i = 0; i < count; i++) {
                 if (p1[i] != p2[i]) {
-                    std::cout << "  [ERROR] Mismatch at index " << i << ": " << l1 << "=" << (double)p1[i] << ", " << l2
-                              << "=" << (double)p2[i] << std::endl;
+                    std::cout << "PE[" << pe_id << "]  [ERROR] Mismatch at index " << i << ": " << l1 << "="
+                              << (double)p1[i] << ", " << l2 << "=" << (double)p2[i] << std::endl;
                     return false;
                 }
             }
@@ -329,28 +327,32 @@ int test_rdma_perf_test_impl(
             std::cout << "[Verification] SUCCESS" << std::endl;
         } else {
             std::cout << "[Verification] FAILED" << std::endl;
+            // Set non-zero return code so caller can detect verification failure
+            if (ret == 0) {
+                ret = ACLSHMEM_INVALID_VALUE;
+            }
         }
 
-        aclshmem_free(dst_ptr);
+        aclshmem_free(combo_ptr);
+        combo_ptr = nullptr;
         dst_ptr = nullptr;
-        aclshmem_free(src_ptr);
         src_ptr = nullptr;
-        aclshmem_free(timing_out_ptr);
         timing_out_ptr = nullptr;
         CHECK_ACL_GOTO(aclrtSynchronizeStream(stream), ret, cleanup);
     }
 
+    // Summary: report any verification failures across all exponents
+    if (ret != 0 && ret == ACLSHMEM_INVALID_VALUE) {
+        std::cerr << "[ERROR] [" << kFunc << "] At least one exponent failed data verification in PE " << pe_id
+                  << std::endl;
+    }
+
 cleanup:
-    if (dst_ptr != nullptr) {
-        aclshmem_free(dst_ptr);
+    if (combo_ptr != nullptr) {
+        aclshmem_free(combo_ptr);
+        combo_ptr = nullptr;
         dst_ptr = nullptr;
-    }
-    if (src_ptr != nullptr) {
-        aclshmem_free(src_ptr);
         src_ptr = nullptr;
-    }
-    if (timing_out_ptr != nullptr) {
-        aclshmem_free(timing_out_ptr);
         timing_out_ptr = nullptr;
     }
     if (shmem_initialized) {
