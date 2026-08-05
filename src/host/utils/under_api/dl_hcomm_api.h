@@ -21,6 +21,7 @@ namespace shm {
 
 using HcommEndpointCreateFunc = HcommResult (*)(const EndpointDesc*, EndpointHandle*);
 using HcommEndpointDestroyFunc = HcommResult (*)(EndpointHandle);
+using HcommEndpointGetListenPortFunc = HcommResult (*)(EndpointHandle, uint32_t*);
 using HcommMemRegFunc = HcommResult (*)(EndpointHandle, const char*, CommMem*, HcommMemHandle*);
 using HcommMemUnregFunc = HcommResult (*)(EndpointHandle, HcommMemHandle);
 using HcommChannelCreateFunc = HcommResult (*)(EndpointHandle, CommEngine, HcommChannelDesc*, uint32_t, ChannelHandle*);
@@ -40,6 +41,11 @@ public:
     static inline HcommResult HcommEndpointDestroy(EndpointHandle endpointHandle)
     {
         return gHcommEndpointDestroy(endpointHandle);
+    }
+
+    static inline HcommResult HcommEndpointGetListenPort(EndpointHandle endpointHandle, uint32_t* port)
+    {
+        return gHcommEndpointGetListenPort(endpointHandle, port);
     }
 
     static inline HcommResult HcommMemReg(
@@ -79,6 +85,7 @@ private:
 
     static HcommEndpointCreateFunc gHcommEndpointCreate;
     static HcommEndpointDestroyFunc gHcommEndpointDestroy;
+    static HcommEndpointGetListenPortFunc gHcommEndpointGetListenPort;
     static HcommMemRegFunc gHcommMemReg;
     static HcommMemUnregFunc gHcommMemUnreg;
     static HcommChannelCreateFunc gHcommChannelCreate;

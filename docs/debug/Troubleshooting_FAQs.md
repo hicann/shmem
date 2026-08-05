@@ -236,43 +236,13 @@ status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
 
 #### A: 检查交换机和端侧的TC与SL配置是否正确，如果不一致会出现丢包现象。可以参考[环境变量说明](../api/env_vars_intro.md)对环境变量[HCCL_RDMA_TC](https://www.hiascend.com/document/detail/zh/canncommercial/900/maintenref/envvar/envref_07_0089.html)和[HCCL_RDMA_SL](https://www.hiascend.com/document/detail/zh/canncommercial/900/maintenref/envvar/envref_07_0090.html)进行设置
 
-### RDMA 端口分配规则
+### RDMA 端口管理规则
 
-SHMEM 在 Ascend950 使用 v2 RDMA 传输管理器（`device_rdma_transport_manager_v2.cpp`）进行设备间 RoCE 建链，端口分配规则如下：
+Ascend950 RDMA V2 建链监听端口由系统自动分配，用户无需配置 RDMA 建链端口。
 
-**常量定义**
-
-| 常量 | 值 | 说明 |
-|------|-----|------|
-| `RDMA_PORT_PREFIX` | 60032 | 端口号基数 |
-| `MAX_RANKS_PER_NIC` | 16 | 同一网卡/IP 下允许的最大 rank 数 |
-
-**端口计算公式**
-
-| 端口 | 公式 | 范围 |
-|------|------|------|
-| Endpoint 端口 (`devicePort_`) | `60032 + rankId % 16` | 60032 ~ 60047 |
-| Channel 端口 (`channelPort`) | `60032 + (srv%16)×16 + (cli%16)` | 60032 ~ 60287 |
-
-其中 `srv` 为 server rank（rankId 较小者），`cli` 为 client rank（rankId 较大者）。每对 `(srv%16, cli%16)` 独立映射到唯一端口，不依赖 `rankCount_`，万卡集群中同一 NIC 内也**不会产生端口碰撞**。
-
-**端口使用总数**
-
-同一 NIC（同一 IP）上，channel 最多占用 `16×16=256` 个端口（范围 60032~60287）。所有端口值 ≤ 60287 ≪ 65535，不会溢出 `uint16_t`。
-
-**同网卡 rank 数限制**
-
-同一 RDMA NIC / 同一 IP 下最多允许 **16** 个 rank。`Connect()` 阶段会执行 `ValidateRanksPerNic()` 校验：遍历 `rankInfo_` 统计与 `deviceIp_` 同 IP 的远端 rank 数量，超过 `MAX_RANKS_PER_NIC` 时打印错误并返回 `ACLSHMEM_INVALID_PARAM`。
-
-错误示例（17 个 rank 公用同一 IP）：
-
-```bash
-rank[16] ranks per NIC/IP exceeded: 17 > 16, conflict rank: 16
-```
-
-**跨 NIC 端口复用**
-
-不同 NIC 使用不同 IP 地址，RDMA 连接五元组 `(src_ip, src_port, dst_ip, dst_port, protocol)` 不同，跨 NIC 端口复用不冲突。
+- 同一 RDMA IP 上启动多个进程或多个 SHMEM instance 时，无需为每个进程手工分配 RDMA 建链端口。
+- RDMA 建链端口与初始化通信端口不同；初始化通信端口仍按初始化方式配置，例如 default 模式下的实例端口或 unique id 模式下的 `SHMEM_UID_SESSION_ID`。
+- 若建链失败，请优先检查 RDMA 网卡连通性、GID index、交换机 PFC/ECN 等网络配置。
 
 ### 建链失败检查
 
@@ -280,11 +250,9 @@ rank[16] ranks per NIC/IP exceeded: 17 > 16, conflict rank: 16
 
 #### A: 该错误通常为 RDMA QP 状态迁移（INIT→RTR）超时，与端口分配无关。请依次检查
 
-1. 确认端口未被占用：`netstat -tuln | grep 60032-60287`
-2. 确认同网卡/IP 下 rank 数不超过 16（参考上方端口分配规则）
-3. 确认 GID index 两端一致：日志中 `gid_idx` 字段
-4. 确认 RDMA 网卡间 IP 层可达：`ping <对端RDMA_IP>`
-5. 检查交换机 PFC/ECN 无损网络配置
+1. 确认 GID index 两端一致：日志中 `gid_idx` 字段
+2. 确认 RDMA 网卡间 IP 层可达：`ping <对端RDMA_IP>`
+3. 检查交换机 PFC/ECN 无损网络配置
 
 ### 卡间同步Device侧执行卡死
 
