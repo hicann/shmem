@@ -34,6 +34,11 @@ LOOP_COUNT="1000"
 UB_SIZE="192"
 # RDMA特有参数
 BATCH="0"
+MAX_BATCH_SIZE="1024"
+XSCALE_AGGREGATE_CACHE_SIZE="64"
+XSCALE_WQE_SIZE="128"
+PERFTEST_WARMUP_ITERS="100"
+XSCALE_DEFAULT_BATCH_SIZE="100"
 SYNC_ID="0"
 QP_NUM="1"
 METRIC="bw"
@@ -132,8 +137,8 @@ while [[ $# -gt 0 ]]; do
             echo "  -e|--exponent <exponent>        数据量幂数"
             echo "  --exponent-range <min> <max>    数据量幂数范围"
             echo "  --loop-count <count>            循环次数 (默认 1000)"
-            echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐 (默认 192)"
-            echo "  --batch <count>                 单 QP 上每次调用 quiet 之前连续提交的 NBI 个数 (默认 1)"
+            echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐；XSCALE 聚合路径会按 batch 自动上调 (默认 192)"
+            echo "  --batch <count>                 单 QP 上每次调用 quiet 前连续提交的 NBI 个数；XSCALE 要求 1~1023，非法值自动改为 100 (默认 0)"
             echo "  --sync-id <id>                  显式传给 Put、Get、Quiet 的同步 ID (默认 0)"
             echo "  -q|--qp <num>                   QP 的个数，当前版本仅支持单 QP (默认 1)"
             echo "  --metric <bw|lat>              性能指标: bw=带宽, lat=接口延迟 (默认 bw)"
@@ -174,6 +179,24 @@ validate_ipport() {
         echo "错误: -ipport 格式无效，应为 'tcp://IP:PORT' 格式 (got '$param_value')"
         exit 1
     fi
+}
+
+is_xscale_runtime() {
+    if [[ "${IBV_EXTEND_DRIVERS:-}" =~ [Xx][Ss][Cc][Aa][Ll][Ee] ]] || \
+        [[ "${IBV_EXTEND_DRIVERS:-}" =~ libxscale_nda\.so ]]; then
+        return 0
+    fi
+
+    if command -v ibv_devinfo &>/dev/null && ibv_devinfo 2>/dev/null | grep -qi "xscale"; then
+        return 0
+    fi
+
+    return 1
+}
+
+get_xscale_required_ub_size() {
+    local batch="$1"
+    echo $((XSCALE_AGGREGATE_CACHE_SIZE + XSCALE_WQE_SIZE * batch))
 }
 
 # 验证测试类型
@@ -242,6 +265,52 @@ if [[ "$UB_SIZE" -lt "192" || "$UB_SIZE" -gt "131136" ]]; then
     exit 1
 fi
 
+if is_xscale_runtime; then
+    RDMA_NIC_TYPE="XSCALE"
+
+    # 计算实际最大聚合数：warmup 路径固定 PERFTEST_WARMUP_ITERS，
+    # bw 路径按 batch 分组（每 quiet 前 batch 个 NBI），
+    # lat 路径把 loop_count 个 NBI 聚合到一次 submit（不按 batch 分组）
+    MAX_AGGREGATE_COUNT="$PERFTEST_WARMUP_ITERS"
+    if [[ "$METRIC" == "lat" ]] && [[ "$LOOP_COUNT" -gt "$MAX_AGGREGATE_COUNT" ]]; then
+        MAX_AGGREGATE_COUNT="$LOOP_COUNT"
+    fi
+    if [[ "$METRIC" == "bw" ]] && [[ "$BATCH" -ne 0 ]] && [[ "$BATCH" -gt "$MAX_AGGREGATE_COUNT" ]]; then
+        MAX_AGGREGATE_COUNT="$BATCH"
+    fi
+
+    # 聚合数不得达到 SQ depth 上限（1024），否则 defer 写入后 stage/commit 会 abort
+    if [[ "$MAX_AGGREGATE_COUNT" -ge "$MAX_BATCH_SIZE" ]]; then
+        echo "错误: XSCALE 最大聚合数 $MAX_AGGREGATE_COUNT 已达到 SQ depth 上限 $MAX_BATCH_SIZE"
+        if [[ "$METRIC" == "lat" ]]; then
+            echo "       请减小 --loop-count（当前 $LOOP_COUNT）到 $((MAX_BATCH_SIZE - 1)) 以下"
+        else
+            echo "       请减小 --batch（当前 $BATCH）到 $((MAX_BATCH_SIZE - 1)) 以下"
+        fi
+        exit 1
+    fi
+
+    if [[ "$BATCH" -eq 0 ]]; then
+        echo "警告: XSCALE 下 --batch 0 使用自动值；已将 batch size 设置为 $XSCALE_DEFAULT_BATCH_SIZE"
+        BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
+    elif [[ "$BATCH" -gt "$LOOP_COUNT" || "$BATCH" -ge "$MAX_BATCH_SIZE" ]]; then
+        echo "警告: 请求的 XSCALE batch size $BATCH 非法（要求不大于 loop-count $LOOP_COUNT 且小于 SQ depth $MAX_BATCH_SIZE）；已将 batch size 设置为 $XSCALE_DEFAULT_BATCH_SIZE"
+        BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
+    fi
+
+    REQUIRED_UB_SIZE=$(get_xscale_required_ub_size "$MAX_AGGREGATE_COUNT")
+    if [[ "$UB_SIZE" -lt "$REQUIRED_UB_SIZE" ]]; then
+        if [[ "$REQUIRED_UB_SIZE" -gt "131136" ]]; then
+            echo "错误: XSCALE 聚合路径中最大聚合数 $MAX_AGGREGATE_COUNT 需要 UB size ${REQUIRED_UB_SIZE}B，超过最大值 131136B"
+            exit 1
+        fi
+        echo "警告: XSCALE 聚合路径中最大聚合数 $MAX_AGGREGATE_COUNT 需要 UB size ${REQUIRED_UB_SIZE}B；已将 UB size 从 $UB_SIZE 调整为 $REQUIRED_UB_SIZE"
+        UB_SIZE="$REQUIRED_UB_SIZE"
+    fi
+else
+    RDMA_NIC_TYPE="non-XSCALE or unknown"
+fi
+
 echo "测试类型: $TEST_TYPE"
 echo "数据类型: $DATA_TYPE"
 echo "幂数范围: $MIN_EXPONENT-$MAX_EXPONENT"
@@ -251,6 +320,7 @@ echo "Batch size: $BATCH"
 echo "Sync ID: $SYNC_ID"
 echo "QP num: $QP_NUM"
 echo "Metric: $METRIC"
+echo "RDMA NIC type: $RDMA_NIC_TYPE"
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
 echo "FIRST_NPU: $FIRST_NPU"
 
@@ -277,25 +347,27 @@ run_test() {
     return $failed
 }
 
+overall_failed=0
+
 if [[ "$TEST_TYPE" == "all" && "$DATA_TYPE" == "all" ]]; then
     for type in "${ALL_TEST_TYPES[@]}"; do
         for dtype in "${ALL_DATATYPES[@]}"; do
             echo -e "\n=== 运行测试类型: $type, 数据类型: $dtype ==="
-            run_test "$type" "$dtype"
+            run_test "$type" "$dtype" || overall_failed=1
         done
     done
 elif [[ "$TEST_TYPE" == "all" ]]; then
     for type in "${ALL_TEST_TYPES[@]}"; do
         echo -e "\n=== 运行测试类型: $type, 数据类型: $DATA_TYPE ==="
-        run_test "$type" "$DATA_TYPE"
+        run_test "$type" "$DATA_TYPE" || overall_failed=1
     done
 elif [[ "$DATA_TYPE" == "all" ]]; then
     for dtype in "${ALL_DATATYPES[@]}"; do
         echo -e "\n=== 运行测试类型: $TEST_TYPE, 数据类型: $dtype ==="
-        run_test "$TEST_TYPE" "$dtype"
+        run_test "$TEST_TYPE" "$dtype" || overall_failed=1
     done
 else
-    run_test "$TEST_TYPE" "$DATA_TYPE"
+    run_test "$TEST_TYPE" "$DATA_TYPE" || overall_failed=1
 fi
 
 cd ${CURRENT_DIR}
@@ -311,3 +383,5 @@ if [ -f "${PERF_SCRIPT}" ]; then
         python3 "${PERF_SCRIPT}" "${cmd_args[@]}"
     fi
 fi
+
+exit "$overall_failed"

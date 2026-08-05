@@ -55,8 +55,8 @@ bash run.sh [选项]
 | `--exponent <exponent>` | `-e <exponent>` | 数据量幂数 (2^exponent 字节) | - |
 | `--exponent-range <min> <max>` | - | 数据量幂数范围 | 3 17 |
 | `--loop-count <count>` | - | 循环次数 | 1000 |
-| `--ub-size <size>` | - | UB size (B)；自动 64B 对齐；至少 192B；云脉/XSCALE 网卡使用聚合路径时需至少 `64 + 128 * batch` 字节，`batch=0` 按 `loop-count` 计算 | 192 |
-| `--batch <count>` | - | 单 QP 上每次调用 quiet 之前连续提交的 NBI 个数 (0 表示全异步) | 0 |
+| `--ub-size <size>` | - | UB size (B)；自动 64B 对齐；至少 192B；XSCALE 预热至少需要 `64 + 128 * 100 = 12864B`，聚合组还需满足 `64 + 128 * batch` 字节 | 192 |
+| `--batch <count>` | - | 带宽路径中单 QP 在两次 quiet 之间连续提交的 NBI 个数；XSCALE 要求 `1 <= batch < 1024`，且脚本要求不大于 `loop-count`；`0` 或越界值在 XSCALE 下自动改为 100 | 0 |
 | `--metric <bw\|lat>` | - | 性能指标: `bw`=带宽, `lat`=接口延迟 | `bw` |
 | `--sync-id <id>` | - | 显式传给 Put、Get、Quiet 的同步 ID | 0 |
 | `-q/--qp <num>` | - | QP 的个数，当前版本仅支持单 QP | 1 |
@@ -75,6 +75,23 @@ bash run.sh [选项]
 的本地和远端操作数都必须指向对称内存，且各自的完整传输范围不得越过其所在的内存分配。
 
 默认 1 GB 本地内存；当数据量较大时，程序会自动上调 `local_mem_size`（最多 40 GB）。
+
+### Batch 参数说明
+
+`--batch` 表示带宽 (`--metric bw`) 路径中，单个 QP 在两次 `aclshmemx_roce_quiet` 之间连续提交的 NBI 操作数。perftest 会按 `batch` 对 Put/Get NBI 分组提交，每组结束后调用一次 quiet。
+
+`--metric lat` 路径不按 `batch` 划分主测试窗口，因此 `batch` 主要影响带宽测试。`batch=1` 是合法值，但不会走 XSCALE 聚合组 WQE，而是逐次提交并 quiet。
+
+云脉 XSCALE 网卡在单次传输消息小于 `64KB` 时会开启批量组 WQE 路径，通过 defer/submit action 将同组 NBI 操作聚合提交；消息大小达到或超过 `64KB` 时不走该 XSCALE 聚合路径，但带宽路径仍会按 `batch` 控制 quiet 分组。源码中每组聚合 WQE 需要 `64 + 128 * batch` 字节 UB，且提交时要求 `batch < SQ depth`；当前 SQ depth 为 1024，因此聚合路径的最大合法值是 1023。
+
+`run.sh` 会通过 `IBV_EXTEND_DRIVERS` 中的 `xscale`/`libxscale` 线索，或 `ibv_devinfo` 输出中的 `xscale` 关键字，自动识别当前环境是否为 XSCALE。识别到 XSCALE 后：
+
+1. UB 至少会调整到 warmup 聚合所需的 `64 + 128 * 100 = 12864B`。
+2. `--batch 0` 表示自动选择，脚本将其设置为 100。
+3. `--batch > loop-count` 或 `--batch >= 1024` 会被视为非法值，脚本打印中文警告并设置为 100。
+4. 非数字或负数的 `--batch` 仍属于参数格式错误，会直接退出。
+
+默认 `--loop-count 1000 --ub-size 192 --batch 0` 会自动调整为 `UB size=12864B`、`batch=100`。如果 `loop-count` 小于 100，可执行程序会按实际 `loop-count` 处理最后的有效批次；这不影响脚本的固定回退值。
 
 ### 使用示例
 
@@ -115,15 +132,17 @@ DataSize/B, Npus, Blocks, UBsize/KB, Bandwidth/GB/s, Bandwidth/GiB/s, CoreMaxTim
 数据类型: float
 幂数范围: 11-20
 循环次数: 1000
-UB size(B): 192
-Batch size: 0
+警告: XSCALE 聚合预热至少需要 UB size 12864B；已将 UB size 从 192 调整为 12864
+警告: XSCALE 下 --batch 0 使用自动值；已将 batch size 设置为 100
+UB size(B): 12864
+Batch size: 100
 Sync ID: 0
 QP num: 1
 Metric: lat
 PE_SIZE: 2, GNPU_NUM: 2
 FIRST_NPU: 0
-[INFO] rdma_perftest start, pe=0, t=bi_get, d=float, exp=11-20, loop=1000, ub=192B, metric=lat, batch=1000, sync_id=0, qp=1
-[INFO] rdma_perftest start, pe=1, t=bi_get, d=float, exp=11-20, loop=1000, ub=192B, metric=lat, batch=1000, sync_id=0, qp=1
+[INFO] rdma_perftest start, pe=0, t=bi_get, d=float, exp=11-20, loop=1000, ub=12864B, metric=lat, batch=100, sync_id=0, qp=1
+[INFO] rdma_perftest start, pe=1, t=bi_get, d=float, exp=11-20, loop=1000, ub=12864B, metric=lat, batch=100, sync_id=0, qp=1
 ```
 
 ## 已知约束

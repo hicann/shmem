@@ -72,9 +72,9 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `-e\|--exponent <exponent>` | 设置数据量的幂数 | - |
 | `--exponent-range <min> <max>` | 设置数据量的幂数范围 | 3-20 |
 | `--loop-count <count>` | 设置循环次数 | 1000 |
-| `--ub-size <size>` | 设置UB size(KB)（rdma 需至少 64B） | 16 |
+| `--ub-size <size>` | 设置UB size(KB)；rdma_perftest 至少需要 192B，具体以子示例 README 为准 | 16 |
 | `--memory-type <hbm\|dram>` | 设置mte_perftest使用的SHMEM内存类型（仅mte生效） | hbm |
-| `--batch <N>` | BW 路径下每 N 次 `*_nbi` 后 `quiet` (0=loop_count 全异步, 1=同步；当前仅支持 udma_perftest) | 0 |
+| `--batch <N>` | BW 路径下每 N 次 `*_nbi` 后 `quiet`；UDMA/RDMA 的具体限制以子示例 README 为准。RDMA XSCALE 要求 `batch < 1024`，非法值由 `rdma_perftest/run.sh` 自动改为 100 | 0 |
 | `-pes <size>` | 设置PE大小 | 2 |
 | `-ipport <ip:port>` | 设置IP端口 | tcp://127.0.0.1:8760 |
 | `-gnpus <num>` | 设置NPU数量 | 2 |
