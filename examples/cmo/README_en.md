@@ -70,15 +70,38 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t
 ## Environment Requirements
 
 ### Hardware Requirements
-- Ascend AI Processor (Atlas 200I A2/A3, Atlas 300T A2/A3, etc.)
+- Ascend AI Processor (Atlas 200I A2/A3, Atlas 300T A2/A3, Ascend950, etc.)
 - Architecture compatibility: AArch64 and x86
 
 ### Software Dependencies
-Configure a CANN version that supports the SDMA function by referring to [SHMEM Software Dependencies](https://gitcode.com/cann/shmem#%E8%BD%AF%E4%BB%B6%E4%BE%9D%E8%B5%96).
+Refer to [CANN Version Description](../../docs/quickstart.md#43-cann) and [Compilation and Build Guide](../../docs/compilation_build_guide.md) to configure a CANN version that supports CMO.
+
+| Platform | CANN Version Required for CMO | Toolkit Package | Ops Package |
+| --- | --- | --- | --- |
+| A2/A3 | CANN 9.0.0-beta.2 or later | Toolkit package 9.0.0-beta.2 or later: [Community Resources](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) | Ops package 9.0.0-beta.2 or later: [Community Resources](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) |
+| Ascend950 | CANN 9.1.0 or later | Toolkit package 9.1.0: [x86_64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-x86_64.run) / [aarch64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-aarch64.run) | Ops package 9.1.0: [950 x86_64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-950-ops_9.1.0_linux-x86_64.run) / [950 aarch64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-950-ops_9.1.0_linux-aarch64.run) |
+
+Install the toolkit and Ops packages in the same directory:
+
+```bash
+# Customize the CANN installation directory as required.
+export INSTALL_PATH=/home/user/ascend
+chmod +x Ascend-cann-toolkit_{cann_version}_linux-$(uname -m).run
+chmod +x Ascend-cann-{soc_name}-ops_{cann_version}_linux-$(uname -m).run
+./Ascend-cann-toolkit_{cann_version}_linux-$(uname -m).run --install --install-path=${INSTALL_PATH}
+./Ascend-cann-{soc_name}-ops_{cann_version}_linux-$(uname -m).run --install --install-path=${INSTALL_PATH}
+source ${INSTALL_PATH}/ascend-toolkit/set_env.sh
+```
 
 ### Function Dependencies
 
 **Important**: In this example, the CMO API `aclshmemx_cmo_nbi` on the device side depends on the SDMA function. You need to configure `attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA` by referring to example/sdma or example/cmo to start the SDMA engine.
+
+### Platform Support
+
+Ascend950 supports only CMO.
+
+Read/write data transfers through the SDMA put/get interfaces are not currently supported. Therefore, SDMA put/get interfaces such as `aclshmemx_sdma_put_nbi` and `aclshmemx_sdma_get_nbi` are not applicable to Ascend950 and later platforms.
 
 ## Build Procedure
 

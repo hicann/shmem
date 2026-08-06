@@ -29,6 +29,9 @@
 namespace shm {
 namespace transport {
 namespace device {
+constexpr int32_t MAX_AIV_CORE_NUM = 72;
+constexpr size_t SDMA_WORKSPACE_SIZE = 28U * 1024U;
+
 sdma_op_res_info_t SdmaTransportManager::op_res_info_ = {};
 void* SdmaTransportManager::op_res_info_device_ptr_ = nullptr;
 std::vector<host_stream_info_t> SdmaTransportManager::streams_;
@@ -42,12 +45,12 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions& options)
 
     dlerror(); // 清除历史错误
 
-    // 创建host测stream（910B/910_93按照最大AIV核数申请）
-    ACLSHMEM_CHECK_RET(CreateStarsStreams(ACLSHMEM_MAX_AIV_PER_NPU));
+    int32_t channel_num = 0;
+    ACLSHMEM_CHECK_RET(GetVectorCoreNum(channel_num));
+    ACLSHMEM_CHECK_RET(CreateStarsStreams(channel_num));
 
     // 申请AICPU和AIV的共享内存
-    constexpr size_t workspace_size = 16 * 1024; // 16KB
-    ACLSHMEM_CHECK_RET(MallocSdmaWorkspace(workspace_size));
+    ACLSHMEM_CHECK_RET(MallocSdmaWorkspace(SDMA_WORKSPACE_SIZE));
 
     // 创建Notify并保存id到共享内存
     CreateNotifyIds();
@@ -61,6 +64,27 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions& options)
 
     SHM_LOG_DEBUG(mype_ << " init sdma success.");
     inited_ = true;
+    return ACLSHMEM_SUCCESS;
+}
+
+Result SdmaTransportManager::GetVectorCoreNum(int32_t& channel_num)
+{
+    int32_t device_id = -1;
+    ACLSHMEM_CHECK_RET(aclrtGetDevice(&device_id));
+
+    int64_t vector_core_num = 0;
+    auto ret = aclrtGetDeviceInfo(device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &vector_core_num);
+    if (ret != ACL_SUCCESS || vector_core_num <= 0) {
+        ret = aclGetDeviceCapability(device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &vector_core_num);
+    }
+    if (ret != ACL_SUCCESS || vector_core_num <= 0) {
+        channel_num = MAX_AIV_CORE_NUM;
+        SHM_LOG_WARN(mype_ << " get vector core num failed, ret: " << ret << ", use default value: " << channel_num);
+        return ACLSHMEM_SUCCESS;
+    }
+
+    channel_num = static_cast<int32_t>(vector_core_num);
+    SHM_LOG_INFO(mype_ << " get vector core num: " << channel_num);
     return ACLSHMEM_SUCCESS;
 }
 
