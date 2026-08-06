@@ -400,6 +400,7 @@ Result RdmaTransportManagerV2::Connect()
         channelDescs[chIdx].roceAttr.sl = roceSl;
         channelDescs[chIdx].roceAttr.retryCnt = DEFAULT_ROCE_RETRY_CNT;
         channelDescs[chIdx].roceAttr.retryInterval = DEFAULT_ROCE_RETRY_INTERVAL;
+        SetChannelDescCqAttrFlags(channelDescs[chIdx], cqAttrFlags_);
         channelDescs[chIdx].socket = nullptr;
         bool isServer = (rankId_ < remoteRank);
         channelDescs[chIdx].role = isServer ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
@@ -590,12 +591,17 @@ void RdmaTransportManagerV2::CopyAiCQInfo(struct AiQpRMACQ& dest, const CqContex
         dest.dbAddr = roceCq.dbHwVa;
         dest.dbSwVa = roceCq.dbSwVa;
         dest.dbMode = DBMode::SW_DB; // 新版默认软件doorbell
+        if constexpr (IsHcommSupportCqOverrun()) {
+            dest.cqAttrFlags = cqAttrFlags_;
+        } else {
+            dest.cqAttrFlags = 0;
+        }
         SHM_LOG_DEBUG(
             "rank[" << rankId_ << "] CopyAiCQInfo(V2), cqn=" << dest.cqn << ", bufAddr=0x" << std::hex << dest.bufAddr
                     << std::dec << ", cqeSize=" << dest.cqeSize << ", depth=" << dest.depth << ", headAddr=0x"
                     << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex << dest.tailAddr << std::dec
-                    << ", dbAddr=0x" << std::hex << dest.dbAddr << ", dbSwVa=0x" << std::hex << dest.dbSwVa
-                    << std::dec);
+                    << ", dbAddr=0x" << std::hex << dest.dbAddr << ", dbSwVa=0x" << std::hex << dest.dbSwVa << std::dec
+                    << ", cqAttrFlags=" << dest.cqAttrFlags);
     } else {
         // 旧版格式 (2026-07-07 之前 CANN) - 回退兼容
         auto v1 = ExtractCqContextRoceV1(src);
@@ -608,12 +614,13 @@ void RdmaTransportManagerV2::CopyAiCQInfo(struct AiQpRMACQ& dest, const CqContex
         dest.dbAddr = v1.dbVa;
         dest.dbSwVa = 0; // 旧版无软doorbell
         dest.dbMode = (v1.dbMode == 0) ? DBMode::HW_DB : DBMode::SW_DB;
+        dest.cqAttrFlags = 0;
         SHM_LOG_DEBUG(
             "rank[" << rankId_ << "] CopyAiCQInfo(V1 fallback), cqn=" << dest.cqn << ", bufAddr=0x" << std::hex
                     << dest.bufAddr << std::dec << ", cqeSize=" << dest.cqeSize << ", depth=" << dest.depth
                     << ", headAddr=0x" << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex
                     << dest.tailAddr << std::dec << ", dbAddr=0x" << std::hex << dest.dbAddr << std::dec
-                    << ", dbMode=" << static_cast<int>(v1.dbMode));
+                    << ", dbMode=" << static_cast<int>(v1.dbMode) << ", cqAttrFlags=" << dest.cqAttrFlags);
     }
 }
 
