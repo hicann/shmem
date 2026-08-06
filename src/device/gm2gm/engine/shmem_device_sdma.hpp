@@ -14,12 +14,26 @@
 #include "host_device/shmem_common_types.h"
 #include "device/shmem_def.h"
 #include "shmemi_device_sdma.h"
+#include "utils/shmemi_kernel_debug.h"
+
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 2201)
+#define ACLSHMEM_TRANSPORT_SDMA_SUPPORTED 1
+#else
+#define ACLSHMEM_TRANSPORT_SDMA_SUPPORTED 0
+#endif
 
 constexpr uint8_t ACLSHMEM_SQE_TYPE_SDMA = 11;
 constexpr uint8_t ACLSHMEM_SQE_TYPE_NOTIFY_RECORD = 6;
 constexpr uint8_t ACLSHMEM_STARS_DEFAULT_KERNEL_CREDIT = 240U;
 constexpr uint8_t ACLSHMEM_DEFAULT_KERNEL_CREDIT = 254U;
 constexpr uint8_t ACLSHMEM_STARS_NEVER_TIMEOUT_KERNEL_CREDIT = 255U;
+
+ACLSHMEM_DEVICE uint32_t aclshmemi_sdma_get_channel_num(__gm__ uint8_t* channel_base)
+{
+    __gm__ stars_channel_flag_info_t* flag_info =
+        reinterpret_cast<__gm__ stars_channel_flag_info_t*>(channel_base - sizeof(stars_channel_flag_info_t));
+    return flag_info->totalQueueNum;
+}
 
 template <typename T>
 ACLSHMEM_DEVICE void copy_gm_to_gm(
@@ -91,6 +105,71 @@ ACLSHMEM_DEVICE void aclshmemi_fill_sdma_sqe(
     sqe->dst_addr_low = static_cast<uint32_t>(dst_addr & 0xFFFFFFFF);
     sqe->dst_addr_high = static_cast<uint32_t>((dst_addr >> 32) & 0xFFFFFFFF);
     sqe->link_type = static_cast<uint8_t>(255U);
+}
+
+ACLSHMEM_DEVICE void aclshmemi_fill_stars_v2_sdma_sqe(
+    __gm__ stars_channel_info_t* channel_info, __gm__ uint8_t* src, __gm__ uint8_t* dst, uint32_t length,
+    uint32_t sq_tail, uint32_t task_id)
+{
+    __gm__ stars_v2_sdma_cmo_sqe_t* sqe =
+        (__gm__ stars_v2_sdma_cmo_sqe_t*)(channel_info->sq_base) + (sq_tail % channel_info->sq_depth);
+
+    sqe->header.type = ACLSHMEM_SQE_TYPE_SDMA;
+    sqe->header.l1_lock = 0U;
+    sqe->header.l1_unlock = 0U;
+    sqe->header.ie = 0U;
+    sqe->header.pre_p = 0U;
+    sqe->header.post_p = 0U;
+    sqe->header.wr_cqe = 1U;
+    sqe->header.ptr_mode = 0U;
+    sqe->header.rtt_mode = 0U;
+    sqe->header.head_update = 0U;
+    sqe->header.reserved = 0U;
+    sqe->header.block_dim = 0U;
+    sqe->header.rt_streamid = static_cast<uint16_t>(channel_info->stream_id);
+    sqe->header.task_id = static_cast<uint16_t>(task_id);
+
+    sqe->res3 = 0U;
+    sqe->res4 = 0U;
+    sqe->kernel_credit = ACLSHMEM_DEFAULT_KERNEL_CREDIT;
+    sqe->ptr_mode = 0U;
+    sqe->res5 = 0U;
+
+    sqe->opcode = 0U;
+    sqe->sssv = 1U;
+    sqe->dssv = 1U;
+    sqe->sns = 1U;
+    sqe->dns = 1U;
+    sqe->sro = 0U;
+    sqe->dro = 0U;
+    sqe->stride = 0U;
+    sqe->ie2 = 0U;
+    sqe->comp_en = 0U;
+    sqe->res6 = 0U;
+
+    sqe->sqe_id = 0U;
+    sqe->mpam_partid = 0U;
+    sqe->mpamns = 0U;
+    sqe->pmg = 0U;
+    sqe->qos = 0U;
+    sqe->res7 = 0U;
+
+    sqe->src_streamid = 0U;
+    sqe->src_sub_streamid = 0U;
+    sqe->dst_streamid = 0U;
+    sqe->dst_sub_streamid = 0U;
+
+    uint64_t src_addr = reinterpret_cast<uint64_t>(src);
+    uint64_t dst_addr = reinterpret_cast<uint64_t>(dst);
+    sqe->src_addr_low = static_cast<uint32_t>(src_addr & 0xFFFFFFFFU);
+    sqe->src_addr_high = static_cast<uint32_t>((src_addr >> 32U) & 0xFFFFFFFFU);
+    sqe->dst_addr_low = static_cast<uint32_t>(dst_addr & 0xFFFFFFFFU);
+    sqe->dst_addr_high = static_cast<uint32_t>((dst_addr >> 32U) & 0xFFFFFFFFU);
+
+    sqe->length = length;
+    sqe->src_stride_len = 0U;
+    sqe->dst_stride_len = 0U;
+    sqe->stride_num = 0U;
 }
 
 ACLSHMEM_DEVICE void aclshmemi_fill_notify_record_sqe(
@@ -277,9 +356,15 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_data_sqes(
         __gm__ uint8_t* src_addr = send_buffer + idx * config.block_bytes;
         __gm__ uint8_t* dst_addr = recv_buffer + idx * config.block_bytes;
 
-        aclshmemi_fill_sdma_sqe(
-            channel_info, src_addr, dst_addr, transfer_bytes, sq_tail[queue_idx],
-            sq_tail[queue_idx] - channel_info->sq_head);
+        if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
+            aclshmemi_fill_stars_v2_sdma_sqe(
+                channel_info, src_addr, dst_addr, transfer_bytes, sq_tail[queue_idx],
+                sq_tail[queue_idx] - channel_info->sq_head);
+        } else {
+            aclshmemi_fill_sdma_sqe(
+                channel_info, src_addr, dst_addr, transfer_bytes, sq_tail[queue_idx],
+                sq_tail[queue_idx] - channel_info->sq_head);
+        }
 
         sq_tail[queue_idx] = (sq_tail[queue_idx] + 1) % (channel_info->sq_depth);
         AscendC::PipeBarrier<PIPE_ALL>();
@@ -291,6 +376,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
     AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id)
 {
     const uint32_t queue_num = 1;
+
     for (uint32_t queue_id = 0U; queue_id < queue_num; ++queue_id) {
         __gm__ stars_channel_info_t* channel_info = batch_write_channel_info + queue_id;
         dcci_cachelines((__gm__ uint8_t*)channel_info + 4, 4);
@@ -298,10 +384,17 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
 
         const uint32_t flag_size = 8;
 
-        aclshmemi_fill_sdma_sqe(
-            channel_info, layout.send_workspace,                                 // send flag buffer of current core
-            layout.remote_recv_workspace + queue_id * ACLSHMEM_SDMA_FLAG_LENGTH, // write flag location for this channel
-            flag_size, sq_tail, sq_tail - channel_info->sq_head);
+        if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
+            aclshmemi_fill_stars_v2_sdma_sqe(
+                channel_info, layout.send_workspace,
+                layout.remote_recv_workspace + queue_id * ACLSHMEM_SDMA_FLAG_LENGTH, flag_size, sq_tail,
+                sq_tail - channel_info->sq_head);
+        } else {
+            aclshmemi_fill_sdma_sqe(
+                channel_info, layout.send_workspace,
+                layout.remote_recv_workspace + queue_id * ACLSHMEM_SDMA_FLAG_LENGTH, flag_size, sq_tail,
+                sq_tail - channel_info->sq_head);
+        }
 
         sq_tail = (sq_tail + 1) % (channel_info->sq_depth);
 
@@ -337,9 +430,8 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(
             times++;
         }
 
-        // Clear
-        aclshmemi_set_value<uint32_t>(remote_recv_workspace, 0, tmp_local, sync_id);
-        aclshmemi_set_value<uint32_t>(local_recv_workspace, 0, tmp_local, sync_id);
+        aclshmemi_set_value<uint32_t>(remote_recv_workspace, 0U, tmp_local, sync_id);
+        aclshmemi_set_value<uint32_t>(local_recv_workspace, 0U, tmp_local, sync_id);
     }
 }
 
@@ -349,7 +441,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
 {
     __gm__ uint8_t* channel_base = aclshmemi_sdma_get_channel_base();
 
-    const auto cur_block_idx = AscendC::GetBlockIdx();
+    const uint32_t channel_idx = AscendC::GetBlockIdx();
     // 1. Initialize per-core parameters, including channel count, etc.
     sdma_config_t config;
     config.queue_num = 1;
@@ -357,30 +449,22 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
     config.per_core_bytes = message_len;
     config.iter_num = (config.per_core_bytes + config.block_bytes - 1) / config.block_bytes;
 
-    if (config.iter_num == 0 || cur_block_idx >= (ACLSHMEM_MAX_AIV_PER_NPU / config.queue_num)) {
+    if (config.iter_num == 0) {
         AscendC::PipeBarrier<PIPE_ALL>();
         return;
     }
 
     // 2. Calculate base channel index for the current core
     __gm__ stars_channel_info_t* batch_write_channel_base = (__gm__ stars_channel_info_t*)(channel_base);
-    __gm__ stars_channel_info_t* batch_write_channel_info = batch_write_channel_base + cur_block_idx * config.queue_num;
+    __gm__ stars_channel_info_t* batch_write_channel_info = batch_write_channel_base + channel_idx * config.queue_num;
 
-    // 3. Calculate base addresses of send and receive flags
-    __gm__ uint8_t* workspace = channel_base + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(stars_channel_info_t);
-    workspace_layout_t workspace_layout;
-    uint64_t per_core_workspace_size = config.queue_num * ACLSHMEM_SDMA_FLAG_LENGTH;
-    __gm__ uint8_t* my_workspace = workspace + ACLSHMEM_SDMA_FLAG_LENGTH + (cur_block_idx * per_core_workspace_size);
+    __gm__ uint8_t* send_workspace = channel_base - sizeof(stars_channel_flag_info_t) +
+                                     ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t) +
+                                     ACLSHMEM_SDMA_FLAG_LENGTH * channel_idx;
+    aclshmemi_set_value<uint32_t>(send_workspace, 1U, tmp_local, sync_id);
 
-    workspace_layout.send_workspace = workspace;
-    workspace_layout.recv_workspace = my_workspace;
-    workspace_layout.remote_recv_workspace = my_workspace + ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH;
-
-    aclshmemi_set_value<uint32_t>(
-        (__gm__ uint8_t*)workspace_layout.send_workspace, config.queue_num, tmp_local, sync_id);
-
-    // 4. Initialize the sq_tail array
-    uint32_t sq_tail[ACLSHMEM_MAX_AIV_PER_NPU] = {0};
+    // 3. Initialize the sq_tail array
+    uint32_t sq_tail[1] = {0};
     for (uint32_t queue_id = 0U; queue_id < config.queue_num; ++queue_id) {
         __gm__ stars_channel_info_t* channel_info = batch_write_channel_info + queue_id;
         // Load sq_tail field at 4-byte offset
@@ -388,10 +472,10 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
         sq_tail[queue_id] = *((__gm__ uint32_t*)(((__gm__ uint8_t*)channel_info) + 4));
     }
 
-    // 5. Submit data transfer SQE
+    // 4. Submit data transfer SQE
     aclshmemi_sdma_submit_data_sqes(batch_write_channel_info, send_buffer, recv_buffer, config, sq_tail);
 
-    // 6. Ring doorbell
+    // 5. Ring doorbell
     auto item_size = config.iter_num * sizeof(stars_sdma_sqe_t);
     for (uint8_t queue_id = 0; queue_id < config.queue_num; queue_id++) {
         __gm__ stars_channel_info_t* channel_info = batch_write_channel_info + queue_id;
@@ -439,27 +523,17 @@ ACLSHMEM_DEVICE void aclshmemi_cmo_async(
     if (context_gm == nullptr)
         return;
 
-    const auto cur_block_idx = AscendC::GetBlockIdx();
+    const uint32_t channel_idx = AscendC::GetBlockIdx();
+    __gm__ uint8_t* channel_base = context_gm + sizeof(stars_channel_flag_info_t);
 
     // Calculate base channel index for the current core
-    __gm__ stars_channel_info_t* batch_write_channel_base =
-        (__gm__ stars_channel_info_t*)(context_gm + sizeof(stars_channel_flag_info_t));
-    __gm__ stars_channel_info_t* batch_write_channel_info = batch_write_channel_base + cur_block_idx;
+    __gm__ stars_channel_info_t* batch_write_channel_base = (__gm__ stars_channel_info_t*)(channel_base);
+    __gm__ stars_channel_info_t* batch_write_channel_info = batch_write_channel_base + channel_idx;
 
-    // Calculate base addresses of send and receive flags
-    __gm__ uint8_t* workspace =
-        context_gm + sizeof(stars_channel_flag_info_t) + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(stars_channel_info_t);
-    workspace_layout_t workspace_layout;
-    uint64_t per_core_workspace_size = ACLSHMEM_SDMA_FLAG_LENGTH;
-    __gm__ uint8_t* sdma_recv_workspace =
-        workspace + ACLSHMEM_SDMA_FLAG_LENGTH + (cur_block_idx * per_core_workspace_size);
-    __gm__ uint8_t* cmo_recv_workspace = sdma_recv_workspace + 2 * ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH;
-
-    workspace_layout.send_workspace = workspace;
-    workspace_layout.recv_workspace = sdma_recv_workspace;
-    workspace_layout.remote_recv_workspace = sdma_recv_workspace + ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH;
-
-    aclshmemi_set_value<uint32_t>((__gm__ uint8_t*)workspace_layout.send_workspace, 1, tmp_local, sync_id);
+    __gm__ uint8_t* send_workspace = context_gm + ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET +
+                                     ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t) +
+                                     ACLSHMEM_SDMA_FLAG_LENGTH * channel_idx;
+    aclshmemi_set_value<uint32_t>(send_workspace, 1U, tmp_local, sync_id);
 
     // Initialize the sq_tail
     uint32_t sq_tail = 0;
@@ -500,6 +574,10 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, uint32_t sync_id)
 {
+    if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
+        aclshmemi_kernel_abort("aclshmemx_sdma_put_nbi: SDMA WRITE is not supported on Ascend950.\n");
+        return;
+    }
     auto ptr = aclshmem_ptr(dst, pe);
 
     // Create LocalTensor from buf pointer and ub_size
@@ -516,6 +594,10 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(
     AscendC::GlobalTensor<T>& dst, AscendC::GlobalTensor<T>& src, AscendC::LocalTensor<T>& buf, uint32_t elem_size,
     int pe, uint32_t sync_id)
 {
+    if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
+        aclshmemi_kernel_abort("aclshmemx_sdma_put_nbi: SDMA WRITE is not supported on Ascend950.\n");
+        return;
+    }
     auto ptr = aclshmem_ptr((__gm__ void*)dst.GetPhyAddr(), pe);
 
     AscendC::LocalTensor<uint32_t> ub_tensor;
@@ -567,15 +649,19 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(AscendC::LocalTensor<T>& buf, uint32_t
     ub_tensor.address_.dataLen = UB_ALIGN_SIZE_64;
 
     const uint32_t queue_num = 1;
-    const auto cur_block_idx = AscendC::GetBlockIdx();
+    const uint32_t channel_idx = AscendC::GetBlockIdx();
     __gm__ uint8_t* channel_base = aclshmemi_sdma_get_channel_base();
+    const uint32_t channel_num = aclshmemi_sdma_get_channel_num(channel_base);
     __gm__ stars_channel_info_t* batch_write_channel_info =
-        (__gm__ stars_channel_info_t*)(channel_base) + cur_block_idx * queue_num;
+        (__gm__ stars_channel_info_t*)(channel_base) + channel_idx * queue_num;
 
+    __gm__ uint8_t* flag_workspace_base = channel_base - sizeof(stars_channel_flag_info_t) +
+                                          ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET +
+                                          ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t);
     workspace_layout_t layout;
-    layout.send_workspace = channel_base + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(stars_channel_info_t);
-    layout.recv_workspace = layout.send_workspace + ACLSHMEM_SDMA_FLAG_LENGTH * (cur_block_idx * queue_num + 1);
-    layout.remote_recv_workspace = layout.recv_workspace + ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH;
+    layout.send_workspace = flag_workspace_base + ACLSHMEM_SDMA_FLAG_LENGTH * channel_idx;
+    layout.remote_recv_workspace = layout.send_workspace + channel_num * ACLSHMEM_SDMA_FLAG_LENGTH;
+    layout.recv_workspace = layout.remote_recv_workspace + channel_num * ACLSHMEM_SDMA_FLAG_LENGTH;
 
     aclshmemi_sdma_submit_flag_sqes(batch_write_channel_info, layout, ub_tensor, sync_id);
     aclshmemi_sdma_poll_for_completion(layout, ub_tensor, sync_id);
@@ -590,15 +676,19 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(__ubuf__ T* buf, uint32_t ub_size, uin
     ub_tensor.address_.dataLen = ub_size;
 
     const uint32_t queue_num = 1;
-    const auto cur_block_idx = AscendC::GetBlockIdx();
+    const uint32_t channel_idx = AscendC::GetBlockIdx();
     __gm__ uint8_t* channel_base = aclshmemi_sdma_get_channel_base();
+    const uint32_t channel_num = aclshmemi_sdma_get_channel_num(channel_base);
     __gm__ stars_channel_info_t* batch_write_channel_info =
-        (__gm__ stars_channel_info_t*)(channel_base) + cur_block_idx * queue_num;
+        (__gm__ stars_channel_info_t*)(channel_base) + channel_idx * queue_num;
 
+    __gm__ uint8_t* flag_workspace_base = channel_base - sizeof(stars_channel_flag_info_t) +
+                                          ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET +
+                                          ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t);
     workspace_layout_t layout;
-    layout.send_workspace = channel_base + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(stars_channel_info_t);
-    layout.recv_workspace = layout.send_workspace + ACLSHMEM_SDMA_FLAG_LENGTH * (cur_block_idx * queue_num + 1);
-    layout.remote_recv_workspace = layout.recv_workspace + ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH;
+    layout.send_workspace = flag_workspace_base + ACLSHMEM_SDMA_FLAG_LENGTH * channel_idx;
+    layout.remote_recv_workspace = layout.send_workspace + channel_num * ACLSHMEM_SDMA_FLAG_LENGTH;
+    layout.recv_workspace = layout.remote_recv_workspace + channel_num * ACLSHMEM_SDMA_FLAG_LENGTH;
 
     aclshmemi_sdma_submit_flag_sqes(batch_write_channel_info, layout, ub_tensor, sync_id);
     aclshmemi_sdma_poll_for_completion(layout, ub_tensor, sync_id);

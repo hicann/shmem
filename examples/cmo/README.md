@@ -75,20 +75,20 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t
 ### 软件依赖
 参考仓内[CANN版本说明](../../docs/quickstart.md#43-cann)和[编译与构建](../../docs/compilation_build_guide.md)，配置支持CMO功能的CANN版本。
 
-| 平台 | CMO功能CANN版本要求 | toolkit包 | ops-legacy包 |
+| 平台 | CMO功能CANN版本要求 | toolkit包 | ops包 |
 | --- | --- | --- | --- |
-| A2/A3 | CANN 9.0.0-beta.2及以上 | 9.0.0-beta.2及以上 toolkit包：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) | 使能SDMA需下载社区版[ops包](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) |
-| Ascend950 | CANN 9.1.0及以上 | 9.1.0尝鲜版 toolkit 包：[x86_64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-x86_64.run) / [aarch64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-aarch64.run) | ops-legacy包：[950 x86_64](https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/package/master/20260612/x86_64/cann-950-ops-legacy_9.1.0_linux-x86_64.run) / [950 aarch64](https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/package/master/20260612/aarch64/cann-950-ops-legacy_9.1.0_linux-aarch64.run) |
+| A2/A3 | CANN 9.0.0-beta.2及以上 | 9.0.0-beta.2及以上 toolkit包：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) | 9.0.0-beta.2及以上 ops包：[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0-beta.2) |
+| Ascend950 | CANN 9.1.0及以上 | 9.1.0尝鲜版 toolkit 包：[x86_64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-x86_64.run) / [aarch64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-toolkit_9.1.0_linux-aarch64.run) | 9.1.0 ops包：[950 x86_64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-950-ops_9.1.0_linux-x86_64.run) / [950 aarch64](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/legacy/20260610120325172/Ascend-cann-950-ops_9.1.0_linux-aarch64.run) |
 
-toolkit包和ops-legacy包需要安装到同一目录：
+toolkit包和ops包需要安装到同一目录：
 
 ```bash
 # 自定义CANN安装目录，可按实际环境修改
 export INSTALL_PATH=/home/user/ascend
 chmod +x Ascend-cann-toolkit_{cann_version}_linux-$(uname -m).run
-chmod +x cann-{soc_name}-ops-legacy_{cann_version}_linux-$(uname -m).run
+chmod +x Ascend-cann-{soc_name}-ops_{cann_version}_linux-$(uname -m).run
 ./Ascend-cann-toolkit_{cann_version}_linux-$(uname -m).run --install --install-path=${INSTALL_PATH}
-./cann-{soc_name}-ops-legacy_{cann_version}_linux-$(uname -m).run --install-path=${INSTALL_PATH}
+./Ascend-cann-{soc_name}-ops_{cann_version}_linux-$(uname -m).run --install --install-path=${INSTALL_PATH}
 source ${INSTALL_PATH}/ascend-toolkit/set_env.sh
 ```
 
@@ -96,9 +96,11 @@ source ${INSTALL_PATH}/ascend-toolkit/set_env.sh
 
 **重要**：本示例中的Device侧CMO接口`aclshmemx_cmo_nbi`依赖SDMA功能，需要参考`examples/sdma`或`examples/cmo`，配置`attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA`以启动SDMA引擎。
 
-### SDMA能力提醒
+### 平台支持
 
-Ascend950及以上平台当前仅支持通过STARS v2 SDMA-CMO SQE执行CMO预取，暂不支持通过SDMA put/get接口使用read/write数据搬运能力。因此，`aclshmemx_sdma_put_nbi`、`aclshmemx_sdma_get_nbi`等SDMA put/get接口不适用于Ascend950及以上平台。
+Ascend950仅支持CMO功能。
+
+暂不支持通过SDMA put/get接口使用read/write数据搬运能力。因此，`aclshmemx_sdma_put_nbi`、`aclshmemx_sdma_get_nbi`等SDMA put/get接口不适用于Ascend950及以上平台。
 
 ## 编译步骤
 

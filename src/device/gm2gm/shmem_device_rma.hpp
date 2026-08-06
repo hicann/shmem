@@ -23,6 +23,9 @@
 #define ACLSHMEM_UDMA_SUPPORTED 0
 #endif
 
+#define ACLSHMEM_SDMA_TRANSPORT_ENABLED(STATE, PE) \
+    (ACLSHMEM_TRANSPORT_SDMA_SUPPORTED && (((STATE)->topo_list[(PE)] & ACLSHMEM_TRANSPORT_SDMA) != 0))
+
 #define ACLSHMEM_UDMA_TRANSPORT_ENABLED(STATE, PE) \
     (ACLSHMEM_UDMA_SUPPORTED && (((STATE)->topo_list[(PE)] & ACLSHMEM_TRANSPORT_UDMA) != 0))
 
@@ -88,7 +91,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void* dst, __gm__ void* src, uint32_
 {
     /* Global State Get */
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
-    if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {
+    if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {
         /* SDMA */
         uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->sdma_config.ub_size;
@@ -129,7 +132,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem(__gm__ void* dst, __gm__ void* src, uint32_
     {                                                                                                              \
         /* Global State Get */                                                                                     \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                 \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                               \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                   \
             /* SDMA */                                                                                             \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                              \
             uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                             \
@@ -323,7 +326,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void* dst, __gm__ void* src, uint32_
 {
     /* Global State Get */
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
-    if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {
+    if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {
         /* SDMA */
         uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->sdma_config.ub_size;
@@ -364,7 +367,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem(__gm__ void* dst, __gm__ void* src, uint32_
     {                                                                                                              \
         /* Global State Get */                                                                                     \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                 \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                               \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                   \
             /* SDMA */                                                                                             \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                              \
             uint32_t copy_ub_size = device_state->sdma_config.ub_size;                                             \
@@ -559,7 +562,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void* dst, __gm__ void* src, uin
 {
     /* Global State Get */
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
-    if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {
+    if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {
         /* SDMA */
         uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->sdma_config.ub_size;
@@ -591,7 +594,7 @@ ACLSHMEM_DEVICE void aclshmem_getmem_nbi(__gm__ void* dst, __gm__ void* src, uin
     {                                                                                                                  \
         /* Global State Get */                                                                                         \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                     \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                   \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                       \
             /* SDMA */                                                                                                 \
             /* CopyUB Config Set */                                                                                    \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                  \
@@ -657,7 +660,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_DETAILED_NBI);
     {                                                                                                              \
         /* Global State Get */                                                                                     \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                 \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                               \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                   \
             /* SDMA */                                                                                             \
             /* CopyUB Config Set */                                                                                \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                              \
@@ -725,7 +728,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED_NBI);
     {                                                                                                                  \
         /* Global State Get */                                                                                         \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                     \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                                   \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                       \
             /* SDMA */                                                                                                 \
             /* CopyUB Config Set */                                                                                    \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                                  \
@@ -790,7 +793,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_DETAILED_NBI);
     {                                                                                                              \
         /* Global State Get */                                                                                     \
         __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();                                 \
-        if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {                                               \
+        if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {                                                   \
             /* SDMA */                                                                                             \
             /* CopyUB Config Set */                                                                                \
             uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;                                              \
@@ -857,7 +860,7 @@ ACLSHMEM_DEVICE void aclshmem_putmem_nbi(__gm__ void* dst, __gm__ void* src, uin
     /* MTE  */
     /* Global State Get */
     __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
-    if (device_state->topo_list[pe] & ACLSHMEM_TRANSPORT_SDMA) {
+    if (ACLSHMEM_SDMA_TRANSPORT_ENABLED(device_state, pe)) {
         /* SDMA */
         uint64_t copy_ub = device_state->sdma_config.aclshmem_ub;
         uint32_t copy_ub_size = device_state->sdma_config.ub_size;
@@ -894,6 +897,7 @@ ACLSHMEM_DEVICE void aclshmemx_set_mte_config(uint64_t offset, uint32_t ub_size,
     device_state->mte_config.sync_id = sync_id;
 }
 
+#undef ACLSHMEM_SDMA_TRANSPORT_ENABLED
 #undef ACLSHMEM_UDMA_TRANSPORT_ENABLED
 
 #endif
