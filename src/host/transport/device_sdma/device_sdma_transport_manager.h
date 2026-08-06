@@ -47,32 +47,36 @@ public:
     SdmaTransportManager() = default;
     ~SdmaTransportManager() override = default;
 
-    Result OpenDevice(const TransportOptions &options) override;
+    Result OpenDevice(const TransportOptions& options) override;
     Result CloseDevice() override;
 
-    Result RegisterMemoryRegion(const TransportMemoryRegion &/*mr*/) override { return ACLSHMEM_SUCCESS; }
+    Result RegisterMemoryRegion(const TransportMemoryRegion& /*mr*/) override { return ACLSHMEM_SUCCESS; }
     Result UnregisterMemoryRegion(uint64_t /*addr*/) override { return ACLSHMEM_SUCCESS; }
-    Result QueryMemoryKey(uint64_t /*addr*/, TransportMemoryKey &/*key*/) override { return ACLSHMEM_SUCCESS; }
-    Result ParseMemoryKey(const TransportMemoryKey &/*key*/, uint64_t &/*addr*/,
-                          uint64_t &/*size*/) override { return ACLSHMEM_SUCCESS; }
-    Result Prepare(const HybmTransPrepareOptions &/*options*/) override { return ACLSHMEM_SUCCESS; }
+    Result QueryMemoryKey(uint64_t /*addr*/, TransportMemoryKey& /*key*/) override { return ACLSHMEM_SUCCESS; }
+    Result ParseMemoryKey(const TransportMemoryKey& /*key*/, uint64_t& /*addr*/, uint64_t& /*size*/) override
+    {
+        return ACLSHMEM_SUCCESS;
+    }
+    Result Prepare(const HybmTransPrepareOptions& /*options*/) override { return ACLSHMEM_SUCCESS; }
     Result Connect() override { return ACLSHMEM_SUCCESS; }
     Result AsyncConnect() override { return ACLSHMEM_SUCCESS; }
     Result WaitForConnected(int64_t /*timeoutNs*/) override { return ACLSHMEM_SUCCESS; }
-    Result UpdateRankOptions(const HybmTransPrepareOptions &/*options*/) override { return ACLSHMEM_SUCCESS; }
-    const std::string &GetNic() const override
+    Result UpdateRankOptions(const HybmTransPrepareOptions& /*options*/) override { return ACLSHMEM_SUCCESS; }
+    const std::string& GetNic() const override
     {
         static const std::string empty_nic;
         return empty_nic;
     }
 
 private:
+    Result GetVectorCoreNum(int32_t& channel_num);
     Result CreateNotifyIds();
     Result CreateStarsStreams(int32_t channel_num);
     Result MallocSdmaWorkspace(size_t workspace_size);
     Result CopyHostOpResToDevice();
-    Result CreateAclTensor(const std::vector<uint64_t> &host_data, const std::vector<int64_t> &shape,
-                           void **device_addr, aclDataType data_type, aclTensor **tensor);
+    Result CreateAclTensor(
+        const std::vector<uint64_t>& host_data, const std::vector<int64_t>& shape, void** device_addr,
+        aclDataType data_type, aclTensor** tensor);
     Result LaunchSdmaAicpuKernel(uint64_t streams_addr, uint64_t sdma_workspace_addr);
 
 private:
@@ -81,11 +85,11 @@ private:
     uint32_t npes_{1};
 
     static sdma_op_res_info_t op_res_info_;
-    static void *op_res_info_device_ptr_;
+    static void* op_res_info_device_ptr_;
     static std::vector<host_stream_info_t> streams_;
 };
 } // namespace device
 } // namespace transport
 } // namespace shm
 
-#endif  // MF_HYBRID_DEVICE_SDMA_TRANSPORT_MANAGER_H
+#endif // MF_HYBRID_DEVICE_SDMA_TRANSPORT_MANAGER_H
