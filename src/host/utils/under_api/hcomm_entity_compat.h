@@ -14,25 +14,20 @@
 #include <cstring>
 #include <netinet/in.h>
 
+#include <cstddef>
 #include <cstdint>
 
-#if defined(__has_include)
-#if __has_include(<hcomm/hcomm_res_entity_defs.h>)
-#include <hcomm/hcomm_res_entity_defs.h>
-#define SHMEM_HCOMM_ENTITY_FROM_CANN 1
-#elif __has_include(<hcomm/hcomm_primitives.h>) && __has_include(<hcomm/hcomm_res.h>)
-#include <hcomm/hcomm_res.h>
-#define SHMEM_HCOMM_RES_FROM_CANN 1
-#endif
-#endif
-
 /*
- * Older CANN packages, for example 8.5.1, do not ship the HCOM resource
- * headers.  HCOM is loaded with dlopen/dlsym, so the host compilation only
- * needs ABI-shaped declarations.  Keep this fallback deliberately local to
- * this compatibility header; it does not provide or emulate any runtime API.
+ * Do not include CANN HCOMM headers here. HCOMM is loaded with dlopen/dlsym,
+ * so host compilation uses the ABI-shaped declarations below, copied from
+ * hcomm-master/include/hcomm_res_defs.h.
  */
-#if !defined(SHMEM_HCOMM_ENTITY_FROM_CANN) && !defined(SHMEM_HCOMM_RES_FROM_CANN)
+
+constexpr uint32_t COMM_ADDR_EID_LEN = 16U;
+constexpr uint32_t HCOMM_CHANNEL_MAGIC_WORD = 0x0fcf0f0fU;
+constexpr uint32_t HCOMM_CHANNEL_VERSION_ONE = 1U;
+constexpr uint32_t HCOMM_CHANNEL_VERSION = 3U;
+constexpr uint32_t HCOMM_CHANNEL_NAME_MAX_LEN = 191U;
 
 enum class CommEngine : int32_t {
     RESERVED = -1,
@@ -62,6 +57,7 @@ enum class CommProtocol : int32_t {
     UB_MEM = 6,
     UBOE = 7,
     HCCS_ONLY = 8,
+    UBG = 9,
 };
 inline constexpr CommProtocol COMM_PROTOCOL_RESERVED = CommProtocol::RESERVED;
 inline constexpr CommProtocol COMM_PROTOCOL_HCCS = CommProtocol::HCCS;
@@ -73,6 +69,7 @@ inline constexpr CommProtocol COMM_PROTOCOL_UBC_TP = CommProtocol::UBC_TP;
 inline constexpr CommProtocol COMM_PROTOCOL_UB_MEM = CommProtocol::UB_MEM;
 inline constexpr CommProtocol COMM_PROTOCOL_UBOE = CommProtocol::UBOE;
 inline constexpr CommProtocol COMM_PROTOCOL_HCCS_ONLY = CommProtocol::HCCS_ONLY;
+inline constexpr CommProtocol COMM_PROTOCOL_UBG = CommProtocol::UBG;
 
 enum class CommAddrType : int32_t {
     RESERVED = -1,
@@ -126,6 +123,9 @@ struct EndpointDesc {
     CommProtocol protocol;
     CommAddr commAddr;
     EndpointLoc loc;
+    union {
+        uint8_t raws[52];
+    };
 };
 using ChannelHandle = uint64_t;
 using HcclResult = int32_t;
@@ -171,41 +171,48 @@ struct CommAbiHeader {
 };
 
 enum class HcommSocketRole : int32_t {
+    RESERVED = -1,
     CLIENT = 0,
     SERVER = 1,
 };
+inline constexpr HcommSocketRole HCOMM_SOCKET_ROLE_RESERVED = HcommSocketRole::RESERVED;
 inline constexpr HcommSocketRole HCOMM_SOCKET_ROLE_CLIENT = HcommSocketRole::CLIENT;
 inline constexpr HcommSocketRole HCOMM_SOCKET_ROLE_SERVER = HcommSocketRole::SERVER;
 
 struct HcommChannelDesc {
+    CommAbiHeader header{};
     EndpointDesc remoteEndpoint{};
     uint32_t notifyNum{0};
     bool exchangeAllMems{false};
-    void** memHandles{nullptr};
+    HcommMemHandle* memHandles{nullptr};
     uint32_t memHandleNum{0};
-    struct {
-        uint32_t qos{0};
-    } hccsAttr;
-    struct {
-        uint32_t queueNum{0};
-        uint32_t retryCnt{0};
-        uint32_t retryInterval{0};
-        uint8_t tc{0};
-        uint8_t sl{0};
-    } roceAttr;
-    HcommSocketRole role{HcommSocketRole::CLIENT};
     HcommSocket socket{nullptr};
+    HcommSocketRole role{HcommSocketRole::RESERVED};
     uint16_t port{0};
+    union {
+        uint8_t raws[128];
+        struct {
+            uint32_t queueNum;
+            uint32_t retryCnt;
+            uint32_t retryInterval;
+            uint8_t tc;
+            uint8_t sl;
+            uint32_t qpThreshold;
+        } roceAttr;
+        struct {
+            uint32_t qos;
+        } hccsAttr;
+        struct {
+            uint32_t sqDepth;
+        } ubAttr;
+    };
     uint32_t qos{0};
+    const char* channelName{nullptr};
 };
 
-#endif // no CANN HCOM resource headers
-
-#if !defined(SHMEM_HCOMM_ENTITY_FROM_CANN) && !defined(SHMEM_HCOMM_RES_FROM_CANN)
+#define HCOMM_CHANNEL_DESC_ABI_V1_SIZE (offsetof(HcommChannelDesc, qos))
 
 using HcommMem = CommMem;
-
-#endif // fallback HCOM declarations
 
 // Keep the HCOM memory-registration ABI used by SHMEM independent from the
 // CANN header spelling. The runtime implementation is loaded by dlsym and
@@ -240,10 +247,22 @@ HcommResult InitializeHcommChannelDesc(Desc* channelDesc, uint32_t num, long)
         return 2;
     }
     for (uint32_t i = 0; i < num; ++i) {
-        std::memset(channelDesc, 0, sizeof(HcommChannelDesc));
+        std::memset(channelDesc, 0xFF, sizeof(HcommChannelDesc));
+        channelDesc->header.version = HCOMM_CHANNEL_VERSION;
+        channelDesc->header.magicWord = HCOMM_CHANNEL_MAGIC_WORD;
+        channelDesc->header.size = sizeof(HcommChannelDesc);
+        channelDesc->header.reserved = 0;
+        channelDesc->notifyNum = 0;
+        channelDesc->exchangeAllMems = false;
+        channelDesc->memHandles = nullptr;
+        channelDesc->memHandleNum = 0;
+        channelDesc->socket = nullptr;
+        channelDesc->role = HCOMM_SOCKET_ROLE_RESERVED;
+        channelDesc->port = 0;
         channelDesc->remoteEndpoint.protocol = COMM_PROTOCOL_RESERVED;
         channelDesc->remoteEndpoint.commAddr.type = COMM_ADDR_TYPE_RESERVED;
         channelDesc->remoteEndpoint.loc.locType = ENDPOINT_LOC_TYPE_RESERVED;
+        channelDesc->channelName = nullptr;
         ++channelDesc;
     }
     return 0;

@@ -20,7 +20,9 @@
 #include "device_rdma_transport_manager_v2.h"
 
 #include <chrono>
+#include <algorithm>
 #include <limits>
+#include <string>
 #include <thread>
 
 namespace shm {
@@ -363,6 +365,7 @@ Result RdmaTransportManagerV2::Connect()
         return ACLSHMEM_INNER_ERROR;
     }
     std::vector<HcommMemHandle> channelMemHandles(channelNum * RDMA_CHANNEL_MEM_HANDLE_NUM);
+    std::vector<std::string> channelNames(channelNum);
 
     uint8_t roceTc = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
     uint8_t roceSl = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
@@ -414,6 +417,10 @@ Result RdmaTransportManagerV2::Connect()
         SHM_LOG_INFO(
             "rank[" << rankId_ << "] rdma channel to rank[" << remoteRank
                     << "] role=" << (isServer ? "server" : "client") << ", port=" << channelDescs[chIdx].port);
+        const uint32_t lowRank = std::min(rankId_, remoteRank);
+        const uint32_t highRank = std::max(rankId_, remoteRank);
+        channelNames[chIdx] = "aclshmem-rdma-v2/" + std::to_string(lowRank) + "-" + std::to_string(highRank) + "/ch0";
+        channelDescs[chIdx].channelName = channelNames[chIdx].c_str();
         ++chIdx;
     }
 
