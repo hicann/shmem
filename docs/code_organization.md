@@ -85,6 +85,7 @@ include/
     ├── kv_shuffle                             // kv cache shuffle样例
     ├── multi_instance                         // 多实例样例
     ├── notifywait                             // sdma notify/wait同步样例
+    ├── one_multi_path                         // Ascend950 one path/multi path单核分片搬运样例
     ├── python_extension                       // Python扩展与torch调用样例
     ├── rdma_aclgraph_demo                     // aclgraph 中调用RDMA allgather样例
     ├── rdma_demo                              // rdma实现样例
