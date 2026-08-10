@@ -65,7 +65,14 @@ set -e
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
-VERSION="1.0.0"
+_DEFAULT_VERSION="$(tr -d '[:space:]' < "${PROJECT_ROOT}/VERSION" 2>/dev/null || true)"
+if [ -z "${_DEFAULT_VERSION}" ]; then
+    echo "[ERROR] Missing or empty ${PROJECT_ROOT}/VERSION" >&2
+    exit 1
+fi
+VERSION="${VERSION:-${_DEFAULT_VERSION}}"
+export VERSION
+unset _DEFAULT_VERSION
 OUTPUT_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 RELEASE_DIR=$PROJECT_ROOT/ci/release
