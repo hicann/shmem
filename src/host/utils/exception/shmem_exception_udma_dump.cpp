@@ -20,6 +20,7 @@
 
 #include <securec.h>
 
+#include "utils/exception/shmem_exception_report.h"
 #include "utils/exception/shmemi_device_udma_exception_report_kernel.h"
 #include "dl_acl_api.h"
 #include "shmemi_host_common.h"
@@ -487,8 +488,9 @@ void aclshmemi_exception_report_dump_wqe(
 
 int aclshmemi_exception_report_load_udma_info(aclshmemi_aiv_udma_info_t& info)
 {
-    if (g_state.qp_info == 0) {
-        SHM_LOG_ERROR("[EXCEPTION][UDMA] qpInfo is null, skip UDMA dump.");
+    const uint64_t udma_info_address = aclshmemi_exception_report_udma_info_address();
+    if (udma_info_address == 0) {
+        SHM_LOG_ERROR("[EXCEPTION][UDMA] udmaInfo is null, skip UDMA dump.");
         return ACLSHMEM_NOT_SUPPORTED;
     }
     if (g_state.npes <= 0 || g_state.npes > ACLSHMEM_MAX_PES) {
@@ -496,7 +498,7 @@ int aclshmemi_exception_report_load_udma_info(aclshmemi_aiv_udma_info_t& info)
         return ACLSHMEM_INNER_ERROR;
     }
 
-    ACLSHMEM_CHECK_RET(aclshmemi_exception_report_copy_from_device(info, g_state.qp_info, "UDMA info"));
+    ACLSHMEM_CHECK_RET(aclshmemi_exception_report_copy_from_device(info, udma_info_address, "UDMA info"));
     if (info.qp_num == 0 || info.qp_num > ACLSHMEMI_EXCEPTION_REPORT_MAX_QP_NUM) {
         SHM_LOG_ERROR("[EXCEPTION][UDMA] invalid qp_num=" << info.qp_num << ", skip UDMA dump.");
         return ACLSHMEM_INNER_ERROR;

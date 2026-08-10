@@ -18,12 +18,18 @@
 namespace shm {
 namespace transport {
 
+struct TransportDeviceInfo {
+    uint64_t rdmaInfoAddress{0};
+    uint64_t udmaInfoAddress{0};
+};
+
 class TransportManager {
 public:
     static std::shared_ptr<TransportManager> Create(TransportType type);
+    static std::shared_ptr<TransportManager> CreateForDataOpType(uint32_t dataOpType);
 
 public:
-    TransportManager()= default;
+    TransportManager() = default;
 
     virtual ~TransportManager() = default;
 
@@ -31,29 +37,29 @@ public:
      * 1、本地IP（NIC、Device）
      * @return 0 if successful
      */
-    virtual Result OpenDevice(const TransportOptions &options) = 0;
+    virtual Result OpenDevice(const TransportOptions& options) = 0;
 
     virtual Result CloseDevice() = 0;
 
-    virtual Result ConnectWithOptions(const HybmTransPrepareOptions &options);
+    virtual Result ConnectWithOptions(const HybmTransPrepareOptions& options);
 
     /*
      * 2、注册内存
      * @return 0 if successful
      */
-    virtual Result RegisterMemoryRegion(const TransportMemoryRegion &mr) = 0;
+    virtual Result RegisterMemoryRegion(const TransportMemoryRegion& mr) = 0;
 
     virtual Result UnregisterMemoryRegion(uint64_t addr) = 0;
 
-    virtual Result QueryMemoryKey(uint64_t addr, TransportMemoryKey &key) = 0;
+    virtual Result QueryMemoryKey(uint64_t addr, TransportMemoryKey& key) = 0;
 
-    virtual Result ParseMemoryKey(const TransportMemoryKey &key, uint64_t &addr, uint64_t &size) = 0;
+    virtual Result ParseMemoryKey(const TransportMemoryKey& key, uint64_t& addr, uint64_t& size) = 0;
 
     /*
      * 3、建链前的准备工作
      * @return 0 if successful
      */
-    virtual Result Prepare(const HybmTransPrepareOptions &options) = 0;
+    virtual Result Prepare(const HybmTransPrepareOptions& options) = 0;
 
     /*
      * 4、建链
@@ -76,21 +82,22 @@ public:
     /*
      * 建链完成后，更新rank配置信息，可以新增rank或减少rank
      */
-    virtual Result UpdateRankOptions(const HybmTransPrepareOptions &options) = 0;
+    virtual Result UpdateRankOptions(const HybmTransPrepareOptions& options) = 0;
 
     /**
      * 查询
      */
-    virtual const std::string &GetNic() const = 0;  // X
+    virtual const std::string& GetNic() const = 0; // X
 
-    virtual const void *GetQpInfo() const;
+    virtual const void* GetQpInfo() const;
+    virtual TransportDeviceInfo GetDeviceInfo() const;
 
 protected:
     bool connected_{false};
 };
 
 using TransManagerPtr = std::shared_ptr<TransportManager>;
-}
-}
+} // namespace transport
+} // namespace shm
 
-#endif  // MF_HYBRID_HYBM_TRANSPORT_MANAGER_H
+#endif // MF_HYBRID_HYBM_TRANSPORT_MANAGER_H

@@ -21,6 +21,7 @@
 #include "utils/exception/shmem_exception_report.h"
 #include "host/init/shmem_host_init.h"
 #include "host/shmem_host_def.h"
+#include "init/shmemi_init.h"
 #include "unittest_main_test.h"
 #include "unittest/utils/scope_env.h"
 
@@ -741,6 +742,97 @@ TEST(TestExceptionReportAPI, TestReportSnapshotWatermark)
 
     EXPECT_TRUE(aclshmemi_exception_report_record_snapshot(11, 21, 31, 41, 51));
     EXPECT_TRUE(aclshmemi_exception_report_pending());
+    aclshmemi_exception_report_finalize();
+}
+
+TEST(TestExceptionReportAPI, TestReportKeepsUdmaReporterForCompositeMasks)
+{
+    aclshmemi_exception_report_finalize();
+    const int old_npes = g_state.npes;
+    g_state.npes = 2;
+
+    const data_op_engine_type_t masks_with_udma[] = {
+        ACLSHMEM_DATA_OP_UDMA,
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_SDMA),
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_ROCE),
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_SDMA | ACLSHMEM_DATA_OP_ROCE),
+    };
+
+    for (auto mask : masks_with_udma) {
+        EXPECT_EQ(aclshmemi_exception_report_apply_deferred_config(mask), ACLSHMEM_SUCCESS);
+        aclshmemi_exception_report_context_t context{};
+        aclshmemi_exception_report_save_context(context);
+        EXPECT_EQ(context.enabled_engines, 0U);
+        aclshmemi_exception_report_finalize();
+    }
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_INFO), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(
+        aclshmemi_exception_report_apply_deferred_config(
+            static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_ROCE)),
+        ACLSHMEM_SUCCESS);
+    aclshmemi_exception_report_context_t context{};
+    aclshmemi_exception_report_save_context(context);
+    EXPECT_EQ(context.enabled_engines, 0U);
+    aclshmemi_exception_report_finalize();
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG), ACLSHMEM_SUCCESS);
+    for (auto mask : masks_with_udma) {
+        EXPECT_EQ(aclshmemi_exception_report_apply_deferred_config(mask), ACLSHMEM_SUCCESS);
+        aclshmemi_exception_report_context_t debug_context{};
+        aclshmemi_exception_report_save_context(debug_context);
+        EXPECT_EQ(debug_context.enabled_engines, static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA));
+    }
+    aclshmemi_exception_report_finalize();
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(
+        aclshmemi_exception_report_apply_deferred_config(
+            static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_SDMA | ACLSHMEM_DATA_OP_ROCE)),
+        ACLSHMEM_SUCCESS);
+    aclshmemi_exception_report_context_t debug_context{};
+    aclshmemi_exception_report_save_context(debug_context);
+    EXPECT_EQ(debug_context.enabled_engines, 0U);
+
+    g_state.npes = old_npes;
+    aclshmemi_exception_report_finalize();
+}
+
+TEST(TestExceptionReportAPI, TestReportSkipsUdmaReporterForSinglePeDebug)
+{
+    aclshmemi_exception_report_finalize();
+    const int old_npes = g_state.npes;
+    g_state.npes = 1;
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(
+        aclshmemi_exception_report_apply_deferred_config(
+            static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_ROCE)),
+        ACLSHMEM_SUCCESS);
+    aclshmemi_exception_report_context_t context{};
+    aclshmemi_exception_report_save_context(context);
+    EXPECT_EQ(context.enabled_engines, 0U);
+
+    g_state.npes = old_npes;
+    aclshmemi_exception_report_finalize();
+}
+
+TEST(TestExceptionReportAPI, TestReportSavesAndRestoresUdmaInfoAddress)
+{
+    aclshmemi_exception_report_finalize();
+
+    constexpr uint64_t udma_info_address = 0x12345000ULL;
+    aclshmemi_exception_report_set_udma_info_address(udma_info_address);
+    aclshmemi_exception_report_context_t context{};
+    aclshmemi_exception_report_save_context(context);
+    EXPECT_EQ(context.udma_info_address, udma_info_address);
+
+    aclshmemi_exception_report_set_udma_info_address(0);
+    EXPECT_EQ(aclshmemi_exception_report_udma_info_address(), 0U);
+
+    aclshmemi_exception_report_restore_context(context);
+    EXPECT_EQ(aclshmemi_exception_report_udma_info_address(), udma_info_address);
+
     aclshmemi_exception_report_finalize();
 }
 

@@ -54,6 +54,7 @@ public:
     Result Prepare(const HybmTransPrepareOptions& options) override;
     Result Connect() override;
     const void* GetQpInfo() const override;
+    TransportDeviceInfo GetDeviceInfo() const override;
     Result QueryMemoryKey(uint64_t /*addr*/, TransportMemoryKey& /*key*/) override { return ACLSHMEM_SUCCESS; }
     Result ParseMemoryKey(const TransportMemoryKey& /*key*/, uint64_t& /*addr*/, uint64_t& /*size*/) override
     {

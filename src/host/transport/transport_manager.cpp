@@ -10,6 +10,7 @@
 #include "transport_manager.h"
 
 #include "shmemi_logger.h"
+#include "composite_transport_manager.h"
 #include "transport_def.h"
 #include "device_rdma_transport_manager.h"
 #if defined(ACLSHMEM_RDMA_V2_SUPPORT)
@@ -44,10 +45,39 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
     }
 }
 
+std::shared_ptr<TransportManager> TransportManager::CreateForDataOpType(uint32_t dataOpType)
+{
+    std::vector<TransportType> order;
+    if ((dataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
+        order.push_back(TT_HCCP);
+    }
+    if ((dataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) != 0) {
+        order.push_back(TT_SDMA);
+    }
+    if ((dataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) != 0) {
+        order.push_back(TT_UDMA);
+    }
+
+    if (order.empty()) {
+        return nullptr;
+    }
+    if (order.size() == 1) {
+        return Create(order.front());
+    }
+    return std::make_shared<CompositeTransportManager>(std::move(order));
+}
+
 const void* TransportManager::GetQpInfo() const
 {
     SHM_LOG_DEBUG("Not Implement GetQpInfo()");
     return nullptr;
+}
+
+TransportDeviceInfo TransportManager::GetDeviceInfo() const
+{
+    TransportDeviceInfo info;
+    info.rdmaInfoAddress = reinterpret_cast<uint64_t>(GetQpInfo());
+    return info;
 }
 
 Result TransportManager::ConnectWithOptions(const HybmTransPrepareOptions& options)

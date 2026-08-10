@@ -29,6 +29,7 @@ struct aclshmemi_exception_report_context_t {
     uint32_t registration_state{0};
     uint64_t reported_seq{0};
     uint64_t reported_lost_snapshot_count{0};
+    uint64_t udma_info_address{0};
     uint64_t seq{0};
     uint32_t task_id{0};
     uint32_t stream_id{0};
@@ -42,6 +43,8 @@ int aclshmemi_exception_report_apply_deferred_config(data_op_engine_type_t enabl
 void aclshmemi_exception_report_finalize(void);
 bool aclshmemi_exception_report_pending(void);
 int aclshmemi_exception_report_dump(void);
+void aclshmemi_exception_report_set_udma_info_address(uint64_t udma_info_address);
+uint64_t aclshmemi_exception_report_udma_info_address(void);
 bool aclshmemi_exception_report_record_snapshot(
     uint32_t task_id, uint32_t stream_id, uint32_t thread_id, uint32_t device_id, uint32_t error_code);
 void aclshmemi_exception_report_save_context(aclshmemi_exception_report_context_t& context);

@@ -432,6 +432,13 @@ Result UdmaTransportManager::Connect()
 
 const void* UdmaTransportManager::GetQpInfo() const { return udma_info_dev_; }
 
+TransportDeviceInfo UdmaTransportManager::GetDeviceInfo() const
+{
+    TransportDeviceInfo info;
+    info.udmaInfoAddress = reinterpret_cast<uint64_t>(udma_info_dev_);
+    return info;
+}
+
 uint64_t UdmaTransportManager::SlotCount() const
 {
     if constexpr (ACLSHMEM_UDMA_RELAY_ENABLED) {

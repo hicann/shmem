@@ -51,6 +51,7 @@ struct aclshmemi_runtime_exception_atomic_t {
 struct aclshmemi_exception_report_state_t {
     std::atomic<bool> explicit_configured{false};
     std::atomic<uint32_t> enabled_engines{0};
+    std::atomic<uint64_t> udma_info_address{0};
     std::atomic<uint32_t> mode{ACLSHMEMI_EXCEPTION_REPORT_MODE_OFF};
     std::atomic<aclshmemx_exception_info_callback_t> user_callback{nullptr};
     std::atomic<uint64_t> reported_seq{0};
@@ -66,31 +67,29 @@ struct aclshmemi_exception_engine_reporter_t {
     int (*dump)(bool detail_enabled);
 };
 
+aclshmemi_exception_report_state_t g_exception_report_state;
+std::mutex g_exception_report_mutex;
+
 const aclshmemi_exception_engine_reporter_t ACLSHMEMI_EXCEPTION_ENGINE_REPORTERS[] = {
     {static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA), "UDMA", aclshmemi_exception_report_dump_udma},
 };
 
 uint32_t aclshmemi_exception_report_selected_transport_engine(data_op_engine_type_t requested_engines)
 {
+    if (g_exception_report_state.mode.load(std::memory_order_acquire) != ACLSHMEMI_EXCEPTION_REPORT_MODE_DEBUG) {
+        return 0;
+    }
     if (g_state.npes <= 1) {
         return 0;
     }
 
     const uint32_t engines = static_cast<uint32_t>(requested_engines);
-    if ((engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_ROCE)) != 0) {
-        return static_cast<uint32_t>(ACLSHMEM_DATA_OP_ROCE);
+    uint32_t selected_engines = 0;
+    for (const auto& reporter : ACLSHMEMI_EXCEPTION_ENGINE_REPORTERS) {
+        selected_engines |= engines & reporter.engine;
     }
-    if ((engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_SDMA)) != 0) {
-        return static_cast<uint32_t>(ACLSHMEM_DATA_OP_SDMA);
-    }
-    if ((engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA)) != 0) {
-        return static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA);
-    }
-    return 0;
+    return selected_engines;
 }
-
-aclshmemi_exception_report_state_t g_exception_report_state;
-std::mutex g_exception_report_mutex;
 
 bool aclshmemi_exception_report_detail_enabled()
 {
@@ -192,11 +191,12 @@ void aclshmemi_exception_report_log_runtime(const aclshmemi_runtime_exception_sn
 
 void aclshmemi_exception_report_log_state()
 {
+    const uint64_t udma_info_address = g_exception_report_state.udma_info_address.load(std::memory_order_acquire);
     SHM_LOG_ERROR(
-        "[EXCEPTION][STATE] qpInfo=0x" << std::hex << g_state.qp_info << " defaultStream="
-                                       << g_state_host.default_stream << " heapBase=" << g_state.heap_base
-                                       << " hostHeapBase=" << g_state.host_heap_base << " heapSize=0x"
-                                       << g_state.heap_size << std::dec << " mype=" << g_state.mype
+        "[EXCEPTION][STATE] qpInfo=0x" << std::hex << g_state.qp_info << " udmaInfo=0x" << udma_info_address
+                                       << " defaultStream=" << g_state_host.default_stream << " heapBase="
+                                       << g_state.heap_base << " hostHeapBase=" << g_state.host_heap_base
+                                       << " heapSize=0x" << g_state.heap_size << std::dec << " mype=" << g_state.mype
                                        << " npes=" << g_state.npes << " udmaConfig={ub=0x" << std::hex
                                        << g_state.udma_config.aclshmem_ub << ", size=" << std::dec
                                        << g_state.udma_config.ub_size << ", syncId=" << g_state.udma_config.sync_id
@@ -244,6 +244,16 @@ bool aclshmemi_exception_report_pending(void)
     return snapshot.seq != reported_seq || snapshot.lost_snapshot_count != reported_lost;
 }
 
+void aclshmemi_exception_report_set_udma_info_address(uint64_t udma_info_address)
+{
+    g_exception_report_state.udma_info_address.store(udma_info_address, std::memory_order_release);
+}
+
+uint64_t aclshmemi_exception_report_udma_info_address(void)
+{
+    return g_exception_report_state.udma_info_address.load(std::memory_order_acquire);
+}
+
 bool aclshmemi_exception_report_record_snapshot(
     uint32_t task_id, uint32_t stream_id, uint32_t thread_id, uint32_t device_id, uint32_t error_code)
 {
@@ -280,6 +290,7 @@ void aclshmemi_exception_report_save_context(aclshmemi_exception_report_context_
     context.reported_seq = g_exception_report_state.reported_seq.load(std::memory_order_acquire);
     context.reported_lost_snapshot_count =
         g_exception_report_state.reported_lost_snapshot_count.load(std::memory_order_acquire);
+    context.udma_info_address = g_exception_report_state.udma_info_address.load(std::memory_order_acquire);
     context.seq = snapshot.seq;
     context.task_id = snapshot.task_id;
     context.stream_id = snapshot.stream_id;
@@ -314,6 +325,7 @@ void aclshmemi_exception_report_restore_context(const aclshmemi_exception_report
     state.registration_state.store(context.registration_state, std::memory_order_release);
     state.reported_seq.store(context.reported_seq, std::memory_order_release);
     state.reported_lost_snapshot_count.store(context.reported_lost_snapshot_count, std::memory_order_release);
+    state.udma_info_address.store(context.udma_info_address, std::memory_order_release);
 }
 
 int aclshmemi_exception_report_dump(void)
@@ -354,6 +366,7 @@ void aclshmemi_exception_report_finalize(void)
     const bool callback_registered = g_exception_report_state.registration_state.load(std::memory_order_acquire) ==
                                      ACLSHMEMI_EXCEPTION_REPORT_REGISTRATION_REGISTERED;
     g_exception_report_state.enabled_engines.store(0, std::memory_order_release);
+    g_exception_report_state.udma_info_address.store(0, std::memory_order_release);
     g_exception_report_state.user_callback.store(nullptr, std::memory_order_release);
     g_exception_report_state.mode.store(ACLSHMEMI_EXCEPTION_REPORT_MODE_OFF, std::memory_order_release);
     g_exception_report_state.explicit_configured.store(false, std::memory_order_release);
