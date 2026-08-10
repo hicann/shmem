@@ -22,7 +22,26 @@ from setuptools.command.build_py import build_py
 
 # 消除whl压缩包的时间戳差异
 os.environ['SOURCE_DATE_EPOCH'] = '315532800'  # 1980-01-01, min valid ZIP timestamp
-current_version = os.getenv('VERSION', '1.0.0')
+
+
+def _resolve_package_version() -> str:
+    """Prefer env VERSION; otherwise read repo-root VERSION file (single source of truth)."""
+    env_ver = os.getenv("VERSION", "").strip()
+    if env_ver:
+        return env_ver
+    version_path = Path(__file__).resolve().parent / "VERSION"
+    if version_path.is_file():
+        for line in version_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return line
+    raise RuntimeError(
+        "SHMEM package version is unset: export VERSION=x.y.z or add a root VERSION file"
+    )
+
+
+current_version = _resolve_package_version()
+
 
 class BinaryDistribution(Distribution):
     def has_ext_modules(self):
