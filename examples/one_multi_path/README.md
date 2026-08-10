@@ -145,7 +145,8 @@ CANN 运行时和实际组网决定，必要时应结合平台链路计数器确
 ## 常见问题
 
 - 编译后没有 `build/bin/one_multi_path`：确认同时传入 `-examples` 和 `-soc_type Ascend950`，并检查
-  CMake 输出中的 `SOC_TYPE` 与 `USE_EXAMPLES`。
+  CMake 输出中的 `SOC_TYPE`、`USE_EXAMPLES` 和 `ACLSHMEM_ONE_MULTI_PATH`。只有 CANN 头文件和
+  `libascendcl.so` 同时提供 Fabric Handle API 与 `aclrtMemMapSetLink` 时，CMake 才会编译本样例。
 - 初始化失败或进程持续等待：确认所有 PE 使用相同且可达的 `-ipport`，PE 区间完整无重叠，并确认
   bootstrap 端口未被其他任务占用。
 - `aclrtMemMapSetLink` 或 remote handle 映射失败：确认 CANN、驱动和组网支持目标 PE 间的

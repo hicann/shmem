@@ -184,6 +184,10 @@ if(ACLSHMEM_HCCS_SIO_LINK)
     add_subdirectory(hccs_sio_link)
 endif()
 
+if(SOC_TYPE STREQUAL "Ascend950" AND ACLSHMEM_ONE_MULTI_PATH)
+    add_subdirectory(one_multi_path)
+endif()
+
 
 if(ACLSHMEM_SIMT_SUPPORT)
 foreach(

@@ -376,6 +376,17 @@ else()
     message(STATUS "aclrtMemExportToShareableHandleV2 symbol not found, disabling ACLRT_MEM_FABRIC_HANDLE support")
 endif()
 
+# Check whether the ACL headers and library provide aclrtMemMapSetLink.
+check_cxx_symbol_exists(aclrtMemMapSetLink "acl/acl.h" HAS_ACLRT_MEM_MAP_SET_LINK)
+
+if(HAS_ACLRT_MEM_FABRIC_HANDLE AND HAS_ACLRT_MEM_MAP_SET_LINK)
+    set(ACLSHMEM_ONE_MULTI_PATH ON)
+    message(STATUS "Fabric Handle and aclrtMemMapSetLink symbols found, enabling ACLSHMEM_ONE_MULTI_PATH support")
+else()
+    set(ACLSHMEM_ONE_MULTI_PATH OFF)
+    message(STATUS "Fabric Handle or aclrtMemMapSetLink symbols not found, disabling ACLSHMEM_ONE_MULTI_PATH support")
+endif()
+
 # Check if aclrtMemMapSelectedLink symbol exists in the ACL library
 file(WRITE ${CMAKE_BINARY_DIR}/check_aclrt_mem_map_selected_link.cpp "
 #include <acl/acl.h>
