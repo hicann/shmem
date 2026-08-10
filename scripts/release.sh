@@ -48,7 +48,7 @@ EOF
     ${makeself_dir}/makeself.sh --header ${makeself_dir}/makeself-header.sh \
         --help-header $PROJECT_ROOT/scripts/help.info --gzip --complevel 4 --nomd5 --sha256 --chown \
         ${OUTPUT_DIR} $RELEASE_DIR/$ARCH/SHMEM_${VERSION}_linux-${ARCH}.run "SHMEM-api" ./install.sh
-    
+
     rm -rf $OUTPUT_DIR/*
     mv $RELEASE_DIR/$ARCH $OUTPUT_DIR
     echo "SHMEM_${VERSION}_linux-${ARCH}.run is successfully generated in $OUTPUT_DIR"
@@ -62,7 +62,14 @@ set -e
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
-VERSION="1.0.0"
+_DEFAULT_VERSION="$(tr -d '[:space:]' < "${PROJECT_ROOT}/VERSION" 2>/dev/null || true)"
+if [ -z "${_DEFAULT_VERSION}" ]; then
+    echo "[ERROR] Missing or empty ${PROJECT_ROOT}/VERSION" >&2
+    exit 1
+fi
+VERSION="${VERSION:-${_DEFAULT_VERSION}}"
+export VERSION
+unset _DEFAULT_VERSION
 OUTPUT_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 RELEASE_DIR=$PROJECT_ROOT/ci/release
