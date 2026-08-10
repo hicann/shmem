@@ -30,39 +30,38 @@ void* DlHccpV2Api::gTsdLibraryHandler = nullptr;
 const char* DlHccpV2Api::gHcclV1LibraryName = "libhccl.so";
 void* DlHccpV2Api::gHcclV1LibraryHandler = nullptr;
 
-RaInitFunc               DlHccpV2Api::gRaInit               = nullptr;
-RaDeinitFunc             DlHccpV2Api::gRaDeinit             = nullptr;
-TsdProcessOpenFunc       DlHccpV2Api::gTsdProcessOpen       = nullptr;
-TsdProcessCloseFunc      DlHccpV2Api::gTsdProcessClose      = nullptr;
-RaGetDevEidInfoNumFunc   DlHccpV2Api::gRaGetDevEidInfoNum   = nullptr;
-RaGetDevEidInfoListFunc  DlHccpV2Api::gRaGetDevEidInfoList  = nullptr;
-RaCtxInitFunc            DlHccpV2Api::gRaCtxInit            = nullptr;
-RaGetDevBaseAttrFunc     DlHccpV2Api::gRaGetDevBaseAttr     = nullptr;
-RaGetAsyncReqResultFunc  DlHccpV2Api::gRaGetAsyncReqResult  = nullptr;
-RaCtxChanCreateFunc      DlHccpV2Api::gRaCtxChanCreate      = nullptr;
-RaCtxCqCreateFunc        DlHccpV2Api::gRaCtxCqCreate        = nullptr;
-RaCtxQpCreateFunc        DlHccpV2Api::gRaCtxQpCreate        = nullptr;
-RaCtxTokenIdAllocFunc    DlHccpV2Api::gRaCtxTokenIdAlloc    = nullptr;
-RaCtxQpImportFunc        DlHccpV2Api::gRaCtxQpImport        = nullptr;
-RaCtxQpBindFunc          DlHccpV2Api::gRaCtxQpBind          = nullptr;
-RaCtxLmemRegisterFunc    DlHccpV2Api::gRaCtxLmemRegister    = nullptr;
-RaCtxRmemImportFunc      DlHccpV2Api::gRaCtxRmemImport      = nullptr;
-RaCtxRmemUnimportFunc    DlHccpV2Api::gRaCtxRmemUnimport    = nullptr;
-RaCtxLmemUnregisterFunc  DlHccpV2Api::gRaCtxLmemUnregister  = nullptr;
-RaCtxQpUnbindFunc        DlHccpV2Api::gRaCtxQpUnbind        = nullptr;
-RaCtxQpUnimportFunc      DlHccpV2Api::gRaCtxQpUnimport      = nullptr;
-RaCtxTokenIdFreeFunc     DlHccpV2Api::gRaCtxTokenIdFree     = nullptr;
-RaCtxQpDestroyFunc       DlHccpV2Api::gRaCtxQpDestroy       = nullptr;
-RaCtxCqDestroyFunc       DlHccpV2Api::gRaCtxCqDestroy       = nullptr;
-RaCtxChanDestroyFunc     DlHccpV2Api::gRaCtxChanDestroy     = nullptr;
-RaCtxDeinitFunc          DlHccpV2Api::gRaCtxDeinit          = nullptr;
-RaCtxQpQueryBatchFunc    DlHccpV2Api::gRaCtxQpQueryBatch    = nullptr;
-RaBatchSendWrFunc        DlHccpV2Api::gRaBatchSendWr        = nullptr;
-RaCtxUpdateCiFunc        DlHccpV2Api::gRaCtxUpdateCi        = nullptr;
-RaCustomChannelFunc      DlHccpV2Api::gRaCustomChannel      = nullptr;
+RaInitFunc DlHccpV2Api::gRaInit = nullptr;
+RaDeinitFunc DlHccpV2Api::gRaDeinit = nullptr;
+TsdProcessOpenFunc DlHccpV2Api::gTsdProcessOpen = nullptr;
+TsdProcessCloseFunc DlHccpV2Api::gTsdProcessClose = nullptr;
+RaGetDevEidInfoNumFunc DlHccpV2Api::gRaGetDevEidInfoNum = nullptr;
+RaGetDevEidInfoListFunc DlHccpV2Api::gRaGetDevEidInfoList = nullptr;
+RaCtxInitFunc DlHccpV2Api::gRaCtxInit = nullptr;
+RaGetDevBaseAttrFunc DlHccpV2Api::gRaGetDevBaseAttr = nullptr;
+RaGetAsyncReqResultFunc DlHccpV2Api::gRaGetAsyncReqResult = nullptr;
+RaCtxChanCreateFunc DlHccpV2Api::gRaCtxChanCreate = nullptr;
+RaCtxCqCreateFunc DlHccpV2Api::gRaCtxCqCreate = nullptr;
+RaCtxQpCreateFunc DlHccpV2Api::gRaCtxQpCreate = nullptr;
+RaCtxTokenIdAllocFunc DlHccpV2Api::gRaCtxTokenIdAlloc = nullptr;
+RaCtxQpImportFunc DlHccpV2Api::gRaCtxQpImport = nullptr;
+RaCtxQpBindFunc DlHccpV2Api::gRaCtxQpBind = nullptr;
+RaCtxLmemRegisterFunc DlHccpV2Api::gRaCtxLmemRegister = nullptr;
+RaCtxRmemImportFunc DlHccpV2Api::gRaCtxRmemImport = nullptr;
+RaCtxRmemUnimportFunc DlHccpV2Api::gRaCtxRmemUnimport = nullptr;
+RaCtxLmemUnregisterFunc DlHccpV2Api::gRaCtxLmemUnregister = nullptr;
+RaCtxQpUnbindFunc DlHccpV2Api::gRaCtxQpUnbind = nullptr;
+RaCtxQpUnimportFunc DlHccpV2Api::gRaCtxQpUnimport = nullptr;
+RaCtxTokenIdFreeFunc DlHccpV2Api::gRaCtxTokenIdFree = nullptr;
+RaCtxQpDestroyFunc DlHccpV2Api::gRaCtxQpDestroy = nullptr;
+RaCtxCqDestroyFunc DlHccpV2Api::gRaCtxCqDestroy = nullptr;
+RaCtxChanDestroyFunc DlHccpV2Api::gRaCtxChanDestroy = nullptr;
+RaCtxDeinitFunc DlHccpV2Api::gRaCtxDeinit = nullptr;
+RaCtxQpQueryBatchFunc DlHccpV2Api::gRaCtxQpQueryBatch = nullptr;
+RaBatchSendWrFunc DlHccpV2Api::gRaBatchSendWr = nullptr;
+RaCtxUpdateCiFunc DlHccpV2Api::gRaCtxUpdateCi = nullptr;
 RaGetTpInfoListAsyncFunc DlHccpV2Api::gRaGetTpInfoListAsync = nullptr;
-RaGetIfNumFunc           DlHccpV2Api::gRaGetIfNum           = nullptr;
-RaGetIfAddrsFunc         DlHccpV2Api::gRaGetIfAddrs         = nullptr;
+RaGetIfNumFunc DlHccpV2Api::gRaGetIfNum = nullptr;
+RaGetIfAddrsFunc DlHccpV2Api::gRaGetIfAddrs = nullptr;
 
 Result DlHccpV2Api::LoadLibrary()
 {
@@ -76,8 +75,7 @@ Result DlHccpV2Api::LoadLibrary()
             "Failed to open library ["
             << gHcclV1LibraryName
             << "], please source ascend-toolkit set_env.sh, or add ascend driver lib path into LD_LIBRARY_PATH,"
-            << " error: " << dlerror()
-        );
+            << " error: " << dlerror());
         return ACLSHMEM_DL_FUNC_FAILED;
     }
 
@@ -87,8 +85,7 @@ Result DlHccpV2Api::LoadLibrary()
             "Failed to open library ["
             << gHcclLibraryName
             << "], please source ascend-toolkit set_env.sh, or add ascend driver lib path into LD_LIBRARY_PATH,"
-            << " error: " << dlerror()
-        );
+            << " error: " << dlerror());
         dlclose(gHcclV1LibraryHandler);
         gHcclV1LibraryHandler = nullptr;
         return ACLSHMEM_DL_FUNC_FAILED;
@@ -100,8 +97,7 @@ Result DlHccpV2Api::LoadLibrary()
             "Failed to open library ["
             << gRaLibraryName
             << "], please source ascend-toolkit set_env.sh, or add ascend driver lib path into LD_LIBRARY_PATH,"
-            << " error: " << dlerror()
-        );
+            << " error: " << dlerror());
         dlclose(gHcclV1LibraryHandler);
         gHcclV1LibraryHandler = nullptr;
         dlclose(gHcclLibraryHandler);
@@ -115,8 +111,7 @@ Result DlHccpV2Api::LoadLibrary()
             "Failed to open library ["
             << gTsdLibraryName
             << "], please source ascend-toolkit set_env.sh, or add ascend driver lib path into LD_LIBRARY_PATH,"
-            << " error: " << dlerror()
-        );
+            << " error: " << dlerror());
         dlclose(gHcclV1LibraryHandler);
         gHcclV1LibraryHandler = nullptr;
         dlclose(gHcclLibraryHandler);
@@ -126,39 +121,57 @@ Result DlHccpV2Api::LoadLibrary()
         return ACLSHMEM_DL_FUNC_FAILED;
     }
 
-    DL_LOAD_SYM_ALT(gRaInit,               RaInitFunc,               gHcclLibraryHandler, "RaInit",               "ra_init");
-    DL_LOAD_SYM_ALT(gRaDeinit,             RaDeinitFunc,             gHcclLibraryHandler, "RaDeinit",             "ra_deinit");
-    DL_LOAD_SYM_ALT(gTsdProcessOpen,       TsdProcessOpenFunc,       gTsdLibraryHandler,  "TsdProcessOpen",       "tsd_process_open");
-    DL_LOAD_SYM_ALT(gTsdProcessClose,      TsdProcessCloseFunc,      gTsdLibraryHandler,  "TsdProcessClose",      "tsd_process_close");
-    DL_LOAD_SYM_ALT(gRaGetDevEidInfoNum,   RaGetDevEidInfoNumFunc,   gHcclLibraryHandler, "RaGetDevEidInfoNum",   "ra_get_dev_eid_info_num");
-    DL_LOAD_SYM_ALT(gRaGetDevEidInfoList,  RaGetDevEidInfoListFunc,  gHcclLibraryHandler, "RaGetDevEidInfoList",  "ra_get_dev_eid_info_list");
-    DL_LOAD_SYM_ALT(gRaCtxInit,            RaCtxInitFunc,            gHcclLibraryHandler, "RaCtxInit",            "ra_ctx_init");
-    DL_LOAD_SYM_ALT(gRaGetDevBaseAttr,     RaGetDevBaseAttrFunc,     gHcclLibraryHandler, "RaGetDevBaseAttr",     "ra_get_dev_base_attr");
-    DL_LOAD_SYM_ALT(gRaGetAsyncReqResult,  RaGetAsyncReqResultFunc,  gHcclLibraryHandler, "RaGetAsyncReqResult",  "ra_get_async_req_result");
-    DL_LOAD_SYM_ALT(gRaCtxChanCreate,      RaCtxChanCreateFunc,      gRaLibraryHandler,   "RaCtxChanCreate",      "ra_ctx_chan_create");
-    DL_LOAD_SYM_ALT(gRaCtxCqCreate,        RaCtxCqCreateFunc,        gHcclLibraryHandler, "RaCtxCqCreate",        "ra_ctx_cq_create");
-    DL_LOAD_SYM_ALT(gRaCtxQpCreate,        RaCtxQpCreateFunc,        gHcclLibraryHandler, "RaCtxQpCreate",        "ra_ctx_qp_create");
-    DL_LOAD_SYM_ALT(gRaCtxTokenIdAlloc,    RaCtxTokenIdAllocFunc,    gHcclLibraryHandler, "RaCtxTokenIdAlloc",    "ra_ctx_token_id_alloc");
-    DL_LOAD_SYM_ALT(gRaCtxQpImport,        RaCtxQpImportFunc,        gHcclLibraryHandler, "RaCtxQpImport",        "ra_ctx_qp_import");
-    DL_LOAD_SYM_ALT(gRaCtxQpBind,          RaCtxQpBindFunc,          gHcclLibraryHandler, "RaCtxQpBind",          "ra_ctx_qp_bind");
-    DL_LOAD_SYM_ALT(gRaCtxLmemRegister,    RaCtxLmemRegisterFunc,    gHcclLibraryHandler, "RaCtxLmemRegister",    "ra_ctx_lmem_register");
-    DL_LOAD_SYM_ALT(gRaCtxRmemImport,      RaCtxRmemImportFunc,      gHcclLibraryHandler, "RaCtxRmemImport",      "ra_ctx_rmem_import");
-    DL_LOAD_SYM_ALT(gRaCtxRmemUnimport,    RaCtxRmemUnimportFunc,    gHcclLibraryHandler, "RaCtxRmemUnimport",    "ra_ctx_rmem_unimport");
-    DL_LOAD_SYM_ALT(gRaCtxLmemUnregister,  RaCtxLmemUnregisterFunc,  gHcclLibraryHandler, "RaCtxLmemUnregister",  "ra_ctx_lmem_unregister");
-    DL_LOAD_SYM_ALT(gRaCtxQpUnbind,        RaCtxQpUnbindFunc,        gHcclLibraryHandler, "RaCtxQpUnbind",        "ra_ctx_qp_unbind");
-    DL_LOAD_SYM_ALT(gRaCtxQpUnimport,      RaCtxQpUnimportFunc,      gHcclLibraryHandler, "RaCtxQpUnimport",      "ra_ctx_qp_unimport");
-    DL_LOAD_SYM_ALT(gRaCtxTokenIdFree,     RaCtxTokenIdFreeFunc,     gHcclLibraryHandler, "RaCtxTokenIdFree",     "ra_ctx_token_id_free");
-    DL_LOAD_SYM_ALT(gRaCtxQpDestroy,       RaCtxQpDestroyFunc,       gHcclLibraryHandler, "RaCtxQpDestroy",       "ra_ctx_qp_destroy");
-    DL_LOAD_SYM_ALT(gRaCtxCqDestroy,       RaCtxCqDestroyFunc,       gHcclLibraryHandler, "RaCtxCqDestroy",       "ra_ctx_cq_destroy");
-    DL_LOAD_SYM_ALT(gRaCtxChanDestroy,     RaCtxChanDestroyFunc,     gRaLibraryHandler,   "RaCtxChanDestroy",     "ra_ctx_chan_destroy");
-    DL_LOAD_SYM_ALT(gRaCtxDeinit,          RaCtxDeinitFunc,          gHcclLibraryHandler, "RaCtxDeinit",          "ra_ctx_deinit");
-    DL_LOAD_SYM_ALT(gRaCtxQpQueryBatch,    RaCtxQpQueryBatchFunc,    gRaLibraryHandler,   "RaCtxQpQueryBatch",    "ra_ctx_qp_query_batch");
-    DL_LOAD_SYM_ALT(gRaBatchSendWr,        RaBatchSendWrFunc,        gHcclLibraryHandler, "RaBatchSendWr",        "ra_batch_send_wr");
-    DL_LOAD_SYM_ALT(gRaCtxUpdateCi,        RaCtxUpdateCiFunc,        gHcclLibraryHandler, "RaCtxUpdateCi",        "ra_ctx_update_ci");
-    DL_LOAD_SYM_ALT(gRaCustomChannel,      RaCustomChannelFunc,      gHcclLibraryHandler, "RaCustomChannel",      "ra_custom_channel");
-    DL_LOAD_SYM_ALT(gRaGetTpInfoListAsync, RaGetTpInfoListAsyncFunc, gHcclLibraryHandler, "RaGetTpInfoListAsync", "ra_get_tp_info_list_async");
-    DL_LOAD_SYM_ALT(gRaGetIfNum,           RaGetIfNumFunc,           gRaLibraryHandler,   "RaGetIfnum",           "ra_get_if_num");
-    DL_LOAD_SYM_ALT(gRaGetIfAddrs,         RaGetIfAddrsFunc,         gRaLibraryHandler,   "RaGetIfaddrs",         "ra_get_if_addrs");
+    DL_LOAD_SYM_ALT(gRaInit, RaInitFunc, gHcclLibraryHandler, "RaInit", "ra_init");
+    DL_LOAD_SYM_ALT(gRaDeinit, RaDeinitFunc, gHcclLibraryHandler, "RaDeinit", "ra_deinit");
+    DL_LOAD_SYM_ALT(gTsdProcessOpen, TsdProcessOpenFunc, gTsdLibraryHandler, "TsdProcessOpen", "tsd_process_open");
+    DL_LOAD_SYM_ALT(gTsdProcessClose, TsdProcessCloseFunc, gTsdLibraryHandler, "TsdProcessClose", "tsd_process_close");
+    DL_LOAD_SYM_ALT(
+        gRaGetDevEidInfoNum, RaGetDevEidInfoNumFunc, gHcclLibraryHandler, "RaGetDevEidInfoNum",
+        "ra_get_dev_eid_info_num");
+    DL_LOAD_SYM_ALT(
+        gRaGetDevEidInfoList, RaGetDevEidInfoListFunc, gHcclLibraryHandler, "RaGetDevEidInfoList",
+        "ra_get_dev_eid_info_list");
+    DL_LOAD_SYM_ALT(gRaCtxInit, RaCtxInitFunc, gHcclLibraryHandler, "RaCtxInit", "ra_ctx_init");
+    DL_LOAD_SYM_ALT(
+        gRaGetDevBaseAttr, RaGetDevBaseAttrFunc, gHcclLibraryHandler, "RaGetDevBaseAttr", "ra_get_dev_base_attr");
+    DL_LOAD_SYM_ALT(
+        gRaGetAsyncReqResult, RaGetAsyncReqResultFunc, gHcclLibraryHandler, "RaGetAsyncReqResult",
+        "ra_get_async_req_result");
+    DL_LOAD_SYM_ALT(gRaCtxChanCreate, RaCtxChanCreateFunc, gRaLibraryHandler, "RaCtxChanCreate", "ra_ctx_chan_create");
+    DL_LOAD_SYM_ALT(gRaCtxCqCreate, RaCtxCqCreateFunc, gHcclLibraryHandler, "RaCtxCqCreate", "ra_ctx_cq_create");
+    DL_LOAD_SYM_ALT(gRaCtxQpCreate, RaCtxQpCreateFunc, gHcclLibraryHandler, "RaCtxQpCreate", "ra_ctx_qp_create");
+    DL_LOAD_SYM_ALT(
+        gRaCtxTokenIdAlloc, RaCtxTokenIdAllocFunc, gHcclLibraryHandler, "RaCtxTokenIdAlloc", "ra_ctx_token_id_alloc");
+    DL_LOAD_SYM_ALT(gRaCtxQpImport, RaCtxQpImportFunc, gHcclLibraryHandler, "RaCtxQpImport", "ra_ctx_qp_import");
+    DL_LOAD_SYM_ALT(gRaCtxQpBind, RaCtxQpBindFunc, gHcclLibraryHandler, "RaCtxQpBind", "ra_ctx_qp_bind");
+    DL_LOAD_SYM_ALT(
+        gRaCtxLmemRegister, RaCtxLmemRegisterFunc, gHcclLibraryHandler, "RaCtxLmemRegister", "ra_ctx_lmem_register");
+    DL_LOAD_SYM_ALT(
+        gRaCtxRmemImport, RaCtxRmemImportFunc, gHcclLibraryHandler, "RaCtxRmemImport", "ra_ctx_rmem_import");
+    DL_LOAD_SYM_ALT(
+        gRaCtxRmemUnimport, RaCtxRmemUnimportFunc, gHcclLibraryHandler, "RaCtxRmemUnimport", "ra_ctx_rmem_unimport");
+    DL_LOAD_SYM_ALT(
+        gRaCtxLmemUnregister, RaCtxLmemUnregisterFunc, gHcclLibraryHandler, "RaCtxLmemUnregister",
+        "ra_ctx_lmem_unregister");
+    DL_LOAD_SYM_ALT(gRaCtxQpUnbind, RaCtxQpUnbindFunc, gHcclLibraryHandler, "RaCtxQpUnbind", "ra_ctx_qp_unbind");
+    DL_LOAD_SYM_ALT(
+        gRaCtxQpUnimport, RaCtxQpUnimportFunc, gHcclLibraryHandler, "RaCtxQpUnimport", "ra_ctx_qp_unimport");
+    DL_LOAD_SYM_ALT(
+        gRaCtxTokenIdFree, RaCtxTokenIdFreeFunc, gHcclLibraryHandler, "RaCtxTokenIdFree", "ra_ctx_token_id_free");
+    DL_LOAD_SYM_ALT(gRaCtxQpDestroy, RaCtxQpDestroyFunc, gHcclLibraryHandler, "RaCtxQpDestroy", "ra_ctx_qp_destroy");
+    DL_LOAD_SYM_ALT(gRaCtxCqDestroy, RaCtxCqDestroyFunc, gHcclLibraryHandler, "RaCtxCqDestroy", "ra_ctx_cq_destroy");
+    DL_LOAD_SYM_ALT(
+        gRaCtxChanDestroy, RaCtxChanDestroyFunc, gRaLibraryHandler, "RaCtxChanDestroy", "ra_ctx_chan_destroy");
+    DL_LOAD_SYM_ALT(gRaCtxDeinit, RaCtxDeinitFunc, gHcclLibraryHandler, "RaCtxDeinit", "ra_ctx_deinit");
+    DL_LOAD_SYM_ALT(
+        gRaCtxQpQueryBatch, RaCtxQpQueryBatchFunc, gRaLibraryHandler, "RaCtxQpQueryBatch", "ra_ctx_qp_query_batch");
+    DL_LOAD_SYM_ALT(gRaBatchSendWr, RaBatchSendWrFunc, gHcclLibraryHandler, "RaBatchSendWr", "ra_batch_send_wr");
+    DL_LOAD_SYM_ALT(gRaCtxUpdateCi, RaCtxUpdateCiFunc, gHcclLibraryHandler, "RaCtxUpdateCi", "ra_ctx_update_ci");
+    DL_LOAD_SYM_ALT(
+        gRaGetTpInfoListAsync, RaGetTpInfoListAsyncFunc, gHcclLibraryHandler, "RaGetTpInfoListAsync",
+        "ra_get_tp_info_list_async");
+    DL_LOAD_SYM_ALT(gRaGetIfNum, RaGetIfNumFunc, gRaLibraryHandler, "RaGetIfnum", "ra_get_if_num");
+    DL_LOAD_SYM_ALT(gRaGetIfAddrs, RaGetIfAddrsFunc, gRaLibraryHandler, "RaGetIfaddrs", "ra_get_if_addrs");
 
     gLoaded = true;
     return ACLSHMEM_SUCCESS;
@@ -201,7 +214,6 @@ Result DlHccpV2Api::CleanUpLibrary()
     gRaCtxQpQueryBatch = nullptr;
     gRaBatchSendWr = nullptr;
     gRaCtxUpdateCi = nullptr;
-    gRaCustomChannel = nullptr;
     gRaGetTpInfoListAsync = nullptr;
     gRaGetIfNum = nullptr;
     gRaGetIfAddrs = nullptr;

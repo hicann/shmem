@@ -251,7 +251,7 @@ Result DeviceJettyManager::JFCCreate(PerEidJettyState& state) noexcept
     }
 
     state.cqInfo.in.chanHandle = state.chanHandle;
-    state.cqInfo.in.depth = shm::UDMA_CQ_DEPTH_DEFAULT; // optional, normal mode default 16384
+    state.cqInfo.in.depth = shm::UDMA_CQ_DEPTH_DEFAULT; // optional, normal mode default 32768
     state.cqInfo.in.ub.userCtx = 0;                     // optional, default 0
     state.cqInfo.in.ub.mode = JFC_MODE_USER_CTL_NORMAL; // corresponding with jetty mode : JETTY_MODE_USER_CTL_NORMAL
     state.cqInfo.in.ub.ceqn = 0;                        // optional, default 0
@@ -283,7 +283,7 @@ Result DeviceJettyManager::JettyCreate(PerEidJettyState& state) noexcept
     qpCreateAttr.scqHandle = state.cqHandle;
     qpCreateAttr.rcqHandle = state.cqHandle;
     qpCreateAttr.srqHandle = state.cqHandle;
-    qpCreateAttr.sqDepth = shm::UDMA_SQ_DEPTH_DEFAULT; // optional, default 4096
+    qpCreateAttr.sqDepth = shm::UDMA_SQ_DEPTH_DEFAULT; // optional, default 8192
     qpCreateAttr.rqDepth = shm::UDMA_RQ_DEPTH_DEFAULT; // optional, default 256
     qpCreateAttr.transportMode = transportMode_;
 
@@ -428,8 +428,7 @@ Result DeviceJettyManager::ResolveRelaySlotRoute(
             // Look up actualRank's local EID toward relayRank in the global routing matrix.
             if (globalRoutes_.size() != static_cast<size_t>(rankCount_) * rankCount_) {
                 SHM_LOG_ERROR(
-                    "globalRoutes_ size " << globalRoutes_.size() << " != rankCount^2 "
-                                          << rankCount_ * rankCount_);
+                    "globalRoutes_ size " << globalRoutes_.size() << " != rankCount^2 " << rankCount_ * rankCount_);
                 return ACLSHMEM_INNER_ERROR;
             }
             int32_t r = globalRoutes_[actualRank * rankCount_ + relayRank];
@@ -486,9 +485,8 @@ Result DeviceJettyManager::ImportRelayQps(
             int ret = DlHccpV2Api::RaCtxQpImport(state.ctxHandle, &qpImportInfo, &relayRemoteQpBySlot_[slot]);
             if (ret != 0) {
                 SHM_LOG_ERROR(
-                    "Qp import failed, slot (actual=" << actualRank << ", relay=" << relayRank
-                                                      << ") localEid: " << localEid << " remoteEid: " << remoteEid
-                                                      << " ret: " << ret);
+                    "Qp import failed, slot (actual=" << actualRank << ", relay=" << relayRank << ") localEid: "
+                                                      << localEid << " remoteEid: " << remoteEid << " ret: " << ret);
                 return ACLSHMEM_INNER_ERROR;
             }
             relayRemoteQpCtxBySlot_[slot] = state.ctxHandle;
