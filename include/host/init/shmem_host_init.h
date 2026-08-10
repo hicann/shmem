@@ -34,24 +34,41 @@ ACLSHMEM_HOST_API int aclshmemx_init_status(void);
  * @param uid               [out] a ptr to uid generate by shmem
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(aclshmemx_uniqueid_t *uid);
+ACLSHMEM_HOST_API int aclshmemx_get_uniqueid(aclshmemx_uniqueid_t* uid);
 #define shmem_get_uniqueid aclshmemx_get_uniqueid
 
 /**
  * @brief init process with unique id. This function need run with PTA.
  *
  * @param my_pe                 [in] Local PE ID, must be less than the maximum supported PEs (my_pe < ACLSHMEM_MAX_PES)
- * @param n_pes                 [in] Total number of PEs, must be less than or equal to the maximum supported PEs (n_pes <= ACLSHMEM_MAX_PES)
- * @param local_mem_size        [in] Allocated local memory size , must be less than the maximum supported local memory size (local_mem_size < ACLSHMEM_MAX_LOCAL_SIZE)
+ * @param n_pes                 [in] Total number of PEs, must be less than or equal to the maximum supported PEs (n_pes
+ * <= ACLSHMEM_MAX_PES)
+ * @param local_mem_size        [in] Allocated local memory size , must be less than the maximum supported local memory
+ * size (local_mem_size < ACLSHMEM_MAX_LOCAL_SIZE)
  * @param uid                   [in] Unique ID obtained from <b>aclshmemx_get_uniqueid()</b>
- * @param aclshmem_attr         [in/out] Attribute struct, output parameter of this interface and input parameter for subsequent initialization functions <b>aclshmemx_init_attr()</b>
+ * @param aclshmem_attr         [in/out] Attribute struct, output parameter of this interface and input parameter for
+ * subsequent initialization functions <b>aclshmemx_init_attr()</b>
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int64_t local_mem_size,
-                                    aclshmemx_uniqueid_t *uid,
-                                    aclshmemx_init_attr_t *aclshmem_attr);
+ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(
+    int my_pe, int n_pes, int64_t local_mem_size, aclshmemx_uniqueid_t* uid, aclshmemx_init_attr_t* aclshmem_attr);
 #define shmem_set_attr_uniqueid_args aclshmemx_set_attr_uniqueid_args
 
+/**
+ * @brief Configure the process-wide number of QPs created per peer for a data operation engine.
+ *
+ * @note This revision supports ACLSHMEM_DATA_OP_UDMA only. Call this interface when no ACLSHMEM instance is
+ *       initialized. The configuration remains frozen while any instance is alive. After the last instance is
+ *       finalized, the QP count is reset to 1 and can be configured again before the next initialization. The value
+ *       must be in [1, ACLSHMEM_MAX_QP_NUM] and must be identical on every PE; inconsistent values produce
+ *       incompatible UDMA metadata layouts. This function is thread-safe within a process and is serialized with
+ *       ACLSHMEM initialization and finalization.
+ *
+ * @param engine              [in] Data operation engine; must be ACLSHMEM_DATA_OP_UDMA.
+ * @param qp_num              [in] Number of QPs per peer connection.
+ * @return ACLSHMEM_SUCCESS on success, otherwise an ACLSHMEM error code.
+ */
+ACLSHMEM_HOST_API int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num);
 
 /**
  * @brief Initialize the resources required for ACLSHMEM task based on attributes.
@@ -63,7 +80,7 @@ ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(int my_pe, int n_pes, int
  * @param attributes        [in] Pointer to the user-defined attributes.
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t *attributes);
+ACLSHMEM_HOST_API int aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes);
 #define shmem_init_attr aclshmemx_init_attr
 
 /**
@@ -101,7 +118,6 @@ ACLSHMEM_HOST_API int aclshmem_finalize(void);
 ACLSHMEM_HOST_API int aclshmemx_finalize(uint64_t instance_id);
 #define shmemx_finalize aclshmemx_finalize
 
-
 /**
  * @brief returns the major and minor version.
  *
@@ -109,18 +125,16 @@ ACLSHMEM_HOST_API int aclshmemx_finalize(uint64_t instance_id);
  *
  * @param minor [out] minor version
  */
-ACLSHMEM_HOST_API void aclshmem_info_get_version(int *major, int *minor);
+ACLSHMEM_HOST_API void aclshmem_info_get_version(int* major, int* minor);
 #define shmem_info_get_version aclshmem_info_get_version
-
 
 /**
  * @brief returns the vendor defined name string.
  *
  * @param name [out] name
  */
-ACLSHMEM_HOST_API void aclshmem_info_get_name(char *name);
+ACLSHMEM_HOST_API void aclshmem_info_get_name(char* name);
 #define shmem_info_get_name aclshmem_info_get_name
-
 
 /**
  * @brief Set the TLS private key and password, and register a decrypt key password handler.
@@ -132,10 +146,10 @@ ACLSHMEM_HOST_API void aclshmem_info_get_name(char *name);
  * @param decrypt_handler decrypt function pointer
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int32_t aclshmemx_set_config_store_tls_key(const char *tls_pk, const uint32_t tls_pk_len,
-    const char *tls_pk_pw, const uint32_t tls_pk_pw_len, const aclshmem_decrypt_handler decrypt_handler);
+ACLSHMEM_HOST_API int32_t aclshmemx_set_config_store_tls_key(
+    const char* tls_pk, const uint32_t tls_pk_len, const char* tls_pk_pw, const uint32_t tls_pk_pw_len,
+    const aclshmem_decrypt_handler decrypt_handler);
 #define shmem_set_config_store_tls_key aclshmemx_set_config_store_tls_key
-
 
 /**
  * @brief exit all ranks.
@@ -153,7 +167,7 @@ ACLSHMEM_HOST_API void aclshmem_global_exit(int status);
  * @param tls_info_len length of tls_info, if disabled tls_info_len won't be use
  * @return Returns 0 on success or an error code on failure
  */
-ACLSHMEM_HOST_API int32_t aclshmemx_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len);
+ACLSHMEM_HOST_API int32_t aclshmemx_set_conf_store_tls(bool enable, const char* tls_info, const uint32_t tls_info_len);
 #define shmem_set_conf_store_tls aclshmemx_set_conf_store_tls
 
 /**

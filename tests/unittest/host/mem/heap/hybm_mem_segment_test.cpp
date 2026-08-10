@@ -46,8 +46,7 @@ void ExpectDeviceInfoMatchesServerIdDesign(int32_t deviceId)
 
     const uint32_t rawServerIdU32 = static_cast<uint32_t>(rawServerId);
     const uint32_t rawSuperPodIdU32 = static_cast<uint32_t>(rawSuperPodId);
-    const uint32_t invalidSrvId =
-        MemSegmentTestHelper::GetInvalidServerIdBySocType(DlApi::GetAscendSocType());
+    const uint32_t invalidSrvId = MemSegmentTestHelper::GetInvalidServerIdBySocType(DlApi::GetAscendSocType());
     if (rawSuperPodIdU32 == invalidSuperPodId && rawServerIdU32 == invalidSrvId) {
         EXPECT_NE(serverId, invalidSrvId);
         return;
@@ -64,8 +63,7 @@ protected:
 
 TEST_F(MemSegmentTest, GetInvalidServerIdBySocType_ReturnsSentinelForEachSocType)
 {
-    EXPECT_EQ(MemSegmentTestHelper::GetInvalidServerIdBySocType(AscendSocType::ASCEND_950),
-              invalidServerIdAscend950);
+    EXPECT_EQ(MemSegmentTestHelper::GetInvalidServerIdBySocType(AscendSocType::ASCEND_950), invalidServerIdAscend950);
     EXPECT_EQ(MemSegmentTestHelper::GetInvalidServerIdBySocType(AscendSocType::ASCEND_910B), invalidServerId);
     EXPECT_EQ(MemSegmentTestHelper::GetInvalidServerIdBySocType(AscendSocType::ASCEND_910C), invalidServerId);
     EXPECT_EQ(MemSegmentTestHelper::GetInvalidServerIdBySocType(AscendSocType::ASCEND_UNKNOWN), invalidServerId);

@@ -304,6 +304,98 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
 /** @} */
 
 /**
+ * @brief Direct-mode asynchronous UDMA Get on an explicitly selected QP.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
+ *       error and aborts the calling kernel.
+ * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
+ *       aclshmemx_udma_qp_quiet(pe, qp_idx) before reading @p dst.
+ *
+ * @tparam T                Element type of the transfer.
+ * @tparam WQE_PIPE         Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                          PIPE_S writes directly and ignores @p buf and @p sync_id.
+ * @param dst               [in] Local destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by pe.
+ * @param buf               [in] Local UB scratch used when WQE_PIPE == PIPE_MTE3; it must provide at least
+ *                          ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_qp_get_nbi.
+ * @note The QP range, 256 MB request limit, scratch capacity, and completion requirements are the same as the
+ *       pointer overload. Call aclshmemx_udma_qp_quiet(pe, qp_idx) before reading @p dst.
+ *
+ * @tparam T                Element type of the transfer.
+ * @tparam WQE_PIPE         Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                          PIPE_S writes directly and ignores @p buf and @p sync_id.
+ * @param dst               [in] Local GlobalTensor for the destination data.
+ * @param src               [in] Remote symmetric GlobalTensor for the source data on the target PE specified by pe.
+ * @param buf               [in] Local UB LocalTensor used when WQE_PIPE == PIPE_MTE3; its backing buffer must provide
+ *                          at least ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Get operation.
+ * @param pe                [in] Target PE that owns src.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
+ * @brief Direct-mode asynchronous UDMA Put on an explicitly selected QP.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
+ *       error and aborts the calling kernel.
+ * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
+ *       aclshmemx_udma_qp_quiet(pe, qp_idx) before reusing @p src or relying on remote visibility.
+ *
+ * @tparam T                Element type of the transfer.
+ * @tparam WQE_PIPE         Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                          PIPE_S writes directly and ignores @p buf and @p sync_id.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param buf               [in] Local UB scratch used when WQE_PIPE == PIPE_MTE3; it must provide at least
+ *                          ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_qp_put_nbi.
+ * @note The QP range, 256 MB request limit, scratch capacity, and completion requirements are the same as the
+ *       pointer overload. Call aclshmemx_udma_qp_quiet(pe, qp_idx) before reusing @p src or relying on remote
+ *       visibility.
+ *
+ * @tparam T                Element type of the transfer.
+ * @tparam WQE_PIPE         Pipe used to publish the operation. PIPE_MTE3 stages one operation in @p buf;
+ *                          PIPE_S writes directly and ignores @p buf and @p sync_id.
+ * @param dst               [in] Remote symmetric GlobalTensor for the destination data on the target PE specified by
+ * pe.
+ * @param src               [in] Local GlobalTensor for the source data.
+ * @param buf               [in] Local UB LocalTensor used when WQE_PIPE == PIPE_MTE3; its backing buffer must provide
+ *                          at least ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param pe                [in] Target PE that owns dst.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
  * @brief Asynchronous relay-mode UDMA Put. Copy contiguous data from local PE to symmetric address on
  *        pe, while egressing on the local source EID that reaches relay_pe. The fabric forwards
  *        the packet via relay_pe to pe. Use this to spread traffic across multiple physical
@@ -702,12 +794,73 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
     __ubuf__ uint8_t* buf, uint32_t sync_id = 0);
 
 /**
+ * @brief Direct-mode asynchronous UDMA Put with remote signal update on an explicitly selected QP.
+ * @note The data write and signal update are encoded in one WRITE_WITH_NOTIFY WQE on @p qp_idx. The caller must
+ *       ensure qp_idx is smaller than the UDMA QP count configured at initialization. An invalid index prints an
+ *       error and aborts the calling kernel.
+ * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
+ *       aclshmemx_udma_qp_quiet(pe, qp_idx) or use the corresponding signal-wait protocol before reusing @p src.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param sig_addr          [in] Symmetric address of the signal word to update on the target PE.
+ * @param signal            [in] Value written to sig_addr after the data transfer.
+ * @param pe                [in] Target PE that owns dst and sig_addr.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
+    __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
+    uint32_t qp_idx);
+
+/**
+ * @brief Buf-taking overload of @ref aclshmemx_udma_qp_put_signal_nbi.
+ * @note PIPE_MTE3 stages the selected-QP WRITE_WITH_NOTIFY WQE in @p buf. PIPE_S ignores @p buf and @p sync_id and
+ *       uses the direct scalar-store path. Only direct-mode UDMA is supported.
+ * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
+ *       aclshmemx_udma_qp_quiet(pe, qp_idx) or use the corresponding signal-wait protocol before reusing @p src.
+ *
+ * @tparam T                Element type of the transfer.
+ * @tparam WQE_PIPE         Pipe used to publish the operation. Must be PIPE_MTE3 or PIPE_S.
+ * @param dst               [in] Symmetric destination address on the target PE specified by pe.
+ * @param src               [in] Local source address.
+ * @param elem_size         [in] Number of elements transferred by this Put operation.
+ * @param sig_addr          [in] Symmetric address of the signal word to update on the target PE.
+ * @param signal            [in] Value written to sig_addr after the data transfer.
+ * @param pe                [in] Target PE that owns dst and sig_addr.
+ * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
+ * @param buf               [in] Local UB scratch used when WQE_PIPE == PIPE_MTE3; it must provide at least
+ *                          ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
+ * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
+    __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
+    uint32_t qp_idx, __ubuf__ uint8_t* buf, uint32_t sync_id = 0);
+
+/**
  * @brief UDMA Quiet function. This synchronous function ensures all previous UDMA WQEs are completed
  * (data has arrived at the destination PE).
  *
  * @param pe                [in] PE number of the remote PE.
  */
 ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe);
+
+/**
+ * @brief Wait for all UDMA requests submitted to one direct-mode QP of a remote PE.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
+ *       error and aborts the calling kernel.
+ *
+ * @param pe                [in] PE number of the remote PE.
+ * @param qp_idx            [in] QP index whose submitted requests are to be completed.
+ */
+#if defined(ACLSHMEM_RELAY_SUPPORT)
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx) = delete;
+#else
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx);
+#endif
 
 /**
  * @brief Asynchronous interface. Add value to dst (remote symmetric address) on the specified PE pe,

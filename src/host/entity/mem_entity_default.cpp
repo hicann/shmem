@@ -29,7 +29,10 @@ MemEntityDefault::~MemEntityDefault()
     ReleaseResources();
 }
 
-int32_t MemEntityDefault::Initialize(const hybm_options* options) noexcept
+int32_t MemEntityDefault::Initialize(const hybm_options* options) noexcept { return Initialize(options, nullptr); }
+
+int32_t MemEntityDefault::Initialize(
+    const hybm_options* options, const transport::TransportOptions* transport_options) noexcept
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized) {
@@ -44,6 +47,15 @@ int32_t MemEntityDefault::Initialize(const hybm_options* options) noexcept
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(CheckOptions(options), "check options failed.");
 
     options_ = *options;
+    if (transport_options == nullptr) {
+        transportOptions_.rankId = options_.rankId;
+        transportOptions_.rankCount = options_.rankCount;
+        transportOptions_.protocol = options_.bmDataOpType;
+        transportOptions_.role = options_.role;
+        transportOptions_.nic = options_.nic;
+    } else {
+        transportOptions_ = *transport_options;
+    }
 
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(LoadExtendLibrary(), "LoadExtendLibrary failed.");
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(InitSegment(), "InitSegment failed.");
@@ -813,13 +825,7 @@ Result MemEntityDefault::InitTransManager()
 #endif
     }
 
-    transport::TransportOptions options;
-    options.rankId = options_.rankId;
-    options.rankCount = options_.rankCount;
-    options.protocol = options_.bmDataOpType;
-    options.role = options_.role;
-    options.nic = options_.nic;
-    auto ret = transportManager_->OpenDevice(options);
+    auto ret = transportManager_->OpenDevice(transportOptions_);
     if (ret != 0) {
         SHM_LOG_ERROR("Failed to open device, ret: " << ret);
         transportManager_ = nullptr;

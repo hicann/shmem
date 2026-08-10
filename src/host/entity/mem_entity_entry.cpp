@@ -36,39 +36,36 @@ static uint64_t g_baseAddr = 0ULL;
 bool initialized = false;
 int32_t inited_device_id = -1;
 int32_t initedLogicDeviceId = -1;
-drv_mem_handle_t *alloc_handle = nullptr;
+drv_mem_handle_t* alloc_handle = nullptr;
 AscendSocType soc_type = ASCEND_UNKNOWN;
 
 std::mutex initMutex;
-}
+} // namespace
 
-int32_t HybmGetInitDeviceId()
-{
-    return inited_device_id;
-}
+int32_t HybmGetInitDeviceId() { return inited_device_id; }
 
 static inline int hybm_load_library()
 {
-    char *path = std::getenv("ASCEND_HOME_PATH");
+    char* path = std::getenv("ASCEND_HOME_PATH");
     SHM_VALIDATE_RETURN(path != nullptr, "Environment ASCEND_HOME_PATH not set.", ACLSHMEM_INNER_ERROR);
 
     std::string libPath = std::string(path).append("/lib64");
-    
+
     if (!shm::utils::FileUtil::Realpath(libPath) || !shm::utils::FileUtil::IsDir(libPath)) {
         SHM_LOG_ERROR("Environment ASCEND_HOME_PATH check failed: realpath or isdir validation failed.");
         return ACLSHMEM_INNER_ERROR;
     }
-    
+
     if (!shm::utils::FileUtil::IsOwnedByCurrentUserOrRoot(libPath)) {
         SHM_LOG_ERROR("Security check failed: ASCEND_HOME_PATH/lib64 is not owned by current user or root.");
         return ACLSHMEM_INNER_ERROR;
     }
-    
+
     if (!shm::utils::FileUtil::HasSecurePermissions(libPath)) {
         SHM_LOG_ERROR("Security check failed: ASCEND_HOME_PATH/lib64 has insecure permissions.");
         return ACLSHMEM_INNER_ERROR;
     }
-    
+
     auto ret = shm::DlApi::LoadLibrary(libPath);
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(ret, "load library from path failed: " << ret);
     return 0;
@@ -78,7 +75,7 @@ static inline int32_t init_meta_memory_for_modern(void** globalMemoryBase, size_
 {
     size_t alignSize = ALIGN_UP(allocSize, DEVMM_HEAP_SIZE);
     uint64_t va = (HYBM_DEVICE_VA_START + HYBM_DEVICE_VA_SIZE - DEVMM_HEAP_SIZE) - alignSize;
-    auto ret = shm::DlHalApi::HalMemAddressReserve(globalMemoryBase, alignSize, 0, reinterpret_cast<void *>(va), 0);
+    auto ret = shm::DlHalApi::HalMemAddressReserve(globalMemoryBase, alignSize, 0, reinterpret_cast<void*>(va), 0);
     if (ret != 0) {
         shm::DlApi::CleanupLibrary();
         SHM_LOG_ERROR("prepare virtual memory size(" << alignSize << ") failed. ret: " << ret);
@@ -97,23 +94,22 @@ static inline int32_t init_meta_memory_for_modern(void** globalMemoryBase, size_
         SHM_LOG_ERROR("HalMemCreate failed: " << ret);
         return ACLSHMEM_DL_FUNC_FAILED;
     }
-    ret = shm::DlHalApi::HalMemMap(reinterpret_cast<void *>(HYBM_DEVICE_META_ADDR), allocSize, 0, alloc_handle, 0);
+    ret = shm::DlHalApi::HalMemMap(reinterpret_cast<void*>(HYBM_DEVICE_META_ADDR), allocSize, 0, alloc_handle, 0);
     if (ret != ACLSHMEM_SUCCESS) {
         shm::DlApi::CleanupLibrary();
         SHM_LOG_ERROR("HalMemMap failed: " << ret);
         shm::DlHalApi::HalMemRelease(alloc_handle);
-        shm::DlHalApi::HalMemAddressFree(reinterpret_cast<void *>(*globalMemoryBase));
+        shm::DlHalApi::HalMemAddressFree(reinterpret_cast<void*>(*globalMemoryBase));
         alloc_handle = nullptr;
         return ACLSHMEM_DL_FUNC_FAILED;
     }
     return ACLSHMEM_SUCCESS;
 }
 
-
 static inline int32_t init_meta_memory_for_legacy(void** globalMemoryBase, size_t allocSize, uint64_t flags)
 {
     drv::DevmmInitialize(initedLogicDeviceId, shm::DlHalApi::GetFd());
-    auto ret = drv::HalGvaReserveMemory((uint64_t *)globalMemoryBase, allocSize, initedLogicDeviceId, flags);
+    auto ret = drv::HalGvaReserveMemory((uint64_t*)globalMemoryBase, allocSize, initedLogicDeviceId, flags);
     if (ret != ACLSHMEM_SUCCESS) {
         shm::DlApi::CleanupLibrary();
         SHM_LOG_ERROR("initialize mete memory with size: " << allocSize << ", flag: " << flags << " failed: " << ret);
@@ -148,8 +144,8 @@ HYBM_API int32_t hybm_init(int32_t deviceId, uint64_t flags)
         return ACLSHMEM_INNER_ERROR;
     }
 
-    void *globalMemoryBase = nullptr;
-    size_t allocSize = HYBM_DEVICE_INFO_SIZE;  // 申请meta空间
+    void* globalMemoryBase = nullptr;
+    size_t allocSize = HYBM_DEVICE_INFO_SIZE; // 申请meta空间
     soc_type = shm::DlApi::GetAscendSocType();
     if ((soc_type == AscendSocType::ASCEND_950) || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
         ret = init_meta_memory_for_modern(&globalMemoryBase, allocSize);
@@ -177,13 +173,13 @@ HYBM_API void hybm_uninit(void)
     int ret = 0;
     if ((soc_type == AscendSocType::ASCEND_950) || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
         if (g_baseAddr != 0ULL) {
-            ret = shm::DlHalApi::HalMemUnmap(reinterpret_cast<void *>(HYBM_DEVICE_META_ADDR));
+            ret = shm::DlHalApi::HalMemUnmap(reinterpret_cast<void*>(HYBM_DEVICE_META_ADDR));
             SHM_LOG_INFO("unmap meta info res: " << ret);
             if (alloc_handle != nullptr) {
                 ret = shm::DlHalApi::HalMemRelease(alloc_handle);
                 SHM_LOG_INFO("release meta memory handle res: " << ret);
             }
-            ret = shm::DlHalApi::HalMemAddressFree(reinterpret_cast<void *>(g_baseAddr));
+            ret = shm::DlHalApi::HalMemAddressFree(reinterpret_cast<void*>(g_baseAddr));
             SHM_LOG_INFO("free meta memory res: " << ret);
         }
     } else {
@@ -197,16 +193,22 @@ HYBM_API void hybm_uninit(void)
     initialized = false;
 }
 
-HYBM_API hybm_entity_t hybm_create_entity(uint16_t id, const hybm_options *options, uint32_t flags)
+HYBM_API hybm_entity_t hybm_create_entity(uint16_t id, const hybm_options* options, uint32_t flags)
 {
-    auto &factory = shm::MemEntityFactory::Instance();
+    return hybm_create_entity_with_transport_options(id, options, nullptr, flags);
+}
+
+hybm_entity_t hybm_create_entity_with_transport_options(
+    uint16_t id, const hybm_options* options, const transport::TransportOptions* transport_options, uint32_t flags)
+{
+    auto& factory = shm::MemEntityFactory::Instance();
     auto entity = factory.GetOrCreateEngine(id, flags);
     if (entity == nullptr) {
         SHM_LOG_ERROR("create entity failed.");
         return nullptr;
     }
 
-    auto ret = entity->Initialize(options);
+    auto ret = entity->Initialize(options, transport_options);
     if (ret != 0) {
         shm::MemEntityFactory::Instance().RemoveEngine(entity.get());
         SHM_LOG_ERROR("initialize entity failed: " << ret);
@@ -225,7 +227,7 @@ HYBM_API void hybm_destroy_entity(hybm_entity_t e, uint32_t flags)
     shm::MemEntityFactory::Instance().RemoveEngine(e);
 }
 
-HYBM_API int32_t hybm_reserve_mem_space(hybm_entity_t e, uint32_t flags, void **reservedMem)
+HYBM_API int32_t hybm_reserve_mem_space(hybm_entity_t e, uint32_t flags, void** reservedMem)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -234,7 +236,7 @@ HYBM_API int32_t hybm_reserve_mem_space(hybm_entity_t e, uint32_t flags, void **
     return entity->ReserveMemorySpace(reservedMem);
 }
 
-HYBM_API int32_t hybm_unreserve_mem_space(hybm_entity_t e, uint32_t flags, void *reservedMem)
+HYBM_API int32_t hybm_unreserve_mem_space(hybm_entity_t e, uint32_t flags, void* reservedMem)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -242,9 +244,9 @@ HYBM_API int32_t hybm_unreserve_mem_space(hybm_entity_t e, uint32_t flags, void 
     return entity->UnReserveMemorySpace();
 }
 
-HYBM_API void *hybm_get_memory_ptr(hybm_entity_t e, hybm_mem_type mType)
+HYBM_API void* hybm_get_memory_ptr(hybm_entity_t e, hybm_mem_type mType)
 {
-    auto entity = static_cast<shm::MemEntity *>(e);
+    auto entity = static_cast<shm::MemEntity*>(e);
     SHM_ASSERT_RETURN(entity != nullptr, nullptr);
     return entity->GetReservedMemoryPtr(mType);
 }
@@ -273,8 +275,8 @@ HYBM_API int32_t hybm_free_local_memory(hybm_entity_t e, hybm_mem_slice_t slice,
     return entity->FreeLocalMemory(slice, flags);
 }
 
-HYBM_API hybm_mem_slice_t hybm_register_local_memory(hybm_entity_t e, hybm_mem_type mType, const void *ptr,
-                                                     uint64_t size, uint32_t flags)
+HYBM_API hybm_mem_slice_t
+hybm_register_local_memory(hybm_entity_t e, hybm_mem_type mType, const void* ptr, uint64_t size, uint32_t flags)
 {
     SHM_ASSERT_RETURN(e != nullptr, nullptr);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -290,7 +292,7 @@ HYBM_API hybm_mem_slice_t hybm_register_local_memory(hybm_entity_t e, hybm_mem_t
     return slice;
 }
 
-HYBM_API int32_t hybm_export(hybm_entity_t e, hybm_mem_slice_t slice, uint32_t flags, hybm_exchange_info *exInfo)
+HYBM_API int32_t hybm_export(hybm_entity_t e, hybm_mem_slice_t slice, uint32_t flags, hybm_exchange_info* exInfo)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -307,7 +309,7 @@ HYBM_API int32_t hybm_export(hybm_entity_t e, hybm_mem_slice_t slice, uint32_t f
     return ACLSHMEM_SUCCESS;
 }
 
-HYBM_API int32_t hybm_export_slice_size(hybm_entity_t e, size_t *size)
+HYBM_API int32_t hybm_export_slice_size(hybm_entity_t e, size_t* size)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -318,8 +320,8 @@ HYBM_API int32_t hybm_export_slice_size(hybm_entity_t e, size_t *size)
     return ret;
 }
 
-HYBM_API int32_t hybm_import(hybm_entity_t e, const hybm_exchange_info allExInfo[], uint32_t count, void *addresses[],
-                             uint32_t flags)
+HYBM_API int32_t
+hybm_import(hybm_entity_t e, const hybm_exchange_info allExInfo[], uint32_t count, void* addresses[], uint32_t flags)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
@@ -341,9 +343,9 @@ HYBM_API int32_t hybm_mmap(hybm_entity_t e, uint32_t flags)
     return entity->Mmap();
 }
 
-HYBM_API int32_t hybm_entity_reach_types(hybm_entity_t e, uint32_t rank, hybm_data_op_type &reachTypes, uint32_t flags)
+HYBM_API int32_t hybm_entity_reach_types(hybm_entity_t e, uint32_t rank, hybm_data_op_type& reachTypes, uint32_t flags)
 {
-    auto entity = (shm::MemEntity *)e;
+    auto entity = (shm::MemEntity*)e;
     SHM_ASSERT_RETURN(entity != nullptr, ACLSHMEM_INVALID_PARAM);
 
     reachTypes = entity->CanReachDataOperators(rank);
@@ -360,7 +362,7 @@ HYBM_API int32_t hybm_remove_imported(hybm_entity_t e, uint32_t rank, uint32_t f
     return entity->RemoveImported(ranks);
 }
 
-HYBM_API int32_t hybm_set_extra_context(hybm_entity_t e, const void *context, uint32_t size)
+HYBM_API int32_t hybm_set_extra_context(hybm_entity_t e, const void* context, uint32_t size)
 {
     SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
     auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);

@@ -277,6 +277,7 @@ inline HcommResult ShmemHcommChannelDescInit(HcommChannelDesc* channelDesc, uint
 {
     return detail::InitializeHcommChannelDesc(channelDesc, num, 0);
 }
+
 } // namespace shm
 
 #endif // SHMEM_HCOMM_ENTITY_COMPAT_H

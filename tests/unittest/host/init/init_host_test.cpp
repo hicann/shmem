@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include "shmemi_host_common.h"
 #include "utils/exception/shmem_exception_report.h"
+#include "host/init/shmem_host_init.h"
 #include "host/shmem_host_def.h"
 #include "unittest_main_test.h"
 #include "unittest/utils/scope_env.h"
@@ -33,6 +34,8 @@ void logger_test_example(int level, const char* msg)
 void exception_report_test_callback(void* exception_info) { (void)exception_info; }
 } // namespace shm
 
+static_assert(sizeof(aclshmem_init_optional_attr_t) == 24, "Unexpected init optional attr ABI change");
+
 void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
@@ -44,6 +47,7 @@ void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
     test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
     EXPECT_EQ(g_state.mype, rank_id);
     EXPECT_EQ(g_state.npes, n_ranks);
     EXPECT_NE(g_state.heap_base, nullptr);
@@ -54,8 +58,34 @@ void test_aclshmem_init(int rank_id, int n_ranks, uint64_t local_mem_size)
     EXPECT_EQ(status, ACLSHMEM_STATUS_IS_INITIALIZED);
     status = aclshmem_finalize();
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
+}
+
+void test_qp_reconfiguration_after_last_finalize(int rank_id, int /*n_ranks*/, uint64_t local_mem_size)
+{
+    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    EXPECT_EQ(aclInit(nullptr), ACL_SUCCESS);
+    EXPECT_EQ(aclrtSetDevice(device_id), ACL_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_conf_store_tls(false, nullptr, 0), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
+
+    aclshmemx_init_attr_t attributes;
+    test_set_attr(0, 1, local_mem_size, test_global_ipport, &attributes);
+    EXPECT_EQ(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 4), ACLSHMEM_NOT_SUPPORTED);
+    EXPECT_EQ(aclshmem_finalize(), ACLSHMEM_SUCCESS);
+
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 4), ACLSHMEM_SUCCESS);
+    test_set_attr(0, 1, local_mem_size, test_global_ipport, &attributes);
+    EXPECT_EQ(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
+    EXPECT_EQ(aclshmem_finalize(), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
+
+    EXPECT_EQ(aclrtResetDevice(device_id), ACL_SUCCESS);
+    EXPECT_EQ(aclFinalize(), ACL_SUCCESS);
 }
 
 void test_aclshmem_init_invalid_rank_id(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -75,6 +105,7 @@ void test_aclshmem_init_invalid_rank_id(int rank_id, int n_ranks, uint64_t local
     EXPECT_EQ(status, ACLSHMEM_INVALID_VALUE);
     status = aclshmemx_init_status();
     EXPECT_EQ(status, ACLSHMEM_STATUS_NOT_INITIALIZED);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
 }
@@ -539,11 +570,31 @@ void test_aclshmem_multi_instance_invalid_id(int rank_id, int n_ranks, uint64_t 
     EXPECT_EQ(aclFinalize(), 0);
 }
 
+TEST(TestInitAPI, TestSetUdmaQpNumBeforeInit)
+{
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_NOT_SUPPORTED);
+
+    for (uint32_t configured_qp_num : {1U, 2U, 4U, 8U, ACLSHMEM_MAX_QP_NUM}) {
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, configured_qp_num), ACLSHMEM_SUCCESS);
+    }
+
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 0), ACLSHMEM_INVALID_VALUE);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, ACLSHMEM_MAX_QP_NUM + 1), ACLSHMEM_INVALID_VALUE);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 1), ACLSHMEM_SUCCESS);
+}
+
 TEST(TestInitAPI, TestShmemInit)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_aclshmem_init, local_mem_size, process_count);
+}
+
+TEST(TestInitAPI, TestQpReconfigurationAfterLastFinalize)
+{
+    constexpr int process_count = 1;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_qp_reconfiguration_after_last_finalize, local_mem_size, process_count);
 }
 
 TEST(TestInitAPI, TestShmemInitHugePool)
@@ -864,6 +915,7 @@ void test_aclshmemx_finalize_nonactive(int rank_id, int n_ranks, uint64_t local_
 
         // 当前活动实例为 INSTANCE_ID2，直接释放非活跃实例 INSTANCE_ID4
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID4), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
 
         // 活动实例 INSTANCE_ID2 不受影响
         EXPECT_EQ(aclshmemx_instance_ctx_set(INSTANCE_ID2), ACLSHMEM_SUCCESS);
@@ -874,14 +926,17 @@ void test_aclshmemx_finalize_nonactive(int rank_id, int n_ranks, uint64_t local_
 
         // 释放当前活动实例
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID2), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
 
     if (joined2 && !joined4) {
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID2), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
 
     if (joined4 && !joined2) {
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID4), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
 
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
@@ -910,6 +965,7 @@ void test_aclshmemx_finalize_nonexist(int rank_id, int n_ranks, uint64_t local_m
 
         // 释放不存在的 instance_id，应返回错误且不影响当前活动实例
         EXPECT_NE(aclshmemx_finalize(999), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
 
         // 当前活动实例仍可正常操作
         void* ptr = aclshmem_malloc(1024);
@@ -918,6 +974,7 @@ void test_aclshmemx_finalize_nonexist(int rank_id, int n_ranks, uint64_t local_m
 
         // 正常释放当前实例
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
 
     EXPECT_EQ(aclrtResetDevice(device_id), 0);

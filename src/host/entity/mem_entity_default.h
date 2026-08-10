@@ -45,44 +45,46 @@ public:
     explicit MemEntityDefault(int32_t id) noexcept;
     ~MemEntityDefault() override;
 
-    int32_t Initialize(const hybm_options *options) noexcept override;
+    int32_t Initialize(const hybm_options* options) noexcept override;
+    int32_t Initialize(const hybm_options* options, const transport::TransportOptions* transport_options) noexcept;
     void UnInitialize() noexcept override;
 
-    int32_t ReserveMemorySpace(void **reservedMem) noexcept override;
+    int32_t ReserveMemorySpace(void** reservedMem) noexcept override;
     int32_t UnReserveMemorySpace() noexcept override;
-    void *GetReservedMemoryPtr(hybm_mem_type memType) noexcept override;
+    void* GetReservedMemoryPtr(hybm_mem_type memType) noexcept override;
 
-    int32_t AllocLocalMemory(uint64_t size, hybm_mem_type mType, uint32_t flags, hybm_mem_slice_t &slice) noexcept override;
-    int32_t RegisterLocalMemory(const void *ptr, uint64_t size, uint32_t flags,
-                                hybm_mem_slice_t &slice) noexcept override;
+    int32_t AllocLocalMemory(
+        uint64_t size, hybm_mem_type mType, uint32_t flags, hybm_mem_slice_t& slice) noexcept override;
+    int32_t RegisterLocalMemory(
+        const void* ptr, uint64_t size, uint32_t flags, hybm_mem_slice_t& slice) noexcept override;
     int32_t FreeLocalMemory(hybm_mem_slice_t slice, uint32_t flags) noexcept override;
 
-    int32_t ExportExchangeInfo(ExchangeInfoWriter &desc, uint32_t flags) noexcept override;
-    int32_t ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInfoWriter &desc, uint32_t flags) noexcept override;
-    int32_t ImportExchangeInfo(const ExchangeInfoReader *desc, uint32_t count, void *addresses[],
-                               uint32_t flags) noexcept override;
+    int32_t ExportExchangeInfo(ExchangeInfoWriter& desc, uint32_t flags) noexcept override;
+    int32_t ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInfoWriter& desc, uint32_t flags) noexcept override;
+    int32_t ImportExchangeInfo(
+        const ExchangeInfoReader* desc, uint32_t count, void* addresses[], uint32_t flags) noexcept override;
     int32_t RemoveImported(const std::vector<uint32_t>& ranks) noexcept override;
-    int32_t GetExportSliceInfoSize(size_t &size) noexcept override;
+    int32_t GetExportSliceInfoSize(size_t& size) noexcept override;
 
-    int32_t SetExtraContext(const void *context, uint32_t size) noexcept override;
+    int32_t SetExtraContext(const void* context, uint32_t size) noexcept override;
 
     int32_t Mmap() noexcept override;
     void Unmap() noexcept override;
 
-    bool CheckAddressInEntity(const void *ptr, uint64_t length) const noexcept override;
+    bool CheckAddressInEntity(const void* ptr, uint64_t length) const noexcept override;
     bool SdmaReaches(uint32_t remoteRank) const noexcept override;
     hybm_data_op_type CanReachDataOperators(uint32_t remoteRank) const noexcept override;
 
 private:
-    static int CheckOptions(const hybm_options *options) noexcept;
+    static int CheckOptions(const hybm_options* options) noexcept;
     int LoadExtendLibrary() noexcept;
     int UpdateHybmDeviceInfo(uint32_t extCtxSize) noexcept;
-    void SetHybmDeviceInfo(HybmDeviceMeta &info);
+    void SetHybmDeviceInfo(HybmDeviceMeta& info);
 
-    int32_t ExportWithSlice(hybm_mem_slice_t slice, ExchangeInfoWriter &desc, uint32_t flags) noexcept;
-    int32_t ExportWithoutSlice(ExchangeInfoWriter &desc, uint32_t flags) noexcept;
+    int32_t ExportWithSlice(hybm_mem_slice_t slice, ExchangeInfoWriter& desc, uint32_t flags) noexcept;
+    int32_t ExportWithoutSlice(ExchangeInfoWriter& desc, uint32_t flags) noexcept;
     int32_t ImportForTransport(const ExchangeInfoReader desc[], uint32_t count, uint32_t flags) noexcept;
-    int32_t ImportForTransportPrecheck(const ExchangeInfoReader desc[], uint32_t &cnt, bool &entity);
+    int32_t ImportForTransportPrecheck(const ExchangeInfoReader desc[], uint32_t& cnt, bool& entity);
 
     Result InitSegment();
     Result InitHbmSegment();
@@ -98,8 +100,9 @@ private:
     const int32_t id_; /* id of the engine */
     static thread_local bool isSetDevice_;
     hybm_options options_{};
-    void *hbmGva_{nullptr};
-    void *dramGva_{nullptr};
+    transport::TransportOptions transportOptions_{};
+    void* hbmGva_{nullptr};
+    void* dramGva_{nullptr};
     std::shared_ptr<MemSegment> hbmSegment_{nullptr};
     std::shared_ptr<MemSegment> dramSegment_{nullptr};
     transport::TransManagerPtr transportManager_;
@@ -108,6 +111,6 @@ private:
     std::unordered_map<uint32_t, std::unordered_map<uint64_t, transport::TransportMemoryKey>> importedMemories_;
 };
 using EngineImplPtr = std::shared_ptr<MemEntityDefault>;
-}
+} // namespace shm
 
-#endif  // MEM_FABRIC_HYBRID_HYBM_ENGINE_IMPL_H
+#endif // MEM_FABRIC_HYBRID_HYBM_ENGINE_IMPL_H

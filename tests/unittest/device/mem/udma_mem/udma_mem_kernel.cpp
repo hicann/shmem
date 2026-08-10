@@ -284,6 +284,11 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutSigna
         auto dst_sig_addr = sig_addr + sizeof(uint64_t) * my_pe;
         aclshmemx_udma_put_signal_nbi(src_addr, src_addr, MESSAGE_SIZE, (__gm__ uint64_t*)dst_sig_addr, signal, peer);
         aclshmemx_udma_quiet(peer);
+#ifndef ACLSHMEM_RELAY_SUPPORT
+        aclshmemx_udma_qp_put_signal_nbi(
+            src_addr, src_addr, MESSAGE_SIZE, (__gm__ uint64_t*)dst_sig_addr, signal, peer, 0);
+        aclshmemx_udma_qp_quiet(peer, 0);
+#endif
     }
 }
 
@@ -291,3 +296,45 @@ void test_udma_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_
 {
     UDMAPutSignalTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
 }
+
+#ifndef ACLSHMEM_RELAY_SUPPORT
+enum class UdmaQpTestOperation : int32_t {
+    PUT = 0,
+    GET = 1,
+    PUT_SIGNAL = 2,
+};
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAQpDataPathTest(
+    GM_ADDR symmetric, GM_ADDR local_buffer, GM_ADDR signal_words, uint32_t slice_size, int32_t peer, int32_t operation)
+{
+    const uint32_t qp_idx = AscendC::GetBlockIdx();
+    const uint64_t slice_offset = static_cast<uint64_t>(qp_idx) * slice_size;
+
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> scratch;
+    pipe.InitBuffer(scratch, ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE);
+    __ubuf__ uint8_t* wqe_scratch = reinterpret_cast<__ubuf__ uint8_t*>(scratch.Get<uint8_t>().GetPhyAddr());
+
+    if (operation == static_cast<int32_t>(UdmaQpTestOperation::PUT)) {
+        aclshmemx_udma_qp_put_nbi<uint8_t>(
+            symmetric + slice_offset, local_buffer + slice_offset, wqe_scratch, slice_size, peer, qp_idx);
+    } else if (operation == static_cast<int32_t>(UdmaQpTestOperation::GET)) {
+        aclshmemx_udma_qp_get_nbi<uint8_t>(
+            local_buffer + slice_offset, symmetric + slice_offset, wqe_scratch, slice_size, peer, qp_idx);
+    } else {
+        const uint64_t signal = (static_cast<uint64_t>(aclshmem_my_pe() + 1) << 32) | (qp_idx + 1);
+        aclshmemx_udma_qp_put_signal_nbi<uint8_t>(
+            symmetric + slice_offset, local_buffer + slice_offset, slice_size,
+            reinterpret_cast<__gm__ uint64_t*>(signal_words) + qp_idx, signal, peer, qp_idx, wqe_scratch);
+    }
+    aclshmemx_udma_qp_quiet(peer, qp_idx);
+}
+
+void test_udma_qp_data_path(
+    uint32_t block_dim, void* stream, uint8_t* symmetric, uint8_t* local_buffer, uint64_t* signal_words,
+    uint32_t slice_size, int32_t peer, int32_t operation)
+{
+    UDMAQpDataPathTest<<<block_dim, nullptr, stream>>>(
+        symmetric, local_buffer, reinterpret_cast<uint8_t*>(signal_words), slice_size, peer, operation);
+}
+#endif

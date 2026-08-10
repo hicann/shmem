@@ -13,6 +13,7 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include "shmemi_init_backend.h"
+#include "transport_def.h"
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
 #include "utils/shmemi_logger.h"
@@ -44,7 +45,8 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
 }
 
 int aclshmemi_init_backend::bind_aclshmem_entity(
-    aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle)
+    aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
+    const shm::transport::UdmaQpConfig& udma_qp_config)
 {
     std::lock_guard<std::mutex> lock(entity_map_mutex_);
     // fetch entity resources
@@ -59,6 +61,7 @@ int aclshmemi_init_backend::bind_aclshmem_entity(
         return ACLSHMEM_INNER_ERROR;
     }
     elem->entity_boot_handle = handle;
+    elem->udma_qp_num = udma_qp_config.qpNum;
 
     entity_map_[instance_id] = elem;
 
@@ -158,7 +161,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     }
 
     // 创建entity
-    hybm_options options;
+    hybm_options options{};
     options.bmType = HYBM_TYPE_AI_CORE_INITIATE;
     options.bmDataOpType = static_cast<hybm_data_op_type>(HYBM_DOP_TYPE_MTE);
     if (attributes->option_attr.data_op_engine_type & ACLSHMEM_DATA_OP_ROCE) {
@@ -176,6 +179,12 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     options.bmScope = HYBM_SCOPE_CROSS_NODE;
     options.rankCount = attributes->n_pes;
     options.rankId = attributes->my_pe;
+    shm::transport::TransportOptions transport_options;
+    transport_options.rankId = attributes->my_pe;
+    transport_options.rankCount = attributes->n_pes;
+    transport_options.protocol = options.bmDataOpType;
+    transport_options.role = HYBM_ROLE_PEER;
+    transport_options.udmaQpConfig.qpNum = elem->udma_qp_num;
     if (mem_type == HOST_SIDE) {
         options.memType = HYBM_MEM_TYPE_HOST;
         options.deviceVASpace = 0;
@@ -189,9 +198,10 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     options.role = HYBM_ROLE_PEER;
     std::string defaultNic = "10002";
     std::copy_n(defaultNic.c_str(), defaultNic.size() + 1, options.nic);
+    transport_options.nic = defaultNic;
     auto entity_id = instance_id << 1;
     if (mem_type == HOST_SIDE) {
-        elem->dram_entity = hybm_create_entity(entity_id + 1, &options, 0);
+        elem->dram_entity = hybm_create_entity_with_transport_options(entity_id + 1, &options, &transport_options, 0);
         if (elem->dram_entity == nullptr) {
             SHM_LOG_ERROR("create host dram entity failed");
             return ACLSHMEM_SMEM_ERROR;
@@ -199,7 +209,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
         return ACLSHMEM_SUCCESS;
     }
 
-    elem->hbm_entity = hybm_create_entity(entity_id, &options, 0);
+    elem->hbm_entity = hybm_create_entity_with_transport_options(entity_id, &options, &transport_options, 0);
     if (elem->hbm_entity == nullptr) {
         SHM_LOG_ERROR("create device hbm entity failed");
         return ACLSHMEM_SMEM_ERROR;

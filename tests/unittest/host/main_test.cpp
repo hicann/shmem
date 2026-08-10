@@ -28,8 +28,8 @@ int test_first_rank;
 int test_first_npu;
 static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
 aclshmemx_uniqueid_t default_flag_uid;
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes)
+int32_t test_set_attr(
+    int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char* ip_port, aclshmemx_init_attr_t* attributes)
 {
     SHM_ASSERT_RETURN(local_mem_size <= ACLSHMEM_MAX_LOCAL_SIZE, ACLSHMEM_INVALID_VALUE);
     SHM_ASSERT_RETURN(n_pes <= ACLSHMEM_MAX_PES, ACLSHMEM_INVALID_VALUE);
@@ -52,20 +52,19 @@ int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, con
     attributes->n_pes = n_pes;
     attributes->ip_port[ip_len] = '\0';
     attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
+    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    attributes->comm_args = reinterpret_cast<void*>(&default_flag_uid);
+    aclshmemx_uniqueid_t* uid_args = (aclshmemx_uniqueid_t*)(attributes->comm_args);
 
     return ACLSHMEM_SUCCESS;
 }
 
-void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st)
 {
     *st = nullptr;
     int status = 0;
     if (n_ranks != (n_ranks & (~(static_cast<unsigned int>(n_ranks) - 1)))) {
-        std::cout << "[TEST] input rank_size: "<< n_ranks << " is not the power of 2" << std::endl;
+        std::cout << "[TEST] input rank_size: " << n_ranks << " is not the power of 2" << std::endl;
         status = -1;
     }
     EXPECT_EQ(status, 0);
@@ -77,9 +76,8 @@ void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *s
     EXPECT_EQ(status = aclshmemx_set_conf_store_tls(false, nullptr, 0), 0);
 
     aclshmemx_init_attr_t attributes;
-    
-    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
 
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
 
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
@@ -87,12 +85,12 @@ void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *s
     *st = stream;
 }
 
-void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st)
+void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream* st)
 {
     *st = nullptr;
     int status = 0;
     if (n_pes != (n_pes & (~(static_cast<unsigned int>(n_pes) - 1)))) {
-        std::cout << "[TEST] input pe_size: "<< n_pes << " is not the power of 2" << std::endl;
+        std::cout << "[TEST] input pe_size: " << n_pes << " is not the power of 2" << std::endl;
         status = -1;
     }
     EXPECT_EQ(status, 0);
@@ -105,19 +103,20 @@ void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream 
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(pe_id, n_pes, local_mem_size, test_global_ipport, &attributes);
-    attributes.option_attr.data_op_engine_type = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_ROCE);
+    attributes.option_attr.data_op_engine_type =
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_ROCE);
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
     EXPECT_EQ(status, 0);
     *st = stream;
 }
 
-void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st, int inst_count)
+void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream* st, int inst_count)
 {
     *st = nullptr;
     int status = 0;
     if (n_pes != (n_pes & (~(static_cast<unsigned int>(n_pes) - 1)))) {
-        std::cout << "[TEST] input pe_size: "<< n_pes << " is not the power of 2" << std::endl;
+        std::cout << "[TEST] input pe_size: " << n_pes << " is not the power of 2" << std::endl;
         status = -1;
     }
     EXPECT_EQ(status, 0);
@@ -131,7 +130,7 @@ void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, acl
     // 创建inst_count个shmem实例，用于UT内切换
     for (int i = 0; i < inst_count; i++) {
         aclshmemx_init_attr_t attributes;
-        const char *ipport = "tcp://127.0.0.1:0";
+        const char* ipport = "tcp://127.0.0.1:0";
         test_set_attr(pe_id, n_pes, local_mem_size, ipport, &attributes);
         attributes.option_attr.data_op_engine_type = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE);
 
@@ -147,12 +146,12 @@ void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, acl
     *st = stream;
 }
 
-int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st)
 {
     *st = nullptr;
     int status = 0;
     if (n_ranks != (n_ranks & (~(static_cast<unsigned int>(n_ranks) - 1)))) {
-        std::cout << "[TEST] input rank_size: "<< n_ranks << " is not the power of 2" << std::endl;
+        std::cout << "[TEST] input rank_size: " << n_ranks << " is not the power of 2" << std::endl;
         status = -1;
     }
     EXPECT_EQ(status, 0);
@@ -163,9 +162,8 @@ int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtS
     EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
     EXPECT_EQ(status = aclshmemx_set_conf_store_tls(false, nullptr, 0), 0);
     aclshmemx_init_attr_t attributes;
-    
-    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
 
+    test_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
@@ -175,12 +173,12 @@ int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtS
     return status;
 }
 
-int32_t test_sdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+int32_t test_sdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st)
 {
     *st = nullptr;
     int status = 0;
     if (n_ranks != (n_ranks & (~(static_cast<unsigned int>(n_ranks) - 1)))) {
-        std::cout << "[TEST] input rank_size: "<< n_ranks << " is not the power of 2" << std::endl;
+        std::cout << "[TEST] input rank_size: " << n_ranks << " is not the power of 2" << std::endl;
         status = -1;
     }
     EXPECT_EQ(status, 0);
@@ -202,7 +200,7 @@ int32_t test_sdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtS
     return status;
 }
 
-int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st)
 {
     *st = nullptr;
     int status = 0;
@@ -284,10 +282,14 @@ static ssize_t read_full(int fd, void* buf, size_t count)
     while (total < count) {
         ssize_t n = read(fd, static_cast<char*>(buf) + total, count - total);
         if (n < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) {
+                continue;
+            }
             return -1;
         }
-        if (n == 0) return static_cast<ssize_t>(total);
+        if (n == 0) {
+            return static_cast<ssize_t>(total);
+        }
         total += static_cast<size_t>(n);
     }
     return static_cast<ssize_t>(total);
@@ -299,7 +301,9 @@ static ssize_t write_full(int fd, const void* buf, size_t count)
     while (total < count) {
         ssize_t n = write(fd, static_cast<const char*>(buf) + total, count - total);
         if (n < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) {
+                continue;
+            }
             return -1;
         }
         total += static_cast<size_t>(n);
@@ -308,11 +312,11 @@ static ssize_t write_full(int fd, const void* buf, size_t count)
 }
 
 void test_mutil_task_with_uid(
-    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func,
-    uint64_t local_mem_size,
-    int process_count)
+    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func, uint64_t local_mem_size, int process_count)
 {
-    if (process_count == 0) return;
+    if (process_count == 0) {
+        return;
+    }
 
     pid_t pids[process_count];
     int status[process_count];
@@ -356,7 +360,9 @@ void test_mutil_task_with_uid(
             close(uid_pipe[0]);
             for (int j = 0; j < process_count; ++j) {
                 close(dist_pipes[j][1]);
-                if (j != i) close(dist_pipes[j][0]);
+                if (j != i) {
+                    close(dist_pipes[j][0]);
+                }
             }
 
             aclshmemx_uniqueid_t uid{};
@@ -463,12 +469,12 @@ void test_mutil_task_with_uid(
 // and magic), then distributes it to the other ranks through
 // pre-created pipes.  All ranks call func(), barrier, then finalize.
 void test_mutil_task_uid_loop(
-    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func,
-    uint64_t local_mem_size,
-    int process_count,
+    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func, uint64_t local_mem_size, int process_count,
     int loop_count)
 {
-    if (process_count == 0) return;
+    if (process_count == 0) {
+        return;
+    }
 
     const char* session_id = "127.0.0.1:8666";
 
@@ -488,9 +494,13 @@ void test_mutil_task_uid_loop(
         pids[i] = fork();
         if (pids[i] < 0) {
             ADD_FAILURE() << "fork[" << i << "] failed: " << strerror(errno);
-            for (int k = 0; k < i; ++k) { kill(pids[k], SIGKILL); waitpid(pids[k], &status[k], 0); }
+            for (int k = 0; k < i; ++k) {
+                kill(pids[k], SIGKILL);
+                waitpid(pids[k], &status[k], 0);
+            }
             for (int j = 1; j < process_count; ++j) {
-                close(uid_to_rank[j][0]); close(uid_to_rank[j][1]);
+                close(uid_to_rank[j][0]);
+                close(uid_to_rank[j][1]);
             }
             return;
         }
@@ -498,11 +508,17 @@ void test_mutil_task_uid_loop(
             // --- child ---
             if (i == 0) {
                 setenv("SHMEM_UID_SESSION_ID", session_id, 1);
-                for (int j = 1; j < process_count; ++j) close(uid_to_rank[j][0]);
+                for (int j = 1; j < process_count; ++j) {
+                    close(uid_to_rank[j][0]);
+                }
             } else {
                 for (int j = 1; j < process_count; ++j) {
-                    if (j == i) close(uid_to_rank[j][1]);
-                    else { close(uid_to_rank[j][0]); close(uid_to_rank[j][1]); }
+                    if (j == i) {
+                        close(uid_to_rank[j][1]);
+                    } else {
+                        close(uid_to_rank[j][0]);
+                        close(uid_to_rank[j][1]);
+                    }
                 }
             }
 
@@ -535,7 +551,9 @@ void test_mutil_task_uid_loop(
             aclFinalize();
 
             if (i == 0) {
-                for (int j = 1; j < process_count; ++j) close(uid_to_rank[j][1]);
+                for (int j = 1; j < process_count; ++j) {
+                    close(uid_to_rank[j][1]);
+                }
             } else {
                 close(uid_to_rank[i][0]);
             }

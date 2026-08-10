@@ -772,6 +772,31 @@ ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe)
     }
 }
 
+ACLSHMEM_DEVICE bool aclshmemi_udma_qp_index_valid(__gm__ aclshmemi_aiv_udma_info_t* udma_info, uint32_t qp_idx)
+{
+    if (qp_idx >= udma_info->qp_num) {
+        aclshmemi_kernel_abort("Invalid UDMA qp_idx=%u, qp_num=%u\n", qp_idx, udma_info->qp_num);
+        return false;
+    }
+    return true;
+}
+
+#if !defined(ACLSHMEM_RELAY_SUPPORT)
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx)
+{
+    __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+    if (!aclshmemi_udma_qp_index_valid(udma_info, qp_idx)) {
+        return;
+    }
+    __gm__ aclshmemi_udma_qp_table_t* tbl = aclshmemi_udma_active_table(udma_info);
+    const uint32_t actual_pe = static_cast<uint32_t>(pe);
+    __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry =
+        (__gm__ aclshmemi_udma_wq_ctx_t*)(tbl->sq_ptr +
+                                          (actual_pe * udma_info->qp_num + qp_idx) * sizeof(aclshmemi_udma_wq_ctx_t));
+    aclshmemi_udma_poll_cq(actual_pe, qp_idx, qp_ctx_entry->wqe_cnt);
+}
+#endif
+
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_udma_get_nbi(__gm__ T* dst, __gm__ T* src, uint32_t elem_size, int pe)
 {
@@ -901,6 +926,86 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     } else {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
+{
+    static_assert(
+        WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
+    if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+        if (!aclshmemi_udma_qp_index_valid(udma_info, qp_idx)) {
+            return;
+        }
+        auto remote_src = aclshmem_ptr(src, pe);
+        if constexpr (WQE_PIPE == PIPE_MTE3) {
+            aclshmemi_udma_post_send_mte3<T, aclshmemi_udma_opcode_t::UDMA_OP_READ>(
+                (__gm__ uint8_t*)remote_src, (__gm__ uint8_t*)dst, static_cast<uint32_t>(pe), qp_idx,
+                elem_size * sizeof(T), reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id);
+        } else {
+            (void)buf;
+            (void)sync_id;
+            aclshmemi_udma_read(
+                (__gm__ uint8_t*)dst, (__gm__ uint8_t*)remote_src, static_cast<uint32_t>(pe), qp_idx,
+                elem_size * sizeof(T));
+        }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "QP-specific UDMA APIs require Ascend950 direct mode\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
+{
+    aclshmemx_udma_qp_get_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, qp_idx, sync_id);
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
+{
+    static_assert(
+        WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
+    if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+        if (!aclshmemi_udma_qp_index_valid(udma_info, qp_idx)) {
+            return;
+        }
+        auto remote_dst = aclshmem_ptr(dst, pe);
+        if constexpr (WQE_PIPE == PIPE_MTE3) {
+            aclshmemi_udma_write_mte3<T>(
+                (__gm__ T*)remote_dst, src, static_cast<uint32_t>(pe), qp_idx, elem_size * sizeof(T),
+                reinterpret_cast<__ubuf__ uint8_t*>(buf), sync_id);
+        } else {
+            (void)buf;
+            (void)sync_id;
+            aclshmemi_udma_write(
+                (__gm__ uint8_t*)remote_dst, (__gm__ uint8_t*)src, static_cast<uint32_t>(pe), qp_idx,
+                elem_size * sizeof(T));
+        }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "QP-specific UDMA APIs require Ascend950 direct mode\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
+{
+    aclshmemx_udma_qp_put_nbi<T, WQE_PIPE>(
+        (__gm__ T*)dst.GetPhyAddr(), (__gm__ T*)src.GetPhyAddr(), reinterpret_cast<__ubuf__ T*>(buf.GetPhyAddr()),
+        elem_size, pe, qp_idx, sync_id);
 }
 
 template <typename T, pipe_t WQE_PIPE>
@@ -1291,6 +1396,62 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
         ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "UDMA is supported only on Ascend950 or later\n");
     }
 }
+
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
+    __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
+    uint32_t qp_idx)
+{
+    if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+        if (!aclshmemi_udma_qp_index_valid(udma_info, qp_idx)) {
+            return;
+        }
+        auto remote_dst = aclshmem_ptr(dst, pe);
+        auto remote_sig_addr = aclshmem_ptr(sig_addr, pe);
+        aclshmemi_udma_params_t<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY> signal_params{
+            .sig_addr = (__gm__ uint64_t*)remote_sig_addr, .signal = signal};
+        aclshmemi_udma_write_notify<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY>(
+            (__gm__ T*)remote_dst, src, static_cast<uint32_t>(pe), qp_idx, elem_size * sizeof(T), signal_params);
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "QP-specific UDMA APIs require Ascend950 direct mode\n");
+    }
+}
+
+template <typename T, pipe_t WQE_PIPE>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
+    __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
+    uint32_t qp_idx, __ubuf__ uint8_t* buf, uint32_t sync_id)
+{
+    static_assert(
+        WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
+    if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
+        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+    } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
+        if constexpr (WQE_PIPE == PIPE_MTE3) {
+            __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+            if (!aclshmemi_udma_qp_index_valid(udma_info, qp_idx)) {
+                return;
+            }
+            auto remote_dst = aclshmem_ptr(dst, pe);
+            auto remote_sig_addr = aclshmem_ptr(sig_addr, pe);
+            aclshmemi_udma_params_t<T, aclshmemi_udma_opcode_t::UDMA_OP_WRITE_WITH_NOTIFY> signal_params{
+                .sig_addr = (__gm__ uint64_t*)remote_sig_addr, .signal = signal};
+            aclshmemi_udma_write_notify_mte3<T>(
+                (__gm__ T*)remote_dst, src, static_cast<uint32_t>(pe), qp_idx, elem_size * sizeof(T), signal_params,
+                buf, sync_id);
+        } else {
+            (void)buf;
+            (void)sync_id;
+            aclshmemx_udma_qp_put_signal_nbi<T>(dst, src, elem_size, sig_addr, signal, pe, qp_idx);
+        }
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "QP-specific UDMA APIs require Ascend950 direct mode\n");
+    }
+}
+
 template <typename T, aclshmemi_udma_opcode_t OP_CODE>
 ACLSHMEM_DEVICE constexpr bool aclshmemi_udma_check_atomic_len()
 {

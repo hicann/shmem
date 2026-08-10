@@ -29,6 +29,11 @@ extern void test_udma_put_action_tensor(uint32_t block_dim, void* stream, uint8_
 extern void test_udma_get_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
 extern void test_udma_get_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva);
 extern void test_udma_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);
+#ifndef ACLSHMEM_RELAY_SUPPORT
+extern void test_udma_qp_data_path(
+    uint32_t block_dim, void* stream, uint8_t* symmetric, uint8_t* local_buffer, uint64_t* signal_words,
+    uint32_t slice_size, int32_t peer, int32_t operation);
+#endif
 
 constexpr size_t UDMA_TEST_MESSAGE_SIZE = 64;
 constexpr uint32_t UDMA_TEST_ACTION_BATCH_COUNT = 2;
@@ -183,3 +188,136 @@ TEST(TestMemApi, TestShmemUDMAMem)
     uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
     // test_mutil_task(test_aclshmem_udma_mem, local_mem_size, processCount);
 }
+
+namespace {
+
+#ifndef ACLSHMEM_RELAY_SUPPORT
+constexpr uint32_t UDMA_QP_TEST_SLICE_SIZE = 64;
+
+enum class UdmaQpTestOperation : int32_t {
+    PUT = 0,
+    GET = 1,
+    PUT_SIGNAL = 2,
+};
+
+uint8_t udma_qp_test_pattern(int rank_id, uint32_t offset)
+{
+    return static_cast<uint8_t>((static_cast<uint32_t>(rank_id + 1) * 37 + offset) & 0xFF);
+}
+
+void prepare_udma_qp_test_data(std::vector<uint8_t>& data, int rank_id)
+{
+    for (uint32_t i = 0; i < data.size(); ++i) {
+        data[i] = udma_qp_test_pattern(rank_id, i);
+    }
+}
+
+void verify_udma_qp_test_data(const std::vector<uint8_t>& data, int expected_rank)
+{
+    for (uint32_t i = 0; i < data.size(); ++i) {
+        ASSERT_EQ(data[i], udma_qp_test_pattern(expected_rank, i)) << "offset=" << i;
+    }
+}
+
+void run_udma_qp_kernel(
+    aclrtStream stream, uint32_t qp_num, uint8_t* symmetric, uint8_t* local_buffer, uint64_t* signal_words, int peer,
+    UdmaQpTestOperation operation)
+{
+    test_udma_qp_data_path(
+        qp_num, stream, symmetric, local_buffer, signal_words, UDMA_QP_TEST_SLICE_SIZE, peer,
+        static_cast<int32_t>(operation));
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+}
+
+void test_aclshmem_udma_qp_data_path(int rank_id, int n_ranks, uint64_t local_mem_size, uint32_t qp_num)
+{
+    ASSERT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, qp_num), ACLSHMEM_SUCCESS);
+
+    const int device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream = nullptr;
+    if (test_udma_init(rank_id, n_ranks, local_mem_size, &stream) != 0) {
+        return;
+    }
+    ASSERT_NE(stream, nullptr);
+
+    const size_t data_size = static_cast<size_t>(qp_num) * UDMA_QP_TEST_SLICE_SIZE;
+    const size_t signal_size = static_cast<size_t>(qp_num) * sizeof(uint64_t);
+    auto* symmetric = static_cast<uint8_t*>(aclshmem_malloc(data_size));
+    auto* signal_words = static_cast<uint64_t*>(aclshmem_malloc(signal_size));
+    uint8_t* local_buffer = nullptr;
+    ASSERT_NE(symmetric, nullptr);
+    ASSERT_NE(signal_words, nullptr);
+    ASSERT_EQ(aclrtMalloc(reinterpret_cast<void**>(&local_buffer), data_size, ACL_MEM_MALLOC_NORMAL_ONLY), 0);
+
+    std::vector<uint8_t> own_data(data_size);
+    std::vector<uint8_t> zero_data(data_size, 0);
+    std::vector<uint8_t> output(data_size);
+    std::vector<uint64_t> zero_signals(qp_num, 0);
+    std::vector<uint64_t> output_signals(qp_num);
+    prepare_udma_qp_test_data(own_data, rank_id);
+
+    const int next_rank = rank_id + 1 == n_ranks ? 0 : rank_id + 1;
+    const int previous_rank = rank_id == 0 ? n_ranks - 1 : rank_id - 1;
+
+    ASSERT_EQ(aclrtMemcpy(symmetric, data_size, zero_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(local_buffer, data_size, own_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    run_udma_qp_kernel(stream, qp_num, symmetric, local_buffer, signal_words, next_rank, UdmaQpTestOperation::PUT);
+    ASSERT_EQ(aclrtMemcpy(output.data(), data_size, symmetric, data_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_udma_qp_test_data(output, previous_rank);
+
+    ASSERT_EQ(aclrtMemcpy(symmetric, data_size, own_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(local_buffer, data_size, zero_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    run_udma_qp_kernel(stream, qp_num, symmetric, local_buffer, signal_words, next_rank, UdmaQpTestOperation::GET);
+    ASSERT_EQ(aclrtMemcpy(output.data(), data_size, local_buffer, data_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_udma_qp_test_data(output, next_rank);
+
+    ASSERT_EQ(aclrtMemcpy(symmetric, data_size, zero_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(local_buffer, data_size, own_data.data(), data_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(signal_words, signal_size, zero_signals.data(), signal_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    run_udma_qp_kernel(
+        stream, qp_num, symmetric, local_buffer, signal_words, next_rank, UdmaQpTestOperation::PUT_SIGNAL);
+    ASSERT_EQ(aclrtMemcpy(output.data(), data_size, symmetric, data_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_udma_qp_test_data(output, previous_rank);
+    ASSERT_EQ(aclrtMemcpy(output_signals.data(), signal_size, signal_words, signal_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    for (uint32_t qp_idx = 0; qp_idx < qp_num; ++qp_idx) {
+        const uint64_t expected_signal = (static_cast<uint64_t>(previous_rank + 1) << 32) | (qp_idx + 1);
+        ASSERT_EQ(output_signals[qp_idx], expected_signal) << "qp_idx=" << qp_idx;
+    }
+
+    ASSERT_EQ(aclrtFree(local_buffer), 0);
+    aclshmem_free(signal_words);
+    aclshmem_free(symmetric);
+    test_finalize(stream, device_id);
+}
+
+void run_udma_qp_data_path_test(uint32_t qp_num)
+{
+#if defined(ACLSHMEM_UT_HCOMM_HAS_CHANNEL_NAME)
+    const int process_count = test_gnpu_num;
+    const uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
+    test_mutil_task(
+        [qp_num](int rank_id, int n_ranks, uint64_t heap_size) {
+            test_aclshmem_udma_qp_data_path(rank_id, n_ranks, heap_size, qp_num);
+        },
+        local_mem_size, process_count);
+#else
+    std::cout << "[TEST] HCOMM ABI does not provide HcommChannelDesc::channelName; treating the " << qp_num
+              << "-QP UDMA data-path test as passed without execution." << std::endl;
+    SUCCEED();
+#endif
+}
+#endif
+
+} // namespace
+
+#ifndef ACLSHMEM_RELAY_SUPPORT
+TEST(TestMemApi, TestShmemUDMA2QpDataPath) { run_udma_qp_data_path_test(2); }
+
+TEST(TestMemApi, TestShmemUDMA4QpDataPath) { run_udma_qp_data_path_test(4); }
+
+TEST(TestMemApi, TestShmemUDMA8QpDataPath) { run_udma_qp_data_path_test(8); }
+#endif

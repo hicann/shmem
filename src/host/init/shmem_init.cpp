@@ -21,6 +21,7 @@
 #include "acl/acl_rt.h"
 #include "shmemi_host_common.h"
 #include "shmemi_init.h"
+#include "transport_def.h"
 #include "host/shmem_host_def.h"
 #include "prof/prof_util.h"
 #include "shmemi_scope_guard.h"
@@ -90,6 +91,8 @@ aclshmemi_init_backend* init_manager = nullptr;
 
 // Protect instance context access
 static std::mutex g_aclshmem_ctx_mutex;
+static shm::transport::UdmaQpConfig g_udma_qp_config{};
+static bool g_qp_config_frozen = false;
 
 // Instance context used to store global_resources
 struct aclshmem_context {
@@ -222,6 +225,24 @@ int aclshmemx_set_attr_uniqueid_args(
     aclshmem_attr->n_pes = n_pes;
     aclshmem_attr->local_mem_size = local_mem_size;
 
+    return ACLSHMEM_SUCCESS;
+}
+
+int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
+{
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    if (engine != ACLSHMEM_DATA_OP_UDMA) {
+        SHM_LOG_WARN("QP count configuration only supports UDMA, engine = " << engine);
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    if (qp_num == 0 || qp_num > ACLSHMEM_MAX_QP_NUM) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    if (g_qp_config_frozen) {
+        SHM_LOG_ERROR("UDMA QP configuration cannot be changed while an ACLSHMEM instance is initialized.");
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    g_udma_qp_config.qpNum = qp_num;
     return ACLSHMEM_SUCCESS;
 }
 
@@ -555,7 +576,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     }
 
     // aclshmem_entity init
-    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle));
+    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle, g_udma_qp_config));
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
@@ -583,6 +604,7 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
     exception_guard.release();
     init_succeeded = true;
+    g_qp_config_frozen = true;
     init_abort_guard.release();
     ctx_guard.release();
     return ACLSHMEM_SUCCESS;
@@ -643,15 +665,20 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     aclshmemi_bootstrap_finalize();
 
-    // Only When Process have no instance, then release init_manager.
+    // Only when the process has no instance, release init_manager.
     g_init_manager_count--;
-    if (g_init_manager_count == 0) {
+    const bool is_last_instance = (g_init_manager_count == 0);
+    if (is_last_instance) {
         delete init_manager;
         init_manager = nullptr;
     }
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
     g_state.is_aclshmem_initialized = false;
     ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_destroy(instance_id));
+    if (is_last_instance) {
+        g_udma_qp_config = shm::transport::UdmaQpConfig{};
+        g_qp_config_frozen = false;
+    }
     return ACLSHMEM_SUCCESS;
 }
 

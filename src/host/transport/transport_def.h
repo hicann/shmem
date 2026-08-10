@@ -43,6 +43,10 @@ enum TransportType {
     TT_BUTT,
 };
 
+struct UdmaQpConfig {
+    uint32_t qpNum{1};
+};
+
 struct TransportOptions {
     uint32_t rankId;
     uint32_t rankCount;
@@ -50,12 +54,13 @@ struct TransportOptions {
     hybm_role_type role;
     std::string nic;
     IpType type{IpV4};
+    UdmaQpConfig udmaQpConfig{};
 
     friend std::ostream& operator<<(std::ostream& output, const TransportOptions& options)
     {
         output << "TransportOptions(rankId=" << options.rankId << ", count=" << options.rankCount
                << ", protocol=" << options.protocol << ", role=" << options.role << ", nid=" << options.nic
-               << ", iptype=" << options.type << ")";
+               << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum << ")";
         return output;
     }
 };

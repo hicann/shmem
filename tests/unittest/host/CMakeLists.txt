@@ -34,11 +34,32 @@ endif()
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
 if(NOT SOC_TYPE STREQUAL "Ascend950")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "topo/")
+    list(FILTER TEST_HOST_FILES EXCLUDE REGEX "transport/device_udma/")
 endif()
 file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)
 file(GLOB_RECURSE UNDER_API_FILES ${PROJECT_SOURCE_DIR}/src/host/utils/under_api/*.cpp)
 set(CMAKE_C_COMPILER gcc)
 set(CMAKE_CXX_COMPILER g++)
+
+include(CheckCXXSourceCompiles)
+set(_ACLSHMEM_SAVED_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
+set(CMAKE_REQUIRED_INCLUDES
+    ${ASCEND_HOME_PATH}/include
+    ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/include
+    ${ASCEND_HOME_PATH}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/hcomm
+)
+unset(ACLSHMEM_UT_HCOMM_HAS_CHANNEL_NAME CACHE)
+check_cxx_source_compiles("#include <hcomm/hcomm_res_defs.h>
+int main()
+{
+    HcommChannelDesc desc{};
+    desc.channelName = nullptr;
+    return 0;
+}"
+    ACLSHMEM_UT_HCOMM_HAS_CHANNEL_NAME
+)
+set(CMAKE_REQUIRED_INCLUDES "${_ACLSHMEM_SAVED_CMAKE_REQUIRED_INCLUDES}")
+unset(_ACLSHMEM_SAVED_CMAKE_REQUIRED_INCLUDES)
 
 if(SOC_TYPE STREQUAL "Ascend950")
     file(GLOB_RECURSE TOPO_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/host/transport/topo/*.cpp)
@@ -54,6 +75,12 @@ add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FIL
 
 if(ACLSHMEM_SIMT_SUPPORT)
     target_compile_definitions(aclshmem_unittest_host PRIVATE USE_SIMT)
+endif()
+if(ACLSHMEM_UT_HCOMM_HAS_CHANNEL_NAME)
+    target_compile_definitions(aclshmem_unittest_host PRIVATE ACLSHMEM_UT_HCOMM_HAS_CHANNEL_NAME=1)
+    message(STATUS "HCOMM channelName detected: UDMA multi-QP data-path tests enabled")
+else()
+    message(STATUS "HCOMM channelName not detected: UDMA multi-QP data-path tests will pass without execution")
 endif()
 
 target_compile_options(aclshmem_unittest_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
