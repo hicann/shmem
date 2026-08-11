@@ -20,6 +20,7 @@
 #include "device_rdma_transport_manager_v2.h"
 
 #include <chrono>
+#include <cstring>
 #include <algorithm>
 #include <limits>
 #include <string>
@@ -35,6 +36,190 @@ constexpr uint32_t RDMA_CHANNEL_MEM_HANDLE_NUM = 2;
 // 非阻塞建链状态轮询参数(按通道个数缩放)
 constexpr uint32_t CHANNEL_STATUS_POLL_INTERVAL_PER_CH_MS = 10;   // 单通道单次轮询间隔(ms)
 constexpr uint32_t CHANNEL_STATUS_POLL_TIMEOUT_PER_CH_MS = 60000; // 单通道建链就绪等待超时(ms) = 1min
+
+constexpr uint32_t HNS_1825_DB_VENDOR_FIELD_MASK = 0x7;
+constexpr uint32_t HNS_1825_DB_COS_SHIFT = 24;
+constexpr uint32_t HNS_1825_MTU_SHIFT_SHIFT = 50;
+constexpr uint8_t HNS_1825_DEFAULT_MTU_SHIFT = 4;
+constexpr uint8_t HNS_1825_DEFAULT_DB_COS = 0x7;
+constexpr uint32_t RDMA_CONTEXT_ENTRY_SIZE_MIN = 32;
+constexpr uint32_t RDMA_CONTEXT_ENTRY_SIZE_MAX = 4096;
+constexpr uint64_t HNS_1825_DB_VENDOR_SPECIFIED_MASK =
+    (static_cast<uint64_t>(HNS_1825_DB_VENDOR_FIELD_MASK) << HNS_1825_DB_COS_SHIFT) |
+    (static_cast<uint64_t>(HNS_1825_DB_VENDOR_FIELD_MASK) << HNS_1825_MTU_SHIFT_SHIFT);
+
+struct DecodedRoceSqContext {
+    const char* abiName;
+    uint32_t qpn;
+    uint64_t sqVa;
+    uint32_t wqeSize;
+    uint32_t depth;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    DBMode dbMode;
+    uint8_t sl;
+    uint8_t mtuShift;
+    uint8_t dbCos;
+};
+
+struct DecodedRoceCqContext {
+    const char* abiName;
+    uint32_t cqn;
+    uint64_t cqVa;
+    uint32_t cqeSize;
+    uint32_t cqDepth;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    DBMode dbMode;
+};
+
+bool IsDbModeValid(int8_t dbMode) noexcept
+{
+    return dbMode == static_cast<int8_t>(DBMode::HW_DB) || dbMode == static_cast<int8_t>(DBMode::SW_DB);
+}
+
+bool IsRdmaContextEntrySizeValid(uint32_t size) noexcept
+{
+    return size >= RDMA_CONTEXT_ENTRY_SIZE_MIN && size <= RDMA_CONTEXT_ENTRY_SIZE_MAX && (size & (size - 1)) == 0;
+}
+
+bool IsDbVendorSpecifiedValid(uint64_t dbVendorSpecified) noexcept
+{
+    if (dbVendorSpecified == 0) {
+        return false;
+    }
+
+    // The transition ABI used the low byte for dbCos; only the 3-bit value is valid.
+    if ((dbVendorSpecified & ~0xffULL) == 0) {
+        return dbVendorSpecified <= HNS_1825_DB_VENDOR_FIELD_MASK;
+    }
+
+    // SplitDb producers may not initialize the bytes after offset 56. Accept
+    // only the current ABI's known bit-field shape to avoid treating tail data
+    // as DbVendorSpecified.
+    return (dbVendorSpecified & ~HNS_1825_DB_VENDOR_SPECIFIED_MASK) == 0;
+}
+
+bool LooksLikeInitialSqContext(const SqContext& context) noexcept
+{
+    if (context.type != SQ_CONTEXT_TYPE_ROCE) {
+        return false;
+    }
+
+    /*
+     * There is no ABI version tag in SqContext. In the SplitDb layout, the
+     * Initial view aliases wqeSize with the low byte of the real wqeSize and
+     * aliases qpn with the low part of dbSwVa. Validate the Initial entry
+     * size as an additional discriminator. The supported RDMA backends use
+     * power-of-two entries in this range; this check documents the assumption
+     * and avoids accepting the known 256-byte SplitDb false-positive case.
+     */
+    const auto initial = ExtractSqContextRoceInitial(context);
+    return initial.qpn != 0 && IsRdmaContextEntrySizeValid(initial.wqeSize) && initial.depth != 0 &&
+           IsDbModeValid(initial.dbMode) && initial.sl <= 7;
+}
+
+bool LooksLikeInitialCqContext(const CqContext& context) noexcept
+{
+    if (context.type != CQ_CONTEXT_TYPE_ROCE) {
+        return false;
+    }
+
+    // See LooksLikeInitialSqContext: cqeSize provides the equivalent extra ABI discriminator for CQ.
+    const auto initial = ExtractCqContextRoceInitial(context);
+    return initial.cqn != 0 && IsRdmaContextEntrySizeValid(initial.cqeSize) && initial.cqDepth != 0 &&
+           IsDbModeValid(initial.dbMode);
+}
+
+void DecodePackedDbVendorSpecified(uint64_t dbVendorSpecified, uint8_t& mtuShift, uint8_t& dbCos) noexcept
+{
+    if (dbVendorSpecified == 0) {
+        mtuShift = HNS_1825_DEFAULT_MTU_SHIFT;
+        dbCos = HNS_1825_DEFAULT_DB_COS;
+        return;
+    }
+
+    // A short-lived transition ABI carried vendorPrivInfo as a low-byte value.
+    if ((dbVendorSpecified & ~0xffULL) == 0) {
+        mtuShift = HNS_1825_DEFAULT_MTU_SHIFT;
+        dbCos = static_cast<uint8_t>(dbVendorSpecified & HNS_1825_DB_VENDOR_FIELD_MASK);
+        return;
+    }
+
+    mtuShift = static_cast<uint8_t>((dbVendorSpecified >> HNS_1825_MTU_SHIFT_SHIFT) & HNS_1825_DB_VENDOR_FIELD_MASK);
+    dbCos = static_cast<uint8_t>((dbVendorSpecified >> HNS_1825_DB_COS_SHIFT) & HNS_1825_DB_VENDOR_FIELD_MASK);
+}
+
+DecodedRoceSqContext DecodeRoceSqContext(const SqContext& context) noexcept
+{
+    if (LooksLikeInitialSqContext(context)) {
+        const auto initial = ExtractSqContextRoceInitial(context);
+        return {
+            "initial",
+            initial.qpn,
+            initial.sqVa,
+            initial.wqeSize,
+            initial.depth,
+            initial.headAddr,
+            initial.tailAddr,
+            initial.dbVa,
+            0,
+            (initial.dbMode == 0) ? DBMode::HW_DB : DBMode::SW_DB,
+            initial.sl,
+            HNS_1825_DEFAULT_MTU_SHIFT,
+            HNS_1825_DEFAULT_DB_COS};
+    }
+
+    const auto splitDb = ExtractSqContextRoceSplitDb(context);
+    uint8_t mtuShift = splitDb.mtuShift;
+    uint8_t dbCos = HNS_1825_DEFAULT_DB_COS;
+    const auto vendor = ExtractSqContextRoceVendorSpecified(context);
+    const char* abiName = "split-db-mtushift";
+    if (IsDbVendorSpecifiedValid(vendor.DbVendorSpecified)) {
+        abiName = "db-vendor-specified";
+        DecodePackedDbVendorSpecified(vendor.DbVendorSpecified, mtuShift, dbCos);
+    }
+
+    return {abiName,          splitDb.qpn,      splitDb.sqVa,   splitDb.wqeSize, splitDb.depth,
+            splitDb.headAddr, splitDb.tailAddr, splitDb.dbHwVa, splitDb.dbSwVa,  DBMode::SW_DB,
+            splitDb.sl,       mtuShift,         dbCos};
+}
+
+DecodedRoceCqContext DecodeRoceCqContext(const CqContext& context) noexcept
+{
+    if (LooksLikeInitialCqContext(context)) {
+        const auto initial = ExtractCqContextRoceInitial(context);
+        return {
+            "initial",
+            initial.cqn,
+            initial.cqVa,
+            initial.cqeSize,
+            initial.cqDepth,
+            initial.headAddr,
+            initial.tailAddr,
+            initial.dbVa,
+            0,
+            (initial.dbMode == 0) ? DBMode::HW_DB : DBMode::SW_DB};
+    }
+
+    const auto splitDb = ExtractCqContextRoceSplitDb(context);
+    const auto vendor = ExtractCqContextRoceVendorSpecified(context);
+    return {
+        IsDbVendorSpecifiedValid(vendor.DbVendorSpecified) ? "db-vendor-specified" : "split-db",
+        splitDb.cqn,
+        splitDb.cqVa,
+        splitDb.cqeSize,
+        splitDb.cqDepth,
+        splitDb.headAddr,
+        splitDb.tailAddr,
+        splitDb.dbHwVa,
+        splitDb.dbSwVa,
+        DBMode::SW_DB};
+}
 
 } // namespace
 
@@ -541,94 +726,51 @@ int RdmaTransportManagerV2::CheckPrepareOptions(const shm::transport::HybmTransP
 
 void RdmaTransportManagerV2::CopyAiWQInfo(struct AiQpRMAWQ& dest, const SqContext& src) noexcept
 {
-    if (IsRoceSqV2Format(src)) {
-        // 新版格式 (2026-07-07 及之后 CANN)
-        const auto& roceSq = src.contextInfo.roceSq;
-        dest.wqn = roceSq.qpn;
-        dest.bufAddr = roceSq.sqVa;
-        dest.wqeSize = roceSq.wqeSize;
-        dest.depth = roceSq.depth;
-        dest.headAddr = roceSq.headAddr;
-        dest.tailAddr = roceSq.tailAddr;
-        dest.sl = roceSq.sl;
-        dest.dbAddr = roceSq.dbHwVa;
-        dest.dbSwVa = roceSq.dbSwVa;
-        dest.mtuShift = roceSq.mtuShift;
-        dest.dbMode = DBMode::SW_DB; // 新版默认软件doorbell
-        SHM_LOG_DEBUG(
-            "rank[" << rankId_ << "] CopyAiWQInfo(V2), wqn=" << dest.wqn << ", bufAddr=0x" << std::hex << dest.bufAddr
-                    << std::dec << ", wqeSize=" << dest.wqeSize << ", depth=" << dest.depth << ", headAddr=0x"
-                    << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex << dest.tailAddr << std::dec
-                    << ", sl=" << dest.sl << ", dbAddr=0x" << std::hex << dest.dbAddr << ", dbSwVa=0x" << std::hex
-                    << dest.dbSwVa << std::dec << ", mtuShift=" << static_cast<int>(dest.mtuShift));
-    } else {
-        // 旧版格式 (2026-07-07 之前 CANN) - 回退兼容
-        auto v1 = ExtractSqContextRoceV1(src);
-        dest.wqn = v1.qpn;
-        dest.bufAddr = v1.sqVa;
-        dest.wqeSize = v1.wqeSize;
-        dest.depth = v1.depth;
-        dest.headAddr = v1.headAddr;
-        dest.tailAddr = v1.tailAddr;
-        dest.sl = v1.sl;
-        dest.dbAddr = v1.dbVa;
-        dest.dbSwVa = 0;   // 旧版无软doorbell
-        dest.mtuShift = 0; // 旧版无此字段，填0
-        dest.dbMode = (v1.dbMode == 0) ? DBMode::HW_DB : DBMode::SW_DB;
-        SHM_LOG_DEBUG(
-            "rank[" << rankId_ << "] CopyAiWQInfo(V1 fallback), wqn=" << dest.wqn << ", bufAddr=0x" << std::hex
-                    << dest.bufAddr << std::dec << ", wqeSize=" << dest.wqeSize << ", depth=" << dest.depth
-                    << ", headAddr=0x" << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex
-                    << dest.tailAddr << std::dec << ", sl=" << dest.sl << ", dbAddr=0x" << std::hex << dest.dbAddr
-                    << std::dec << ", dbMode=" << static_cast<int>(v1.dbMode));
-    }
+    const auto roceSq = DecodeRoceSqContext(src);
+    dest.wqn = roceSq.qpn;
+    dest.bufAddr = roceSq.sqVa;
+    dest.wqeSize = roceSq.wqeSize;
+    dest.depth = roceSq.depth;
+    dest.headAddr = roceSq.headAddr;
+    dest.tailAddr = roceSq.tailAddr;
+    dest.dbMode = roceSq.dbMode;
+    dest.dbAddr = roceSq.dbHwVa;
+    dest.dbSwVa = roceSq.dbSwVa;
+    dest.sl = roceSq.sl;
+    dest.mtuShift = roceSq.mtuShift;
+    dest.dbCos = roceSq.dbCos;
+    SHM_LOG_DEBUG(
+        "rank[" << rankId_ << "] CopyAiWQInfo(" << roceSq.abiName << "), wqn=" << dest.wqn << ", bufAddr=0x" << std::hex
+                << dest.bufAddr << std::dec << ", wqeSize=" << dest.wqeSize << ", depth=" << dest.depth
+                << ", headAddr=0x" << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex
+                << dest.tailAddr << std::dec << ", sl=" << dest.sl << ", dbAddr=0x" << std::hex << dest.dbAddr
+                << ", dbSwVa=0x" << dest.dbSwVa << std::dec << ", mtuShift=" << static_cast<int>(dest.mtuShift)
+                << ", dbCos=" << static_cast<int>(dest.dbCos) << ", dbMode=" << static_cast<int>(dest.dbMode));
 }
 
 void RdmaTransportManagerV2::CopyAiCQInfo(struct AiQpRMACQ& dest, const CqContext& src) noexcept
 {
-    if (IsRoceCqV2Format(src)) {
-        // 新版格式 (2026-07-07 之后 CANN)
-        const auto& roceCq = src.contextInfo.roceCq;
-        dest.cqn = roceCq.cqn;
-        dest.bufAddr = roceCq.cqVa;
-        dest.cqeSize = roceCq.cqeSize;
-        dest.depth = roceCq.cqDepth;
-        dest.headAddr = roceCq.headAddr;
-        dest.tailAddr = roceCq.tailAddr;
-        dest.dbAddr = roceCq.dbHwVa;
-        dest.dbSwVa = roceCq.dbSwVa;
-        dest.dbMode = DBMode::SW_DB; // 新版默认软件doorbell
-        if constexpr (IsHcommSupportCqOverrun()) {
-            dest.cqAttrFlags = cqAttrFlags_;
-        } else {
-            dest.cqAttrFlags = 0;
-        }
-        SHM_LOG_DEBUG(
-            "rank[" << rankId_ << "] CopyAiCQInfo(V2), cqn=" << dest.cqn << ", bufAddr=0x" << std::hex << dest.bufAddr
-                    << std::dec << ", cqeSize=" << dest.cqeSize << ", depth=" << dest.depth << ", headAddr=0x"
-                    << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex << dest.tailAddr << std::dec
-                    << ", dbAddr=0x" << std::hex << dest.dbAddr << ", dbSwVa=0x" << std::hex << dest.dbSwVa << std::dec
-                    << ", cqAttrFlags=" << dest.cqAttrFlags);
+    const auto roceCq = DecodeRoceCqContext(src);
+    dest.cqn = roceCq.cqn;
+    dest.bufAddr = roceCq.cqVa;
+    dest.cqeSize = roceCq.cqeSize;
+    dest.depth = roceCq.cqDepth;
+    dest.headAddr = roceCq.headAddr;
+    dest.tailAddr = roceCq.tailAddr;
+    dest.dbMode = roceCq.dbMode;
+    dest.dbAddr = roceCq.dbHwVa;
+    dest.dbSwVa = roceCq.dbSwVa;
+    if constexpr (IsHcommSupportCqOverrun()) {
+        dest.cqAttrFlags = (std::strcmp(roceCq.abiName, "initial") == 0) ? 0 : cqAttrFlags_;
     } else {
-        // 旧版格式 (2026-07-07 之前 CANN) - 回退兼容
-        auto v1 = ExtractCqContextRoceV1(src);
-        dest.cqn = v1.cqn;
-        dest.bufAddr = v1.cqVa;
-        dest.cqeSize = v1.cqeSize;
-        dest.depth = v1.cqDepth;
-        dest.headAddr = v1.headAddr;
-        dest.tailAddr = v1.tailAddr;
-        dest.dbAddr = v1.dbVa;
-        dest.dbSwVa = 0; // 旧版无软doorbell
-        dest.dbMode = (v1.dbMode == 0) ? DBMode::HW_DB : DBMode::SW_DB;
         dest.cqAttrFlags = 0;
-        SHM_LOG_DEBUG(
-            "rank[" << rankId_ << "] CopyAiCQInfo(V1 fallback), cqn=" << dest.cqn << ", bufAddr=0x" << std::hex
-                    << dest.bufAddr << std::dec << ", cqeSize=" << dest.cqeSize << ", depth=" << dest.depth
-                    << ", headAddr=0x" << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex
-                    << dest.tailAddr << std::dec << ", dbAddr=0x" << std::hex << dest.dbAddr << std::dec
-                    << ", dbMode=" << static_cast<int>(v1.dbMode) << ", cqAttrFlags=" << dest.cqAttrFlags);
     }
+    SHM_LOG_DEBUG(
+        "rank[" << rankId_ << "] CopyAiCQInfo(" << roceCq.abiName << "), cqn=" << dest.cqn << ", bufAddr=0x" << std::hex
+                << dest.bufAddr << std::dec << ", cqeSize=" << dest.cqeSize << ", depth=" << dest.depth
+                << ", headAddr=0x" << std::hex << dest.headAddr << std::dec << ", tailAddr=0x" << std::hex
+                << dest.tailAddr << std::dec << ", dbAddr=0x" << std::hex << dest.dbAddr << ", dbSwVa=0x" << dest.dbSwVa
+                << std::dec << ", dbMode=" << static_cast<int>(dest.dbMode) << ", cqAttrFlags=" << dest.cqAttrFlags);
 }
 
 void RdmaTransportManagerV2::FillQpPreSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo)
