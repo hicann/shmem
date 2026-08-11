@@ -58,7 +58,7 @@
 | `device/gm2gm/engine/shmem_device_mte.h` | 无 | MTE 引擎：对称地址翻译、连续/非连续异步 put/get | 依赖 CANN |
 | `device/gm2gm/engine/shmem_device_rdma.h` | 无 | RDMA 引擎：本地和远端操作数均须指向对称内存，且完整传输范围不得越过各自内存分配的异步 RMA | 依赖 CANN；Host 侧需开启 `ACLSHMEM_RDMA_SUPPORT`（Ascend950 另需指定 RDMA backend） |
 | `device/gm2gm/engine/shmem_device_sdma.h` | 无 | SDMA 引擎：参数设置与异步 put/get | 依赖 CANN |
-| `device/gm2gm/engine/shmem_device_udma.h` | 无 | UDMA 引擎：低阶异步 RMA | 依赖 CANN；编译需 `ACLSHMEM_UDMA_SUPPORT` 且 Hcomm 提供所需 API（CMake `try_compile` 检测）；面向 Ascend950 |
+| `device/gm2gm/engine/shmem_device_udma.h` | 无 | UDMA 引擎：低阶异步 RMA | 仅面向 Ascend950，需 CANN 9.1.0 及以上版本 |
 | `device/ub2gm/shmem_device_rma.h` | 无 | UB↔GM 标准 RMA（UB 侧 get/put 等） | 依赖 CANN |
 | `device/ub2gm/engine/shmem_device_mte.h` | 无 | UB↔GM 的 MTE 引擎异步拷贝 | 依赖 CANN |
 | `device/team/shmem_device_team.h` | 无 | Device 侧 Team/PE 查询与 PE 翻译 | 依赖 CANN |
