@@ -28,7 +28,7 @@
 
 ## 编译说明
 
-UDMA 仅在 Ascend950 上可用：
+UDMA 仅在 Ascend950 上可用，需使用已提供 HCOMM 资源接口的 CANN 9.1.0 及以上版本。安装要求和 CANN 资源入口参见 [UDMA 样例版本和平台支持说明](../../udma_demo/README.md#版本和平台支持说明)。
 
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh

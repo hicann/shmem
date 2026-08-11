@@ -11,15 +11,9 @@
 ## 版本和平台支持说明
 
 - UDMA 多 QP 样例仅支持 Ascend950 平台（`__NPU_ARCH__ == 3510`），非 Ascend950 平台不支持运行该样例。
-- CANN 需提供 Ascend950 UDMA/HCOMM 资源接口，并安装与 Ascend950 匹配的 toolkit 和 ops 包，建议使用 CANN 9.1.0 及以上版本。低版本 CANN 如果缺少 `HcommEndpointCreate`、`HcommMemReg`、`HcommChannelCreate` 等 HCOMM UDMA API，构建阶段会关闭 `ACLSHMEM_UDMA_SUPPORT`，该样例无法运行。
+- CANN 9.1.0 已提供 UDMA 所需的 `HcommEndpointCreate`、`HcommMemReg`、`HcommChannelCreate`、`HcommChannelGetStatus` 等 HCOMM 资源接口。请从 [CANN 9.1.0 资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.1.0)下载并安装 Ascend950 对应的 toolkit 包和 ops 包；低于 9.1.0 的 CANN 版本不在本样例支持范围内。
 - 多 QP 还要求当前 HCOMM 的 `HcommChannelDesc` 支持 `channelName`。
-- 编译前需完成 CANN 环境配置，并使用 `-soc_type Ascend950` 编译。
-
-若 CMake 输出以下信息，说明 Host UDMA Transport 已关闭，不能创建 UDMA Channel 或运行该样例：
-
-```text
-Required Hcomm UDMA APIs not found, disabling ACLSHMEM_UDMA_SUPPORT
-```
+- 初始化时会加载并检查所需 HCOMM 符号。编译前需执行 `source /usr/local/Ascend/ascend-toolkit/set_env.sh`（自定义安装路径时使用对应的 `set_env.sh`），并使用 `-soc_type Ascend950` 编译；若 HCOMM 运行时库或符号不完整，初始化会失败。
 
 ## 样例实现
 

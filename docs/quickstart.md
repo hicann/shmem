@@ -59,6 +59,7 @@ source ${install_path}/ascend-toolkit/set_env.sh
 
 | 驱动固件 | CANN 版本 | D2D | D2H/H2D | D2rH/rH2D | 其他依赖 |
 | --- | --- | --- | --- | --- | --- |
+| Ascend HDK 26.0.RC1 | 9.1.0 及以上<br>[CANN 资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.1.0) | MTE<br>RDMA<br>SDMA（仅支持 A3）<br>UDMA（仅支持 Ascend950） | MTE<br>SDMA（仅支持 A3） | MTE<br>SDMA（仅支持 A3） | 使能 SDMA 需安装与 toolkit 版本和设备类型匹配的 ops 包；使能 UDMA 需安装 Ascend950 对应的 toolkit 包和 ops 包，并依赖 CANN 9.1.0 提供的 HCOMM 资源接口 |
 | Ascend HDK 25.0.RC1.1 | 9.0.0-beta.2 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA<br>SDMA | MTE<br>SDMA（仅支持 A3） | MTE<br>SDMA（仅支持 A3） | 使能 SDMA 需下载与 toolkit 版本和设备类型匹配的 [ops 包](https://www.hiascend.com/developer/download/community/result?module=cann) |
 | Ascend HDK 25.0.RC1.1 | 8.5.0 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA | MTE | MTE | 使能 A3 D2rH/rH2D：LingQu Computing Network [1.5.0 版本](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software)<br>升级指导：[安装指南](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841) |
 | Ascend HDK 25.0.RC1.1 | 8.3.RC1 及以上<br>[社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann) | MTE<br>RDMA |  |  | |
@@ -71,7 +72,7 @@ source ${install_path}/ascend-toolkit/set_env.sh
 
 9.1.0 之前的社区版本需要额外安装一个`Ascend-cann-{soc_name}-ops-{cann_version}-{os_arch}.run`的`.run`安装包，需要选择cann版本，选择对应的soc、操作系统、架构的版本。（如果没有`{soc_name}-ops`的算子包，可能会提示缺少`libhccl.so`库文件）。
 
-社区资源参考：[CANN 9.0.0 社区版资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0)。
+资源参考：[CANN 9.1.0](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.1.0)、[CANN 9.0.0](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.0.0)。
 
 各 SoC 对应的 ops 包文件名如下（以 CANN 9.0.0、x86_64 为例）：
 
