@@ -339,8 +339,9 @@ struct AiQpRMAWQ {
     uint32_t atomicLkey{0}; // lkey for atomicAddr
     // (Ascend950) hns1825-specific fields
     uint64_t dbSwVa{0};  // software shadow doorbell address
-    uint8_t mtuShift{0}; // MTU shift for WQE size calculation
-    uint8_t reserved[7]; // padding
+    uint8_t mtuShift{4}; // MTU shift for WQE size calculation
+    uint8_t dbCos{0x7};  // SQ doorbell COS for HNS_1825 hardware priority
+    uint8_t reserved[6]; // padding
 };
 
 struct AiQpRMACQ {

@@ -9,6 +9,7 @@
  */
 #include <algorithm>
 #include <fstream>
+#include <cstdlib>
 #include <string>
 #include <cstdint>
 #include <vector>
@@ -31,12 +32,9 @@ HybmGvaVersion checkVer = HYBM_GVA_UNKNOWN;
 static std::string cachedCannVersion;
 static std::once_flag cannVersionOnce;
 
-HybmGvaVersion HybmGetGvaVersion()
-{
-    return checkVer;
-}
+HybmGvaVersion HybmGetGvaVersion() { return checkVer; }
 
-static std::vector<int32_t> ParseVersion(const std::string &ver)
+static std::vector<int32_t> ParseVersion(const std::string& ver)
 {
     std::vector<int32_t> parts;
     std::string tmp;
@@ -59,7 +57,7 @@ static std::vector<int32_t> ParseVersion(const std::string &ver)
     return parts;
 }
 
-static bool VersionGreaterOrEqual(const std::string &currentVer, const std::string &requiredVer)
+static bool VersionGreaterOrEqual(const std::string& currentVer, const std::string& requiredVer)
 {
     auto currentParts = ParseVersion(currentVer);
     auto requiredParts = ParseVersion(requiredVer);
@@ -92,12 +90,12 @@ static void QueryCannVersion()
     std::string searchPath = cannHomePath;
     std::string infoFileName = "ascend_toolkit_install.info";
 
-    std::function<void(const std::string&)> searchDir = [&](const std::string &path) {
-        DIR *dir = opendir(path.c_str());
+    std::function<void(const std::string&)> searchDir = [&](const std::string& path) {
+        DIR* dir = opendir(path.c_str());
         if (dir == nullptr) {
             return;
         }
-        struct dirent *entry;
+        struct dirent* entry;
         while ((entry = readdir(dir)) != nullptr) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
@@ -141,7 +139,7 @@ std::string GetCannVersion()
     return cachedCannVersion;
 }
 
-bool CannVersionCheck(const std::string &requiredVer)
+bool CannVersionCheck(const std::string& requiredVer)
 {
     std::string currentVer = GetCannVersion();
     if (currentVer.empty()) {
@@ -151,75 +149,7 @@ bool CannVersionCheck(const std::string &requiredVer)
     return VersionGreaterOrEqual(currentVer, requiredVer);
 }
 
-// ============================================================
-// HCOMM 控制面版本检测（通过 version.info 中的 timestamp 字段）
-// ============================================================
-static uint64_t cachedHcommTimestamp = 0;
-static std::once_flag hcommTimestampOnce;
-
-static void QueryHcommTimestamp()
-{
-    std::string cannHomePath = std::getenv("ASCEND_HOME_PATH") ? std::getenv("ASCEND_HOME_PATH") : "";
-    if (cannHomePath.empty()) {
-        SHM_LOG_WARN("ASCEND_HOME_PATH environment variable not set, default to hcomm V2");
-        return;
-    }
-
-    std::string versionFilePath = cannHomePath + "/share/info/hcomm/version.info";
-    std::ifstream infile(versionFilePath, std::ifstream::in);
-    if (!infile.is_open()) {
-        SHM_LOG_WARN("Cannot open hcomm version.info: " << versionFilePath << ", default to V2");
-        return;
-    }
-
-    std::string line;
-    while (getline(infile, line)) {
-        auto found = line.find("timestamp=");
-        if (found != 0) {
-            continue;
-        }
-        // 格式: timestamp=20260707_000327035
-        std::string tsStr = line.substr(std::string("timestamp=").length());
-        // 提取 YYYYMMDD 部分 (前8位) + 小时分钟 (第9位开始的4位)
-        // "20260707_000327035" -> 去掉下划线，取前12位: "202607070003"
-        tsStr.erase(std::remove(tsStr.begin(), tsStr.end(), '_'), tsStr.end());
-        if (tsStr.length() >= 12) {
-            tsStr = tsStr.substr(0, 12);  // YYYYMMDDHHMM
-            try {
-                cachedHcommTimestamp = std::stoull(tsStr);
-            } catch (...) {
-                SHM_LOG_WARN("Failed to parse hcomm timestamp: " << tsStr << ", default to V2");
-            }
-        }
-        break;
-    }
-    infile.close();
-
-    if (cachedHcommTimestamp == 0) {
-        SHM_LOG_WARN("No valid timestamp in hcomm version.info, default to V2");
-    } else {
-        SHM_LOG_INFO("HCOMM version timestamp: " << cachedHcommTimestamp);
-    }
-}
-
-uint64_t GetHcommTimestampVersion()
-{
-    std::call_once(hcommTimestampOnce, QueryHcommTimestamp);
-    return cachedHcommTimestamp;
-}
-
-bool IsHcommV2()
-{
-    uint64_t ts = GetHcommTimestampVersion();
-    if (ts == 0) {
-        return true;  // 读取失败，默认使用新版 V2
-    }
-    // 2026-07-07 00:00 = 202607070000
-    constexpr uint64_t HCOMM_V2_CUTOFF = 202607070000ULL;
-    return ts >= HCOMM_V2_CUTOFF;
-}
-
-std::string GetDriverVersionPath(const std::string &driverEnvStr, const std::string &keyStr)
+std::string GetDriverVersionPath(const std::string& driverEnvStr, const std::string& keyStr)
 {
     std::string driverVersionPath;
     std::string tempPath;
@@ -247,7 +177,7 @@ std::string GetDriverVersionPath(const std::string &driverEnvStr, const std::str
     return driverVersionPath;
 }
 
-std::string LoadDriverVersionInfoFile(const std::string &realName, const std::string &keyStr)
+std::string LoadDriverVersionInfoFile(const std::string& realName, const std::string& keyStr)
 {
     std::string driverVersion;
     char realFile[shm::utils::FileUtil::GetSafePathMax()] = {0};
@@ -282,7 +212,7 @@ std::string LoadDriverVersionInfoFile(const std::string &realName, const std::st
     return driverVersion;
 }
 
-std::string CastDriverVersion(const std::string &driverEnv)
+std::string CastDriverVersion(const std::string& driverEnv)
 {
     std::string driverVersionPath = GetDriverVersionPath(driverEnv, "/driver/lib64");
     if (!driverVersionPath.empty()) {
@@ -291,13 +221,13 @@ std::string CastDriverVersion(const std::string &driverEnv)
         return driverVersion;
     } else {
         SHM_LOG_WARN("cannot found version file in :" << driverEnv << ", try local default path.");
-        driverVersionPath = "/usr/local/Ascend/driver/version.info";  // try default path
+        driverVersionPath = "/usr/local/Ascend/driver/version.info"; // try default path
         std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
         return driverVersion;
     }
 }
 
-int32_t GetValueFromVersion(const std::string &ver, std::string key)
+int32_t GetValueFromVersion(const std::string& ver, std::string key)
 {
     int32_t val = 0;
     auto found = ver.find(key);
@@ -320,7 +250,7 @@ int32_t GetValueFromVersion(const std::string &ver, std::string key)
     return val;
 }
 
-static bool DriverVersionCheck(const std::string &ver)
+static bool DriverVersionCheck(const std::string& ver)
 {
     auto libPath = std::getenv("LD_LIBRARY_PATH");
     if (libPath == nullptr) {

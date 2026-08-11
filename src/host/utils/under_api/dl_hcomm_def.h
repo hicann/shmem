@@ -11,6 +11,7 @@
 #ifndef RDMA_DL_HCOMM_DEF_H
 #define RDMA_DL_HCOMM_DEF_H
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -137,7 +138,7 @@ struct SqContext {
             uint32_t wqeSize;
             uint32_t depth;
             uint8_t sl;
-            uint8_t mtuShift;
+            uint64_t DbVendorSpecified;
         } roceSq;
         uint8_t raws[120];
     } contextInfo;
@@ -164,6 +165,7 @@ struct CqContext {
             uint32_t cqn;
             uint32_t cqeSize;
             uint32_t cqDepth;
+            uint64_t DbVendorSpecified;
         } roceCq;
         uint8_t raws[120];
     } contextInfo;
@@ -188,10 +190,7 @@ struct ChannelEntity {
     uint8_t reserve[160];
 };
 
-// ============================================================
-// 旧版 CANN (2026-07-07 之前) ROCE 上下文结构体，用于向后兼容
-// ============================================================
-struct SqContextRoceV1 {
+struct SqContextRoceInitial {
     uint64_t sqVa;
     uint64_t headAddr;
     uint64_t tailAddr;
@@ -203,7 +202,33 @@ struct SqContextRoceV1 {
     uint8_t sl;
 };
 
-struct CqContextRoceV1 {
+struct SqContextRoceSplitDb {
+    uint64_t sqVa;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    uint32_t qpn;
+    uint32_t wqeSize;
+    uint32_t depth;
+    uint8_t sl;
+    uint8_t mtuShift;
+};
+
+struct SqContextRoceVendorSpecified {
+    uint64_t sqVa;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    uint32_t qpn;
+    uint32_t wqeSize;
+    uint32_t depth;
+    uint8_t sl;
+    uint64_t DbVendorSpecified;
+};
+
+struct CqContextRoceInitial {
     uint64_t cqVa;
     uint64_t headAddr;
     uint64_t tailAddr;
@@ -214,41 +239,73 @@ struct CqContextRoceV1 {
     int8_t dbMode;
 };
 
-// 检测 SqContext 是否为新版 V2 格式 (2026-07-07 及之后)
-// 通过 $ASCEND_HOME_PATH/share/info/hcomm/version.info 中的 timestamp 字段判断
-inline bool IsRoceSqV2Format(const SqContext& ctx)
+struct CqContextRoceSplitDb {
+    uint64_t cqVa;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    uint32_t cqn;
+    uint32_t cqeSize;
+    uint32_t cqDepth;
+};
+
+struct CqContextRoceVendorSpecified {
+    uint64_t cqVa;
+    uint64_t headAddr;
+    uint64_t tailAddr;
+    uint64_t dbHwVa;
+    uint64_t dbSwVa;
+    uint32_t cqn;
+    uint32_t cqeSize;
+    uint32_t cqDepth;
+    uint64_t DbVendorSpecified;
+};
+
+static_assert(offsetof(SqContextRoceInitial, dbMode) == 44, "unexpected initial SQ context layout");
+static_assert(offsetof(SqContextRoceSplitDb, sl) == 52, "unexpected split-db SQ context layout");
+static_assert(offsetof(SqContextRoceSplitDb, mtuShift) == 53, "unexpected split-db SQ context layout");
+static_assert(
+    offsetof(SqContextRoceVendorSpecified, DbVendorSpecified) == 56, "unexpected vendor-specified SQ context layout");
+static_assert(offsetof(CqContextRoceInitial, dbMode) == 44, "unexpected initial CQ context layout");
+
+template <typename RoceContext, typename Context>
+inline RoceContext ExtractRoceContext(const Context& ctx)
 {
-    if (ctx.type != SQ_CONTEXT_TYPE_ROCE) {
-        return true; // 非 ROCE 类型无需区分
-    }
-    return IsHcommV2();
+    RoceContext roce{};
+    static_assert(sizeof(roce) <= sizeof(ctx.contextInfo.raws), "ROCE context too large");
+    (void)memcpy_s(&roce, sizeof(roce), ctx.contextInfo.raws, sizeof(roce));
+    return roce;
 }
 
-// 检测 CqContext 是否为新版 V2 格式
-inline bool IsRoceCqV2Format(const CqContext& ctx)
+inline SqContextRoceInitial ExtractSqContextRoceInitial(const SqContext& ctx)
 {
-    if (ctx.type != CQ_CONTEXT_TYPE_ROCE) {
-        return true;
-    }
-    return IsHcommV2();
+    return ExtractRoceContext<SqContextRoceInitial>(ctx);
 }
 
-// 从 SqContext 的原始字节中提取旧版 V1 字段 (SqContext::raws 覆盖整个 union)
-inline SqContextRoceV1 ExtractSqContextRoceV1(const SqContext& ctx)
+inline SqContextRoceSplitDb ExtractSqContextRoceSplitDb(const SqContext& ctx)
 {
-    SqContextRoceV1 v1{};
-    static_assert(sizeof(v1) <= sizeof(ctx.contextInfo.raws), "SqContextRoceV1 too large");
-    (void)memcpy_s(&v1, sizeof(v1), ctx.contextInfo.raws, sizeof(v1));
-    return v1;
+    return ExtractRoceContext<SqContextRoceSplitDb>(ctx);
 }
 
-// 从 CqContext 的原始字节中提取旧版 V1 字段
-inline CqContextRoceV1 ExtractCqContextRoceV1(const CqContext& ctx)
+inline SqContextRoceVendorSpecified ExtractSqContextRoceVendorSpecified(const SqContext& ctx)
 {
-    CqContextRoceV1 v1{};
-    static_assert(sizeof(v1) <= sizeof(ctx.contextInfo.raws), "CqContextRoceV1 too large");
-    (void)memcpy_s(&v1, sizeof(v1), ctx.contextInfo.raws, sizeof(v1));
-    return v1;
+    return ExtractRoceContext<SqContextRoceVendorSpecified>(ctx);
+}
+
+inline CqContextRoceInitial ExtractCqContextRoceInitial(const CqContext& ctx)
+{
+    return ExtractRoceContext<CqContextRoceInitial>(ctx);
+}
+
+inline CqContextRoceSplitDb ExtractCqContextRoceSplitDb(const CqContext& ctx)
+{
+    return ExtractRoceContext<CqContextRoceSplitDb>(ctx);
+}
+
+inline CqContextRoceVendorSpecified ExtractCqContextRoceVendorSpecified(const CqContext& ctx)
+{
+    return ExtractRoceContext<CqContextRoceVendorSpecified>(ctx);
 }
 // 用于判断 HcommChannelDesc 是否存在 roceAttr.cqAttrFlags 字段
 template <typename T, typename = void>

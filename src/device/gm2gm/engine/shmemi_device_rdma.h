@@ -50,9 +50,10 @@ struct aclshmemi_rdma_sq_ctx {
     uint64_t amo_addr; // addr for atomic operation
     uint32_t amo_lkey; // lkey for amo_addr
     // hns1825 (Ascend950) specific fields
-    uint64_t db_sw_addr; // software shadow doorbell address (used by hns_1825)
-    uint8_t mtu_shift;   // MTU shift for WQE size calculation (used by hns_1825)
-    uint8_t reserved[7]; // padding
+    uint64_t db_sw_addr;  // software shadow doorbell address (used by hns_1825)
+    uint8_t mtu_shift{4}; // MTU shift for WQE size calculation (used by hns_1825)
+    uint8_t db_cos{0x7};  // SQ doorbell COS for HNS_1825 hardware priority
+    uint8_t reserved[6];  // padding
 };
 
 struct aclshmemi_rdma_cq_ctx {
