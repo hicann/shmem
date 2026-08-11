@@ -239,10 +239,30 @@ bool add_unique_nic(affinity_info_t& info, affinity_group_t& group, const std::s
     return true;
 }
 
+std::optional<int> get_validated_npu_count()
+{
+    const auto npu_count = aclshmemi_hal_t::instance().get_npu_count();
+    if (!npu_count) {
+        SHM_LOG_ERROR("Get system NPU count failed");
+        return std::nullopt;
+    }
+    if (*npu_count <= 0 || *npu_count > ACLSHMEMI_MAX_NPU_COUNT) {
+        SHM_LOG_ERROR(
+            "Invalid system NPU count, npu_count=" << *npu_count << ", expected range=[1, " << ACLSHMEMI_MAX_NPU_COUNT
+                                                   << "]");
+        return std::nullopt;
+    }
+    return npu_count;
+}
+
 bool build_bdf_table(std::unordered_map<std::string, int>& bdf_to_npu)
 {
+    const auto npu_count = get_validated_npu_count();
+    if (!npu_count) {
+        return false;
+    }
     auto& hal = aclshmemi_hal_t::instance();
-    for (int phy_id = 0; phy_id < ACLSHMEMI_MAX_NPU_COUNT; ++phy_id) {
+    for (int phy_id = 0; phy_id < *npu_count; ++phy_id) {
         if (!hal.get_user_id_from_phy_id(static_cast<uint32_t>(phy_id))) {
             continue;
         }
@@ -372,6 +392,11 @@ bool build_affinity_info(
 std::optional<std::string> select_ip_round_robin(
     int phy_id, const affinity_info_t& info, const aclshmemi_nic_ip_resolver_t& resolver)
 {
+    const auto npu_count = get_validated_npu_count();
+    if (!npu_count) {
+        return std::nullopt;
+    }
+
     std::vector<std::optional<std::string>> nic_ips;
     nic_ips.reserve(info.nic_names.size());
     for (const auto& name : info.nic_names) {
@@ -385,7 +410,7 @@ std::optional<std::string> select_ip_round_robin(
     std::vector<std::optional<std::string>> assignment(static_cast<size_t>(ACLSHMEMI_MAX_NPU_COUNT));
     std::vector<std::optional<size_t>> assignment_nic_index(static_cast<size_t>(ACLSHMEMI_MAX_NPU_COUNT));
     size_t current = 0;
-    for (int npu_id = 0; npu_id < ACLSHMEMI_MAX_NPU_COUNT; ++npu_id) {
+    for (int npu_id = 0; npu_id < *npu_count; ++npu_id) {
         for (size_t offset = 0; offset < info.nic_names.size(); ++offset) {
             const size_t nic_index = (current + offset) % info.nic_names.size();
             if (!nic_ips[nic_index] || !info.affined[static_cast<size_t>(npu_id)][nic_index]) {

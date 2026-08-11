@@ -9,10 +9,13 @@
  */
 #include "aclshmemi_hal.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <utility>
+#include <vector>
 #include <securec.h>
 
 #include <dlfcn.h>
@@ -313,12 +316,39 @@ aclshmemi_hal_t& aclshmemi_hal_t::instance()
 std::optional<uint32_t> aclshmemi_hal_t::get_mainboard_id(int phy_id) { return dcmi_.get_mainboard_id(phy_id); }
 std::optional<uint32_t> aclshmemi_hal_t::get_user_id_from_phy_id(uint32_t phy_id)
 {
-    int32_t user_id = -1;
-    const auto ret = shm::DlAclApi::AclrtGetUserDevIdByPhyDevId(static_cast<int32_t>(phy_id), &user_id);
-    if (ret != 0 || user_id < 0) {
+    static std::mutex visible_devices_mutex;
+    static std::optional<std::vector<uint32_t>> visible_phy_ids;
+
+    std::lock_guard<std::mutex> lock(visible_devices_mutex);
+    if (!visible_phy_ids) {
+        uint32_t device_count = 0;
+        auto ret = aclrtGetDeviceCount(&device_count);
+        if (ret != 0 || device_count == 0 || device_count > ACLSHMEMI_MAX_NPU_COUNT) {
+            SHM_LOG_ERROR("Get visible NPU count failed, ret=" << ret << ", device_count=" << device_count);
+            return std::nullopt;
+        }
+
+        std::vector<uint32_t> phy_ids;
+        phy_ids.reserve(device_count);
+        for (uint32_t user_id = 0; user_id < device_count; ++user_id) {
+            int32_t visible_phy_id = -1;
+            ret = shm::DlAclApi::AclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(user_id), &visible_phy_id);
+            if (ret != 0 || visible_phy_id < 0 || visible_phy_id >= ACLSHMEMI_MAX_NPU_COUNT) {
+                SHM_LOG_ERROR(
+                    "Map visible user NPU to physical NPU failed, user_id=" << user_id << ", phy_id=" << visible_phy_id
+                                                                            << ", ret=" << ret);
+                return std::nullopt;
+            }
+            phy_ids.push_back(static_cast<uint32_t>(visible_phy_id));
+        }
+        visible_phy_ids = std::move(phy_ids);
+    }
+
+    const auto it = std::find(visible_phy_ids->begin(), visible_phy_ids->end(), phy_id);
+    if (it == visible_phy_ids->end()) {
         return std::nullopt;
     }
-    return static_cast<uint32_t>(user_id);
+    return static_cast<uint32_t>(std::distance(visible_phy_ids->begin(), it));
 }
 std::optional<int> aclshmemi_hal_t::get_npu_count() { return dcmi_.get_npu_count(); }
 

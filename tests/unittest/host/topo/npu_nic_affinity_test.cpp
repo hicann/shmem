@@ -52,6 +52,9 @@ protected:
     void SetUp() override
     {
         testing::Mock::AllowLeak(&MockHal::instance());
+        EXPECT_CALL(MockHal::instance(), get_npu_count())
+            .Times(testing::AnyNumber())
+            .WillRepeatedly(testing::Return(16));
         char path[] = "/tmp/aclshmem_affinity_XXXXXX";
         const int fd = mkstemp(path);
         ASSERT_GE(fd, 0);
@@ -204,6 +207,34 @@ TEST_F(NpuNicAffinityTest, SupportsNonContiguousVisiblePhyIdsInPcieGroup)
     auto ip = aclshmemi_get_roce_ip_from_xml(4, xml_path_, resolver);
     ASSERT_TRUE(ip.has_value());
     EXPECT_EQ(*ip, "172.16.0.4");
+}
+
+TEST_F(NpuNicAffinityTest, PcieVisibilityChecksAreBoundedBySystemCount)
+{
+    EXPECT_CALL(MockHal::instance(), get_user_id_from_phy_id(testing::_))
+        .Times(17)
+        .WillRepeatedly(testing::Invoke([](uint32_t phy_id) -> std::optional<uint32_t> {
+            EXPECT_LT(phy_id, 16U);
+            return phy_id == 9U ? std::optional<uint32_t>(0U) : std::nullopt;
+        }));
+    EXPECT_CALL(MockHal::instance(), get_device_pcie_info(testing::_, testing::_))
+        .Times(1)
+        .WillOnce(testing::Invoke([](int phy_id, struct dcmi_pcie_info_all* info) {
+            EXPECT_EQ(phy_id, 9);
+            *info = {};
+            info->domain = 0;
+            info->bdf_busid = static_cast<unsigned int>(phy_id + 3);
+            return 0;
+        }));
+    WriteXml("<system><cpu><pci>"
+             "<pci busid=\"0000:0c:00.0\"/>"
+             "<pci busid=\"0000:0d:00.0\"><nic><net name=\"eth0\"/></nic></pci>"
+             "</pci></cpu></system>");
+    fake_nic_ip_resolver_t resolver(std::unordered_map<std::string, std::string>{{"eth0", "172.16.0.9"}});
+
+    auto ip = aclshmemi_get_roce_ip_from_xml(9, xml_path_, resolver);
+    ASSERT_TRUE(ip.has_value());
+    EXPECT_EQ(*ip, "172.16.0.9");
 }
 
 TEST_F(NpuNicAffinityTest, FailsWhenCurrentNpuHasNoAffinity)
