@@ -34,12 +34,21 @@ echo "===== [1/4] Installing wheel ====="
 pip install --force-reinstall "$WHEEL"
 echo "===== Installation done ====="
 
-# ---------- Step 2: import shmem ----------
-echo "===== [2/4] Importing shmem module ====="
+# ---------- Step 2: import shmem and native-backed subpackages ----------
+echo "===== [2/4] Importing shmem modules ====="
 python3 -c "
 import shmem
-assert shmem._NATIVE_LOADED, 'Native bindings failed to load — import succeeded but SHMEM APIs are unavailable'
-print('shmem imported successfully (native bindings loaded)')
+print('shmem imported successfully')
+"
+python3 -c "
+import shmem.core
+assert shmem._NATIVE_LIBRARIES_LOADED, 'Native libraries were not preloaded before importing shmem.core'
+print('shmem.core imported successfully (native libraries loaded)')
+"
+python3 -c "
+import shmem.core.rma
+assert shmem._NATIVE_LIBRARIES_LOADED, 'Native libraries were not preloaded before importing shmem.core.rma'
+print('shmem.core.rma imported successfully (native libraries loaded)')
 "
 echo -n "  version: "
 shmem-config --version

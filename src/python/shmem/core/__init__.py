@@ -9,6 +9,13 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 #
+import shmem as _shmem
+
+# ``import shmem.core`` bypasses shmem.__getattr__, so explicitly enter the
+# package's native-library loading stage before any child module imports
+# shmem._pyshmem.
+_shmem._ensure_native_libraries()
+
 from .init_final import *
 from .rma import *
 from .memory import *

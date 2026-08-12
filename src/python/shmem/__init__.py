@@ -316,8 +316,30 @@ def _import_bindings():
     globals()["aclshmem_finialize"] = aclshmem_finalize
 
 
+_NATIVE_LIBRARIES_LOADED = False
 _NATIVE_LOADED = False
 _NATIVE_LOAD_ERROR = None
+
+
+def _ensure_native_libraries():
+    """Preload packaged native libraries before importing ``_pyshmem``.
+
+    Python imports a requested submodule directly after initializing its
+    parent package.  Consequently, ``import shmem.core`` does not access a
+    public name through :func:`__getattr__` and cannot rely on
+    :func:`_ensure_native` being called first.  Native-backed subpackages use
+    this smaller, idempotent loading stage to make the selected backend
+    libraries visible to the dynamic linker before importing ``_pyshmem``.
+    """
+    global _NATIVE_LIBRARIES_LOADED, _NATIVE_LOAD_ERROR
+    if _NATIVE_LIBRARIES_LOADED:
+        return
+    try:
+        _load_native()
+    except Exception as exc:
+        _NATIVE_LOAD_ERROR = exc
+        raise
+    _NATIVE_LIBRARIES_LOADED = True
 
 # Public API surface — always defined so that introspection tools (help(), dir(),
 # shmem-config --diagnose) work without native libraries being loaded.
@@ -381,7 +403,7 @@ def _ensure_native():
     if _NATIVE_LOADED:
         return
     try:
-        _load_native()
+        _ensure_native_libraries()
         _import_bindings()
     except Exception as exc:
         _NATIVE_LOAD_ERROR = exc
