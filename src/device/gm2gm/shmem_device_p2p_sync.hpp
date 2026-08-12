@@ -17,61 +17,75 @@
 #include "utils/mstx/shmemi_mstx_report.h"
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_eq(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_eq(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr != cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) != cmp_val);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ne(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ne(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr == cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) == cmp_val);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_gt(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_gt(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr <= cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) <= cmp_val);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ge(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_ge(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr < cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) < cmp_val);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_lt(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_lt(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr >= cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) >= cmp_val);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_le(__gm__ volatile T *sig_addr, T cmp_val)
+ACLSHMEM_DEVICE void aclshmemi_signal_wait_until_le(__gm__ volatile T* sig_addr, T cmp_val)
 {
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
     do {
-        dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    } while (*sig_addr > cmp_val);
+        dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    } while (sig_tensor.GetValue(0) > cmp_val);
 }
 
-ACLSHMEM_DEVICE int32_t aclshmemi_signal_fetch(__gm__ int32_t *sig_addr)
+ACLSHMEM_DEVICE int32_t aclshmemi_signal_fetch(__gm__ int32_t* sig_addr)
 {
-    dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    return *sig_addr;
+    AscendC::GlobalTensor<int32_t> sig_tensor;
+    sig_tensor.SetGlobalBuffer(sig_addr);
+    dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    return sig_tensor.GetValue(0);
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_wait_until(__gm__ volatile T *ivar, int cmp, T cmp_value)
+ACLSHMEM_DEVICE void aclshmemi_wait_until(__gm__ volatile T* ivar, int cmp, T cmp_value)
 {
     switch (cmp) {
         case ACLSHMEM_CMP_EQ:
@@ -86,33 +100,39 @@ ACLSHMEM_DEVICE void aclshmemi_wait_until(__gm__ volatile T *ivar, int cmp, T cm
             return aclshmemi_signal_wait_until_lt<T>(ivar, cmp_value);
         case ACLSHMEM_CMP_LE:
             return aclshmemi_signal_wait_until_le<T>(ivar, cmp_value);
+        default:
+            return;
     }
 }
 
 template <typename T>
-ACLSHMEM_DEVICE int aclshmemi_test(__gm__ volatile T *sig_addr, int cmp, T cmp_value)
+ACLSHMEM_DEVICE int aclshmemi_test(__gm__ volatile T* sig_addr, int cmp, T cmp_value)
 {
-    dcci_cacheline((__gm__ uint8_t *)sig_addr);
+    AscendC::GlobalTensor<T> sig_tensor;
+    sig_tensor.SetGlobalBuffer((__gm__ T*)sig_addr);
+    dcci_cacheline((__gm__ uint8_t*)sig_addr);
+    T value = sig_tensor.GetValue(0);
     switch (cmp) {
         case ACLSHMEM_CMP_EQ:
-            return *sig_addr == cmp_value;
+            return value == cmp_value;
         case ACLSHMEM_CMP_NE:
-            return *sig_addr != cmp_value;
+            return value != cmp_value;
         case ACLSHMEM_CMP_GT:
-            return *sig_addr > cmp_value;
+            return value > cmp_value;
         case ACLSHMEM_CMP_GE:
-            return *sig_addr >= cmp_value;
+            return value >= cmp_value;
         case ACLSHMEM_CMP_LT:
-            return *sig_addr < cmp_value;
+            return value < cmp_value;
         case ACLSHMEM_CMP_LE:
-            return *sig_addr <= cmp_value;
+            return value <= cmp_value;
+        default:
+            return 0;
     }
-    return 0;
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_wait_until_all(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
-    int cmp, T cmp_value)
+ACLSHMEM_DEVICE void aclshmemi_wait_until_all(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, T cmp_value)
 {
     for (size_t idx = 0; idx < nelems; idx++) {
         if (!status || status[idx] == 0) {
@@ -122,8 +142,8 @@ ACLSHMEM_DEVICE void aclshmemi_wait_until_all(__gm__ volatile T *ivars, size_t n
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
-    int cmp, T cmp_value)
+ACLSHMEM_DEVICE size_t
+aclshmemi_wait_until_any(__gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, T cmp_value)
 {
     if (nelems == 0) {
         return SIZE_MAX;
@@ -147,8 +167,8 @@ ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any(__gm__ volatile T *ivars, size_t
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
-    __gm__ const int *status, int cmp, T cmp_value)
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp, T cmp_value)
 {
     if (nelems == 0) {
         return 0;
@@ -183,8 +203,8 @@ ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some(__gm__ volatile T *ivars, size_
 }
 
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemi_wait_until_all_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
-    int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE void aclshmemi_wait_until_all_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ T* cmp_values)
 {
     for (size_t idx = 0; idx < nelems; idx++) {
         if (!status || status[idx] == 0) {
@@ -194,8 +214,8 @@ ACLSHMEM_DEVICE void aclshmemi_wait_until_all_vector(__gm__ volatile T *ivars, s
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any_vector(__gm__ volatile T *ivars, size_t nelems,
-    __gm__ const int *status, int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ T* cmp_values)
 {
     if (nelems == 0) {
         return SIZE_MAX;
@@ -218,10 +238,10 @@ ACLSHMEM_DEVICE size_t aclshmemi_wait_until_any_vector(__gm__ volatile T *ivars,
     }
 }
 
-
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
-    __gm__ const int *status, int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp,
+    __gm__ T* cmp_values)
 {
     if (nelems == 0) {
         return 0;
@@ -256,8 +276,8 @@ ACLSHMEM_DEVICE size_t aclshmemi_wait_until_some_vector(__gm__ volatile T *ivars
 }
 
 template <typename T>
-ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, __gm__ const int *status, int cmp, T cmp_val,
-    int stride)
+ACLSHMEM_DEVICE int aclshmemi_test_all(
+    __gm__ T* sig_addr, size_t nelems, __gm__ const int* status, int cmp, T cmp_val, int stride)
 {
     int ret = 1;
 
@@ -266,26 +286,32 @@ ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, __gm__
             continue;
         }
 
-        dcci_cacheline((__gm__ uint8_t *)(sig_addr + i * stride));
+        __gm__ T* value_addr = sig_addr + i * stride;
+        AscendC::GlobalTensor<T> sig_tensor;
+        sig_tensor.SetGlobalBuffer(value_addr);
+        dcci_cacheline((__gm__ uint8_t*)value_addr);
+        T value = sig_tensor.GetValue(0);
         switch (cmp) {
             case ACLSHMEM_CMP_EQ:
-                ret &= (*(sig_addr + i * stride) == cmp_val);
+                ret &= (value == cmp_val);
                 break;
             case ACLSHMEM_CMP_NE:
-                ret &= (*(sig_addr + i * stride) != cmp_val);
+                ret &= (value != cmp_val);
                 break;
             case ACLSHMEM_CMP_GT:
-                ret &= (*(sig_addr + i * stride) > cmp_val);
+                ret &= (value > cmp_val);
                 break;
             case ACLSHMEM_CMP_GE:
-                ret &= (*(sig_addr + i * stride) >= cmp_val);
+                ret &= (value >= cmp_val);
                 break;
             case ACLSHMEM_CMP_LT:
-                ret &= (*(sig_addr + i * stride) < cmp_val);
+                ret &= (value < cmp_val);
                 break;
             case ACLSHMEM_CMP_LE:
-                ret &= (*(sig_addr + i * stride) <= cmp_val);
+                ret &= (value <= cmp_val);
                 break;
+            default:
+                return 0;
         }
     }
 
@@ -293,8 +319,8 @@ ACLSHMEM_DEVICE int aclshmemi_test_all(__gm__ T *sig_addr, size_t nelems, __gm__
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_test_any(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status, int cmp,
-    T cmp_value)
+ACLSHMEM_DEVICE size_t
+aclshmemi_test_any(__gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, T cmp_value)
 {
     if (nelems == 0) {
         return SIZE_MAX;
@@ -311,8 +337,8 @@ ACLSHMEM_DEVICE size_t aclshmemi_test_any(__gm__ volatile T *ivars, size_t nelem
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_test_some(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
-    __gm__ const int *status, int cmp, T cmp_value)
+ACLSHMEM_DEVICE size_t aclshmemi_test_some(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp, T cmp_value)
 {
     if (nelems == 0) {
         return 0;
@@ -330,8 +356,8 @@ ACLSHMEM_DEVICE size_t aclshmemi_test_some(__gm__ volatile T *ivars, size_t nele
 }
 
 template <typename T>
-ACLSHMEM_DEVICE int aclshmemi_test_all_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
-    int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE int aclshmemi_test_all_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ T* cmp_values)
 {
     for (size_t idx = 0; idx < nelems; idx++) {
         if (!status || status[idx] == 0) {
@@ -345,8 +371,8 @@ ACLSHMEM_DEVICE int aclshmemi_test_all_vector(__gm__ volatile T *ivars, size_t n
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_test_any_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ const int *status,
-    int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE size_t aclshmemi_test_any_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ T* cmp_values)
 {
     if (nelems == 0) {
         return SIZE_MAX;
@@ -363,8 +389,9 @@ ACLSHMEM_DEVICE size_t aclshmemi_test_any_vector(__gm__ volatile T *ivars, size_
 }
 
 template <typename T>
-ACLSHMEM_DEVICE size_t aclshmemi_test_some_vector(__gm__ volatile T *ivars, size_t nelems, __gm__ size_t *indices,
-    __gm__ const int *status, int cmp, __gm__ T *cmp_values)
+ACLSHMEM_DEVICE size_t aclshmemi_test_some_vector(
+    __gm__ volatile T* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp,
+    __gm__ T* cmp_values)
 {
     if (nelems == 0) {
         return 0;
@@ -385,147 +412,138 @@ ACLSHMEM_DEVICE size_t aclshmemi_test_some_vector(__gm__ volatile T *ivars, size
 extern "C" {
 #endif
 
-ACLSHMEM_DEVICE int32_t aclshmem_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val)
+ACLSHMEM_DEVICE int32_t aclshmem_signal_wait_until(__gm__ int32_t* sig_addr, int cmp, int32_t cmp_val)
 {
     MSTX_FUSE_SCOPE_START();
     aclshmemi_wait_until<int32_t>(sig_addr, cmp, cmp_val);
     MSTX_FUSE_SCOPE_END();
     MSTX_SIGNAL_WAIT_REPORT(sig_addr, cmp, cmp_val);
-    return *sig_addr;
+    AscendC::GlobalTensor<int32_t> sig_tensor;
+    sig_tensor.SetGlobalBuffer(sig_addr);
+    return sig_tensor.GetValue(0);
 }
 
-#define ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                                                \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until(__gm__ TYPE *ivar, int cmp, TYPE cmp_value)                      \
-    {                                                                                                                  \
-        aclshmemi_wait_until<TYPE>(ivar, cmp, cmp_value);                                                              \
+#define ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                           \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until(__gm__ TYPE* ivar, int cmp, TYPE cmp_value) \
+    {                                                                                             \
+        aclshmemi_wait_until<TYPE>(ivar, cmp, cmp_value);                                         \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL);
 
-#define ACLSHMEM_WAIT(NAME, TYPE)                                                                                      \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait(__gm__ TYPE *ivar, TYPE cmp_value)                                     \
-    {                                                                                                                  \
-        aclshmemi_wait_until<TYPE>(ivar, ACLSHMEM_CMP_NE, cmp_value);                                                  \
+#define ACLSHMEM_WAIT(NAME, TYPE)                                                  \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait(__gm__ TYPE* ivar, TYPE cmp_value) \
+    {                                                                              \
+        aclshmemi_wait_until<TYPE>(ivar, ACLSHMEM_CMP_NE, cmp_value);              \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT);
 
-#define ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                                            \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until_all(                                                             \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, TYPE cmp_value                           \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        aclshmemi_wait_until_all<TYPE>(ivars, nelems, status, cmp, cmp_value);                                         \
+#define ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                   \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until_all(                                    \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, TYPE cmp_value) \
+    {                                                                                         \
+        aclshmemi_wait_until_all<TYPE>(ivars, nelems, status, cmp, cmp_value);                \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL);
 
-#define ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                                            \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_any(                                                           \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, TYPE cmp_value                           \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_wait_until_any<TYPE>(ivars, nelems, status, cmp, cmp_value);                                  \
+#define ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                   \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_any(                                  \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, TYPE cmp_value) \
+    {                                                                                         \
+        return aclshmemi_wait_until_any<TYPE>(ivars, nelems, status, cmp, cmp_value);         \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY);
 
-#define ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                           \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_some(                                                          \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ size_t *indices, __gm__ const int *status, int cmp, TYPE cmp_value   \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_wait_until_some<TYPE>(ivars, nelems, indices, status, cmp, cmp_value);                        \
+#define ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                          \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_some(                                                         \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp, TYPE cmp_value) \
+    {                                                                                                                 \
+        return aclshmemi_wait_until_some<TYPE>(ivars, nelems, indices, status, cmp, cmp_value);                       \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME);
 
-#define ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                                     \
-    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until_all_vector(                                                      \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, __gm__ TYPE *cmp_values                  \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        aclshmemi_wait_until_all_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                                 \
+#define ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                     \
+    ACLSHMEM_DEVICE void aclshmem_##NAME##_wait_until_all_vector(                                      \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ TYPE* cmp_values) \
+    {                                                                                                  \
+        aclshmemi_wait_until_all_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                 \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
 
-#define ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                                     \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_any_vector(                                                    \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, __gm__ TYPE *cmp_values                  \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_wait_until_any_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                          \
+#define ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                     \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_any_vector(                                    \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ TYPE* cmp_values) \
+    {                                                                                                  \
+        return aclshmemi_wait_until_any_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);          \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
 
-#define ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                                    \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_some_vector(                                                   \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ size_t *indices, __gm__ const int *status, int cmp,                  \
-        __gm__ TYPE *cmp_values                                                                                        \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_wait_until_some_vector<TYPE>(ivars, nelems, indices, status, cmp, cmp_values);                \
+#define ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                     \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_wait_until_some_vector(                                    \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp,   \
+        __gm__ TYPE* cmp_values)                                                                        \
+    {                                                                                                   \
+        return aclshmemi_wait_until_some_vector<TYPE>(ivars, nelems, indices, status, cmp, cmp_values); \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
 
-#define ACLSHMEM_TEST(NAME, TYPE)                                                                                      \
-    ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE *ivars, int cmp, TYPE cmp_value)                            \
-    {                                                                                                                  \
-        return aclshmemi_test<TYPE>(ivars, cmp, cmp_value);                                                            \
+#define ACLSHMEM_TEST(NAME, TYPE)                                                           \
+    ACLSHMEM_DEVICE int aclshmem_##NAME##_test(__gm__ TYPE* ivars, int cmp, TYPE cmp_value) \
+    {                                                                                       \
+        return aclshmemi_test<TYPE>(ivars, cmp, cmp_value);                                 \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST);
 
-#define ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                                  \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_any(                                                                 \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, TYPE cmp_value                           \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_test_any<TYPE>(ivars, nelems, status, cmp, cmp_value);                                        \
+#define ACLSHMEM_TEST_ANY(NAME, TYPE)                                                         \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_any(                                        \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, TYPE cmp_value) \
+    {                                                                                         \
+        return aclshmemi_test_any<TYPE>(ivars, nelems, status, cmp, cmp_value);               \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY);
 
-#define ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                                 \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_some(                                                                \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ size_t *indices, __gm__ const int *status, int cmp, TYPE cmp_value   \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_test_some<TYPE>(ivars, nelems, indices, status, cmp, cmp_value);                              \
+#define ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                                \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_some(                                                               \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp, TYPE cmp_value) \
+    {                                                                                                                 \
+        return aclshmemi_test_some<TYPE>(ivars, nelems, indices, status, cmp, cmp_value);                             \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME);
 
-#define ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                                           \
-    ACLSHMEM_DEVICE int aclshmem_##NAME##_test_all_vector(                                                             \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, __gm__ TYPE *cmp_values                  \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_test_all_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                                \
+#define ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                           \
+    ACLSHMEM_DEVICE int aclshmem_##NAME##_test_all_vector(                                             \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ TYPE* cmp_values) \
+    {                                                                                                  \
+        return aclshmemi_test_all_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ALL_VECTOR);
 
-#define ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                                           \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_any_vector(                                                          \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ const int *status, int cmp, __gm__ TYPE *cmp_values                  \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_test_any_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                                \
+#define ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                           \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_any_vector(                                          \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ const int* status, int cmp, __gm__ TYPE* cmp_values) \
+    {                                                                                                  \
+        return aclshmemi_test_any_vector<TYPE>(ivars, nelems, status, cmp, cmp_values);                \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_ANY_VECTOR);
 
-#define ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                                          \
-    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_some_vector(                                                         \
-        __gm__ TYPE *ivars, size_t nelems, __gm__ size_t *indices, __gm__ const int *status, int cmp,                  \
-        __gm__ TYPE *cmp_values                                                                                        \
-    )                                                                                                                  \
-    {                                                                                                                  \
-        return aclshmemi_test_some_vector<TYPE>(ivars, nelems, indices, status, cmp, cmp_values);                      \
+#define ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                         \
+    ACLSHMEM_DEVICE size_t aclshmem_##NAME##_test_some_vector(                                        \
+        __gm__ TYPE* ivars, size_t nelems, __gm__ size_t* indices, __gm__ const int* status, int cmp, \
+        __gm__ TYPE* cmp_values)                                                                      \
+    {                                                                                                 \
+        return aclshmemi_test_some_vector<TYPE>(ivars, nelems, indices, status, cmp, cmp_values);     \
     }
 
 ACLSHMEM_P2P_SYNC_TYPE_FUNC(ACLSHMEM_TEST_SOME_VECTOR);
