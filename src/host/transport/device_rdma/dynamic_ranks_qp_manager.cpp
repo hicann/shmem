@@ -19,9 +19,12 @@ namespace transport {
 namespace device {
 const int delay = 5;
 static constexpr auto WAIT_DELAY_TIME = std::chrono::seconds(delay);
-DynamicRanksQpManager::DynamicRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
-                                             mf_sockaddr devNet, bool server) noexcept
-    : DeviceQpManager{deviceId, rankId, rankCount, devNet, server ? HYBM_ROLE_RECEIVER : HYBM_ROLE_SENDER}
+DynamicRanksQpManager::DynamicRanksQpManager(
+    uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet,
+    bool server) noexcept
+    : DeviceQpManager{
+          deviceId, rankId, rankCount, devNet,
+          server ? hybm_role_type::HYBM_ROLE_RECEIVER : hybm_role_type::HYBM_ROLE_SENDER}
 {
     connectionView_.resize(rankCount);
     userDeviceId_ = userDeviceId;
@@ -31,12 +34,12 @@ DynamicRanksQpManager::~DynamicRanksQpManager() noexcept
 {
     try {
         CloseServices();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         SHM_LOG_ERROR("dynamic ranks qp mgr close services failed: " << e.what());
     }
 }
 
-int DynamicRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo> &ranks) noexcept
+int DynamicRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo>& ranks) noexcept
 {
     std::unordered_map<uint32_t, ConnectRankInfo> tempRanks;
     for (auto it = ranks.begin(); it != ranks.end(); ++it) {
@@ -61,8 +64,9 @@ int DynamicRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, 
     if (backGroundThread_ == nullptr) {
         return ACLSHMEM_SUCCESS;
     }
-    SHM_LOG_DEBUG("SetRemoteRankInfo currentRanksInfo_.size=: " << currentRanksInfo_.size()
-                 << ", lastTimeRanksInfo.size=" << lastTimeRanksInfo.size());
+    SHM_LOG_DEBUG(
+        "SetRemoteRankInfo currentRanksInfo_.size=: " << currentRanksInfo_.size()
+                                                      << ", lastTimeRanksInfo.size=" << lastTimeRanksInfo.size());
     GenDiffInfoChangeRanks(lastTimeRanksInfo, addedRanks, addMrRanks);
     uniqueLock.unlock();
 
@@ -70,7 +74,7 @@ int DynamicRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, 
     return ACLSHMEM_SUCCESS;
 }
 
-int DynamicRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
+int DynamicRanksQpManager::SetLocalMemories(const MemoryRegionMap& mrs) noexcept
 {
     std::unique_lock<std::mutex> uniqueLock{mutex_};
     currentLocalMrs_ = mrs;
@@ -79,7 +83,7 @@ int DynamicRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
     }
     uniqueLock.unlock();
 
-    auto &task = connectionTasks_.updateMrTask;
+    auto& task = connectionTasks_.updateMrTask;
     std::unique_lock<std::mutex> taskLocker{task.locker};
     task.status.exist = true;
     task.status.failedTimes = 0;
@@ -89,7 +93,7 @@ int DynamicRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int DynamicRanksQpManager::Startup(void *rdma) noexcept
+int DynamicRanksQpManager::Startup(void* rdma) noexcept
 {
     if (rdma == nullptr) {
         SHM_LOG_ERROR("input rdma is null");
@@ -98,14 +102,14 @@ int DynamicRanksQpManager::Startup(void *rdma) noexcept
 
     rdmaHandle_ = rdma;
     std::unique_lock<std::mutex> uniqueLock{mutex_};
-    if (rankRole_ == HYBM_ROLE_RECEIVER) {
+    if (rankRole_ == hybm_role_type::HYBM_ROLE_RECEIVER) {
         auto ret = CreateServerSocket();
         if (ret != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("create server socket failed: " << ret);
             return ret;
         }
 
-        auto &task = connectionTasks_.whitelistTask;
+        auto& task = connectionTasks_.whitelistTask;
         task.locker.lock();
         for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
             net_addr_t remoteIp;
@@ -122,7 +126,7 @@ int DynamicRanksQpManager::Startup(void *rdma) noexcept
         task.status.exist = true;
         task.locker.unlock();
     } else {
-        auto &task = connectionTasks_.clientConnectTask;
+        auto& task = connectionTasks_.clientConnectTask;
         task.locker.lock();
         for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
             task.remoteAddress.emplace(it->first, it->second.network);
@@ -142,12 +146,9 @@ int DynamicRanksQpManager::Startup(void *rdma) noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-void DynamicRanksQpManager::Shutdown() noexcept
-{
-    CloseServices();
-}
+void DynamicRanksQpManager::Shutdown() noexcept { CloseServices(); }
 
-void *DynamicRanksQpManager::GetQpHandleWithRankId(uint32_t rankId) const noexcept
+void* DynamicRanksQpManager::GetQpHandleWithRankId(uint32_t rankId) const noexcept
 {
     if (rankId >= connectionView_.size()) {
         SHM_LOG_ERROR("get qp handle with rankId: " << rankId << ", too large.");
@@ -186,8 +187,8 @@ void DynamicRanksQpManager::BackgroundProcess() noexcept
     }
 }
 
-void DynamicRanksQpManager::InitializeWhiteList(std::vector<HccpSocketWhiteListInfo> &whitelist,
-    std::unordered_map<uint32_t, net_addr_t> remotes) noexcept
+void DynamicRanksQpManager::InitializeWhiteList(
+    std::vector<HccpSocketWhiteListInfo>& whitelist, std::unordered_map<uint32_t, net_addr_t> remotes) noexcept
 {
     const uint32_t MAX_CONNECTIONS = 1024;
     for (auto it = remotes.begin(); it != remotes.end(); ++it) {
@@ -217,11 +218,11 @@ void DynamicRanksQpManager::InitializeWhiteList(std::vector<HccpSocketWhiteListI
 
 int DynamicRanksQpManager::ProcessServerAddWhitelistTask() noexcept
 {
-    if (rankRole_ != HYBM_ROLE_RECEIVER) {
+    if (rankRole_ != hybm_role_type::HYBM_ROLE_RECEIVER) {
         return 0;
     }
 
-    auto &currTask = connectionTasks_.whitelistTask;
+    auto& currTask = connectionTasks_.whitelistTask;
     std::unique_lock<std::mutex> uniqueLock{currTask.locker};
     if (!currTask.status.exist) {
         return 0;
@@ -241,14 +242,14 @@ int DynamicRanksQpManager::ProcessServerAddWhitelistTask() noexcept
     auto ret = DlHccpApi::RaSocketWhiteListAdd(serverSocketHandle_, whitelist.data(), whitelist.size());
     if (ret != 0) {
         auto failedTimes = currTask.Failed(remotes);
-        SHM_LOG_ERROR("RaSocketWhiteListAdd() with size=" << whitelist.size() << " failed: " << ret
-                                                         << ", times=" << failedTimes);
+        SHM_LOG_ERROR(
+            "RaSocketWhiteListAdd() with size=" << whitelist.size() << " failed: " << ret << ", times=" << failedTimes);
         return 1;
     }
 
     currTask.Success();
-    auto &nextTask = connectionTasks_.queryConnectTask;
-    for (auto &rank : remotes) {
+    auto& nextTask = connectionTasks_.queryConnectTask;
+    for (auto& rank : remotes) {
         net_addr_t rankIp;
         if (rank.second.type == IpV4) {
             rankIp.type = IpV4;
@@ -264,12 +265,12 @@ int DynamicRanksQpManager::ProcessServerAddWhitelistTask() noexcept
     return 0;
 }
 
-int DynamicRanksQpManager::CreateConnectInfos(std::unordered_map<uint32_t, mf_sockaddr> &remotes,
-                                              std::vector<HccpSocketConnectInfo> &connectInfos,
-                                              ClientConnectSocketTask &currTask)
+int DynamicRanksQpManager::CreateConnectInfos(
+    std::unordered_map<uint32_t, mf_sockaddr>& remotes, std::vector<HccpSocketConnectInfo>& connectInfos,
+    ClientConnectSocketTask& currTask)
 {
     for (auto it = remotes.begin(); it != remotes.end(); ++it) {
-        void *socketHandle;
+        void* socketHandle;
         auto pos = connections_.find(it->first);
         if (pos == connections_.end()) {
             socketHandle = CreateLocalSocket();
@@ -312,8 +313,9 @@ int DynamicRanksQpManager::CreateConnectInfos(std::unordered_map<uint32_t, mf_so
     return ACLSHMEM_SUCCESS;
 }
 
-int DynamicRanksQpManager::BatchConnectWithRetry(std::vector<HccpSocketConnectInfo> connectInfos,
-    ClientConnectSocketTask &currTask, std::unordered_map<uint32_t, mf_sockaddr> &remotes) noexcept
+int DynamicRanksQpManager::BatchConnectWithRetry(
+    std::vector<HccpSocketConnectInfo> connectInfos, ClientConnectSocketTask& currTask,
+    std::unordered_map<uint32_t, mf_sockaddr>& remotes) noexcept
 {
     uint32_t batchSize = 16;
     for (size_t i = 0; i < connectInfos.size(); i += batchSize) {
@@ -325,8 +327,9 @@ int DynamicRanksQpManager::BatchConnectWithRetry(std::vector<HccpSocketConnectIn
         auto ret = DlHccpApi::RaSocketBatchConnect(currentBatch.data(), currentBatch.size());
         if (ret != 0) {
             auto failedCount = currTask.Failed(remotes);
-            SHM_LOG_ERROR("connect to all servers failed: " << ret << ", servers count = " << connectInfos.size()
-                                                           << ", failed times: " << failedCount);
+            SHM_LOG_ERROR(
+                "connect to all servers failed: " << ret << ", servers count = " << connectInfos.size()
+                                                  << ", failed times: " << failedCount);
             return 1;
         }
     }
@@ -335,11 +338,11 @@ int DynamicRanksQpManager::BatchConnectWithRetry(std::vector<HccpSocketConnectIn
 
 int DynamicRanksQpManager::ProcessClientConnectSocketTask() noexcept
 {
-    if (rankRole_ != HYBM_ROLE_SENDER) {
+    if (rankRole_ != hybm_role_type::HYBM_ROLE_SENDER) {
         return 0;
     }
 
-    auto &currTask = connectionTasks_.clientConnectTask;
+    auto& currTask = connectionTasks_.clientConnectTask;
     std::unique_lock<std::mutex> uniqueLock{currTask.locker};
     if (!currTask.status.exist) {
         return 0;
@@ -366,8 +369,8 @@ int DynamicRanksQpManager::ProcessClientConnectSocketTask() noexcept
     }
 
     currTask.Success();
-    auto &nextTask = connectionTasks_.queryConnectTask;
-    for (auto &rank : remotes) {
+    auto& nextTask = connectionTasks_.queryConnectTask;
+    for (auto& rank : remotes) {
         net_addr_t rankIp;
         if (rank.second.type == IpV4) {
             rankIp.type = IpV4;
@@ -383,10 +386,11 @@ int DynamicRanksQpManager::ProcessClientConnectSocketTask() noexcept
     return 0;
 }
 
-void DynamicRanksQpManager::Parse2SocketInfo(std::unordered_map<net_addr_t, uint32_t> &ip2rank,
-                                             std::vector<HccpSocketInfo> &socketInfos, std::vector<IpType> &types)
+void DynamicRanksQpManager::Parse2SocketInfo(
+    std::unordered_map<net_addr_t, uint32_t>& ip2rank, std::vector<HccpSocketInfo>& socketInfos,
+    std::vector<IpType>& types)
 {
-    for (auto &pair : ip2rank) {
+    for (auto& pair : ip2rank) {
         struct net_addr_t ip;
         if (pair.first.type == IpV4) {
             ip.type = IpV4;
@@ -395,7 +399,7 @@ void DynamicRanksQpManager::Parse2SocketInfo(std::unordered_map<net_addr_t, uint
             ip.type = IpV6;
             ip.ip.ipv6 = pair.first.ip.ipv6;
         }
-        
+
         auto pos = connections_.find(pair.second);
         if (pos != connections_.end()) {
             HccpSocketInfo info;
@@ -417,11 +421,9 @@ void DynamicRanksQpManager::Parse2SocketInfo(std::unordered_map<net_addr_t, uint
     }
 }
 
-void DynamicRanksQpManager::ProcessSocketConnectionsByIP(uint32_t getSize, std::vector<HccpSocketInfo> &socketInfos,
-                                                         std::unordered_map<net_addr_t, uint32_t> &ip2rank,
-                                                         std::vector<IpType> &types,
-                                                         std::unordered_set<uint32_t> &connectedRanks,
-                                                         uint32_t &successCount)
+void DynamicRanksQpManager::ProcessSocketConnectionsByIP(
+    uint32_t getSize, std::vector<HccpSocketInfo>& socketInfos, std::unordered_map<net_addr_t, uint32_t>& ip2rank,
+    std::vector<IpType>& types, std::unordered_set<uint32_t>& connectedRanks, uint32_t& successCount)
 {
     for (auto i = 0U; i < getSize; i++) {
         if (socketInfos[i].status != 1) {
@@ -429,7 +431,7 @@ void DynamicRanksQpManager::ProcessSocketConnectionsByIP(uint32_t getSize, std::
         }
         net_addr_t addr;
         char ipStr[INET6_ADDRSTRLEN];
-        char* result {};
+        char* result{};
         if (types[i] == IpV4) {
             addr.type = IpV4;
             addr.ip.ipv4 = socketInfos[i].remoteIp.addr;
@@ -459,22 +461,22 @@ void DynamicRanksQpManager::ProcessSocketConnectionsByIP(uint32_t getSize, std::
     }
 }
 
-int32_t DynamicRanksQpManager::GetSocketConn(std::vector<HccpSocketInfo> &socketInfos,
-                                             QueryConnectionStateTask &currTask,
-                                             std::unordered_map<net_addr_t, uint32_t> &ip2rank,
-                                             std::unordered_set<uint32_t> &connectedRanks, std::vector<IpType> &types)
+int32_t DynamicRanksQpManager::GetSocketConn(
+    std::vector<HccpSocketInfo>& socketInfos, QueryConnectionStateTask& currTask,
+    std::unordered_map<net_addr_t, uint32_t>& ip2rank, std::unordered_set<uint32_t>& connectedRanks,
+    std::vector<IpType>& types)
 {
     uint32_t cnt = 0;
     uint32_t successCount = 0;
     uint32_t batchCnt = 16;
     do {
-        auto socketRole = rankRole_ == HYBM_ROLE_SENDER ? 1 : 0;
+        auto socketRole = rankRole_ == hybm_role_type::HYBM_ROLE_SENDER ? 1 : 0;
         uint32_t getSize = socketInfos.size() < batchCnt ? socketInfos.size() : batchCnt;
         auto ret = DlHccpApi::RaGetSockets(socketRole, socketInfos.data(), getSize, cnt);
         if (ret != 0) {
             auto failedCount = currTask.Failed(ip2rank);
-            SHM_LOG_ERROR("socketRole(" << socketRole << ") side get sockets failed: "
-                         << ret << ", count: " << failedCount);
+            SHM_LOG_ERROR(
+                "socketRole(" << socketRole << ") side get sockets failed: " << ret << ", count: " << failedCount);
             return 1;
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -496,7 +498,7 @@ int32_t DynamicRanksQpManager::GetSocketConn(std::vector<HccpSocketInfo> &socket
 
 int DynamicRanksQpManager::ProcessQueryConnectionStateTask() noexcept
 {
-    auto &currTask = connectionTasks_.queryConnectTask;
+    auto& currTask = connectionTasks_.queryConnectTask;
     if (!currTask.status.exist || currTask.ip2rank.empty()) {
         currTask.status.exist = false;
         return 0;
@@ -524,7 +526,7 @@ int DynamicRanksQpManager::ProcessQueryConnectionStateTask() noexcept
         currTask.status.failedTimes = 0;
     }
 
-    auto &nextTask = connectionTasks_.connectQpTask;
+    auto& nextTask = connectionTasks_.connectQpTask;
     nextTask.ranks.insert(connectedRanks.begin(), connectedRanks.end());
     nextTask.status.exist = true;
     nextTask.status.failedTimes = 0;
@@ -533,7 +535,7 @@ int DynamicRanksQpManager::ProcessQueryConnectionStateTask() noexcept
 
 int DynamicRanksQpManager::ProcessConnectQpTask() noexcept
 {
-    auto &currTask = connectionTasks_.connectQpTask;
+    auto& currTask = connectionTasks_.connectQpTask;
     if (!currTask.status.exist || currTask.ranks.empty()) {
         currTask.status.exist = false;
         return 0;
@@ -580,7 +582,7 @@ int DynamicRanksQpManager::ProcessConnectQpTask() noexcept
         connectedQpRanks.emplace(rank);
     }
 
-    auto &nextTask = connectionTasks_.queryQpStateTask;
+    auto& nextTask = connectionTasks_.queryQpStateTask;
     nextTask.ranks.insert(connectedQpRanks.begin(), connectedQpRanks.end());
     nextTask.status.exist = true;
     nextTask.status.failedTimes = 0;
@@ -589,7 +591,7 @@ int DynamicRanksQpManager::ProcessConnectQpTask() noexcept
 
 int DynamicRanksQpManager::ProcessQueryQpStateTask() noexcept
 {
-    auto &currTask = connectionTasks_.queryQpStateTask;
+    auto& currTask = connectionTasks_.queryQpStateTask;
     if (!currTask.status.exist || currTask.ranks.empty()) {
         currTask.status.exist = false;
         return 0;
@@ -638,7 +640,7 @@ int DynamicRanksQpManager::ProcessQueryQpStateTask() noexcept
 
 void DynamicRanksQpManager::ProcessUpdateLocalMrTask() noexcept
 {
-    auto &currTask = connectionTasks_.updateMrTask;
+    auto& currTask = connectionTasks_.updateMrTask;
     std::unique_lock<std::mutex> uniqueLock{currTask.locker};
     if (!currTask.status.exist) {
         return;
@@ -657,7 +659,7 @@ void DynamicRanksQpManager::ProcessUpdateLocalMrTask() noexcept
 
 void DynamicRanksQpManager::ProcessUpdateRemoteMrTask() noexcept
 {
-    auto &currTask = connectionTasks_.updateRemoteMrTask;
+    auto& currTask = connectionTasks_.updateRemoteMrTask;
     std::unique_lock<std::mutex> uniqueLock{currTask.locker};
     if (!currTask.status.exist) {
         return;
@@ -717,7 +719,7 @@ void DynamicRanksQpManager::CloseServices() noexcept
         }
     }
 
-    for (auto &conn : connectionView_) {
+    for (auto& conn : connectionView_) {
         conn = nullptr;
     }
     connections_.clear();
@@ -760,10 +762,10 @@ std::vector<lite_mr_info> DynamicRanksQpManager::GenerateRemoteLiteMrs(uint32_t 
     return remoteMrs;
 }
 
-bool DynamicRanksQpManager::HasNewMemoryRegion(const MemoryRegionMap &currentMemoryMap,
-                                               const MemoryRegionMap &lastMemoryMap) noexcept
+bool DynamicRanksQpManager::HasNewMemoryRegion(
+    const MemoryRegionMap& currentMemoryMap, const MemoryRegionMap& lastMemoryMap) noexcept
 {
-    for (const auto &mit : currentMemoryMap) {
+    for (const auto& mit : currentMemoryMap) {
         if (lastMemoryMap.find(mit.first) == lastMemoryMap.end()) {
             return true;
         }
@@ -771,9 +773,9 @@ bool DynamicRanksQpManager::HasNewMemoryRegion(const MemoryRegionMap &currentMem
     return false;
 }
 
-void DynamicRanksQpManager::GenDiffInfoChangeRanks(const std::unordered_map<uint32_t, ConnectRankInfo> &last,
-                                                   std::unordered_map<uint32_t, mf_sockaddr> &addedRanks,
-                                                   std::unordered_set<uint32_t> &addMrRanks) noexcept
+void DynamicRanksQpManager::GenDiffInfoChangeRanks(
+    const std::unordered_map<uint32_t, ConnectRankInfo>& last, std::unordered_map<uint32_t, mf_sockaddr>& addedRanks,
+    std::unordered_set<uint32_t>& addMrRanks) noexcept
 {
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
         auto pos = last.find(it->first);
@@ -786,11 +788,11 @@ void DynamicRanksQpManager::GenDiffInfoChangeRanks(const std::unordered_map<uint
 }
 
 void DynamicRanksQpManager::GenTaskFromChangeRanks(
-    const std::unordered_map<uint32_t, mf_sockaddr> &addedRanks,
-    const std::unordered_set<uint32_t> &addMrRanks) noexcept
+    const std::unordered_map<uint32_t, mf_sockaddr>& addedRanks,
+    const std::unordered_set<uint32_t>& addMrRanks) noexcept
 {
-    if (rankRole_ == HYBM_ROLE_RECEIVER) {
-        auto &task = connectionTasks_.whitelistTask;
+    if (rankRole_ == hybm_role_type::HYBM_ROLE_RECEIVER) {
+        auto& task = connectionTasks_.whitelistTask;
         std::unique_lock<std::mutex> taskLocker{task.locker};
         for (auto it = addedRanks.begin(); it != addedRanks.end(); ++it) {
             net_addr_t addr;
@@ -806,7 +808,7 @@ void DynamicRanksQpManager::GenTaskFromChangeRanks(
         task.status.exist = !task.remoteIps.empty();
         task.status.failedTimes = 0;
     } else {
-        auto &task = connectionTasks_.clientConnectTask;
+        auto& task = connectionTasks_.clientConnectTask;
         std::unique_lock<std::mutex> taskLocker{task.locker};
         for (auto it = addedRanks.begin(); it != addedRanks.end(); ++it) {
             task.remoteAddress.emplace(it->first, it->second);
@@ -815,7 +817,7 @@ void DynamicRanksQpManager::GenTaskFromChangeRanks(
         task.status.failedTimes = 0;
     }
 
-    auto &task = connectionTasks_.updateRemoteMrTask;
+    auto& task = connectionTasks_.updateRemoteMrTask;
     std::unique_lock<std::mutex> taskLocker{task.locker};
     task.addedMrRanks.insert(addMrRanks.begin(), addMrRanks.end());
     task.status.exist = !task.addedMrRanks.empty();
@@ -829,14 +831,14 @@ void DynamicRanksQpManager::GenTaskFromChangeRanks(
     cond_.notify_one();
 }
 
-void DynamicRanksQpManager::SetQpHandleRegisterMr(void *qpHandle, const std::vector<lite_mr_info> &mrs,
-                                                  bool local) noexcept
+void DynamicRanksQpManager::SetQpHandleRegisterMr(
+    void* qpHandle, const std::vector<lite_mr_info>& mrs, bool local) noexcept
 {
     if (qpHandle == nullptr) {
         return;
     }
 
-    auto qp = (ra_qp_handle *)qpHandle;
+    auto qp = (ra_qp_handle*)qpHandle;
     auto dest = local ? qp->local_mr : qp->rem_mr;
     pthread_mutex_lock(&qp->qp_mutex);
     for (auto i = 0U; i < mrs.size() && i < RA_MR_MAX_NUM - 1U; i++) {
@@ -844,6 +846,6 @@ void DynamicRanksQpManager::SetQpHandleRegisterMr(void *qpHandle, const std::vec
     }
     pthread_mutex_unlock(&qp->qp_mutex);
 }
-}
-}
-}
+} // namespace device
+} // namespace transport
+} // namespace shm

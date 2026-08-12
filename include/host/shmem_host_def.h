@@ -170,7 +170,10 @@ typedef struct {
  * - int n_pes: The total pe number of all processes.
  * - char ip_port[ACLSHMEM_MAX_IP_PORT_LEN]: The ip and port of the communication server. The port must not conflict
  *   with other modules and processes.
- * - uint64_t local_mem_size: The size of shared memory currently occupied by current pe.
+ * - uint64_t local_mem_size: For aclshmemx_init_attr(), the user-allocation capacity of the default symmetric
+ *   heap. For aclshmemx_init_attr_with_buffers(), the user-allocation capacity appended after the fixed
+ *   user-buffer prefix; descriptor sizes are not included in this value. Memory in this capacity is available
+ *   through the public symmetric-allocation interfaces.
  * - aclshmem_init_optional_attr_t option_attr: Optional Parameters.
  * - void *comm_args: Parameters required for communication during the bootstrap phase when initializing different
  * flags.

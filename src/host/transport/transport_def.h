@@ -59,8 +59,9 @@ struct TransportOptions {
     friend std::ostream& operator<<(std::ostream& output, const TransportOptions& options)
     {
         output << "TransportOptions(rankId=" << options.rankId << ", count=" << options.rankCount
-               << ", protocol=" << options.protocol << ", role=" << options.role << ", nid=" << options.nic
-               << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum << ")";
+               << ", protocol=" << options.protocol << ", role=" << static_cast<uint32_t>(options.role)
+               << ", nid=" << options.nic << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum
+               << ")";
         return output;
     }
 };
@@ -101,12 +102,13 @@ struct TransportMemoryKey {
 
 struct TransportRankPrepareInfo {
     std::string nic;
-    hybm_role_type role{HYBM_ROLE_PEER};
+    hybm_role_type role{hybm_role_type::HYBM_ROLE_PEER};
     std::vector<TransportMemoryKey> memKeys;
 
     TransportRankPrepareInfo() {}
 
-    TransportRankPrepareInfo(std::string n, TransportMemoryKey k) : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{k}
+    TransportRankPrepareInfo(std::string n, TransportMemoryKey k)
+        : nic{std::move(n)}, role{hybm_role_type::HYBM_ROLE_PEER}, memKeys{k}
     {}
 
     TransportRankPrepareInfo(std::string n, hybm_role_type r, TransportMemoryKey k)
@@ -114,7 +116,7 @@ struct TransportRankPrepareInfo {
     {}
 
     TransportRankPrepareInfo(std::string n, std::vector<TransportMemoryKey> ks)
-        : nic{std::move(n)}, role{HYBM_ROLE_PEER}, memKeys{std::move(ks)}
+        : nic{std::move(n)}, role{hybm_role_type::HYBM_ROLE_PEER}, memKeys{std::move(ks)}
     {}
 
     TransportRankPrepareInfo(std::string n, hybm_role_type r, std::vector<TransportMemoryKey> ks)
@@ -123,7 +125,7 @@ struct TransportRankPrepareInfo {
 
     friend std::ostream& operator<<(std::ostream& output, const TransportRankPrepareInfo& info)
     {
-        output << "PrepareInfo(nic=" << info.nic << ", role=" << info.role << ", memKeys=[";
+        output << "PrepareInfo(nic=" << info.nic << ", role=" << static_cast<uint32_t>(info.role) << ", memKeys=[";
         for (auto& key : info.memKeys) {
             output << key << " ";
         }

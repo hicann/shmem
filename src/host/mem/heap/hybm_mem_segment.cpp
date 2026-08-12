@@ -45,8 +45,26 @@ MemSegmentPtr MemSegment::Create(const MemSegmentOptions& options, int entityId)
     switch (options.segType) {
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
         case HYBM_MST_HBM:
+            if (options.userBufferHeapInput != nullptr) {
+                tmpSeg = std::make_shared<AclMemSegmentDevice>(options, entityId);
+                break;
+            }
+#ifdef USE_ACLRT_MEM_FABRIC_HANDLE
+            tmpSeg = std::make_shared<AclMemSegmentDevice>(options, entityId);
+#else
+            if (socType_ == AscendSocType::ASCEND_950 || (HybmGetGvaVersion() == HYBM_GVA_V4)) {
+                tmpSeg = std::make_shared<HybmVmmBasedSegment>(options, entityId);
+            } else {
+                tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
+            }
+#endif
+            break;
         case HYBM_MST_DRAM:
-            tmpSeg = std::make_shared<MemSegmentDevice>(options, entityId);
+#ifdef USE_ACLRT_MEM_FABRIC_HANDLE
+            tmpSeg = std::make_shared<AclMemSegmentDevice>(options, entityId);
+#else
+            SHM_LOG_ERROR("Not support HOST_SIDE malloc now.");
+#endif
             break;
 #else
         case HYBM_MST_HBM:

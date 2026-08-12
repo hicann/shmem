@@ -15,16 +15,22 @@
 #include <sstream>
 #include <functional>
 #include <algorithm>
+#include <limits>
+#include <memory>
+#include <vector>
 
 #include "acl/acl.h"
 #include "acl/acl_rt.h"
+#include "acl/error_codes/rt_error_codes.h"
 #include "shmemi_host_common.h"
 #include "shmemi_init.h"
+#include "shmemi_user_buffer_heap.h"
 #include "transport_def.h"
 #include "host/shmem_host_def.h"
 #include "prof/prof_util.h"
 #include "shmemi_scope_guard.h"
 #include "utils/exception/shmem_exception_report.h"
+#include "utils/under_api/dl_acl_api.h"
 
 #define DEFAULT_MY_PE (-1)
 #define DEFAULT_N_PES (-1)
@@ -40,6 +46,10 @@ constexpr int64_t DEFAULT_RDMA_UB_OFFSET = 190 * 1024;
 // UDMA PIPE_MTE3 stages one full WQE block in UB; 128 B covers current data-mover opcodes.
 constexpr uint32_t DEFAULT_UDMA_UB_SIZE = ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE;
 constexpr int64_t DEFAULT_UDMA_UB_OFFSET = 189 * 1024;
+
+static_assert(
+    512ULL + SYNC_POOL_SIZE + SYNC_COUNTERS_SIZE <= ACLSHMEM_EXTRA_SIZE,
+    "ACLSHMEM_EXTRA_SIZE must cover all allocator-backed internal control objects");
 
 // initializer
 #define ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER                                                    \
@@ -140,12 +150,12 @@ int32_t version_compatible()
     return status;
 }
 
-int32_t aclshmemi_state_init_attr(aclshmemx_init_attr_t* attributes)
+int32_t aclshmemi_state_init_attr(aclshmemx_init_attr_t* attributes, uint64_t heap_size)
 {
     int32_t status = ACLSHMEM_SUCCESS;
     g_state.mype = attributes->my_pe;
     g_state.npes = attributes->n_pes;
-    g_state.heap_size = attributes->local_mem_size + ACLSHMEM_EXTRA_SIZE;
+    g_state.heap_size = heap_size;
 
     aclrtStream stream = nullptr;
     ACLSHMEM_CHECK_RET(aclrtCreateStream(&stream));
@@ -162,7 +172,19 @@ bool is_valid_data_op_engine_type(data_op_engine_type_t value)
     return int_value > 0 && (int_value & ~valid_mask) == 0;
 }
 
-int32_t check_attr(aclshmemx_init_attr_t* attributes)
+bool aclshmemi_user_buffer_heap_engine_supported(data_op_engine_type_t engine)
+{
+    constexpr uint32_t mte_engine = static_cast<uint32_t>(ACLSHMEM_DATA_OP_MTE);
+#if defined(ACLSHMEM_SOC_950)
+    constexpr uint32_t supported_engines = mte_engine | static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA);
+#else
+    constexpr uint32_t supported_engines = mte_engine;
+#endif
+    const uint32_t requested_engines = static_cast<uint32_t>(engine);
+    return requested_engines != 0 && (requested_engines & ~supported_engines) == 0;
+}
+
+static int32_t check_common_attr(aclshmemx_init_attr_t* attributes)
 {
     SHM_LOG_DEBUG(
         "check_attr my_pe=" << attributes->my_pe << " n_pes=" << attributes->n_pes
@@ -175,17 +197,377 @@ int32_t check_attr(aclshmemx_init_attr_t* attributes)
     SHM_VALIDATE_RETURN(
         attributes->my_pe < attributes->n_pes, "my_pe is greater than or equal to n_pes", ACLSHMEM_INVALID_PARAM);
     SHM_VALIDATE_RETURN(
-        attributes->local_mem_size > 0, "local_mem_size less than or equal to 0", ACLSHMEM_INVALID_VALUE);
-    SHM_ASSERT_RETURN(attributes->local_mem_size <= ACLSHMEM_MAX_LOCAL_SIZE, ACLSHMEM_INVALID_VALUE);
-
-    SHM_VALIDATE_RETURN(
         attributes->option_attr.shm_init_timeout != 0, "shm_init_timeout is zero", ACLSHMEM_INVALID_VALUE);
     SHM_VALIDATE_RETURN(
         attributes->option_attr.control_operation_timeout != 0, "control_operation_timeout is zero",
         ACLSHMEM_INVALID_VALUE);
-    SHM_VALIDATE_RETURN(attributes->option_attr.data_op_engine_type > 0, "sockFd is invalid", ACLSHMEM_INVALID_VALUE);
+    SHM_VALIDATE_RETURN(
+        attributes->option_attr.data_op_engine_type > 0, "data_op_engine_type is invalid", ACLSHMEM_INVALID_VALUE);
     SHM_ASSERT_RETURN(
         is_valid_data_op_engine_type(attributes->option_attr.data_op_engine_type), ACLSHMEM_INVALID_VALUE);
+    return ACLSHMEM_SUCCESS;
+}
+
+int32_t check_attr(aclshmemx_init_attr_t* attributes)
+{
+    ACLSHMEM_CHECK_RET(check_common_attr(attributes));
+    SHM_VALIDATE_RETURN(
+        attributes->local_mem_size > 0, "local_mem_size less than or equal to 0", ACLSHMEM_INVALID_VALUE);
+    SHM_ASSERT_RETURN(attributes->local_mem_size <= ACLSHMEM_MAX_LOCAL_SIZE, ACLSHMEM_INVALID_VALUE);
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t check_user_buffer_heap_attr(aclshmemx_init_attr_t* attributes)
+{
+    ACLSHMEM_CHECK_RET(check_common_attr(attributes));
+    SHM_ASSERT_RETURN(attributes->local_mem_size <= ACLSHMEM_MAX_LOCAL_SIZE, ACLSHMEM_INVALID_VALUE);
+    SHM_ASSERT_RETURN(attributes->local_mem_size % ACLSHMEM_PAGE_SIZE == 0, ACLSHMEM_INVALID_PARAM);
+    SHM_ASSERT_RETURN(
+        aclshmemi_user_buffer_heap_engine_supported(attributes->option_attr.data_op_engine_type),
+        ACLSHMEM_NOT_SUPPORTED);
+    return ACLSHMEM_SUCCESS;
+}
+
+static bool checked_add_u64(uint64_t lhs, uint64_t rhs, uint64_t* result)
+{
+    if (result == nullptr || lhs > std::numeric_limits<uint64_t>::max() - rhs) {
+        return false;
+    }
+    *result = lhs + rhs;
+    return true;
+}
+
+static bool checked_mul_size(size_t lhs, size_t rhs, size_t* result)
+{
+    if (result == nullptr || (rhs != 0 && lhs > std::numeric_limits<size_t>::max() / rhs)) {
+        return false;
+    }
+    *result = lhs * rhs;
+    return true;
+}
+
+shm::UserBufferHeapInput::~UserBufferHeapInput()
+{
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+    for (auto& entry : entries) {
+        if (entry.handle_ownership != shm::UserBufferHandleOwnership::RETAINED || entry.mem_handle == nullptr) {
+            continue;
+        }
+        const auto ret = aclrtFreePhysical(entry.mem_handle);
+        if (ret != ACL_SUCCESS) {
+            SHM_LOG_WARN("Failed to release retained buffer allocation handle, ret=" << ret);
+        }
+        entry.mem_handle = nullptr;
+    }
+#endif
+}
+
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+static bool reserved_fields_are_zero(const uint64_t* reserved, size_t count)
+{
+    return reserved != nullptr && std::all_of(reserved, reserved + count, [](uint64_t value) { return value == 0; });
+}
+
+static int32_t query_buffer_property(
+    aclrtDrvMemHandle mem_handle, int32_t current_device, size_t index, aclrtPhysicalMemProp* property)
+{
+    SHM_ASSERT_RETURN(mem_handle != nullptr && property != nullptr, ACLSHMEM_INVALID_PARAM);
+    auto acl_status = shm::DlAclApi::AclrtMemGetAllocationPropertiesFromHandle(mem_handle, property);
+    if (acl_status == ACLSHMEM_UNDER_API_UNLOAD || acl_status == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+        property->handleType = ACL_MEM_HANDLE_TYPE_NONE;
+        property->allocationType = ACL_MEM_ALLOCATION_TYPE_PINNED;
+        property->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+        property->location.id = current_device;
+        property->memAttr = ACL_HBM_MEM_HUGE;
+        property->reserve = 0;
+        SHM_LOG_WARN(
+            "Physical allocation property query is not supported; deferring buffer "
+            << index << " handle validation to export/map");
+    } else if (acl_status != ACL_SUCCESS) {
+        SHM_LOG_ERROR(
+            "aclrtMemGetAllocationPropertiesFromHandle failed for buffer " << index << ", ret=" << acl_status);
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    if (property->handleType != ACL_MEM_HANDLE_TYPE_NONE ||
+        property->allocationType != ACL_MEM_ALLOCATION_TYPE_PINNED ||
+        property->location.type != ACL_MEM_LOCATION_TYPE_DEVICE || property->location.id != current_device ||
+        property->memAttr != ACL_HBM_MEM_HUGE) {
+        SHM_LOG_ERROR(
+            "Unsupported physical allocation properties for buffer "
+            << index << ": handleType=" << static_cast<int>(property->handleType)
+            << ", allocationType=" << static_cast<int>(property->allocationType) << ", locationType="
+            << static_cast<int>(property->location.type) << ", locationId=" << property->location.id
+            << ", currentDevice=" << current_device << ", memAttr=" << static_cast<int>(property->memAttr));
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t validate_user_buffer_metadata(size_t buffer_count, int32_t npes)
+{
+    if (buffer_count == 0 || buffer_count > shm::kMaxBuffers || npes <= 0) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    size_t metadata_count = 0;
+    size_t metadata_bytes = 0;
+    if (buffer_count == std::numeric_limits<size_t>::max() ||
+        !checked_mul_size(buffer_count + 1, static_cast<size_t>(npes), &metadata_count) ||
+        !checked_mul_size(metadata_count, sizeof(hybm_exchange_info), &metadata_bytes)) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    if (buffer_count + 1 > std::numeric_limits<uint32_t>::max() || metadata_bytes > shm::kMaxBufferMetadataBytes) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t validate_buffer_descriptor(
+    const aclshmemx_buffer_desc_t& source, const shm::UserBufferHeapInput& input, size_t index)
+{
+    if (source.addr == nullptr || source.size == 0 ||
+        !reserved_fields_are_zero(source.reserved, sizeof(source.reserved) / sizeof(source.reserved[0])) ||
+        (source.optional_attr != nullptr &&
+         !reserved_fields_are_zero(
+             source.optional_attr->reserved,
+             sizeof(source.optional_attr->reserved) / sizeof(source.optional_attr->reserved[0])))) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    const uintptr_t source_base = reinterpret_cast<uintptr_t>(source.addr);
+    if (source.size > static_cast<uint64_t>(std::numeric_limits<uintptr_t>::max() - source_base)) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    const uintptr_t source_end = source_base + static_cast<uintptr_t>(source.size);
+    for (size_t previous_index = 0; previous_index < index; ++previous_index) {
+        const auto& previous = input.entries[previous_index];
+        const uintptr_t previous_base = reinterpret_cast<uintptr_t>(previous.source_base);
+        const uintptr_t previous_end = previous_base + static_cast<uintptr_t>(previous.size);
+        if (source_base < previous_end && previous_base < source_end) {
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t acquire_buffer_handle(
+    const aclshmemx_buffer_desc_t& source, int32_t current_device, size_t index, shm::UserBufferHeapInput* input)
+{
+    SHM_ASSERT_RETURN(input != nullptr && index < input->entries.size(), ACLSHMEM_INVALID_PARAM);
+    auto& destination = input->entries[index];
+    if (source.optional_attr != nullptr && source.optional_attr->mem_handle != nullptr) {
+        destination.mem_handle = static_cast<aclrtDrvMemHandle>(source.optional_attr->mem_handle);
+        destination.handle_ownership = shm::UserBufferHandleOwnership::CALLER;
+    } else {
+        const auto status = aclrtMemRetainAllocationHandle(source.addr, &destination.mem_handle);
+        if (status != ACL_SUCCESS || destination.mem_handle == nullptr) {
+            SHM_LOG_ERROR("aclrtMemRetainAllocationHandle failed for buffer " << index << ", ret=" << status);
+            return ACLSHMEM_INVALID_PARAM;
+        }
+        destination.handle_ownership = shm::UserBufferHandleOwnership::RETAINED;
+    }
+    for (size_t previous_index = 0; previous_index < index; ++previous_index) {
+        if (input->entries[previous_index].mem_handle == destination.mem_handle) {
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    }
+    return query_buffer_property(destination.mem_handle, current_device, index, &destination.property);
+}
+
+static int32_t validate_buffer_mapping(const aclshmemx_buffer_desc_t& source, size_t index, shm::UserBufferEntry* entry)
+{
+    SHM_ASSERT_RETURN(entry != nullptr, ACLSHMEM_INVALID_PARAM);
+    size_t granularity = 0;
+    const auto status =
+        aclrtMemGetAllocationGranularity(&entry->property, ACL_RT_MEM_ALLOC_GRANULARITY_MINIMUM, &granularity);
+    if (status != ACL_SUCCESS || granularity == 0) {
+        SHM_LOG_ERROR(
+            "aclrtMemGetAllocationGranularity failed for buffer " << index << ", ret=" << status
+                                                                  << ", granularity=" << granularity);
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+
+    const uintptr_t source_base = reinterpret_cast<uintptr_t>(source.addr);
+    if (source_base % granularity != 0 || entry->size % granularity != 0 || entry->segment_offset % granularity != 0) {
+        SHM_LOG_ERROR(
+            "Unaligned buffer " << index << ": sourceBase=" << source_base << ", size=" << entry->size
+                                << ", segmentOffset=" << entry->segment_offset << ", granularity=" << granularity);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    const auto* optional_attr = source.optional_attr;
+    entry->has_fabric_handle = optional_attr != nullptr && optional_attr->fabric_handle != nullptr;
+    if (entry->has_fabric_handle) {
+        std::memcpy(&entry->fabric_handle, optional_attr->fabric_handle, sizeof(entry->fabric_handle));
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t calculate_user_buffer_layout(
+    uint64_t external_bytes, uint64_t local_mem_size, uint32_t buffer_count, shm::UserBufferHeapLayoutHeader* header)
+{
+    SHM_ASSERT_RETURN(header != nullptr, ACLSHMEM_INVALID_PARAM);
+    uint64_t user_bytes = 0;
+    uint64_t owned_bytes = 0;
+    uint64_t heap_size = 0;
+    if (!checked_add_u64(external_bytes, local_mem_size, &user_bytes) || user_bytes > ACLSHMEM_MAX_LOCAL_SIZE ||
+        !checked_add_u64(local_mem_size, ACLSHMEM_EXTRA_SIZE, &owned_bytes) ||
+        !checked_add_u64(external_bytes, owned_bytes, &heap_size)) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    if (heap_size % ACLSHMEM_PAGE_SIZE != 0) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    header->buffer_count = buffer_count;
+    header->external_bytes = external_bytes;
+    header->allocatable_bytes = local_mem_size;
+    header->heap_size = heap_size;
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t build_local_layout_header(
+    const aclshmemx_buffer_desc_t* buffers, size_t buffer_count, const aclshmemx_init_attr_t* attributes,
+    std::unique_ptr<shm::UserBufferHeapInput>* input, shm::UserBufferHeapLayoutHeader* header)
+{
+    SHM_ASSERT_RETURN(attributes != nullptr && input != nullptr && header != nullptr, ACLSHMEM_INVALID_PARAM);
+    *header = {};
+    if (buffers == nullptr) {
+        header->local_status = ACLSHMEM_INVALID_PARAM;
+        return header->local_status;
+    }
+    header->local_status = validate_user_buffer_metadata(buffer_count, attributes->n_pes);
+    if (header->local_status != ACLSHMEM_SUCCESS) {
+        return header->local_status;
+    }
+
+    std::unique_ptr<shm::UserBufferHeapInput> local_input;
+    try {
+        local_input = std::make_unique<shm::UserBufferHeapInput>();
+        local_input->entries.resize(buffer_count);
+    } catch (const std::bad_alloc&) {
+        header->local_status = ACLSHMEM_MALLOC_FAILED;
+        return header->local_status;
+    }
+
+    int32_t current_device = -1;
+    auto acl_status = aclrtGetDevice(&current_device);
+    if (acl_status != ACL_SUCCESS) {
+        SHM_LOG_ERROR("aclrtGetDevice failed while normalizing user buffer heap, ret=" << acl_status);
+        header->local_status = ACLSHMEM_NOT_SUPPORTED;
+        return header->local_status;
+    }
+
+    uint64_t external_bytes = 0;
+    for (size_t i = 0; i < buffer_count; ++i) {
+        const auto& src = buffers[i];
+        header->local_status = validate_buffer_descriptor(src, *local_input, i);
+        if (header->local_status != ACLSHMEM_SUCCESS) {
+            return header->local_status;
+        }
+        auto& dst = local_input->entries[i];
+        dst.source_base = src.addr;
+        dst.size = src.size;
+        dst.segment_offset = external_bytes;
+        header->local_status = acquire_buffer_handle(src, current_device, i, local_input.get());
+        if (header->local_status == ACLSHMEM_SUCCESS) {
+            header->local_status = validate_buffer_mapping(src, i, &dst);
+        }
+        if (header->local_status != ACLSHMEM_SUCCESS) {
+            return header->local_status;
+        }
+        if (!checked_add_u64(external_bytes, src.size, &external_bytes)) {
+            header->local_status = ACLSHMEM_INVALID_VALUE;
+            return header->local_status;
+        }
+    }
+
+    header->local_status = calculate_user_buffer_layout(
+        external_bytes, attributes->local_mem_size, static_cast<uint32_t>(buffer_count), header);
+    if (header->local_status != ACLSHMEM_SUCCESS) {
+        return header->local_status;
+    }
+
+    *input = std::move(local_input);
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t validate_layout_headers(const std::vector<shm::UserBufferHeapLayoutHeader>& headers, int32_t npes)
+{
+    SHM_ASSERT_RETURN(npes > 0 && headers.size() == static_cast<size_t>(npes), ACLSHMEM_INVALID_PARAM);
+    for (int32_t pe = 0; pe < npes; ++pe) {
+        if (headers[pe].local_status != ACLSHMEM_SUCCESS) {
+            return headers[pe].local_status;
+        }
+    }
+    const auto& expected = headers[0];
+    for (int32_t pe = 1; pe < npes; ++pe) {
+        const auto& current = headers[pe];
+        if (current.buffer_count != expected.buffer_count || current.external_bytes != expected.external_bytes ||
+            current.allocatable_bytes != expected.allocatable_bytes || current.heap_size != expected.heap_size) {
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
+static int32_t validate_size_vectors(
+    const shm::UserBufferHeapInput& input, int32_t npes, aclshmemi_bootstrap_handle_t* boot_handle)
+{
+    SHM_ASSERT_RETURN(boot_handle != nullptr && boot_handle->allgather != nullptr, ACLSHMEM_INVALID_PARAM);
+    SHM_ASSERT_RETURN(!input.entries.empty(), ACLSHMEM_INVALID_PARAM);
+    size_t local_bytes = 0;
+    size_t gathered_count = 0;
+    if (!checked_mul_size(input.entries.size(), sizeof(uint64_t), &local_bytes) ||
+        local_bytes > static_cast<size_t>(std::numeric_limits<int>::max()) ||
+        !checked_mul_size(input.entries.size(), static_cast<size_t>(npes), &gathered_count)) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    std::vector<uint64_t> local_sizes;
+    std::vector<uint64_t> all_sizes;
+    try {
+        local_sizes.resize(input.entries.size());
+        all_sizes.resize(gathered_count);
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+    for (size_t i = 0; i < input.entries.size(); ++i) {
+        local_sizes[i] = input.entries[i].size;
+    }
+    ACLSHMEM_CHECK_RET(
+        boot_handle->allgather(local_sizes.data(), all_sizes.data(), static_cast<int>(local_bytes), boot_handle));
+    for (int32_t pe = 0; pe < npes; ++pe) {
+        for (size_t i = 0; i < local_sizes.size(); ++i) {
+            if (all_sizes[static_cast<size_t>(pe) * local_sizes.size() + i] != local_sizes[i]) {
+                return ACLSHMEM_INVALID_PARAM;
+            }
+        }
+    }
+    return ACLSHMEM_SUCCESS;
+}
+#endif
+
+int32_t aclshmemi_collective_status_gate(int32_t local_status, int32_t npes, aclshmemi_bootstrap_handle_t* boot_handle)
+{
+    SHM_ASSERT_RETURN(boot_handle != nullptr, ACLSHMEM_INVALID_PARAM);
+    SHM_ASSERT_RETURN(boot_handle->allgather != nullptr, ACLSHMEM_INVALID_PARAM);
+    SHM_ASSERT_RETURN(npes > 0 && npes <= ACLSHMEM_MAX_PES, ACLSHMEM_INVALID_PARAM);
+
+    std::vector<int32_t> all_status;
+    try {
+        all_status.resize(static_cast<size_t>(npes));
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+    int32_t status =
+        boot_handle->allgather(&local_status, all_status.data(), static_cast<int>(sizeof(local_status)), boot_handle);
+    ACLSHMEM_CHECK_RET(status);
+
+    for (int32_t pe = 0; pe < npes; ++pe) {
+        if (all_status[pe] != ACLSHMEM_SUCCESS) {
+            return all_status[pe];
+        }
+    }
     return ACLSHMEM_SUCCESS;
 }
 
@@ -247,7 +629,7 @@ int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
 
 static bool check_support_d2h()
 {
-#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+#ifdef USE_ACLRT_MEM_FABRIC_HANDLE
     return true;
 #else
     return false;
@@ -496,10 +878,18 @@ int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
     return ACLSHMEM_INNER_ERROR;
 }
 
-int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes)
+enum class InitHeapMode : uint8_t {
+    DEFAULT_HEAP,
+    USER_BUFFER_HEAP,
+};
+
+static int32_t aclshmemi_init_attr_impl(
+    aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes, InitHeapMode heap_mode,
+    const void* buffer_descs, size_t buffer_count)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
     SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
+    const bool use_user_buffer_heap = heap_mode == InitHeapMode::USER_BUFFER_HEAP;
     int32_t ret;
     uint64_t id = attributes->instance_id;
 
@@ -556,14 +946,40 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
         "SHMEM has been initialized, do not call init interface repeatedly!", ACLSHMEM_INNER_ERROR);
     ACLSHMEM_CHECK_RET(aclshmemx_set_log_level(aclshmem_log::ERROR_LEVEL));
     ACLSHMEM_CHECK_RET(
-        check_attr(attributes),
+        use_user_buffer_heap ? check_user_buffer_heap_attr(attributes) : check_attr(attributes),
         "An error occurred while checking the initialization attributes. Please check the initialization parameters.");
     ACLSHMEM_CHECK_RET(version_compatible(), "ACLSHMEM Version mismatch.");
 
     // init bootstrap
     ACLSHMEM_CHECK_RET(aclshmemi_bootstrap_init(bootstrap_flags, attributes));
     bootstrap_initialized = true;
-    ACLSHMEM_CHECK_RET(aclshmemi_state_init_attr(attributes));
+
+    uint64_t heap_size = attributes->local_mem_size + ACLSHMEM_EXTRA_SIZE;
+    uint64_t external_bytes = 0;
+    std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input;
+    if (use_user_buffer_heap) {
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+        const auto* buffers = static_cast<const aclshmemx_buffer_desc_t*>(buffer_descs);
+        shm::UserBufferHeapLayoutHeader local_header{};
+        (void)build_local_layout_header(buffers, buffer_count, attributes, &user_buffer_heap_input, &local_header);
+        std::vector<shm::UserBufferHeapLayoutHeader> all_headers;
+        try {
+            all_headers.resize(static_cast<size_t>(attributes->n_pes));
+        } catch (const std::bad_alloc&) {
+            return ACLSHMEM_MALLOC_FAILED;
+        }
+        ACLSHMEM_CHECK_RET(g_boot_handle.allgather(
+            &local_header, all_headers.data(), static_cast<int>(sizeof(local_header)), &g_boot_handle));
+        ACLSHMEM_CHECK_RET(validate_layout_headers(all_headers, attributes->n_pes));
+        SHM_ASSERT_RETURN(user_buffer_heap_input != nullptr, ACLSHMEM_INNER_ERROR);
+        ACLSHMEM_CHECK_RET(validate_size_vectors(*user_buffer_heap_input, attributes->n_pes, &g_boot_handle));
+        external_bytes = local_header.external_bytes;
+        heap_size = local_header.heap_size;
+#else
+        return ACLSHMEM_NOT_SUPPORTED;
+#endif
+    }
+    ACLSHMEM_CHECK_RET(aclshmemi_state_init_attr(attributes, heap_size));
 
     // init backend for memory manager
     g_init_manager_count++;
@@ -575,19 +991,26 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     }
 
     // aclshmem_entity init
-    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle, g_udma_qp_config));
+    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(
+        attributes, &g_state, &g_boot_handle, std::move(user_buffer_heap_input), g_udma_qp_config));
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
     auto exception_guard =
         shm::utils::make_scope_guard(static_cast<void*>(nullptr), [](void*) { aclshmemi_exception_report_finalize(); });
     ACLSHMEM_CHECK_RET(aclshmemi_exception_report_apply_deferred_config(attributes->option_attr.data_op_engine_type));
-    ACLSHMEM_CHECK_RET(init_manager->reserve_heap());
+    int32_t reserve_status = init_manager->reserve_heap();
+    if (use_user_buffer_heap) {
+        ACLSHMEM_CHECK_RET(aclshmemi_collective_status_gate(reserve_status, attributes->n_pes, &g_boot_handle));
+    } else {
+        ACLSHMEM_CHECK_RET(reserve_status);
+    }
     heap_reserved = true;
     ACLSHMEM_CHECK_RET(init_manager->setup_heap());
 
     // shmem submodules init
-    ACLSHMEM_CHECK_RET(memory_manager_initialize(g_state.heap_base, g_state.heap_size));
+    auto* allocator_base = static_cast<uint8_t*>(g_state.heap_base) + external_bytes;
+    ACLSHMEM_CHECK_RET(memory_manager_initialize(allocator_base, g_state.heap_size - external_bytes));
 
     if (check_support_d2h()) {
         // only reserve dramp heap, skip setup_heap for host dram, setup heap when malloc on host
@@ -607,6 +1030,27 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     init_abort_guard.release();
     ctx_guard.release();
     return ACLSHMEM_SUCCESS;
+}
+
+int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes)
+{
+    return aclshmemi_init_attr_impl(bootstrap_flags, attributes, InitHeapMode::DEFAULT_HEAP, nullptr, 0);
+}
+
+int32_t aclshmemx_init_attr_with_buffers(
+    aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes, const aclshmemx_buffer_desc_t* buffers,
+    size_t buffer_count)
+{
+#ifndef HAS_ACLRT_MEM_FABRIC_HANDLE
+    (void)bootstrap_flags;
+    (void)attributes;
+    (void)buffers;
+    (void)buffer_count;
+    return ACLSHMEM_NOT_SUPPORTED;
+#else
+    SHM_ASSERT_RETURN(attributes != nullptr, ACLSHMEM_INVALID_PARAM);
+    return aclshmemi_init_attr_impl(bootstrap_flags, attributes, InitHeapMode::USER_BUFFER_HEAP, buffers, buffer_count);
+#endif
 }
 
 static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
@@ -637,31 +1081,48 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     ACLSHMEM_CHECK_RET(aclshmemi_team_finalize());
     ACLSHMEM_CHECK_RET(aclshmemi_signal_finalize());
     memory_manager_destroy();
+
+    // From this point onward the runtime submodules are no longer usable.  Keep
+    // is_aclshmem_created set until every destructive heap-cleanup step has
+    // completed, so a cleanup failure is reported as SHM_CREATED rather than as
+    // a fully initialized (or fully finalized) instance.
+    g_state.is_aclshmem_initialized = false;
+
+    int32_t firstCleanupStatus = ACLSHMEM_SUCCESS;
+    auto recordCleanupStatus = [&](int32_t status, const char* operation) {
+        if (status == ACLSHMEM_SUCCESS) {
+            return;
+        }
+        SHM_LOG_ERROR(operation << " failed during finalize, ret=" << status);
+        if (firstCleanupStatus == ACLSHMEM_SUCCESS) {
+            firstCleanupStatus = status;
+        }
+    };
+
     // shmem basic finalize
-    ACLSHMEM_CHECK_RET(init_manager->remove_heap());
-    ACLSHMEM_CHECK_RET(init_manager->release_heap());
-    ACLSHMEM_CHECK_RET(init_manager->finalize_device_state());
-    SHM_LOG_INFO("release_heap success.");
+    const int32_t removeStatus = init_manager->remove_heap();
+    recordCleanupStatus(removeStatus, "remove_heap");
+    recordCleanupStatus(
+        aclshmemi_collective_status_gate(removeStatus, g_state.npes, &g_boot_handle),
+        "collective remove_heap status gate");
+    recordCleanupStatus(init_manager->release_heap(), "release_heap");
+    recordCleanupStatus(init_manager->finalize_device_state(), "finalize_device_state");
     if (check_support_d2h()) {
-        ACLSHMEM_CHECK_RET(init_manager->remove_heap(HOST_SIDE));
-        ACLSHMEM_CHECK_RET(init_manager->release_heap(HOST_SIDE));
+        recordCleanupStatus(init_manager->remove_heap(HOST_SIDE), "remove host heap");
+        recordCleanupStatus(init_manager->release_heap(HOST_SIDE), "release host heap");
     }
-    ACLSHMEM_CHECK_RET(init_manager->release_aclshmem_entity(instance_id));
+    recordCleanupStatus(init_manager->release_aclshmem_entity(instance_id), "release ACLSHMEM entity");
     if (g_state_host.default_stream != nullptr) {
         auto ret = aclrtSynchronizeStream(g_state_host.default_stream);
-        if (ret != 0) {
-            SHM_LOG_ERROR("Synchronize stream failed. ret=" << ret);
-        }
+        recordCleanupStatus(ret, "synchronize default stream");
         ret = aclrtDestroyStream(g_state_host.default_stream);
-        if (ret != 0) {
-            SHM_LOG_ERROR("Destroy stream failed. ret=" << ret);
-        }
+        recordCleanupStatus(ret, "destroy default stream");
         g_state_host.default_stream = nullptr;
     }
 
     // Synchronize all ranks before destroying the store, so that no rank
     // can start the next init while another rank's store is still alive.
-    ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
+    recordCleanupStatus(aclshmemi_control_barrier_all(), "finalize control barrier");
     aclshmemi_bootstrap_finalize();
 
     // Only when the process has no instance, release init_manager.
@@ -671,14 +1132,19 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
         delete init_manager;
         init_manager = nullptr;
     }
-    SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
+    if (firstCleanupStatus == ACLSHMEM_SUCCESS) {
+        SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
+    } else {
+        SHM_LOG_ERROR(
+            "The pe: " << aclshmem_my_pe() << " completed finalize cleanup with error: " << firstCleanupStatus);
+    }
     g_state.is_aclshmem_initialized = false;
-    ACLSHMEM_CHECK_RET(aclshmemi_instance_ctx_destroy(instance_id));
+    recordCleanupStatus(aclshmemi_instance_ctx_destroy(instance_id), "destroy instance context");
     if (is_last_instance) {
         g_udma_qp_config = shm::transport::UdmaQpConfig{};
         g_qp_config_frozen = false;
     }
-    return ACLSHMEM_SUCCESS;
+    return firstCleanupStatus;
 }
 
 int32_t aclshmemx_finalize(uint64_t instance_id)

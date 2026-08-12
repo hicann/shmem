@@ -9,6 +9,8 @@
  */
 #include <random>
 #include <algorithm>
+#include <limits>
+#include <new>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -22,6 +24,35 @@
 #include "sotre_net.h"
 #include "store_net_common.h"
 #include "mem_entity_def.h"
+
+namespace {
+int setup_trusted_pids(entity_member* entity, int32_t npes, aclshmemi_bootstrap_handle_t* handle)
+{
+    if (entity == nullptr || npes <= 0 || handle == nullptr || handle->allgather == nullptr) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    int32_t local_bare_pid = 0;
+    auto status = aclrtDeviceGetBareTgid(&local_bare_pid);
+    if (status != ACL_SUCCESS) {
+        SHM_LOG_ERROR("aclrtDeviceGetBareTgid failed: " << status);
+        return ACLSHMEM_DL_FUNC_FAILED;
+    }
+    try {
+        entity->trusted_pids.resize(static_cast<size_t>(npes));
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+
+    status = handle->allgather(
+        &local_bare_pid, entity->trusted_pids.data(), static_cast<int>(sizeof(local_bare_pid)), handle);
+    if (status != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("bootstrap allgather bare PID failed: " << status);
+        return ACLSHMEM_BOOTSTRAP_ERROR;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+} // namespace
 
 aclshmemi_init_backend::aclshmemi_init_backend()
 {
@@ -46,6 +77,7 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
 
 int aclshmemi_init_backend::bind_aclshmem_entity(
     aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
+    std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input,
     const shm::transport::UdmaQpConfig& udma_qp_config)
 {
     std::lock_guard<std::mutex> lock(entity_map_mutex_);
@@ -61,11 +93,51 @@ int aclshmemi_init_backend::bind_aclshmem_entity(
         return ACLSHMEM_INNER_ERROR;
     }
     elem->entity_boot_handle = handle;
+    elem->user_buffer_heap_input = std::move(user_buffer_heap_input);
     elem->udma_qp_num = udma_qp_config.qpNum;
+    if (elem->user_buffer_heap_input != nullptr) {
+        const auto ret = setup_trusted_pids(elem, attr->n_pes, handle);
+        if (ret != ACLSHMEM_SUCCESS) {
+            std::free(elem->entity_device_state);
+            delete elem;
+            return ret;
+        }
+    }
 
     entity_map_[instance_id] = elem;
 
     return ACLSHMEM_SUCCESS;
+}
+
+void* aclshmemi_init_backend::get_buffer_ptr(const void* local_ptr)
+{
+    if (local_ptr == nullptr || g_instance_ctx == nullptr) {
+        return nullptr;
+    }
+
+    std::lock_guard<std::mutex> lock(entity_map_mutex_);
+    auto entity_it = entity_map_.find(g_instance_ctx->id);
+    if (entity_it == entity_map_.end() || entity_it->second == nullptr) {
+        return nullptr;
+    }
+
+    const entity_member* entity = entity_it->second;
+    if (entity->user_buffer_heap_input == nullptr || entity->entity_host_state == nullptr ||
+        entity->entity_host_state->heap_base == nullptr || !entity->entity_host_state->is_aclshmem_initialized) {
+        return nullptr;
+    }
+
+    const uintptr_t query = reinterpret_cast<uintptr_t>(local_ptr);
+    for (const auto& entry : entity->user_buffer_heap_input->entries) {
+        const uintptr_t source_base = reinterpret_cast<uintptr_t>(entry.source_base);
+        const uintptr_t source_end = source_base + static_cast<uintptr_t>(entry.size);
+        if (query < source_base || query >= source_end) {
+            continue;
+        }
+        const uintptr_t inner_offset = query - source_base;
+        return static_cast<uint8_t*>(entity->entity_host_state->heap_base) + entry.segment_offset + inner_offset;
+    }
+    return nullptr;
 }
 
 int aclshmemi_init_backend::release_aclshmem_entity(uint64_t instance_id)
@@ -162,7 +234,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
 
     // 创建entity
     hybm_options options{};
-    options.bmType = HYBM_TYPE_AI_CORE_INITIATE;
+    options.bmType = hybm_type::HYBM_TYPE_AI_CORE_INITIATE;
     options.bmDataOpType = static_cast<hybm_data_op_type>(HYBM_DOP_TYPE_MTE);
     if (attributes->option_attr.data_op_engine_type & ACLSHMEM_DATA_OP_ROCE) {
         auto temp = static_cast<uint32_t>(options.bmDataOpType) | HYBM_DOP_TYPE_DEVICE_RDMA;
@@ -183,19 +255,24 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     transport_options.rankId = attributes->my_pe;
     transport_options.rankCount = attributes->n_pes;
     transport_options.protocol = options.bmDataOpType;
-    transport_options.role = HYBM_ROLE_PEER;
+    transport_options.role = hybm_role_type::HYBM_ROLE_PEER;
     transport_options.udmaQpConfig.qpNum = elem->udma_qp_num;
     if (mem_type == HOST_SIDE) {
-        options.memType = HYBM_MEM_TYPE_HOST;
+        options.memType = hybm_mem_type::HYBM_MEM_TYPE_HOST;
         options.deviceVASpace = 0;
         options.hostVASpace = host_state->heap_size;
     } else {
-        options.memType = HYBM_MEM_TYPE_DEVICE;
+        options.memType = hybm_mem_type::HYBM_MEM_TYPE_DEVICE;
         options.deviceVASpace = host_state->heap_size;
         options.hostVASpace = 0;
     }
     options.preferredGVA = 0;
-    options.role = HYBM_ROLE_PEER;
+    options.role = hybm_role_type::HYBM_ROLE_PEER;
+    options.userBufferHeapInput = mem_type == DEVICE_SIDE ? elem->user_buffer_heap_input.get() : nullptr;
+    if (mem_type == DEVICE_SIDE && !elem->trusted_pids.empty()) {
+        options.trustedPids = elem->trusted_pids.data();
+        options.trustedPidCount = static_cast<uint32_t>(elem->trusted_pids.size());
+    }
     std::string defaultNic = "10002";
     std::copy_n(defaultNic.c_str(), defaultNic.size() + 1, options.nic);
     transport_options.nic = defaultNic;
@@ -472,6 +549,52 @@ int aclshmemi_init_backend::exchange_slice(aclshmem_mem_type_t mem_type)
     return ACLSHMEM_SUCCESS;
 }
 
+int aclshmemi_init_backend::exchange_user_buffer_heap()
+{
+    entity_member* elem = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(entity_map_mutex_);
+        auto it = entity_map_.find(g_instance_ctx->id);
+        if (it == entity_map_.end() || it->second == nullptr) {
+            return ACLSHMEM_INNER_ERROR;
+        }
+        elem = it->second;
+    }
+    if (elem->hbm_entity == nullptr || elem->entity_host_state == nullptr || elem->entity_boot_handle == nullptr ||
+        elem->user_buffer_heap_input == nullptr) {
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    const size_t wireCount = elem->user_buffer_heap_input->entries.size() + 1;
+    const size_t allCount = static_cast<size_t>(elem->entity_host_state->npes) * wireCount;
+    if (wireCount > std::numeric_limits<uint32_t>::max() || allCount > std::numeric_limits<uint32_t>::max() ||
+        wireCount > static_cast<size_t>(std::numeric_limits<int>::max()) / sizeof(hybm_exchange_info)) {
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    std::vector<hybm_exchange_info> localInfos;
+    std::vector<hybm_exchange_info> allInfos;
+    try {
+        localInfos.resize(wireCount);
+        allInfos.resize(allCount);
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+
+    int localStatus =
+        hybm_export_user_buffer_heap(elem->hbm_entity, localInfos.data(), static_cast<uint32_t>(wireCount), 0);
+    ACLSHMEM_CHECK_RET(
+        aclshmemi_collective_status_gate(localStatus, elem->entity_host_state->npes, elem->entity_boot_handle));
+    ACLSHMEM_CHECK_RET(elem->entity_boot_handle->allgather(
+        localInfos.data(), allInfos.data(), static_cast<int>(wireCount * sizeof(hybm_exchange_info)),
+        elem->entity_boot_handle));
+
+    localStatus = hybm_import(elem->hbm_entity, allInfos.data(), static_cast<uint32_t>(allInfos.size()), nullptr, 0);
+    ACLSHMEM_CHECK_RET(
+        aclshmemi_collective_status_gate(localStatus, elem->entity_host_state->npes, elem->entity_boot_handle));
+    localStatus = hybm_mmap(elem->hbm_entity, 0);
+    return aclshmemi_collective_status_gate(localStatus, elem->entity_host_state->npes, elem->entity_boot_handle);
+}
+
 int aclshmemi_init_backend::exchange_entity(aclshmem_mem_type_t mem_type)
 {
     uint64_t instance_id = g_instance_ctx->id;
@@ -545,7 +668,7 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
     }
 
     auto entity = mem_type == HOST_SIDE ? elem->dram_entity : elem->hbm_entity;
-    auto mType = mem_type == HOST_SIDE ? HYBM_MEM_TYPE_HOST : HYBM_MEM_TYPE_DEVICE;
+    auto mType = mem_type == HOST_SIDE ? hybm_mem_type::HYBM_MEM_TYPE_HOST : hybm_mem_type::HYBM_MEM_TYPE_DEVICE;
 
     auto host_state = elem->entity_host_state;
     auto attributes = elem->entity_attr;
@@ -557,17 +680,22 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
     }
 
     // alloc memory
+    const bool useUserBufferHeap = mem_type == DEVICE_SIDE && elem->user_buffer_heap_input != nullptr;
     auto slice = hybm_alloc_local_memory(entity, mType, host_state->heap_size, 0);
-    if (slice == nullptr) {
+    int localAllocStatus = slice == nullptr ? ACLSHMEM_SMEM_ERROR : ACLSHMEM_SUCCESS;
+    if (useUserBufferHeap) {
+        ACLSHMEM_CHECK_RET(
+            aclshmemi_collective_status_gate(localAllocStatus, host_state->npes, elem->entity_boot_handle));
+    } else if (slice == nullptr) {
         SHM_LOG_ERROR("alloc local mem failed, size: " << host_state->heap_size);
-        return ACLSHMEM_SMEM_ERROR;
+        return localAllocStatus;
     }
     if (mem_type == HOST_SIDE) {
         elem->dram_slice = slice;
     } else {
         elem->hbm_slice = slice;
     }
-    auto ret = exchange_slice(mem_type);
+    auto ret = useUserBufferHeap ? exchange_user_buffer_heap() : exchange_slice(mem_type);
     if (ret != 0) {
         SHM_LOG_ERROR("exchange slice failed, result: " << ret);
         return ret;
@@ -579,10 +707,12 @@ int aclshmemi_init_backend::setup_heap(aclshmem_mem_type_t mem_type)
     }
 
     // mmap memory
-    ret = hybm_mmap(entity, 0);
-    if (ret != 0) {
-        SHM_LOG_ERROR("hybm mmap failed, result: " << ret);
-        return ret;
+    if (!useUserBufferHeap) {
+        ret = hybm_mmap(entity, 0);
+        if (ret != 0) {
+            SHM_LOG_ERROR("hybm mmap failed, result: " << ret);
+            return ret;
+        }
     }
     if (mem_type == HOST_SIDE) {
         auto aligned = ALIGN_UP(host_state->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
@@ -717,11 +847,22 @@ int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
         return ACLSHMEM_SUCCESS;
     }
 
+    int32_t firstError = ACLSHMEM_SUCCESS;
+
     // release reserved_mem
-    if (reserved_mem != nullptr) {
+    const bool useUserBufferHeap = mem_type == DEVICE_SIDE && elem->user_buffer_heap_input != nullptr;
+    if (reserved_mem != nullptr || useUserBufferHeap) {
         auto ret = hybm_unreserve_mem_space(entity, 0, reserved_mem);
         if (ret != 0) {
             SHM_LOG_INFO("unreserve mem space failed: " << ret);
+            firstError = ret;
+        }
+        if (useUserBufferHeap) {
+            const int32_t gateStatus =
+                aclshmemi_collective_status_gate(ret, elem->entity_host_state->npes, elem->entity_boot_handle);
+            if (firstError == ACLSHMEM_SUCCESS && gateStatus != ACLSHMEM_SUCCESS) {
+                firstError = gateStatus;
+            }
         }
     } else {
         SHM_LOG_DEBUG("reserved_mem not reserved, skip release.");
@@ -738,7 +879,7 @@ int aclshmemi_init_backend::release_heap(aclshmem_mem_type_t mem_type)
         elem->hbm_gva = nullptr;
         elem->hbm_entity = nullptr;
     }
-    return ACLSHMEM_SUCCESS;
+    return firstError;
 }
 
 int aclshmemi_init_backend::aclshmemi_control_barrier_all() { return g_boot_handle.barrier(&g_boot_handle); }

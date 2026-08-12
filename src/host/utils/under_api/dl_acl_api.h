@@ -47,6 +47,7 @@ using rtGetDevicePhyIdByIndexFunc = int32_t (*)(uint32_t, uint32_t*);
 using rtEnableP2PFunc = int32_t (*)(uint32_t, uint32_t, uint32_t);
 using aclrtReserveMemAddressFunc = int (*)(void**, size_t, size_t, void*, uint64_t);
 using aclrtReleaseMemAddressFunc = int (*)(void*);
+using aclrtMemGetAllocationPropertiesFromHandleFunc = int (*)(aclrtDrvMemHandle, aclrtPhysicalMemProp*);
 
 class DlAclApi {
 public:
@@ -304,6 +305,8 @@ public:
     static Result AclrtReserveMemAddress(void** virPtr, size_t size, size_t alignment, void* expectPtr, uint64_t flags);
 
     static Result AclrtReleaseMemAddress(void* virPtr);
+
+    static Result AclrtMemGetAllocationPropertiesFromHandle(aclrtDrvMemHandle handle, aclrtPhysicalMemProp* property);
 
     static inline Result RtEnableP2P(uint32_t localUserId, uint32_t remotePhyId, uint32_t flags)
     {

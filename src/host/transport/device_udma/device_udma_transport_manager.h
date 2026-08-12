@@ -176,7 +176,7 @@ private:
     uint32_t qp_num_{1};
     uint32_t user_id_{0};
     uint32_t phy_id_{0};
-    hybm_role_type role_{HYBM_ROLE_PEER};
+    hybm_role_type role_{hybm_role_type::HYBM_ROLE_PEER};
     std::map<uint32_t, uint32_t> peer_eid_index_map_;        // peerRankId -> local eid_index
     std::map<uint32_t, uint32_t> peer_remote_eid_index_map_; // peerRankId -> remote eid_index
     // N x N routing matrix: [rank * rank_count_ + peer] = local-port eid_index `rank` uses to reach
@@ -186,6 +186,10 @@ private:
     std::map<uint32_t, EndpointHandle> endpoint_handle_map_;                // eid_index -> hcomm endpoint handle
     std::map<uint32_t, uint16_t> endpoint_listen_port_map_;                 // eid_index -> actual listen port
     std::map<uint64_t, std::map<uint32_t, HcommMemHandle>> mem_record_map_; // addr -> eid_index -> hcomm mem handle
+    // Registration geometry is kept separately from the opaque HCOMM handles. The current UDMA
+    // data-plane ABI carries one memory descriptor per channel slot, so Connect requires this map
+    // to contain exactly one entry and validates that the peer descriptor covers the same heap.
+    std::map<uint64_t, uint64_t> mem_region_size_map_; // addr -> registered bytes
     std::vector<ChannelHandle> channel_handles_;
     // The control plane fills a contiguous aclshmemi_aiv_udma_info_t blob using the legacy
     // (jetty-manager) layout so the data plane consumes it unchanged. The per-peer

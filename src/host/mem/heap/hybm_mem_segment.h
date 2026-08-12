@@ -80,6 +80,12 @@ public:
 
     virtual Result Export(const std::shared_ptr<MemSlice>& slice, std::string& exInfo) noexcept = 0;
 
+    virtual Result ExportUserBufferHeap(std::vector<std::string>& infos) noexcept
+    {
+        (void)infos;
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+
     virtual Result GetExportSliceSize(size_t& size) noexcept = 0;
 
     /*

@@ -12,6 +12,7 @@
 
 #include <memory>
 #include "hybm_def.h"
+#include "hybm_user_buffer_heap.h"
 
 namespace shm {
 
@@ -22,7 +23,7 @@ constexpr uint64_t EXPORT_SLICE_MAGIC = 0xAABB1234FFFFBBBBUL;
 constexpr uint64_t ENTITY_EXPORT_INFO_MAGIC = 0xAABB1234FFFFEE00UL;
 constexpr uint64_t HBM_SLICE_EXPORT_INFO_MAGIC = 0xAABB1234FFFFEE01UL;
 constexpr uint64_t DRAM_SLICE_EXPORT_INFO_MAGIC = 0xAABB1234FFFFEE02UL;
-constexpr uint64_t EXPORT_INFO_VERSION = 0x2UL;
+constexpr uint64_t EXPORT_INFO_VERSION = 0x3UL;
 
 class MemSlice;
 class MemSegment;
@@ -70,17 +71,20 @@ enum MemSegInfoExchangeType : uint8_t {
 
 struct MemSegmentOptions {
     int32_t devId = 0;
-    hybm_role_type role = HYBM_ROLE_PEER;
+    hybm_role_type role = hybm_role_type::HYBM_ROLE_PEER;
     hybm_data_op_type dataOpType = HYBM_DOP_TYPE_MTE;
     MemSegType segType = HYBM_MST_HBM;
     MemSegInfoExchangeType infoExType = HYBM_INFO_EXG_IN_NODE;
     bool shared = true;
     uint64_t size = 0;
-    uint32_t rankId = 0;   // must start from 0 and increase continuously
-    uint32_t rankCnt = 0;  // total rank count
+    uint32_t rankId = 0;  // must start from 0 and increase continuously
+    uint32_t rankCnt = 0; // total rank count
     uint32_t flags = 0;
+    const UserBufferHeapInput* userBufferHeapInput = nullptr;
+    int32_t* trustedPids = nullptr;
+    uint32_t trustedPidCount = 0;
 };
 
-}  // namespace shm
+} // namespace shm
 
-#endif  // MEM_FABRIC_HYBRID_HYBM_MM_COMMON_H
+#endif // MEM_FABRIC_HYBRID_HYBM_MM_COMMON_H

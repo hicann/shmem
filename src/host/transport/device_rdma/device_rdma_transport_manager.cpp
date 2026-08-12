@@ -103,11 +103,11 @@ Result RdmaTransportManager::OpenDevice(const TransportOptions& options)
 
     mf_sockaddr deviceAddr;
     InitializeDeviceAddress(deviceAddr);
-    if (role_ == HYBM_ROLE_PEER) {
+    if (role_ == hybm_role_type::HYBM_ROLE_PEER) {
         qpManager_ = std::make_shared<FixedRanksQpManager>(userId, phyId_, rankId_, rankCount_, deviceAddr);
     } else {
         qpManager_ = std::make_shared<DynamicRanksQpManager>(
-            userId, phyId_, rankId_, rankCount_, deviceAddr, role_ == HYBM_ROLE_RECEIVER);
+            userId, phyId_, rankId_, rankCount_, deviceAddr, role_ == hybm_role_type::HYBM_ROLE_RECEIVER);
     }
 
     deviceChipInfo_ = std::make_shared<DeviceChipInfo>(userId);
@@ -619,8 +619,8 @@ void RdmaTransportManager::ClearAllRegisterMRs()
 
 int RdmaTransportManager::CheckPrepareOptions(const shm::transport::HybmTransPrepareOptions& options)
 {
-    if (role_ != HYBM_ROLE_PEER) {
-        SHM_LOG_INFO(rankId_ << " transport role: " << role_ << " check options passed.");
+    if (role_ != hybm_role_type::HYBM_ROLE_PEER) {
+        SHM_LOG_INFO(rankId_ << " transport role: " << static_cast<uint32_t>(role_) << " check options passed.");
         return ACLSHMEM_SUCCESS;
     }
 

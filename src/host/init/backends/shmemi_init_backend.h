@@ -11,6 +11,7 @@
 #define SHMEMI_INIT_BACKEND_H
 
 #include <map>
+#include <memory>
 #include <mutex>
 
 #include "host/shmem_host_def.h"
@@ -19,6 +20,7 @@
 #include "mem/shmemi_mgr.h"
 
 #include "init/bootstrap/shmemi_bootstrap.h"
+#include "init/shmemi_user_buffer_heap.h"
 
 #include "hybm_def.h"
 
@@ -38,6 +40,9 @@ typedef struct entity_member {
     hybm_entity_t dram_entity = nullptr;
     hybm_mem_slice_t hbm_slice = nullptr;
     hybm_mem_slice_t dram_slice = nullptr;
+
+    std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input;
+    std::vector<int32_t> trusted_pids;
 
     aclshmemx_init_attr_t* entity_attr;
     aclshmemi_bootstrap_handle_t* entity_boot_handle;
@@ -65,13 +70,16 @@ public:
 
     int bind_aclshmem_entity(
         aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
+        std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input,
         const shm::transport::UdmaQpConfig& udma_qp_config);
+    void* get_buffer_ptr(const void* local_ptr);
     int release_aclshmem_entity(uint64_t instance_id);
 
 private:
     int reach_info_init(void*& gva);
     int create_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int exchange_slice(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+    int exchange_user_buffer_heap();
     int exchange_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 private:

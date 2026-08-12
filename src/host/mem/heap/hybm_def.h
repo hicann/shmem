@@ -12,8 +12,8 @@
 
 #include <stdint.h>
 
-typedef void *hybm_entity_t;
-typedef void *hybm_mem_slice_t;
+typedef void* hybm_entity_t;
+typedef void* hybm_mem_slice_t;
 
 constexpr uint64_t KB = 1024ULL;
 constexpr uint64_t MB = KB * 1024ULL;
@@ -27,14 +27,11 @@ constexpr uint64_t TB = GB * 1024ULL;
 #define HYBM_EXPORT_ALL_SLICE 0x01
 
 #define HYBM_PERFORMANCE_MODE_FLAG_INDEX 7
-#define HYBM_PERFORMANCE_MODE_FLAG_LEN   1
-#define HYBM_BIND_NUMA_FLAG_INDEX        0
-#define HYBM_BIND_NUMA_FLAG_LEN          7
+#define HYBM_PERFORMANCE_MODE_FLAG_LEN 1
+#define HYBM_BIND_NUMA_FLAG_INDEX 0
+#define HYBM_BIND_NUMA_FLAG_LEN 7
 
-typedef enum {
-    HYBM_TYPE_AI_CORE_INITIATE = 0,
-    HYBM_TYPE_BUTT
-} hybm_type;
+enum class hybm_type : uint32_t { HYBM_TYPE_AI_CORE_INITIATE = 0, HYBM_TYPE_BUTT };
 
 typedef enum {
     HYBM_DOP_TYPE_DEFAULT = 0U,
@@ -52,18 +49,18 @@ typedef enum {
     HYBM_SCOPE_BUTT
 } hybm_scope;
 
-typedef enum {
+enum class hybm_mem_type : uint32_t {
     HYBM_MEM_TYPE_DEVICE = 1U << 0,
     HYBM_MEM_TYPE_HOST = 1U << 1,
     HYBM_MEM_TYPE_BUTT
-} hybm_mem_type;
+};
 
-typedef enum {
-    HYBM_ROLE_PEER = 0,
-    HYBM_ROLE_SENDER,
-    HYBM_ROLE_RECEIVER,
-    HYBM_ROLE_BUTT
-} hybm_role_type;
+constexpr bool HybmHasMemType(hybm_mem_type value, hybm_mem_type type) noexcept
+{
+    return (static_cast<uint32_t>(value) & static_cast<uint32_t>(type)) != 0U;
+}
+
+enum class hybm_role_type : uint32_t { HYBM_ROLE_PEER = 0, HYBM_ROLE_SENDER, HYBM_ROLE_RECEIVER, HYBM_ROLE_BUTT };
 
 typedef struct {
     uint8_t desc[512L];
@@ -84,6 +81,9 @@ typedef struct {
     hybm_role_type role;
     uint32_t flags;
     char nic[64];
+    const void* userBufferHeapInput;
+    int32_t* trustedPids;
+    uint32_t trustedPidCount;
 } hybm_options;
 
 #endif // MEM_FABRIC_HYBRID_HYBRID_BIG_MEM_DL_H

@@ -216,6 +216,19 @@ Result DlAclApi::AclrtReleaseMemAddress(void* virPtr)
     return DlHalApi::HalMemAddressFree(virPtr);
 }
 
+Result DlAclApi::AclrtMemGetAllocationPropertiesFromHandle(aclrtDrvMemHandle handle, aclrtPhysicalMemProp* property)
+{
+    // User-buffer descriptor validation runs before HYBM calls LoadLibrary(). Resolve this optional ACL symbol from
+    // the process-wide link map so older CANN releases can use the export/map validation fallback without creating a
+    // compile-time or link-time dependency on the API.
+    static const auto getAllocationProperties = reinterpret_cast<aclrtMemGetAllocationPropertiesFromHandleFunc>(
+        dlsym(RTLD_DEFAULT, "aclrtMemGetAllocationPropertiesFromHandle"));
+    if (getAllocationProperties == nullptr) {
+        return ACLSHMEM_UNDER_API_UNLOAD;
+    }
+    return getAllocationProperties(handle, property);
+}
+
 void DlAclApi::CleanupLibrary()
 {
     std::lock_guard<std::mutex> guard(gMutex);

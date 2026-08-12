@@ -7,6 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+#include <new>
+
 #include "shmemi_logger.h"
 #include "mem_entity_inter.h"
 #include "dl_api.h"
@@ -307,6 +309,26 @@ HYBM_API int32_t hybm_export(hybm_entity_t e, hybm_mem_slice_t slice, uint32_t f
     }
 
     return ACLSHMEM_SUCCESS;
+}
+
+HYBM_API int32_t
+hybm_export_user_buffer_heap(hybm_entity_t e, hybm_exchange_info infos[], uint32_t count, uint32_t flags)
+{
+    SHM_ASSERT_RETURN(e != nullptr, ACLSHMEM_INVALID_PARAM);
+    SHM_ASSERT_RETURN(infos != nullptr && count > 0, ACLSHMEM_INVALID_PARAM);
+    auto entity = shm::MemEntityFactory::Instance().FindEngineByPtr(e);
+    SHM_ASSERT_RETURN(entity != nullptr, ACLSHMEM_INVALID_PARAM);
+
+    std::vector<shm::ExchangeInfoWriter> writers;
+    try {
+        writers.reserve(count);
+        for (uint32_t i = 0; i < count; ++i) {
+            writers.emplace_back(&infos[i]);
+        }
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
+    }
+    return entity->ExportUserBufferHeap(writers.data(), count, flags);
 }
 
 HYBM_API int32_t hybm_export_slice_size(hybm_entity_t e, size_t* size)

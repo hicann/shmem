@@ -337,7 +337,10 @@ link_directories(
 
 link_libraries(runtime stdc++ ascendcl m tiling_api platform c_sec dl nnopbase pthread)
 
-# Check if aclrtMemExportToShareableHandleV2 symbol exists in the ACL library
+# CANN releases expose the VMM share-handle APIs as one capability set, but the
+# exact declarations are not available in every supported toolkit version.
+# Compile and link a minimal source during configure so user-buffer-heap code is
+# enabled only when the installed headers and ascendcl library agree.
 include(CheckCXXSymbolExists)
 
 # Create a test file to check for the symbol
@@ -350,8 +353,11 @@ file(WRITE ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp "
 #include <acl/acl.h>
 int main() {
     aclrtMemFabricHandle handle;
-    aclrtMemExportToShareableHandleV2(nullptr, 1, ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT, &handle);
-    aclrtMemImportFromShareableHandleV2(&handle, ACL_MEM_SHARE_HANDLE_TYPE_DEFAULT, 0, nullptr);
+    aclrtDrvMemHandle mem_handle = nullptr;
+    aclrtMemRetainAllocationHandle(nullptr, &mem_handle);
+    aclrtMemExportToShareableHandleV2(nullptr, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
+        ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &handle);
+    aclrtMemImportFromShareableHandleV2(&handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0, nullptr);
     return 0;
 }")
 
@@ -369,17 +375,24 @@ file(REMOVE ${CMAKE_BINARY_DIR}/check_acl_symbol.cpp)
 
 option(ENABLE_CANN_BUILD "Enable CANN Build" OFF)
 
-if(HAS_ACLRT_MEM_FABRIC_HANDLE AND ENABLE_CANN_BUILD)
-    message(STATUS "aclrtMemExportToShareableHandleV2 symbol found, enabling ACLRT_MEM_FABRIC_HANDLE support")
+if(HAS_ACLRT_MEM_FABRIC_HANDLE)
+    message(STATUS "aclrtMemExportToShareableHandleV2 symbol found, enabling user-buffer V2 handle support")
     add_definitions(-DHAS_ACLRT_MEM_FABRIC_HANDLE)
 else()
-    message(STATUS "aclrtMemExportToShareableHandleV2 symbol not found, disabling ACLRT_MEM_FABRIC_HANDLE support")
+    message(STATUS "aclrtMemExportToShareableHandleV2 symbol not found, disabling user-buffer V2 handle support")
+endif()
+
+# Preserve the original ordinary-heap selection: only a CANN build uses the
+# ACL/Fabric memory-segment implementation for heaps without user buffers.
+if(HAS_ACLRT_MEM_FABRIC_HANDLE AND ENABLE_CANN_BUILD)
+    add_definitions(-DUSE_ACLRT_MEM_FABRIC_HANDLE)
+    message(STATUS "CANN build enabled, using ACL/Fabric handles for ordinary heaps")
 endif()
 
 # Check whether the ACL headers and library provide aclrtMemMapSetLink.
 check_cxx_symbol_exists(aclrtMemMapSetLink "acl/acl.h" HAS_ACLRT_MEM_MAP_SET_LINK)
 
-if(HAS_ACLRT_MEM_FABRIC_HANDLE AND HAS_ACLRT_MEM_MAP_SET_LINK)
+if(USE_ACLRT_MEM_FABRIC_HANDLE AND HAS_ACLRT_MEM_MAP_SET_LINK)
     set(ACLSHMEM_ONE_MULTI_PATH ON)
     message(STATUS "Fabric Handle and aclrtMemMapSetLink symbols found, enabling ACLSHMEM_ONE_MULTI_PATH support")
 else()

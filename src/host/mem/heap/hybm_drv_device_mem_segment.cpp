@@ -22,8 +22,6 @@
 #include "hybm_ex_info_transfer.h"
 #include "hybm_device_mem_segment.h"
 
-#ifndef HAS_ACLRT_MEM_FABRIC_HANDLE
-
 namespace shm {
 Result MemSegmentDevice::ValidateOptions() noexcept
 {
@@ -35,7 +33,8 @@ Result MemSegmentDevice::ValidateOptions() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::ReserveEachPeMemorySpace(size_t reserveAlignedSize, size_t totalReservedSize, uint64_t expectSt) noexcept
+Result MemSegmentDevice::ReserveEachPeMemorySpace(
+    size_t reserveAlignedSize, size_t totalReservedSize, uint64_t expectSt) noexcept
 {
     (void)expectSt;
     (void)reserveAlignedSize;
@@ -43,7 +42,7 @@ Result MemSegmentDevice::ReserveEachPeMemorySpace(size_t reserveAlignedSize, siz
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
+Result MemSegmentDevice::ReserveMemorySpace(void** address) noexcept
 {
     if (globalVirtualAddress_ != nullptr) {
         SHM_LOG_ERROR("already prepare virtual memory.");
@@ -55,23 +54,25 @@ Result MemSegmentDevice::ReserveMemorySpace(void **address) noexcept
         auto ret = drv::HalGvaReserveMemory(&base, options_.size, logicDeviceId_, 0ULL);
         if (ret != 0 || base == 0) {
             SHM_LOG_ERROR("prepare virtual memory size to (" << totalVirtualSize_ << ") failed. ret: " << ret);
-            for (auto &reserved : reservedVirtualAddresses_) {
+            for (auto& reserved : reservedVirtualAddresses_) {
                 drv::HalGvaUnreserveMemory((uint64_t)reserved);
             }
             reservedVirtualAddresses_.clear();
             totalVirtualSize_ = 0;
             return ACLSHMEM_MALLOC_FAILED;
         }
-        SHM_LOG_INFO("success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void *)base << ", size: " << options_.size << ", rankId: " << i);
+        SHM_LOG_INFO(
+            "success to reserve memory space for logic deviceid " << logicDeviceId_ << ", vaddr: " << (void*)base
+                                                                  << ", size: " << options_.size << ", rankId: " << i);
         size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         totalVirtualSize_ += reserveAlignedSize;
         reservedVirtualAddresses_.emplace_back(base);
     }
 
-    globalVirtualAddress_ = reinterpret_cast<uint8_t *>(base);
+    globalVirtualAddress_ = reinterpret_cast<uint8_t*>(base);
     allocatedSize_ = 0UL;
     sliceCount_ = 0;
-    *address = reinterpret_cast<void *>(base);
+    *address = reinterpret_cast<void*>(base);
     return ACLSHMEM_SUCCESS;
 }
 
@@ -82,23 +83,20 @@ Result MemSegmentDevice::UnReserveMemorySpace() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::FindAvaliableVirtualAddr(uint64_t size, uint64_t &baseVa) noexcept
+Result MemSegmentDevice::FindAvaliableVirtualAddr(uint64_t size, uint64_t& baseVa) noexcept
 {
     (void)size;
     (void)baseVa;
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::SetMemAccess() noexcept
-{
-    return ACLSHMEM_SUCCESS;
-}
+Result MemSegmentDevice::SetMemAccess() noexcept { return ACLSHMEM_SUCCESS; }
 
-Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice> &slice) noexcept
+Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept
 {
     if ((size % DEVICE_LARGE_PAGE_SIZE) != 0UL || size + allocatedSize_ > options_.size) {
-        SHM_LOG_ERROR("invalid allocate memory size : " << size << ", now used " << allocatedSize_ << " of "
-                                                       << options_.size);
+        SHM_LOG_ERROR(
+            "invalid allocate memory size : " << size << ", now used " << allocatedSize_ << " of " << options_.size);
         return ACLSHMEM_INVALID_PARAM;
     }
 
@@ -112,21 +110,22 @@ Result MemSegmentDevice::AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlic
 
     auto sliceAddr = localVirtualBase + allocatedSize_;
     allocatedSize_ += size;
-    slice = std::make_shared<MemSlice>(sliceCount_++, MEM_TYPE_DEVICE_HBM, MEM_PT_TYPE_SVM,
-                                       static_cast<uint64_t>(reinterpret_cast<std::ptrdiff_t>(sliceAddr)), size);
+    slice = std::make_shared<MemSlice>(
+        sliceCount_++, MEM_TYPE_DEVICE_HBM, MEM_PT_TYPE_SVM,
+        static_cast<uint64_t>(reinterpret_cast<std::ptrdiff_t>(sliceAddr)), size);
     slices_.emplace(slice->index_, slice);
     SHM_LOG_DEBUG("allocate slice(idx:" << slice->index_ << ", size:" << slice->size_ << ").");
 
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::RegisterMemory(const void *addr, uint64_t size, std::shared_ptr<MemSlice> &slice) noexcept
+Result MemSegmentDevice::RegisterMemory(const void* addr, uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept
 {
     SHM_LOG_ERROR("MemSegmentDevice NOT SUPPORT RegisterMemory");
     return ACLSHMEM_NOT_SUPPORTED;
 }
 
-Result MemSegmentDevice::ReleaseSliceMemory(const std::shared_ptr<MemSlice> &slice) noexcept
+Result MemSegmentDevice::ReleaseSliceMemory(const std::shared_ptr<MemSlice>& slice) noexcept
 {
     if (slice == nullptr) {
         SHM_LOG_ERROR("input slice is nullptr");
@@ -151,14 +150,14 @@ Result MemSegmentDevice::ReleaseSliceMemory(const std::shared_ptr<MemSlice> &sli
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::Export(std::string &exInfo) noexcept
+Result MemSegmentDevice::Export(std::string& exInfo) noexcept
 {
     SHM_LOG_INFO("MemSegmentDevice not supported export device info.");
     return ACLSHMEM_SUCCESS;
 }
 
 // export不可重入
-Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::string &exInfo) noexcept
+Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice>& slice, std::string& exInfo) noexcept
 {
     if (slice == nullptr) {
         SHM_LOG_ERROR("input slice is nullptr");
@@ -177,14 +176,14 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     }
 
     auto exp = exportMap_.find(slice->index_);
-    if (exp != exportMap_.end()) {  // RtIpcSetMemoryName不支持重复调用
+    if (exp != exportMap_.end()) { // RtIpcSetMemoryName不支持重复调用
         exInfo = exp->second;
         return ACLSHMEM_SUCCESS;
     }
 
     HbmExportInfo info{};
-    auto ret = DlAclApi::RtIpcSetMemoryName((void *)(ptrdiff_t)slice->vAddress_, slice->size_, info.shmName,
-                                            sizeof(info.shmName));
+    auto ret = DlAclApi::RtIpcSetMemoryName(
+        (void*)(ptrdiff_t)slice->vAddress_, slice->size_, info.shmName, sizeof(info.shmName));
     SHM_LOG_ERROR_RETURN_IT_IF_NOT_OK(ret, "set memory name failed: " << ret);
 
     size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
@@ -215,14 +214,14 @@ Result MemSegmentDevice::Export(const std::shared_ptr<MemSlice> &slice, std::str
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::GetExportSliceSize(size_t &size) noexcept
+Result MemSegmentDevice::GetExportSliceSize(size_t& size) noexcept
 {
     size = sizeof(HbmExportInfo);
     return ACLSHMEM_SUCCESS;
 }
 
 // import可重入
-Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void *addresses[]) noexcept
+Result MemSegmentDevice::Import(const std::vector<std::string>& allExInfo, void* addresses[]) noexcept
 {
     std::map<uint16_t, HbmExportInfo> importMap;
     LiteralExInfoTranslater<HbmExportInfo> translator;
@@ -239,8 +238,10 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
 
     uint32_t localIdx = UINT32_MAX;
     for (auto i = 0U; i < desInfos.size(); i++) {
-        if (desInfos[i].magic != EXPORT_INFO_MAGIC) {
-            SHM_LOG_ERROR("import info(" << i << ") magic(" << desInfos[i].magic << ") invalid.");
+        if (desInfos[i].magic != EXPORT_INFO_MAGIC || desInfos[i].version != EXPORT_INFO_VERSION) {
+            SHM_LOG_ERROR(
+                "import info(" << i << ") magic(" << desInfos[i].magic << ") or version(" << desInfos[i].version
+                               << ") invalid.");
             return ACLSHMEM_INVALID_PARAM;
         }
 
@@ -271,12 +272,12 @@ Result MemSegmentDevice::Import(const std::vector<std::string> &allExInfo, void 
             continue;
         }
 
-        auto ret = DlAclApi::RtSetIpcMemorySuperPodPid(desInfos[localIdx].shmName, desInfos[i].sdid,
-                                                       &desInfos[i].pid, 1);
+        auto ret =
+            DlAclApi::RtSetIpcMemorySuperPodPid(desInfos[localIdx].shmName, desInfos[i].sdid, &desInfos[i].pid, 1);
         if (ret != 0) {
-            SHM_LOG_ERROR("enable white list for rank(" << desInfos[i].rankId << ") failed: " << ret
-                                                       << ", local rank = " << options_.rankId
-                                                       << ", shmName=" << desInfos[localIdx].shmName);
+            SHM_LOG_ERROR(
+                "enable white list for rank(" << desInfos[i].rankId << ") failed: " << ret << ", local rank = "
+                                              << options_.rankId << ", shmName=" << desInfos[localIdx].shmName);
             return ACLSHMEM_DL_FUNC_FAILED;
         }
     }
@@ -291,7 +292,7 @@ Result MemSegmentDevice::Mmap() noexcept
         return ACLSHMEM_SUCCESS;
     }
 
-    for (auto &im : imports_) {
+    for (auto& im : imports_) {
         if (im.rankId == options_.rankId) {
             continue;
         }
@@ -299,7 +300,7 @@ Result MemSegmentDevice::Mmap() noexcept
         size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         auto remoteAddress = globalVirtualAddress_ + reserveAlignedSize * im.rankId + im.mappingOffset;
         if (mappedMem_.find((uint64_t)remoteAddress) != mappedMem_.end()) {
-            SHM_LOG_INFO("remote slice on rank(" << im.rankId << ") has maped: " << (void *)remoteAddress);
+            SHM_LOG_INFO("remote slice on rank(" << im.rankId << ") has maped: " << (void*)remoteAddress);
             continue;
         }
 
@@ -308,8 +309,9 @@ Result MemSegmentDevice::Mmap() noexcept
             continue;
         }
 
-        SHM_LOG_DEBUG("remote slice on rank(" << im.rankId << ") should map to: " << (void *)remoteAddress
-                                             << ", size = " << im.size);
+        SHM_LOG_DEBUG(
+            "remote slice on rank(" << im.rankId << ") should map to: " << (void*)remoteAddress
+                                    << ", size = " << im.size);
         auto ret = drv::HalGvaOpen((uint64_t)remoteAddress, im.shmName, im.size, 0);
         if (ret != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("HalGvaOpen memory failed:" << ret);
@@ -333,16 +335,16 @@ Result MemSegmentDevice::Unmap() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-Result MemSegmentDevice::RemoveImported(const std::vector<uint32_t> &ranks) noexcept
+Result MemSegmentDevice::RemoveImported(const std::vector<uint32_t>& ranks) noexcept
 {
-    for (auto &rank : ranks) {
+    for (auto& rank : ranks) {
         if (rank >= options_.rankCnt) {
             SHM_LOG_ERROR("input rank is invalid! rank:" << rank << " rankSize:" << options_.rankCnt);
             return ACLSHMEM_INVALID_PARAM;
         }
     }
 
-    for (auto &rank : ranks) {
+    for (auto& rank : ranks) {
         size_t reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         uint64_t addr = reinterpret_cast<uint64_t>(globalVirtualAddress_) + reserveAlignedSize * rank;
         auto it = mappedMem_.lower_bound(addr);
@@ -378,13 +380,13 @@ std::shared_ptr<MemSlice> MemSegmentDevice::GetMemSlice(hybm_mem_slice_t slice) 
     return target;
 }
 
-bool MemSegmentDevice::MemoryInRange(const void *begin, uint64_t size) const noexcept
+bool MemSegmentDevice::MemoryInRange(const void* begin, uint64_t size) const noexcept
 {
     if (begin < globalVirtualAddress_) {
         return false;
     }
 
-    if (static_cast<const uint8_t *>(begin) + size >= globalVirtualAddress_ + totalVirtualSize_) {
+    if (static_cast<const uint8_t*>(begin) + size >= globalVirtualAddress_ + totalVirtualSize_) {
         return false;
     }
 
@@ -414,23 +416,23 @@ void MemSegmentDevice::FreeMemory() noexcept
     }
 }
 
-bool MemSegmentDevice::CanMapRemote(const HbmExportInfo &rmi) noexcept
+bool MemSegmentDevice::CanMapRemote(const HbmExportInfo& rmi) noexcept
 {
     return IsSdmaAccessible(rmi.superPodId, rmi.serverId, rmi.logicDeviceId);
 }
 
-void MemSegmentDevice::GetDeviceInfo(uint32_t &sdId, uint32_t &serverId, uint32_t &superPodId) noexcept
+void MemSegmentDevice::GetDeviceInfo(uint32_t& sdId, uint32_t& serverId, uint32_t& superPodId) noexcept
 {
     sdId = sdid_;
     serverId = serverId_;
     superPodId = superPodId_;
 }
 
-bool MemSegmentDevice::GetRankIdByAddr(const void *addr, uint64_t size, uint32_t &rankId) const noexcept
+bool MemSegmentDevice::GetRankIdByAddr(const void* addr, uint64_t size, uint32_t& rankId) const noexcept
 {
-    auto end = static_cast<const uint8_t *>(addr) + size;
+    auto end = static_cast<const uint8_t*>(addr) + size;
     if (addr >= globalVirtualAddress_ && end < globalVirtualAddress_ + totalVirtualSize_) {
-        auto offset = static_cast<const uint8_t *>(addr) - static_cast<const uint8_t *>(globalVirtualAddress_);
+        auto offset = static_cast<const uint8_t*>(addr) - static_cast<const uint8_t*>(globalVirtualAddress_);
         auto reserveAlignedSize = ALIGN_UP(options_.size, DEVMM_HEAP_SIZE);
         auto alignOffset = offset % reserveAlignedSize;
         if (alignOffset < options_.size) {
@@ -453,6 +455,4 @@ bool MemSegmentDevice::CheckSdmaReaches(uint32_t remoteRankId) const noexcept
 
     return IsSdmaAccessible(pos->second.superPodId, pos->second.serverId, pos->second.logicDeviceId);
 }
-}  // namespace shm
-
-#endif
+} // namespace shm

@@ -173,7 +173,9 @@ struct PeerChannelContexts {
     RegedBufferEntity remote_buffer{};
 };
 
-Result ReadPeerChannelContexts(uint64_t channel_ptr, uint32_t peer, bool read_remote_buffer, PeerChannelContexts& out)
+Result ReadPeerChannelContexts(
+    uint64_t channel_ptr, uint32_t peer, bool read_remote_buffer, uint64_t expected_remote_size,
+    PeerChannelContexts& out)
 {
     ChannelEntity channel{};
     auto ret = CopyHcommChannelEntityFromDevice(&channel, sizeof(channel), channel_ptr, "channel entity", peer);
@@ -183,11 +185,13 @@ Result ReadPeerChannelContexts(uint64_t channel_ptr, uint32_t peer, bool read_re
 
     if (channel.sqNum == 0 || channel.cqNum == 0 || channel.sqContextAddr == nullptr ||
         channel.cqContextAddr == nullptr ||
-        (read_remote_buffer && (channel.remoteBufferNum == 0 || channel.remoteBufferAddr == nullptr))) {
+        (read_remote_buffer && (channel.localBufferNum != 1 || channel.remoteBufferNum != 1 ||
+                                channel.localBufferAddr == nullptr || channel.remoteBufferAddr == nullptr))) {
         SHM_LOG_ERROR(
-            "Invalid Hcomm channel entity for peer " << peer << ", sqNum = " << channel.sqNum
-                                                     << ", cqNum = " << channel.cqNum
-                                                     << ", remoteBufferNum = " << channel.remoteBufferNum);
+            "Invalid Hcomm channel entity for peer "
+            << peer << ", sqNum = " << channel.sqNum << ", cqNum = " << channel.cqNum
+            << ", localBufferNum = " << channel.localBufferNum << ", remoteBufferNum = " << channel.remoteBufferNum
+            << ", expected each count = 1");
         return ACLSHMEM_INNER_ERROR;
     }
 
@@ -225,6 +229,18 @@ Result ReadPeerChannelContexts(uint64_t channel_ptr, uint32_t peer, bool read_re
             &out.remote_buffer, sizeof(out.remote_buffer), remoteBufferAddr, "remote buffer", peer);
         if (ret != ACLSHMEM_SUCCESS) {
             return ret;
+        }
+        if (out.remote_buffer.type != REGED_BUFFER_TYPE_RMA ||
+            out.remote_buffer.bufferInfo.rma.protectionInfo.type != PROTECTION_TYPE_UB ||
+            out.remote_buffer.bufferInfo.rma.addr == 0 ||
+            out.remote_buffer.bufferInfo.rma.size < expected_remote_size) {
+            SHM_LOG_ERROR(
+                "Invalid Hcomm remote buffer for peer "
+                << peer << ", type = " << out.remote_buffer.type
+                << ", protectionType = " << out.remote_buffer.bufferInfo.rma.protectionInfo.type << ", addr = "
+                << out.remote_buffer.bufferInfo.rma.addr << ", size = " << out.remote_buffer.bufferInfo.rma.size
+                << ", expectedSizeAtLeast = " << expected_remote_size);
+            return ACLSHMEM_INNER_ERROR;
         }
     }
     return ACLSHMEM_SUCCESS;
@@ -314,8 +330,19 @@ Result UdmaTransportManager::CloseDevice()
 
 Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& mr)
 {
+    if (mr.addr == 0 || mr.size == 0) {
+        SHM_LOG_ERROR("Invalid empty memory region for Hcomm MR, address = " << mr.addr << ", size = " << mr.size);
+        return ACLSHMEM_INVALID_PARAM;
+    }
     auto addrRecordIt = mem_record_map_.find(mr.addr);
     if (addrRecordIt != mem_record_map_.end()) {
+        auto size_it = mem_region_size_map_.find(mr.addr);
+        if (size_it == mem_region_size_map_.end() || size_it->second != mr.size) {
+            SHM_LOG_ERROR(
+                "Hcomm MR address was registered with a different size, address = " << mr.addr << ", requested size = "
+                                                                                    << mr.size);
+            return ACLSHMEM_INVALID_PARAM;
+        }
         SHM_LOG_INFO("Hcomm MR address has been registered, address = " << mr.addr);
         return ACLSHMEM_SUCCESS;
     }
@@ -373,6 +400,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
     }
 
     mem_record_map_[mr.addr] = hcomm_handles;
+    mem_region_size_map_[mr.addr] = mr.size;
 
     SHM_LOG_INFO("Register MR success.");
     return ACLSHMEM_SUCCESS;
@@ -407,6 +435,7 @@ Result UdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
         }
     }
     mem_record_map_.erase(hcomm_pos);
+    mem_region_size_map_.erase(addr);
     return result;
 }
 
@@ -542,6 +571,12 @@ Result UdmaTransportManager::ReadChannelContexts(
     std::vector<SqContext>& sq_contexts_by_qp, std::vector<CqContext>& cq_contexts_by_qp,
     std::vector<RegedBufferEntity>& remote_buffers_by_slot, std::vector<bool>& slot_valid) const
 {
+    if (mem_region_size_map_.size() != 1) {
+        SHM_LOG_ERROR(
+            "UDMA requires one contiguous registered heap, registered region count = " << mem_region_size_map_.size());
+        return ACLSHMEM_INNER_ERROR;
+    }
+    const uint64_t expected_remote_size = mem_region_size_map_.begin()->second;
     const uint64_t slot_count = SlotCount();
     for (size_t idx = 0; idx < channel_ptrs.size(); ++idx) {
         const uint32_t slot = channel_slots[idx];
@@ -557,7 +592,8 @@ Result UdmaTransportManager::ReadChannelContexts(
 
         const bool read_remote_buffer = !slot_valid[slot];
         PeerChannelContexts peer_contexts{};
-        auto read_ret = ReadPeerChannelContexts(channel_ptrs[idx], dst_pe, read_remote_buffer, peer_contexts);
+        auto read_ret =
+            ReadPeerChannelContexts(channel_ptrs[idx], dst_pe, read_remote_buffer, expected_remote_size, peer_contexts);
         if (read_ret != ACLSHMEM_SUCCESS) {
             return read_ret;
         }
@@ -979,10 +1015,10 @@ Result UdmaTransportManager::CreateChannelsForSlot(
     }
 
     std::vector<HcommMemHandle> mem_handles = CollectChannelMemHandles(local_eid_index);
-    if (mem_handles.empty()) {
+    if (mem_handles.size() != 1) {
         SHM_LOG_ERROR(
-            "No active Hcomm mem handle for local EID index " << local_eid_index << " when creating channel for dst_pe "
-                                                              << dst_pe);
+            "UDMA requires exactly one Hcomm mem handle for the contiguous heap, local EID index = "
+            << local_eid_index << ", dst_pe = " << dst_pe << ", mem handle count = " << mem_handles.size());
         return ACLSHMEM_INNER_ERROR;
     }
 
@@ -1477,8 +1513,8 @@ bool UdmaTransportManager::CreateEndpoint(
 
 Result UdmaTransportManager::CheckPrepareOptions(const HybmTransPrepareOptions& options)
 {
-    if (role_ != HYBM_ROLE_PEER) {
-        SHM_LOG_INFO("Transport role: " << role_ << " check options passed.");
+    if (role_ != hybm_role_type::HYBM_ROLE_PEER) {
+        SHM_LOG_INFO("Transport role: " << static_cast<uint32_t>(role_) << " check options passed.");
         return ACLSHMEM_SUCCESS;
     }
 
@@ -1652,6 +1688,7 @@ void UdmaTransportManager::CleanupResources()
         }
     }
     mem_record_map_.clear();
+    mem_region_size_map_.clear();
     SHM_LOG_INFO("Unregister memory success.");
 
     for (const auto& endpoint_entry : endpoint_handle_map_) {

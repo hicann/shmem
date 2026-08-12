@@ -12,7 +12,7 @@
 #include "shmemi_host_common.h"
 #include "shmemi_mm.h"
 
-int32_t memory_manager_initialize(void *base, uint64_t size, aclshmem_mem_type_t mem_type)
+int32_t memory_manager_initialize(void* base, uint64_t size, aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {
         aclshmemi_host_memory_manager = std::make_shared<memory_manager>(base, size);
@@ -34,14 +34,14 @@ void memory_manager_destroy()
     }
 }
 
-void *aclshmem_malloc(size_t size)
+void* aclshmem_malloc(size_t size)
 {
     if (aclshmemi_memory_manager == nullptr) {
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
         return nullptr;
     }
 
-    void *ptr = aclshmemi_memory_manager->allocate(size);
+    void* ptr = aclshmemi_memory_manager->allocate(size);
     SHM_LOG_DEBUG("aclshmem_malloc(" << size << ")" << " ptr: " << ptr);
     auto ret = aclshmemi_control_barrier_all();
     if (ret != 0) {
@@ -61,7 +61,7 @@ void *aclshmem_malloc(size_t size)
     return ptr;
 }
 
-void *aclshmem_calloc(size_t nmemb, size_t size)
+void* aclshmem_calloc(size_t nmemb, size_t size)
 {
     if (aclshmemi_memory_manager == nullptr) {
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
@@ -93,7 +93,7 @@ void *aclshmem_calloc(size_t nmemb, size_t size)
     return ptr;
 }
 
-void *aclshmem_align(size_t alignment, size_t size)
+void* aclshmem_align(size_t alignment, size_t size)
 {
     if (aclshmemi_memory_manager == nullptr) {
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
@@ -113,7 +113,7 @@ void *aclshmem_align(size_t alignment, size_t size)
     return ptr;
 }
 
-void aclshmem_free(void *ptr)
+void aclshmem_free(void* ptr)
 {
     if (aclshmemi_memory_manager == nullptr) {
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
@@ -137,7 +137,7 @@ void aclshmem_free(void *ptr)
     SHM_LOG_DEBUG("aclshmem_free " << ret);
 }
 
-void *aclshmemx_get_heap_base(aclshmem_mem_type_t mem_type)
+void* aclshmemx_get_heap_base(aclshmem_mem_type_t mem_type)
 {
     if (mem_type == HOST_SIDE) {
         if (g_state.host_heap_base == nullptr) {
@@ -153,9 +153,22 @@ void *aclshmemx_get_heap_base(aclshmem_mem_type_t mem_type)
     return g_state.heap_base;
 }
 
+void* aclshmemx_get_buffer_ptr(const void* local_ptr)
+{
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+    if (local_ptr == nullptr || init_manager == nullptr) {
+        return nullptr;
+    }
+    return init_manager->get_buffer_ptr(local_ptr);
+#else
+    (void)local_ptr;
+    return nullptr;
+#endif
+}
+
 bool support_host_mem_type(aclshmem_mem_type_t mem_type)
 {
-#ifndef HAS_ACLRT_MEM_FABRIC_HANDLE
+#ifndef USE_ACLRT_MEM_FABRIC_HANDLE
     if (mem_type == HOST_SIDE) {
         SHM_LOG_ERROR("Not support HOST_SIDE malloc, please update CANN version");
         return false;
@@ -178,7 +191,7 @@ std::shared_ptr<memory_manager> getory_manager(aclshmem_mem_type_t mem_type)
             SHM_LOG_ERROR("Host Memory Heap Not Initialized.");
             return nullptr;
         }
-        if (init_manager->update_device_state((void *)&g_state, sizeof(aclshmem_device_host_state_t)) !=
+        if (init_manager->update_device_state((void*)&g_state, sizeof(aclshmem_device_host_state_t)) !=
             ACLSHMEM_SUCCESS) {
             return nullptr;
         }
@@ -191,7 +204,7 @@ std::shared_ptr<memory_manager> getory_manager(aclshmem_mem_type_t mem_type)
     return aclshmemi_memory_manager;
 }
 
-void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type)
+void* aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type)
 {
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
@@ -200,7 +213,7 @@ void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type)
     if (mem_manager == nullptr) {
         return nullptr;
     }
-    void *ptr = mem_manager->allocate(size);
+    void* ptr = mem_manager->allocate(size);
     SHM_LOG_DEBUG("aclshmem_malloc(" << size << ")");
     auto ret = aclshmemi_control_barrier_all();
     if (ret != 0) {
@@ -213,7 +226,7 @@ void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type)
     return ptr;
 }
 
-void *aclshmemx_calloc(size_t nmemb, size_t size, aclshmem_mem_type_t mem_type)
+void* aclshmemx_calloc(size_t nmemb, size_t size, aclshmem_mem_type_t mem_type)
 {
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
@@ -246,7 +259,7 @@ void *aclshmemx_calloc(size_t nmemb, size_t size, aclshmem_mem_type_t mem_type)
     return ptr;
 }
 
-void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type)
+void* aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type)
 {
     if (!support_host_mem_type(mem_type)) {
         return nullptr;
@@ -268,7 +281,7 @@ void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_typ
     return ptr;
 }
 
-void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type)
+void aclshmemx_free(void* ptr, aclshmem_mem_type_t mem_type)
 {
     if (!support_host_mem_type(mem_type)) {
         return;
@@ -291,7 +304,8 @@ void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type)
         return;
     }
 
-    auto ret = mem_type == HOST_SIDE ? aclshmemi_host_memory_manager->release(ptr) : aclshmemi_memory_manager->release(ptr);
+    auto ret =
+        mem_type == HOST_SIDE ? aclshmemi_host_memory_manager->release(ptr) : aclshmemi_memory_manager->release(ptr);
     if (ret != 0) {
         SHM_LOG_ERROR("release failed: " << ret);
     }

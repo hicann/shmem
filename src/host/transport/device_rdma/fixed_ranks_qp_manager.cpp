@@ -25,22 +25,21 @@ static constexpr uint32_t MAX_SEND_WR = 8192;
 static constexpr uint32_t MAX_RECV_WR = 128;
 static constexpr uint32_t QP_MODE = 2;
 
-FixedRanksQpManager::FixedRanksQpManager(uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount,
-                                         mf_sockaddr devNet) noexcept
-    : DeviceQpManager(deviceId, rankId, rankCount, devNet, HYBM_ROLE_PEER)
+FixedRanksQpManager::FixedRanksQpManager(
+    uint32_t userDeviceId, uint32_t deviceId, uint32_t rankId, uint32_t rankCount, mf_sockaddr devNet) noexcept
+    : DeviceQpManager(deviceId, rankId, rankCount, devNet, hybm_role_type::HYBM_ROLE_PEER)
 {
     userDeviceId_ = userDeviceId;
     trafficClass_ = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
     serviceLevel_ = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
-    SHM_LOG_INFO("rankId: " << rankId_ << ", init with trafficClass = " << static_cast<int>(trafficClass_)
-                            << ", serviceLevel = " << static_cast<int>(serviceLevel_));
+    SHM_LOG_INFO(
+        "rankId: " << rankId_ << ", init with trafficClass = " << static_cast<int>(trafficClass_)
+                   << ", serviceLevel = " << static_cast<int>(serviceLevel_));
 }
 
-FixedRanksQpManager::~FixedRanksQpManager() noexcept
-{
-}
+FixedRanksQpManager::~FixedRanksQpManager() noexcept {}
 
-int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo> &ranks) noexcept
+int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, ConnectRankInfo>& ranks) noexcept
 {
     if (started_.load()) {
         SHM_LOG_ERROR(rankId_ << " fixed ranks not support update ranks info after startup");
@@ -51,7 +50,7 @@ int FixedRanksQpManager::SetRemoteRankInfo(const std::unordered_map<uint32_t, Co
     return ACLSHMEM_SUCCESS;
 }
 
-int FixedRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
+int FixedRanksQpManager::SetLocalMemories(const MemoryRegionMap& mrs) noexcept
 {
     if (started_.load()) {
         SHM_LOG_INFO(rankId_ << " fixed ranks not support update register MRs after startup");
@@ -62,7 +61,7 @@ int FixedRanksQpManager::SetLocalMemories(const MemoryRegionMap &mrs) noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int FixedRanksQpManager::Startup(void *rdma) noexcept
+int FixedRanksQpManager::Startup(void* rdma) noexcept
 {
     if (rdma == nullptr) {
         SHM_LOG_ERROR(rankId_ << " input rdma is null");
@@ -81,13 +80,15 @@ int FixedRanksQpManager::Startup(void *rdma) noexcept
     }
 
     if (currentRanksInfo_.size() != rankCount_) {
-        SHM_LOG_ERROR(rankId_ << " set rank count = " << currentRanksInfo_.size() << ", but rank_size = " << rankCount_);
+        SHM_LOG_ERROR(
+            rankId_ << " set rank count = " << currentRanksInfo_.size() << ", but rank_size = " << rankCount_);
         return ACLSHMEM_INVALID_PARAM;
     }
 
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
         if (it->first >= rankCount_) {
-            SHM_LOG_ERROR(rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
+            SHM_LOG_ERROR(
+                rankId_ << " input options of nics contains rankId:" << it->first << ", rank count: " << rankCount_);
             return ACLSHMEM_INVALID_PARAM;
         }
     }
@@ -141,12 +142,9 @@ int FixedRanksQpManager::WaitingConnectionReady() noexcept
     return ACLSHMEM_INNER_ERROR;
 }
 
-const void *FixedRanksQpManager::GetQpInfoAddress() const noexcept
-{
-    return qpInfo_;
-}
+const void* FixedRanksQpManager::GetQpInfoAddress() const noexcept { return qpInfo_; }
 
-void *FixedRanksQpManager::GetQpHandleWithRankId(uint32_t rankId) const noexcept
+void* FixedRanksQpManager::GetQpHandleWithRankId(uint32_t rankId) const noexcept
 {
     auto connections = rankId < rankId_ ? &clientConnections_ : &serverConnections_;
     auto pos = connections->find(rankId);
@@ -163,7 +161,7 @@ bool FixedRanksQpManager::ReserveQpInfoSpace() noexcept
         return true;
     }
 
-    void *ptr = nullptr;
+    void* ptr = nullptr;
     auto oneQpSize = 2U * (sizeof(AiQpRMAWQ) + sizeof(AiQpRMACQ)) + sizeof(RdmaMemRegionInfo);
     qpInfoSize_ = sizeof(AiQpRMAQueueInfo) + oneQpSize * rankCount_;
     auto ret = DlAclApi::AclrtMalloc(&ptr, qpInfoSize_, 0);
@@ -172,7 +170,7 @@ bool FixedRanksQpManager::ReserveQpInfoSpace() noexcept
         return false;
     }
 
-    qpInfo_ = (AiQpRMAQueueInfo *)ptr;
+    qpInfo_ = (AiQpRMAQueueInfo*)ptr;
     return true;
 }
 
@@ -251,7 +249,7 @@ int FixedRanksQpManager::StartClientSide() noexcept
     std::vector<HccpSocketConnectInfo> connectInfos;
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
         if (it->first >= rankId_) {
-            continue;  // client connect to small ranks.
+            continue; // client connect to small ranks.
         }
 
         auto socketHandle = CreateLocalSocket();
@@ -278,22 +276,24 @@ int FixedRanksQpManager::StartClientSide() noexcept
         } else if (it->second.network.type == IpV6) {
             connectInfo.remoteIp.addr6 = it->second.network.ip.ipv6.sin6_addr;
         }
-        connectInfo.port = (it->second.network.type == IpV4) ? it->second.network.ip.ipv4.sin_port
-            : it->second.network.ip.ipv6.sin6_port;
+        connectInfo.port = (it->second.network.type == IpV4) ? it->second.network.ip.ipv4.sin_port :
+                                                               it->second.network.ip.ipv6.sin6_port;
         bzero(connectInfo.tag, sizeof(connectInfo.tag));
         SHM_LOG_DEBUG(rankId_ << " add connecting server " << connectInfo);
         connectInfos.emplace_back(connectInfo);
     }
 
     for (size_t i = 0; i < connectInfos.size(); i += RA_MAX_BATCH_NUM) {
-        size_t currentBatchSize = (connectInfos.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (connectInfos.size() - i);
+        size_t currentBatchSize =
+            (connectInfos.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (connectInfos.size() - i);
         auto batchStart = connectInfos.begin() + i;
         auto batchEnd = batchStart + currentBatchSize;
         std::vector<HccpSocketConnectInfo> currentBatch(batchStart, batchEnd);
 
         auto ret = DlHccpApi::RaSocketBatchConnect(currentBatch.data(), currentBatch.size());
         if (ret != 0) {
-            SHM_LOG_ERROR(rankId_ << " connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
+            SHM_LOG_ERROR(
+                rankId_ << " connect to all servers failed: " << ret << ", servers count = " << connectInfos.size());
             CloseClientConnections();
             return ACLSHMEM_DL_FUNC_FAILED;
         }
@@ -308,7 +308,7 @@ int FixedRanksQpManager::GenerateWhiteList() noexcept
     std::vector<HccpSocketWhiteListInfo> whitelist;
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
         if (it->first <= rankId_) {
-            continue;  // small id as server, large id as client
+            continue; // small id as server, large id as client
         }
         HccpSocketWhiteListInfo info{};
         net_addr_t addr;
@@ -332,7 +332,8 @@ int FixedRanksQpManager::GenerateWhiteList() noexcept
     }
 
     for (size_t i = 0; i < whitelist.size(); i += RA_MAX_BATCH_NUM) {
-        size_t currentBatchSize = (whitelist.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (whitelist.size() - i);
+        size_t currentBatchSize =
+            (whitelist.size() - i) >= RA_MAX_BATCH_NUM ? RA_MAX_BATCH_NUM : (whitelist.size() - i);
         auto batchStart = whitelist.begin() + i;
         auto batchEnd = batchStart + currentBatchSize;
         std::vector<HccpSocketWhiteListInfo> currentBatch(batchStart, batchEnd);
@@ -346,7 +347,7 @@ int FixedRanksQpManager::GenerateWhiteList() noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept
+int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, ConnectionChannel>& connections) noexcept
 {
     IpType type{};
     uint32_t cnt = 0;
@@ -392,14 +393,16 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
         if (now >= timeout) {
             std::string pendingRanks;
             for (const auto& info : socketInfos) {
-                auto it = addr2index.find(type == IpV4 ? net_addr_t::from_ipv4(info.remoteIp.addr) 
-                                                        : net_addr_t::from_ipv6(info.remoteIp.addr6));
+                auto it = addr2index.find(
+                    type == IpV4 ? net_addr_t::from_ipv4(info.remoteIp.addr) :
+                                   net_addr_t::from_ipv6(info.remoteIp.addr6));
                 if (it != addr2index.end()) {
                     pendingRanks += " rank[" + std::to_string(it->second) + "]";
                 }
             }
-            SHM_LOG_ERROR(rankId_ << " " << roleStr << " wait connections timeout after " << TIMEOUT_MINUTES 
-                << " minutes. Pending connections:" << pendingRanks);
+            SHM_LOG_ERROR(
+                rankId_ << " " << roleStr << " wait connections timeout after " << TIMEOUT_MINUTES
+                        << " minutes. Pending connections:" << pendingRanks);
             return ACLSHMEM_TIMEOUT_ERROR;
         }
 
@@ -421,7 +424,7 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
             progress = true;
             net_addr_t addr;
             char ipStr[INET6_ADDRSTRLEN];
-            char* result {};
+            char* result{};
             if (type == IpV4) {
                 addr = net_addr_t::from_ipv4(socketInfos[i].remoteIp.addr);
                 result = inet_ntoa(socketInfos[i].remoteIp.addr);
@@ -449,7 +452,8 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
             }
 
             if (pos->second.socketHandle != socketInfos[i].handle) {
-                SHM_LOG_ERROR(rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
+                SHM_LOG_ERROR(
+                    rankId_ << " -> " << rankId << ":get socket ip(" << result << ") socket handle not match.");
                 return ACLSHMEM_DL_FUNC_FAILED;
             }
 
@@ -461,18 +465,14 @@ int FixedRanksQpManager::WaitConnectionsReady(std::unordered_map<uint32_t, Conne
             timeout = start + std::chrono::minutes(TIMEOUT_MINUTES);
         }
         socketInfos.erase(
-            std::remove_if(socketInfos.begin(), socketInfos.end(),
-                [](const auto& info) {
-                    return info.status == 1;
-                }),
-            socketInfos.end()
-        );
+            std::remove_if(socketInfos.begin(), socketInfos.end(), [](const auto& info) { return info.status == 1; }),
+            socketInfos.end());
     } while (socketInfos.size() > 0);
     return ACLSHMEM_SUCCESS;
 }
 
-int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, ConnectionChannel> &connections,
-                                              ConnQpType qpType, ConnSide side) noexcept
+int FixedRanksQpManager::CreateQpWaitingReady(
+    std::unordered_map<uint32_t, ConnectionChannel>& connections, ConnQpType qpType, ConnSide side) noexcept
 {
     const int accessLevel = 7;
     std::string sideName = (side == CONN_CLIENT_SIDE) ? "client" : "server";
@@ -490,8 +490,9 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
     for (auto it = connections.begin(); it != connections.end(); ++it) {
         auto ret = CreateOneQp(qpType, it->second);
         if (ret != 0) {
-            SHM_LOG_ERROR(rankId_ << ":" << sideName << " create QP type:" << qpType <<
-                " to " << it->first << " failed: " << ret);
+            SHM_LOG_ERROR(
+                rankId_ << ":" << sideName << " create QP type:" << qpType << " to " << it->first
+                        << " failed: " << ret);
             cleanupQps(it);
             return ACLSHMEM_DL_FUNC_FAILED;
         }
@@ -500,7 +501,7 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
 
         for (auto pos = currentLocalMrs_.begin(); pos != currentLocalMrs_.end(); ++pos) {
             HccpMrInfo info{};
-            info.addr = (void *)(ptrdiff_t)pos->second.address;
+            info.addr = (void*)(ptrdiff_t)pos->second.address;
             info.size = pos->second.size;
             info.access = accessLevel;
             ret = DlHccpApi::RaMrReg(it->second.qpHandles[qpType], info);
@@ -558,7 +559,7 @@ int FixedRanksQpManager::CreateQpWaitingReady(std::unordered_map<uint32_t, Conne
     return ACLSHMEM_INNER_TIMEOUT;
 }
 
-int FixedRanksQpManager::CreateOneQp(ConnQpType qpType, ConnectionChannel &channel) noexcept
+int FixedRanksQpManager::CreateOneQp(ConnQpType qpType, ConnectionChannel& channel) noexcept
 {
     int ret;
     if (qpType == CONN_QP_AI_CORE) {
@@ -586,37 +587,37 @@ int FixedRanksQpManager::CreateOneQp(ConnQpType qpType, ConnectionChannel &chann
         if (qos_ret != 0) {
             SHM_LOG_WARN("rankId: " << rankId_ << ", set QP QoS attr failed: " << qos_ret);
         }
- 	}
+    }
     return ret;
 }
 
-void FixedRanksQpManager::FillQpPreSettingCopyInfo(AiQpRMAQueueInfo *&copyInfo)
+void FixedRanksQpManager::FillQpPreSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo)
 {
     copyInfo->count = 1;
-    copyInfo->sq = (AiQpRMAWQ *)(void *)(copyInfo + 1);
-    copyInfo->rq = (AiQpRMAWQ *)(void *)(copyInfo->sq + rankCount_);
-    copyInfo->scq = (AiQpRMACQ *)(void *)(copyInfo->rq + rankCount_);
-    copyInfo->rcq = (AiQpRMACQ *)(void *)(copyInfo->scq + rankCount_);
-    copyInfo->mr = (RdmaMemRegionInfo *)(void *)(copyInfo->rcq + rankCount_);
+    copyInfo->sq = (AiQpRMAWQ*)(void*)(copyInfo + 1);
+    copyInfo->rq = (AiQpRMAWQ*)(void*)(copyInfo->sq + rankCount_);
+    copyInfo->scq = (AiQpRMACQ*)(void*)(copyInfo->rq + rankCount_);
+    copyInfo->rcq = (AiQpRMACQ*)(void*)(copyInfo->scq + rankCount_);
+    copyInfo->mr = (RdmaMemRegionInfo*)(void*)(copyInfo->rcq + rankCount_);
 }
 
-void FixedRanksQpManager::FillQpPostSettingCopyInfo(AiQpRMAQueueInfo *&copyInfo)
+void FixedRanksQpManager::FillQpPostSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo)
 {
-    auto pointer = (ptrdiff_t)(void *)(qpInfo_);
+    auto pointer = (ptrdiff_t)(void*)(qpInfo_);
     pointer += sizeof(AiQpRMAQueueInfo);
-    copyInfo->sq = (AiQpRMAWQ *)(void *)(pointer);
+    copyInfo->sq = (AiQpRMAWQ*)(void*)(pointer);
 
     pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * rankCount_);
-    copyInfo->rq = (AiQpRMAWQ *)(void *)(pointer);
+    copyInfo->rq = (AiQpRMAWQ*)(void*)(pointer);
 
     pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * rankCount_);
-    copyInfo->scq = (AiQpRMACQ *)(void *)(pointer);
+    copyInfo->scq = (AiQpRMACQ*)(void*)(pointer);
 
     pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * rankCount_);
-    copyInfo->rcq = (AiQpRMACQ *)(void *)(pointer);
+    copyInfo->rcq = (AiQpRMACQ*)(void*)(pointer);
 
     pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * rankCount_);
-    copyInfo->mr = (RdmaMemRegionInfo *)(void *)pointer;
+    copyInfo->mr = (RdmaMemRegionInfo*)(void*)pointer;
 }
 
 int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
@@ -626,10 +627,10 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
     }
 
     std::vector<uint8_t> qpInfoBuffer(qpInfoSize_);
-    auto copyInfo = (AiQpRMAQueueInfo *)(void *)qpInfoBuffer.data();
+    auto copyInfo = (AiQpRMAQueueInfo*)(void*)qpInfoBuffer.data();
     FillQpPreSettingCopyInfo(copyInfo);
     for (auto it = currentRanksInfo_.begin(); it != currentRanksInfo_.end(); ++it) {
-        auto &map = it->second.memoryMap;
+        auto& map = it->second.memoryMap;
         if (map.empty()) {
             continue;
         }
@@ -641,7 +642,7 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
             continue;
         }
 
-        std::unordered_map<uint32_t, ConnectionChannel> *connections;
+        std::unordered_map<uint32_t, ConnectionChannel>* connections;
         if (it->first < rankId_) {
             connections = &clientConnections_;
         } else {
@@ -672,8 +673,8 @@ int FixedRanksQpManager::FillQpInfo(ConnQpType qpType) noexcept
     return ACLSHMEM_SUCCESS;
 }
 
-void FixedRanksQpManager::CopyAiWQInfo(struct AiQpRMAWQ &dest, const struct ai_data_plane_wq &src, DBMode dbMode,
-                                       uint32_t sl) noexcept
+void FixedRanksQpManager::CopyAiWQInfo(
+    struct AiQpRMAWQ& dest, const struct ai_data_plane_wq& src, DBMode dbMode, uint32_t sl) noexcept
 {
     dest.wqn = src.wqn;
     dest.bufAddr = src.buf_addr;
@@ -690,7 +691,7 @@ void FixedRanksQpManager::CopyAiWQInfo(struct AiQpRMAWQ &dest, const struct ai_d
     dest.sl = sl;
 }
 
-void FixedRanksQpManager::CopyAiCQInfo(struct AiQpRMACQ &dest, const ai_data_plane_cq &source, DBMode dbMode) noexcept
+void FixedRanksQpManager::CopyAiCQInfo(struct AiQpRMACQ& dest, const ai_data_plane_cq& source, DBMode dbMode) noexcept
 {
     dest.cqn = source.cqn;
     dest.bufAddr = source.buf_addr;
@@ -725,10 +726,7 @@ void FixedRanksQpManager::CloseServices() noexcept
     SHM_LOG_INFO(rankId_ << " client connections closed.");
 }
 
-void FixedRanksQpManager::CloseClientConnections() noexcept
-{
-    CloseConnections(clientConnections_);
-}
+void FixedRanksQpManager::CloseClientConnections() noexcept { CloseConnections(clientConnections_); }
 
 void FixedRanksQpManager::CloseServerConnections() noexcept
 {
@@ -736,7 +734,7 @@ void FixedRanksQpManager::CloseServerConnections() noexcept
     CloseConnections(serverConnections_);
 }
 
-void FixedRanksQpManager::CloseConnections(std::unordered_map<uint32_t, ConnectionChannel> &connections) noexcept
+void FixedRanksQpManager::CloseConnections(std::unordered_map<uint32_t, ConnectionChannel>& connections) noexcept
 {
     std::vector<HccpSocketCloseInfo> socketCloseInfos;
     for (auto it = connections.begin(); it != connections.end(); ++it) {
@@ -786,6 +784,6 @@ void FixedRanksQpManager::CloseConnections(std::unordered_map<uint32_t, Connecti
 
     connections.clear();
 }
-}
-}
-}
+} // namespace device
+} // namespace transport
+} // namespace shm

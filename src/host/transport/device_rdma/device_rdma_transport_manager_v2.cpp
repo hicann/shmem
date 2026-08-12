@@ -694,8 +694,9 @@ Result RdmaTransportManagerV2::Connect()
 
 int RdmaTransportManagerV2::CheckPrepareOptions(const shm::transport::HybmTransPrepareOptions& options)
 {
-    if (role_ != HYBM_ROLE_PEER) {
-        SHM_LOG_INFO("rank[" << rankId_ << "] transport role: " << role_ << " check options passed.");
+    if (role_ != hybm_role_type::HYBM_ROLE_PEER) {
+        SHM_LOG_INFO(
+            "rank[" << rankId_ << "] transport role: " << static_cast<uint32_t>(role_) << " check options passed.");
         return ACLSHMEM_SUCCESS;
     }
 

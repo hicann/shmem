@@ -76,7 +76,7 @@ private:
     uint32_t rankId_{0};
     uint32_t rankCount_{1};
     uint32_t phyId_{0};
-    hybm_role_type role_{HYBM_ROLE_PEER};
+    hybm_role_type role_{hybm_role_type::HYBM_ROLE_PEER};
     net_addr_t deviceIp_{};
     uint16_t devicePort_{0};
     std::string nicInfo_;

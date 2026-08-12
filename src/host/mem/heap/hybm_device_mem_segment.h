@@ -48,6 +48,7 @@ struct HbmExportInfo {
     MemSegInfoExchangeType exchangeType;
     char shmName[DEVICE_SHM_NAME_SIZE + 1U]{};
 #ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+    uint32_t shareHandleType{ACL_MEM_SHARE_HANDLE_TYPE_FABRIC};
     aclrtMemFabricHandle shareHandle;
 #endif
 };
@@ -65,6 +66,11 @@ public:
     Result ReleaseSliceMemory(const std::shared_ptr<MemSlice>& slice) noexcept override;
     Result Export(std::string& exInfo) noexcept override;
     Result Export(const std::shared_ptr<MemSlice>& slice, std::string& exInfo) noexcept override;
+    Result ExportUserBufferHeap(std::vector<std::string>& infos) noexcept override
+    {
+        (void)infos;
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
     Result GetExportSliceSize(size_t& size) noexcept override;
     Result Import(const std::vector<std::string>& allExInfo, void* addresses[]) noexcept override;
     Result RemoveImported(const std::vector<uint32_t>& ranks) noexcept override;
@@ -73,7 +79,7 @@ public:
     std::shared_ptr<MemSlice> GetMemSlice(hybm_mem_slice_t slice) const noexcept override;
     bool MemoryInRange(const void* begin, uint64_t size) const noexcept override;
     bool GetRankIdByAddr(const void* addr, uint64_t size, uint32_t& rankId) const noexcept override;
-    hybm_mem_type GetMemoryType() const noexcept override { return HYBM_MEM_TYPE_DEVICE; }
+    hybm_mem_type GetMemoryType() const noexcept override { return hybm_mem_type::HYBM_MEM_TYPE_DEVICE; }
     bool CheckSdmaReaches(uint32_t rankId) const noexcept override;
 
 public:
@@ -98,10 +104,61 @@ protected:
     std::set<uint64_t> mappedMem_;
     std::vector<HbmExportInfo> imports_;
     std::map<uint16_t, HbmExportInfo> importMap_;
-#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
-    aclrtDrvMemHandle local_handle_{nullptr};
-#endif
 };
+
+#ifdef HAS_ACLRT_MEM_FABRIC_HANDLE
+class AclMemSegmentDevice final : public MemSegmentDevice {
+public:
+    explicit AclMemSegmentDevice(const MemSegmentOptions& options, int eid) : MemSegmentDevice{options, eid} {}
+    ~AclMemSegmentDevice() override = default;
+
+    Result ValidateOptions() noexcept override;
+    Result ReserveMemorySpace(void** address) noexcept override;
+    Result UnReserveMemorySpace() noexcept override;
+    Result AllocLocalMemory(uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept override;
+    Result RegisterMemory(const void* addr, uint64_t size, std::shared_ptr<MemSlice>& slice) noexcept override;
+    Result ReleaseSliceMemory(const std::shared_ptr<MemSlice>& slice) noexcept override;
+    Result Export(std::string& exInfo) noexcept override;
+    Result Export(const std::shared_ptr<MemSlice>& slice, std::string& exInfo) noexcept override;
+    Result ExportUserBufferHeap(std::vector<std::string>& infos) noexcept override;
+    Result GetExportSliceSize(size_t& size) noexcept override;
+    Result Import(const std::vector<std::string>& allExInfo, void* addresses[]) noexcept override;
+    Result RemoveImported(const std::vector<uint32_t>& ranks) noexcept override;
+    Result Mmap() noexcept override;
+    Result Unmap() noexcept override;
+    std::shared_ptr<MemSlice> GetMemSlice(hybm_mem_slice_t slice) const noexcept override;
+    bool MemoryInRange(const void* begin, uint64_t size) const noexcept override;
+    bool GetRankIdByAddr(const void* addr, uint64_t size, uint32_t& rankId) const noexcept override;
+    bool CheckSdmaReaches(uint32_t rankId) const noexcept override;
+
+    static bool CanMapRemote(const HbmExportInfo& rmi) noexcept;
+    static void GetDeviceInfo(uint32_t& sdId, uint32_t& serverId, uint32_t& superPodId) noexcept;
+
+protected:
+    void FreeMemory() noexcept;
+    Result SetMemAccess() noexcept;
+    Result FindAvaliableVirtualAddr(uint64_t size, uint64_t& baseVa) noexcept;
+    Result ReserveEachPeMemorySpace(size_t reserveAlignedSize, size_t totalReservedSize, uint64_t expectSt) noexcept;
+
+private:
+    Result BuildUserBufferHeap(std::shared_ptr<MemSlice>& slice) noexcept;
+    Result ImportUserBufferHeap(const std::vector<std::string>& allInfos) noexcept;
+    Result MapUserBufferHeap() noexcept;
+    Result ReleaseUserBufferHeapResources() noexcept;
+    void UnmapUserBufferTarget(uint64_t target, Result& firstError) noexcept;
+    void UnmapUserBufferRank(uint32_t rank, size_t wireCount, Result& firstError) noexcept;
+    void ReleaseUserBufferLocalHandle(Result& firstError) noexcept;
+    void ReleaseUserBufferAddresses(Result& firstError) noexcept;
+    bool ResolveUserBufferHeapRange(
+        const void* address, uint64_t length, uint32_t* rankId, uint32_t* segmentIndex) const noexcept;
+    uint64_t ExternalBytes() const noexcept;
+    uint64_t SegmentOffset(size_t segmentIndex) const noexcept;
+    uint64_t SegmentSize(size_t segmentIndex) const noexcept;
+
+    aclrtDrvMemHandle local_handle_{nullptr};
+    std::map<uint64_t, aclrtDrvMemHandle> retainedImportedHandles_;
+};
+#endif
 } // namespace shm
 
 #endif // HYBM_DEVICE_MEM_SEGMENT_H

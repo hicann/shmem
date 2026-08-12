@@ -25,22 +25,20 @@ extern "C" {
  * @param size             [in] bytes to be allocated
  * @return pointer to the allocated memory.
  */
-ACLSHMEM_HOST_API void *aclshmem_malloc(size_t size);
+ACLSHMEM_HOST_API void* aclshmem_malloc(size_t size);
 #define shmem_malloc aclshmem_malloc
-
 
 /**
  * @brief allocate memory for an array of <i>nmemb</i> elements of <i>size</i> bytes each and returns a pointer to the
- *        allocated memory. The memory is set to zero. If <i>nmemb</i> or <i>size</i> is 0, then <b>aclshmem_calloc()</b>
- *        returns either NULL.
+ *        allocated memory. The memory is set to zero. If <i>nmemb</i> or <i>size</i> is 0, then
+ * <b>aclshmem_calloc()</b> returns either NULL.
  *
  * @param nmemb            [in] elements count
  * @param size             [in] each element size in bytes
  * @return pointer to the allocated memory.
  */
-ACLSHMEM_HOST_API void *aclshmem_calloc(size_t nmemb, size_t size);
+ACLSHMEM_HOST_API void* aclshmem_calloc(size_t nmemb, size_t size);
 #define shmem_calloc aclshmem_calloc
-
 
 /**
  * @brief allocate <i>size</i> bytes and returns a pointer to the allocated memory. The memory address will be a
@@ -50,7 +48,7 @@ ACLSHMEM_HOST_API void *aclshmem_calloc(size_t nmemb, size_t size);
  * @param size             [in] bytes allocated
  * @return pointer to the allocated memory.
  */
-ACLSHMEM_HOST_API void *aclshmem_align(size_t alignment, size_t size);
+ACLSHMEM_HOST_API void* aclshmem_align(size_t alignment, size_t size);
 #define shmem_align aclshmem_align
 
 /**
@@ -59,7 +57,7 @@ ACLSHMEM_HOST_API void *aclshmem_align(size_t alignment, size_t size);
  *       no operation is performed.
  * @param ptr              [in] point to memory block to be free.
  */
-ACLSHMEM_HOST_API void aclshmem_free(void *ptr);
+ACLSHMEM_HOST_API void aclshmem_free(void* ptr);
 #define shmem_free aclshmem_free
 
 /**
@@ -70,7 +68,7 @@ ACLSHMEM_HOST_API void aclshmem_free(void *ptr);
  * @return Pointer to the symmetric memory
  *
  */
-ACLSHMEM_HOST_API void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+ACLSHMEM_HOST_API void* aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
  * @brief Allocates a block of SHMEM symmetric memory and initializes all content to zero
@@ -80,7 +78,7 @@ ACLSHMEM_HOST_API void *aclshmemx_malloc(size_t size, aclshmem_mem_type_t mem_ty
  * @param mem_type      [in] Allocation location of symmetric memory (Host/Device)
  * @return Pointer to the symmetric memory
  */
-ACLSHMEM_HOST_API void *aclshmemx_calloc(size_t count, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+ACLSHMEM_HOST_API void* aclshmemx_calloc(size_t count, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
  * @brief Allocates a block of SHMEM symmetric memory with alignment to the specified length
@@ -90,7 +88,7 @@ ACLSHMEM_HOST_API void *aclshmemx_calloc(size_t count, size_t size, aclshmem_mem
  * @param mem_type      [in] Allocation location of symmetric memory (Host/Device)
  * @return Pointer to the symmetric memory
  */
-ACLSHMEM_HOST_API void *aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+ACLSHMEM_HOST_API void* aclshmemx_align(size_t alignment, size_t size, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
  * @brief Frees the allocated symmetric memory
@@ -98,7 +96,7 @@ ACLSHMEM_HOST_API void *aclshmemx_align(size_t alignment, size_t size, aclshmem_
  * @param ptr           [in] Pointer to the memory to be freed
  * @param mem_type      [in] Allocation location of the symmetric memory (Host/Device)
  */
-ACLSHMEM_HOST_API void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+ACLSHMEM_HOST_API void aclshmemx_free(void* ptr, aclshmem_mem_type_t mem_type = DEVICE_SIDE);
 
 /**
  * @brief Returns the start address (heap_base) of the local symmetric memory heap.
@@ -113,7 +111,23 @@ ACLSHMEM_HOST_API void aclshmemx_free(void *ptr, aclshmem_mem_type_t mem_type = 
  * @note Remote visibility: The returned address is local-only, not directly accessible by remote PEs.
  * @note Failure conditions: Returns NULL if ACLSHMEM is not initialized or the heap has not been allocated.
  */
-ACLSHMEM_HOST_API void *aclshmemx_get_heap_base(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+ACLSHMEM_HOST_API void* aclshmemx_get_heap_base(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
+
+/**
+ * @brief Translate a pointer in a caller-provided source buffer to the corresponding local symmetric pointer.
+ *
+ * The query uses the current active ACLSHMEM instance initialized by aclshmemx_init_attr_with_buffers(). An interior
+ * source pointer retains its byte offset within the matching source buffer. The result identifies the same byte in
+ * the local symmetric heap and can be used as a local symmetric-address argument to SHMEM APIs.
+ *
+ * @param local_ptr [in] Pointer in one of the source intervals supplied during initialization.
+ * @return The corresponding local symmetric pointer, or NULL if no active user-buffer-heap instance or interval
+ *         matches local_ptr.
+ * @note Execution domain: Host only. This query is non-collective and does not perform communication.
+ * @note Thread safety: Concurrent read-only queries are supported after initialization. Do not race this call with
+ *       finalization of the active instance.
+ */
+ACLSHMEM_HOST_API void* aclshmemx_get_buffer_ptr(const void* local_ptr);
 
 #ifdef __cplusplus
 }

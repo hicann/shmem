@@ -33,6 +33,7 @@ endif()
 
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
 if(NOT SOC_TYPE STREQUAL "Ascend950")
+    list(FILTER TEST_HOST_FILES EXCLUDE REGEX "init/user_buffer_heap_test[.]cpp$")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "topo/")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "transport/device_udma/")
 endif()

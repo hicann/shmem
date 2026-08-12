@@ -8,12 +8,15 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <algorithm>
+#include <new>
+
 #include "shmemi_logger.h"
 #include "dl_api.h"
 #include "dl_acl_api.h"
 #include "hybm_device_mem_segment.h"
 #include "hybm_ex_info_transfer.h"
 #include "init/shmemi_init.h"
+#include "init/shmemi_user_buffer_heap.h"
 #include "mem_entity_default.h"
 #include "mem_entity_inter.h"
 #include "utils/exception/shmem_exception_report.h"
@@ -132,15 +135,28 @@ int32_t MemEntityDefault::UnReserveMemorySpace() noexcept
         transportManager_ = nullptr;
     }
 
+    int32_t firstError = ACLSHMEM_SUCCESS;
     if (hbmSegment_ != nullptr) {
-        hbmSegment_->UnReserveMemorySpace();
-        hbmGva_ = nullptr;
+        auto ret = hbmSegment_->UnReserveMemorySpace();
+        if (ret != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("Failed to unreserve HBM memory space, ret: " << ret);
+            firstError = ret;
+        } else {
+            hbmGva_ = nullptr;
+        }
     }
     if (dramSegment_ != nullptr) {
-        dramSegment_->UnReserveMemorySpace();
-        dramGva_ = nullptr;
+        auto ret = dramSegment_->UnReserveMemorySpace();
+        if (ret != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("Failed to unreserve DRAM memory space, ret: " << ret);
+            if (firstError == ACLSHMEM_SUCCESS) {
+                firstError = ret;
+            }
+        } else {
+            dramGva_ = nullptr;
+        }
     }
-    return ACLSHMEM_SUCCESS;
+    return firstError;
 }
 
 int32_t MemEntityDefault::AllocLocalMemory(
@@ -157,9 +173,9 @@ int32_t MemEntityDefault::AllocLocalMemory(
         return ACLSHMEM_INVALID_PARAM;
     }
 
-    auto segment = mType == HYBM_MEM_TYPE_DEVICE ? hbmSegment_ : dramSegment_;
+    auto segment = mType == hybm_mem_type::HYBM_MEM_TYPE_DEVICE ? hbmSegment_ : dramSegment_;
     if (segment == nullptr) {
-        SHM_LOG_ERROR("allocate memory with mType: " << mType << ", no segment.");
+        SHM_LOG_ERROR("allocate memory with mType: " << static_cast<uint32_t>(mType) << ", no segment.");
         return ACLSHMEM_INVALID_PARAM;
     }
 
@@ -175,8 +191,8 @@ int32_t MemEntityDefault::AllocLocalMemory(
     info.size = realSlice->size_;
     info.addr = realSlice->vAddress_;
     info.access = transport::REG_MR_ACCESS_FLAG_BOTH_READ_WRITE;
-    info.flags =
-        segment->GetMemoryType() == HYBM_MEM_TYPE_DEVICE ? transport::REG_MR_FLAG_HBM : transport::REG_MR_FLAG_DRAM;
+    info.flags = segment->GetMemoryType() == hybm_mem_type::HYBM_MEM_TYPE_DEVICE ? transport::REG_MR_FLAG_HBM :
+                                                                                   transport::REG_MR_FLAG_DRAM;
     if (transportManager_ != nullptr) {
         ret = transportManager_->RegisterMemoryRegion(info);
         if (ret != 0) {
@@ -253,10 +269,11 @@ int32_t MemEntityDefault::FreeLocalMemory(hybm_mem_slice_t slice, uint32_t flags
     }
 
     std::shared_ptr<MemSlice> memSlice;
+    MemSegment* segment = nullptr;
     if (hbmSegment_ != nullptr && (memSlice = hbmSegment_->GetMemSlice(slice)) != nullptr) {
-        hbmSegment_->ReleaseSliceMemory(memSlice);
+        segment = hbmSegment_.get();
     } else if (dramSegment_ != nullptr && (memSlice = dramSegment_->GetMemSlice(slice)) != nullptr) {
-        dramSegment_->ReleaseSliceMemory(memSlice);
+        segment = dramSegment_.get();
     }
 
     if (transportManager_ != nullptr && memSlice != nullptr) {
@@ -264,6 +281,11 @@ int32_t MemEntityDefault::FreeLocalMemory(hybm_mem_slice_t slice, uint32_t flags
         if (ret != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("UnregisterMemoryRegion failed, please check input slice.");
         }
+    }
+    // For both ordinary and user-buffer heaps, transport registrations must be released while
+    // the backing VA is still mapped. Segment release can unmap that VA, so it must run last.
+    if (segment != nullptr) {
+        segment->ReleaseSliceMemory(memSlice);
     }
     SHM_LOG_DEBUG("free local memory succeeded.");
     return ACLSHMEM_SUCCESS;
@@ -318,6 +340,32 @@ int32_t MemEntityDefault::ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInf
     return ExportWithSlice(slice, desc, flags);
 }
 
+int32_t MemEntityDefault::ExportUserBufferHeap(ExchangeInfoWriter writers[], uint32_t count, uint32_t flags) noexcept
+{
+    (void)flags;
+    if (!initialized) {
+        return ACLSHMEM_NOT_INITED;
+    }
+    if (writers == nullptr || hbmSegment_ == nullptr || options_.userBufferHeapInput == nullptr) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    std::vector<std::string> infos;
+    auto ret = hbmSegment_->ExportUserBufferHeap(infos);
+    if (ret != ACLSHMEM_SUCCESS) {
+        return ret;
+    }
+    if (infos.size() != count) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        ret = writers[i].Append(infos[i].data(), infos[i].size());
+        if (ret != ACLSHMEM_SUCCESS) {
+            return ACLSHMEM_INNER_ERROR;
+        }
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
 int32_t MemEntityDefault::ImportExchangeInfo(
     const ExchangeInfoReader desc[], uint32_t count, void* addresses[], uint32_t flags) noexcept
 {
@@ -331,15 +379,33 @@ int32_t MemEntityDefault::ImportExchangeInfo(
         return ACLSHMEM_INNER_ERROR;
     }
 
-    if (desc == nullptr) {
-        SHM_LOG_ERROR("the input desc is nullptr.");
+    if (desc == nullptr || count == 0) {
+        SHM_LOG_ERROR("the input desc is nullptr or count is zero.");
         return ACLSHMEM_INNER_ERROR;
     }
 
-    std::unordered_map<uint32_t, std::vector<transport::TransportMemoryKey>> tempKeyMap;
-    ret = ImportForTransport(desc, count, flags);
-    if (ret != ACLSHMEM_SUCCESS) {
-        return ret;
+    uint64_t firstMagic = 0;
+    if (desc[0].Test(firstMagic) < 0) {
+        SHM_LOG_ERROR("left import data has no magic field.");
+        return ACLSHMEM_INVALID_PARAM;
+    }
+
+    // Mixed-heap fragment exchange serializes raw HbmExportInfo records without the
+    // SliceExportTransportKey prefix used by ordinary slice exchange. When UDMA is enabled,
+    // transportManager_ is non-null; running ImportForTransport on these records would consume
+    // sizeof(SliceExportTransportKey) bytes from every HbmExportInfo and leave truncated data for
+    // ImportUserBufferHeap. The complete mixed heap has already been registered as one HCOMM MR,
+    // and the following entity exchange independently supplies the endpoint information needed
+    // to connect UDMA, so fragment records must go directly to the VMM importer.
+    const bool isRawUserBufferHeapExchange =
+        options_.userBufferHeapInput != nullptr && firstMagic == HBM_SLICE_EXPORT_INFO_MAGIC;
+    if (!isRawUserBufferHeapExchange) {
+        ret = ImportForTransport(desc, count, flags);
+        if (ret != ACLSHMEM_SUCCESS) {
+            return ret;
+        }
+    } else {
+        SHM_LOG_DEBUG("Skip transport-key parsing for raw mixed-heap fragment exchange, count: " << count);
     }
 
     if (desc[0].LeftBytes() == 0) {
@@ -355,8 +421,13 @@ int32_t MemEntityDefault::ImportExchangeInfo(
 
     auto currentSegment = magic == DRAM_SLICE_EXPORT_INFO_MAGIC ? dramSegment_ : hbmSegment_;
     std::vector<std::string> infos;
-    for (auto i = 0U; i < count; i++) {
-        infos.emplace_back(desc[i].LeftToString());
+    try {
+        infos.reserve(count);
+        for (auto i = 0U; i < count; i++) {
+            infos.emplace_back(desc[i].LeftToString());
+        }
+    } catch (const std::bad_alloc&) {
+        return ACLSHMEM_MALLOC_FAILED;
     }
 
     ret = currentSegment->Import(infos, addresses);
@@ -667,6 +738,10 @@ int32_t MemEntityDefault::ImportForTransportPrecheck(
 
         if (magic == ENTITY_EXPORT_INFO_MAGIC) {
             ret = desc[i].Read(entityExportInfo);
+            if (ret == 0 && entityExportInfo.version != EXPORT_INFO_VERSION) {
+                SHM_LOG_ERROR("entity exchange info version(" << entityExportInfo.version << ") is incompatible.");
+                ret = ACLSHMEM_INVALID_PARAM;
+            }
             if (ret == 0) {
                 importedRanks_[entityExportInfo.rankId] = entityExportInfo;
                 importInfoEntity = true;
@@ -706,7 +781,8 @@ int32_t MemEntityDefault::ImportForTransport(const ExchangeInfoReader desc[], ui
     transport::HybmTransPrepareOptions transOptions;
     std::unique_lock<std::mutex> uniqueLock{importMutex_};
     for (auto& rank : importedRanks_) {
-        if (options_.role != HYBM_ROLE_PEER && static_cast<hybm_role_type>(rank.second.role) == options_.role) {
+        if (options_.role != hybm_role_type::HYBM_ROLE_PEER &&
+            static_cast<hybm_role_type>(rank.second.role) == options_.role) {
             continue;
         }
 
@@ -723,7 +799,7 @@ int32_t MemEntityDefault::ImportForTransport(const ExchangeInfoReader desc[], ui
     }
     uniqueLock.unlock();
 
-    if (options_.role != HYBM_ROLE_PEER || importInfoEntity) {
+    if (options_.role != hybm_role_type::HYBM_ROLE_PEER || importInfoEntity) {
         ret = transportManager_->ConnectWithOptions(transOptions);
         if (ret != 0) {
             SHM_LOG_ERROR("Transport Manager ConnectWithOptions failed: " << ret);
@@ -739,8 +815,8 @@ int32_t MemEntityDefault::ImportForTransport(const ExchangeInfoReader desc[], ui
 
 Result MemEntityDefault::InitSegment()
 {
-    SHM_LOG_DEBUG("Initialize segment with type: " << std::hex << options_.memType);
-    if (options_.memType & HYBM_MEM_TYPE_DEVICE) {
+    SHM_LOG_DEBUG("Initialize segment with type: " << std::hex << static_cast<uint32_t>(options_.memType));
+    if (HybmHasMemType(options_.memType, hybm_mem_type::HYBM_MEM_TYPE_DEVICE)) {
         auto ret = InitHbmSegment();
         if (ret != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("InitHbmSegment() failed: " << ret);
@@ -748,7 +824,7 @@ Result MemEntityDefault::InitSegment()
         }
     }
 
-    if (options_.memType & HYBM_MEM_TYPE_HOST) {
+    if (HybmHasMemType(options_.memType, hybm_mem_type::HYBM_MEM_TYPE_HOST)) {
         auto ret = InitDramSegment();
         if (ret != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("InitDramSegment() failed: " << ret);
@@ -772,6 +848,9 @@ Result MemEntityDefault::InitHbmSegment()
     segmentOptions.dataOpType = options_.bmDataOpType;
     segmentOptions.rankId = options_.rankId;
     segmentOptions.rankCnt = options_.rankCount;
+    segmentOptions.userBufferHeapInput = static_cast<const UserBufferHeapInput*>(options_.userBufferHeapInput);
+    segmentOptions.trustedPids = options_.trustedPids;
+    segmentOptions.trustedPidCount = options_.trustedPidCount;
     hbmSegment_ = MemSegment::Create(segmentOptions, id_);
     SHM_VALIDATE_RETURN(hbmSegment_ != nullptr, "create segment failed", ACLSHMEM_INVALID_PARAM);
     return ACLSHMEM_SUCCESS;
@@ -865,11 +944,11 @@ hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) c
 
 void* MemEntityDefault::GetReservedMemoryPtr(hybm_mem_type memType) noexcept
 {
-    if (memType == HYBM_MEM_TYPE_DEVICE) {
+    if (memType == hybm_mem_type::HYBM_MEM_TYPE_DEVICE) {
         return hbmGva_;
     }
 
-    if (memType == HYBM_MEM_TYPE_HOST) {
+    if (memType == hybm_mem_type::HYBM_MEM_TYPE_HOST) {
         return dramGva_;
     }
 

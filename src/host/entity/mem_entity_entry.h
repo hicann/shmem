@@ -123,6 +123,8 @@ hybm_mem_slice_t hybm_register_local_memory(
  */
 int32_t hybm_export(hybm_entity_t e, hybm_mem_slice_t slice, uint32_t flags, hybm_exchange_info* exInfo);
 
+int32_t hybm_export_user_buffer_heap(hybm_entity_t e, hybm_exchange_info infos[], uint32_t count, uint32_t flags);
+
 /**
  * @brief get fixed size for export slice size
  * @param e               [in] entity created by hybm_create_entity

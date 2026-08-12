@@ -61,6 +61,7 @@ public:
 
     int32_t ExportExchangeInfo(ExchangeInfoWriter& desc, uint32_t flags) noexcept override;
     int32_t ExportExchangeInfo(hybm_mem_slice_t slice, ExchangeInfoWriter& desc, uint32_t flags) noexcept override;
+    int32_t ExportUserBufferHeap(ExchangeInfoWriter writers[], uint32_t count, uint32_t flags) noexcept override;
     int32_t ImportExchangeInfo(
         const ExchangeInfoReader* desc, uint32_t count, void* addresses[], uint32_t flags) noexcept override;
     int32_t RemoveImported(const std::vector<uint32_t>& ranks) noexcept override;
