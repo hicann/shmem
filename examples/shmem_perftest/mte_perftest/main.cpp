@@ -12,7 +12,8 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
-#include <cmath>
+#include <cstdint>
+#include <limits>
 #include <vector>
 #include <string>
 #include <iomanip>
@@ -34,6 +35,15 @@ static aclshmem_prof_pe_t* out_profs;
 extern "C" void launch_mte_perf_kernel(
     uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* dst_gva, uint8_t* src_gva, int elements,
     int32_t frame_id, int test_mode, int data_type, int ub_size_kb, int64_t prof_pe_val, int loop_count);
+
+static bool checked_multiply(uint64_t lhs, uint64_t rhs, uint64_t limit, uint64_t& result)
+{
+    if (lhs != 0 && rhs > limit / lhs) {
+        return false;
+    }
+    result = lhs * rhs;
+    return true;
+}
 
 static perftest::mte_mode_t get_mte_mode(const char* test_type_str)
 {
@@ -63,6 +73,7 @@ int test_shmem_mte_perf_test_impl(
 {
     int32_t device_id = (pe_id % g_npus + f_npu);
     int status = 0;
+    int result = 0;
     aclrtStream stream = nullptr;
 
     status = aclInit(nullptr);
@@ -78,25 +89,53 @@ int test_shmem_mte_perf_test_impl(
     int frame_id = 0;
     for (int block_size : block_sizes) {
         for (int exponent = min_exponent; exponent <= max_exponent; exponent++) {
-            int datasize = std::pow(2, exponent);
+            uint64_t datasize = 1ULL << exponent;
             std::cout << "pe: " << pe_id << " block_size: " << block_size << " size: " << datasize
                       << " frame_id: " << frame_id << std::endl;
 
-            void* dst_ptr = aclshmemx_malloc(datasize * block_size, memory_type);
-            void* src_ptr = aclshmemx_malloc(datasize * block_size, memory_type);
+            // Small msg uses 512B per-core stride in kernel; alloc must cover it.
+            uint64_t per_core_stride = (datasize < 512) ? 512 : datasize;
+            uint64_t alloc_size_u64 = 0;
+            uint64_t logical_size = 0;
+            if (!checked_multiply(
+                    per_core_stride, static_cast<uint64_t>(block_size),
+                    static_cast<uint64_t>(std::numeric_limits<size_t>::max()), alloc_size_u64) ||
+                !checked_multiply(
+                    datasize, static_cast<uint64_t>(block_size), std::numeric_limits<uint64_t>::max(), logical_size)) {
+                std::cerr << "Error: buffer size overflow, datasize=" << datasize << " block_size=" << block_size
+                          << std::endl;
+                result = 1;
+                goto cleanup;
+            }
 
-            int all_size = datasize * block_size;
-            int trans_size = all_size / sizeof(T);
+            size_t alloc_size = static_cast<size_t>(alloc_size_u64);
+            if (logical_size / sizeof(T) > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+                std::cerr << "Error: elements exceed int range for kernel launch, datasize=" << datasize
+                          << " block_size=" << block_size << std::endl;
+                result = 1;
+                goto cleanup;
+            }
 
-            std::vector<T> src_input(trans_size, 0);
-            std::vector<T> dst_input(trans_size, 0);
-            for (int i = 0; i < trans_size; i++) {
+            void* dst_ptr = aclshmemx_malloc(alloc_size, memory_type);
+            void* src_ptr = aclshmemx_malloc(alloc_size, memory_type);
+            if (dst_ptr == nullptr || src_ptr == nullptr) {
+                std::cerr << "Error: failed to allocate ACLSHMEM buffers, alloc_size=" << alloc_size << std::endl;
+                result = 1;
+                goto cleanup;
+            }
+
+            int trans_size = static_cast<int>(logical_size / sizeof(T));
+            size_t alloc_elems = alloc_size / sizeof(T);
+
+            std::vector<T> src_input(alloc_elems, 0);
+            std::vector<T> dst_input(alloc_elems, 0);
+            for (size_t i = 0; i < alloc_elems; i++) {
                 src_input[i] = (T)(pe_id + 10);
                 dst_input[i] = (T)(pe_id + 100);
             }
 
-            status = aclrtMemcpy(src_ptr, all_size, src_input.data(), all_size, ACL_MEMCPY_HOST_TO_DEVICE);
-            status = aclrtMemcpy(dst_ptr, all_size, dst_input.data(), all_size, ACL_MEMCPY_HOST_TO_DEVICE);
+            status = aclrtMemcpy(src_ptr, alloc_size, src_input.data(), alloc_size, ACL_MEMCPY_HOST_TO_DEVICE);
+            status = aclrtMemcpy(dst_ptr, alloc_size, dst_input.data(), alloc_size, ACL_MEMCPY_HOST_TO_DEVICE);
 
             launch_mte_perf_kernel(
                 block_size, stream, fftsAddr, (uint8_t*)dst_ptr, (uint8_t*)src_ptr, trans_size, frame_id,
@@ -116,11 +155,11 @@ int test_shmem_mte_perf_test_impl(
                 return true;
             };
 
-            std::vector<T> dst_host(trans_size, 0);
-            std::vector<T> src_host(trans_size, 0);
+            std::vector<T> dst_host(alloc_elems, 0);
+            std::vector<T> src_host(alloc_elems, 0);
 
-            status = aclrtMemcpy(dst_host.data(), all_size, dst_ptr, all_size, ACL_MEMCPY_DEVICE_TO_HOST);
-            status = aclrtMemcpy(src_host.data(), all_size, src_ptr, all_size, ACL_MEMCPY_DEVICE_TO_HOST);
+            status = aclrtMemcpy(dst_host.data(), alloc_size, dst_ptr, alloc_size, ACL_MEMCPY_DEVICE_TO_HOST);
+            status = aclrtMemcpy(src_host.data(), alloc_size, src_ptr, alloc_size, ACL_MEMCPY_DEVICE_TO_HOST);
 
             int peer_pe = (pe_id + 1) % n_pes;
 
@@ -187,6 +226,7 @@ int test_shmem_mte_perf_test_impl(
             break;
         }
     }
+cleanup:
     aclshmemx_get_prof(nullptr, true);
 
     status = aclshmem_finalize();
@@ -194,7 +234,7 @@ int test_shmem_mte_perf_test_impl(
     status = aclrtResetDevice(device_id);
     status = aclFinalize();
 
-    return 0;
+    return result;
 }
 
 int main(int argc, char* argv[])
@@ -319,6 +359,12 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    if (min_exponent < 0 || min_exponent > max_exponent || max_exponent >= std::numeric_limits<uint64_t>::digits) {
+        std::cerr << "Error: exponent range must satisfy 0 <= min <= max < " << std::numeric_limits<uint64_t>::digits
+                  << std::endl;
+        return 1;
+    }
+
     std::cout << "[SUCCESS] demo run start in pe " << pe_id << ", test type: " << test_type
               << ", data type: " << fuc_data_type << std::endl;
     std::cout << "n_pes: " << n_pes << ", pe_id: " << pe_id << ", g_npus: " << g_npus << std::endl;
@@ -335,7 +381,21 @@ int main(int argc, char* argv[])
 
     uint64_t max_datasize = (1ULL << max_exponent);
     int max_block_size_cfg = block_sizes.empty() ? 0 : *std::max_element(block_sizes.begin(), block_sizes.end());
-    uint64_t max_required_size = max_datasize * max_block_size_cfg * 2;
+    uint64_t max_per_core = (max_datasize < 512) ? 512 : max_datasize;
+    // kernel elements 为 int；按最小 dtype(1B) 约束单 buffer 逻辑长度
+    uint64_t max_single_buffer_size = 0;
+    if (!checked_multiply(
+            max_per_core, static_cast<uint64_t>(max_block_size_cfg),
+            static_cast<uint64_t>(std::numeric_limits<int>::max()), max_single_buffer_size)) {
+        std::cerr << "Error: max(datasize,512)*block_size exceeds int range for kernel elements" << std::endl;
+        std::cerr << "Please adjust block-list/block-range or exponent-range parameters" << std::endl;
+        return 1;
+    }
+    uint64_t max_required_size = 0;
+    if (!checked_multiply(max_single_buffer_size, 2, std::numeric_limits<uint64_t>::max(), max_required_size)) {
+        std::cerr << "Error: required symmetric memory size overflow" << std::endl;
+        return 1;
+    }
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     const uint64_t ONE_GB = 1024UL * 1024UL * 1024;
     const uint64_t MAX_GB = 40;
