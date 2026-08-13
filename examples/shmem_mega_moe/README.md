@@ -2,7 +2,7 @@
 
 ## 样例介绍
 
-本样例展示了一个面向 Ascend950（Arch35）的 SHMEM 原生 MegaMoE 前向流水线。算子将
+本样例展示了一个面向 Ascend950 的 SHMEM 原生 MegaMoE 前向流水线。算子将
 Token 路由、跨 Rank 数据派发、两次专家矩阵乘、SwiGLU 激活和多专家结果合并放在同一个
 Device 侧流水线中，避免在各阶段之间回到 Host 或重复组织通信。
 
@@ -13,8 +13,7 @@ Device 侧流水线中，避免在各阶段之间回到 Host 或重复组织通�
 - Catlass AIC 核完成专家网络的两次 MXFP8 GEMM；
 - AIC/AIV 之间通过标志位和双缓冲协作，使矩阵计算、后处理与通信可以流水执行。
 
-本目录只包含 Ascend950/Arch35 实现，不包含 Arch22/A3 兼容内核。当前支持以下两种
-Token 和权重量化模式：
+本目录目前仅提供 Ascend950 实现，支持以下两种 Token 和权重量化模式：
 
 | 运行模式 | FP8 数据格式 | Scale 格式 |
 | --- | --- | --- |
@@ -210,7 +209,7 @@ examples/shmem_mega_moe/
 |-- include/
 |   |-- shmem_mega_moe_host.h              # Host 资源、参数解析和校验
 |   |-- shmem_mega_moe_main.h              # Host 入口声明
-|   `-- shmem_mega_moe_main_arch35.h       # Arch35 初始化、Tiling、运行与校验
+|   `-- shmem_mega_moe_main_arch35.h       # Ascend950 初始化、Tiling、运行与校验
 |-- kernel/
 |   |-- arch35/
 |   |   |-- shmem_mega_moe_kernel.h        # 算子主流水线
