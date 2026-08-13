@@ -119,13 +119,16 @@ ACLSHMEM_DEVICE void all_gather_origin(
     __ubuf__ T* pong_buff = reinterpret_cast<__ubuf__ T*>(uint64_t(96 * 1024 + 32));
     uint32_t copy_ub_size = UB_DMA_MAX_SIZE / 2;
     uint32_t copy_ub_num = copy_ub_size / sizeof(T);
-    int x = (aivIndex - core_group_num) / core_per_rank;
+    int get_core_idx = aivIndex - core_group_num;
+    int x = get_core_idx / core_per_rank;
+    int local_core_idx = get_core_idx % core_per_rank;
 
     int pingpongId = 0;
     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID1);
     while (true) {
-        for (int group_idx = 0; group_idx < core_group_num; group_idx++) {
+        // Split data groups among the get cores assigned to the same PE to avoid overlapping writes.
+        for (int group_idx = local_core_idx; group_idx < core_group_num; group_idx += core_per_rank) {
             if (*flags_ub1[group_idx] == INT32_MAX) {
                 continue;
             }
@@ -184,7 +187,7 @@ ACLSHMEM_DEVICE void all_gather_origin(
             AscendC::PipeBarrier<PIPE_ALL>();
         }
         bool finished = true;
-        for (int64_t group_idx = 0; group_idx < core_group_num; group_idx++) {
+        for (int64_t group_idx = local_core_idx; group_idx < core_group_num; group_idx += core_per_rank) {
             if (*flags_ub1[group_idx] != INT32_MAX) {
                 finished = false;
                 break;
