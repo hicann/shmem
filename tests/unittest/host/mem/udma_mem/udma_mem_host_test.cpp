@@ -14,7 +14,10 @@
 #include <string>
 
 #include "acl/acl.h"
+#include "host/init/shmem_host_init.h"
 #include "shmemi_host_common.h"
+#include "unittest/udma_mem_kernel.h"
+#include "unittest_main_test.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -22,13 +25,6 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-extern void test_udma_put(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_get(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_put_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_put_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_get_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_get_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva);
-extern void test_udma_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);
 #ifndef ACLSHMEM_RELAY_SUPPORT
 extern void test_udma_qp_data_path(
     uint32_t block_dim, void* stream, uint8_t* symmetric, uint8_t* local_buffer, uint64_t* signal_words,
@@ -85,6 +81,93 @@ static void run_udma_action_test(
 
     ASSERT_EQ(aclrtFreeHost(inHost), 0);
     ASSERT_EQ(aclrtFreeHost(outHost), 0);
+}
+
+static void verify_highlevel_put_signal_data(uint32_t* outHost, uint32_t rank_size)
+{
+    constexpr size_t message_size = 64;
+    constexpr uint32_t rank_offset = 10;
+    const size_t words_per_message = message_size / sizeof(uint32_t);
+    for (uint32_t rank = 0; rank < rank_size; ++rank) {
+        for (size_t i = 0; i < words_per_message; ++i) {
+            ASSERT_EQ(outHost[rank * words_per_message + i], rank + rank_offset);
+        }
+    }
+}
+
+static void test_udma_highlevel_put_signal_split_case(
+    aclrtStream stream, uint8_t* gva, uint32_t rank_id, uint32_t rank_size, size_t message_size, int32_t signal)
+{
+    constexpr uint8_t rank_offset = 10;
+    constexpr size_t boundary_offsets[] = {0, 256UL * 1024UL * 1024UL - 1};
+    for (size_t offset : boundary_offsets) {
+        uint8_t value = static_cast<uint8_t>(rank_id + rank_offset);
+        ASSERT_EQ(
+            aclrtMemcpy(
+                gva + rank_id * message_size + offset, sizeof(value), &value, sizeof(value), ACL_MEMCPY_HOST_TO_DEVICE),
+            0);
+    }
+    if (message_size > 256UL * 1024UL * 1024UL) {
+        uint8_t value = static_cast<uint8_t>(rank_id + rank_offset);
+        ASSERT_EQ(
+            aclrtMemcpy(
+                gva + rank_id * message_size + 256UL * 1024UL * 1024UL, sizeof(value), &value, sizeof(value),
+                ACL_MEMCPY_HOST_TO_DEVICE),
+            0);
+        ASSERT_EQ(
+            aclrtMemcpy(
+                gva + (rank_id + 1) * message_size - 1, sizeof(value), &value, sizeof(value),
+                ACL_MEMCPY_HOST_TO_DEVICE),
+            0);
+    }
+
+    auto* sig_addr = static_cast<uint8_t*>(aclshmem_malloc(rank_size * sizeof(int32_t)));
+    ASSERT_NE(sig_addr, nullptr);
+    aclshmemi_control_barrier_all();
+    test_udma_highlevel_put_signal_split(1, stream, gva, sig_addr, message_size, signal);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+
+    for (uint32_t rank = 0; rank < rank_size; ++rank) {
+        for (size_t offset : boundary_offsets) {
+            uint8_t value = 0;
+            ASSERT_EQ(
+                aclrtMemcpy(
+                    &value, sizeof(value), gva + rank * message_size + offset, sizeof(value),
+                    ACL_MEMCPY_DEVICE_TO_HOST),
+                0);
+            ASSERT_EQ(value, static_cast<uint8_t>(rank + rank_offset));
+        }
+        if (message_size > 256UL * 1024UL * 1024UL) {
+            uint8_t split_value = 0;
+            uint8_t tail_value = 0;
+            ASSERT_EQ(
+                aclrtMemcpy(
+                    &split_value, sizeof(split_value), gva + rank * message_size + 256UL * 1024UL * 1024UL,
+                    sizeof(split_value), ACL_MEMCPY_DEVICE_TO_HOST),
+                0);
+            ASSERT_EQ(
+                aclrtMemcpy(
+                    &tail_value, sizeof(tail_value), gva + (rank + 1) * message_size - 1, sizeof(tail_value),
+                    ACL_MEMCPY_DEVICE_TO_HOST),
+                0);
+            ASSERT_EQ(split_value, static_cast<uint8_t>(rank + rank_offset));
+            ASSERT_EQ(tail_value, static_cast<uint8_t>(rank + rank_offset));
+        }
+    }
+
+    std::vector<int32_t> signal_values(rank_size, 0);
+    ASSERT_EQ(
+        aclrtMemcpy(
+            signal_values.data(), rank_size * sizeof(int32_t), sig_addr, rank_size * sizeof(int32_t),
+            ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    for (uint32_t rank = 0; rank < rank_size; ++rank) {
+        if (rank != rank_id) {
+            ASSERT_EQ(signal_values[rank], signal);
+        }
+    }
+    aclshmem_free(sig_addr);
 }
 
 static void test_udma_put_get(aclrtStream stream, uint8_t* gva, uint32_t rank_id, uint32_t rank_size)
@@ -159,7 +242,96 @@ static void test_udma_put_get(aclrtStream stream, uint8_t* gva, uint32_t rank_id
     }
     ASSERT_TRUE(all_signals_set) << "Signal for rank " << rank_id << " is not set correctly";
 
+    // Test high-level UDMA put signal
+    uint8_t* highlevel_sig_addr = static_cast<uint8_t*>(aclshmem_malloc(rank_size * sizeof(int32_t)));
+    ASSERT_NE(highlevel_sig_addr, nullptr);
+
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_highlevel_put_signal(block_dim, stream, (uint8_t*)gva, highlevel_sig_addr);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_highlevel_put_signal_data(outHost, rank_size);
+
+    std::vector<int32_t> highlevel_signal_values(rank_size, 0);
+    ASSERT_EQ(
+        aclrtMemcpy(
+            highlevel_signal_values.data(), rank_size * sizeof(int32_t), highlevel_sig_addr,
+            rank_size * sizeof(int32_t), ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    for (uint32_t i = 0; i < rank_size; i++) {
+        if (i == rank_id) {
+            continue;
+        }
+        ASSERT_EQ(highlevel_signal_values[i], 1000);
+    }
+
+    // Test synchronous high-level UDMA put signal
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_highlevel_put_signal_sync(block_dim, stream, (uint8_t*)gva, highlevel_sig_addr);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_highlevel_put_signal_data(outHost, rank_size);
+
+    ASSERT_EQ(
+        aclrtMemcpy(
+            highlevel_signal_values.data(), rank_size * sizeof(int32_t), highlevel_sig_addr,
+            rank_size * sizeof(int32_t), ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    for (uint32_t i = 0; i < rank_size; i++) {
+        if (i == rank_id) {
+            continue;
+        }
+        ASSERT_EQ(highlevel_signal_values[i], 2000);
+    }
+
+    // Test high-level size put signal
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_highlevel_put_size_signal(block_dim, stream, (uint8_t*)gva, highlevel_sig_addr);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_highlevel_put_signal_data(outHost, rank_size);
+
+    ASSERT_EQ(
+        aclrtMemcpy(
+            highlevel_signal_values.data(), rank_size * sizeof(int32_t), highlevel_sig_addr,
+            rank_size * sizeof(int32_t), ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    for (uint32_t i = 0; i < rank_size; i++) {
+        if (i == rank_id) {
+            continue;
+        }
+        ASSERT_EQ(highlevel_signal_values[i], 3000);
+    }
+
+    // Test synchronous high-level size put signal
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_highlevel_put_size_signal_sync(block_dim, stream, (uint8_t*)gva, highlevel_sig_addr);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    verify_highlevel_put_signal_data(outHost, rank_size);
+
+    ASSERT_EQ(
+        aclrtMemcpy(
+            highlevel_signal_values.data(), rank_size * sizeof(int32_t), highlevel_sig_addr,
+            rank_size * sizeof(int32_t), ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    for (uint32_t i = 0; i < rank_size; i++) {
+        if (i == rank_id) {
+            continue;
+        }
+        ASSERT_EQ(highlevel_signal_values[i], 4000);
+    }
+
     aclshmem_free(sig_addr);
+    aclshmem_free(highlevel_sig_addr);
     ASSERT_EQ(aclrtFreeHost(inHost), 0);
     ASSERT_EQ(aclrtFreeHost(outHost), 0);
 }
@@ -187,6 +359,38 @@ TEST(TestMemApi, TestShmemUDMAMem)
     const int processCount = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
     // test_mutil_task(test_aclshmem_udma_mem, local_mem_size, processCount);
+}
+
+void test_aclshmem_udma_highlevel_put_signal_split(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream;
+    ASSERT_EQ(test_udma_init(rank_id, n_ranks, local_mem_size, &stream), 0);
+    ASSERT_NE(stream, nullptr);
+
+    constexpr size_t max_message_size = 256UL * 1024UL * 1024UL + 1;
+    const size_t gva_size = max_message_size * n_ranks;
+    auto* gva = static_cast<uint8_t*>(aclshmem_malloc(gva_size));
+    ASSERT_NE(gva, nullptr);
+    ASSERT_EQ(aclrtMemset(gva, gva_size, 0, gva_size), 0);
+    test_udma_highlevel_put_signal_split_case(stream, gva, rank_id, n_ranks, 256UL * 1024UL * 1024UL, 5000);
+    test_udma_highlevel_put_signal_split_case(stream, gva, rank_id, n_ranks, max_message_size, 6000);
+    aclshmem_free(gva);
+    test_finalize(stream, device_id);
+}
+
+TEST(TestMemApi, TestShmemUDMAHighLevelPutSignalSplit)
+{
+    constexpr int required_rank_size = 2;
+    if (test_gnpu_num < required_rank_size) {
+        GTEST_SKIP() << "UDMA split boundary test requires at least " << required_rank_size << " NPUs";
+    }
+    const char* soc_name = aclrtGetSocName();
+    if (soc_name == nullptr || std::string(soc_name).find("Ascend950") == std::string::npos) {
+        GTEST_SKIP() << "UDMA split boundary test requires Ascend950";
+    }
+    const uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
+    test_mutil_task(test_aclshmem_udma_highlevel_put_signal_split, local_mem_size, required_rank_size);
 }
 
 namespace {

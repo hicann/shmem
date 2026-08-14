@@ -1586,7 +1586,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_set(__gm__ T* dst, T value, int32_t p
         aclshmemx_udma_quiet(pe);
         T old_value = aclshmemi_udma_get_amo_addr_value<T>(amo_addr);
         if (aclshmemx_udma_atomic_compare_swap(dst, old_value, value, pe) == old_value) {
-            break;
+            return;
         }
         times++;
     }

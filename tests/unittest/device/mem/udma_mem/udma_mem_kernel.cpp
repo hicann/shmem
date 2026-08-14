@@ -338,3 +338,136 @@ void test_udma_qp_data_path(
         symmetric, local_buffer, reinterpret_cast<uint8_t*>(signal_words), slice_size, peer, operation);
 }
 #endif
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelPutSignalTest(
+    GM_ADDR gva, GM_ADDR sig_addr)
+{
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    auto src_addr = reinterpret_cast<__gm__ uint8_t*>(gva + my_pe * MESSAGE_SIZE);
+    auto signal_addr = reinterpret_cast<__gm__ int32_t*>(sig_addr + my_pe * sizeof(int32_t));
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetSubBlockIdx() != 0) {
+            return;
+        }
+        for (int64_t peer = 0; peer < npes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmem_uint8_put_signal_nbi(
+                src_addr, src_addr, MESSAGE_SIZE, signal_addr, 1000, ACLSHMEM_SIGNAL_SET, peer);
+        }
+    }
+}
+
+void test_udma_highlevel_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr)
+{
+    UDMAHighLevelPutSignalTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelPutSignalSyncTest(
+    GM_ADDR gva, GM_ADDR sig_addr)
+{
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    auto src_addr = reinterpret_cast<__gm__ uint8_t*>(gva + my_pe * MESSAGE_SIZE);
+    auto signal_addr = reinterpret_cast<__gm__ int32_t*>(sig_addr + my_pe * sizeof(int32_t));
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetSubBlockIdx() != 0) {
+            return;
+        }
+        for (int64_t peer = 0; peer < npes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmem_uint8_put_signal(src_addr, src_addr, MESSAGE_SIZE, signal_addr, 2000, ACLSHMEM_SIGNAL_SET, peer);
+        }
+    }
+}
+
+void test_udma_highlevel_put_signal_sync(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr)
+{
+    UDMAHighLevelPutSignalSyncTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelPutSizeSignalTest(
+    GM_ADDR gva, GM_ADDR sig_addr)
+{
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    auto src_addr = reinterpret_cast<__gm__ void*>(gva + my_pe * MESSAGE_SIZE);
+    auto signal_addr = reinterpret_cast<__gm__ int32_t*>(sig_addr + my_pe * sizeof(int32_t));
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetSubBlockIdx() != 0) {
+            return;
+        }
+        for (int64_t peer = 0; peer < npes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmem_put64_signal_nbi(
+                src_addr, src_addr, MESSAGE_SIZE / sizeof(uint64_t), signal_addr, 3000, ACLSHMEM_SIGNAL_SET, peer);
+        }
+    }
+}
+
+void test_udma_highlevel_put_size_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr)
+{
+    UDMAHighLevelPutSizeSignalTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelPutSizeSignalSyncTest(
+    GM_ADDR gva, GM_ADDR sig_addr)
+{
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    auto src_addr = reinterpret_cast<__gm__ void*>(gva + my_pe * MESSAGE_SIZE);
+    auto signal_addr = reinterpret_cast<__gm__ int32_t*>(sig_addr + my_pe * sizeof(int32_t));
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetSubBlockIdx() != 0) {
+            return;
+        }
+        for (int64_t peer = 0; peer < npes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmem_put64_signal(
+                src_addr, src_addr, MESSAGE_SIZE / sizeof(uint64_t), signal_addr, 4000, ACLSHMEM_SIGNAL_SET, peer);
+        }
+    }
+}
+
+void test_udma_highlevel_put_size_signal_sync(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr)
+{
+    UDMAHighLevelPutSizeSignalSyncTest<<<block_dim, nullptr, stream>>>(gva, sig_addr);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelPutSignalSplitTest(
+    GM_ADDR gva, GM_ADDR sig_addr, uint64_t elem_size, int32_t signal)
+{
+    int64_t my_pe = aclshmem_my_pe();
+    int64_t npes = aclshmem_n_pes();
+    auto src_addr = reinterpret_cast<__gm__ void*>(gva + my_pe * elem_size);
+    auto signal_addr = reinterpret_cast<__gm__ int32_t*>(sig_addr + my_pe * sizeof(int32_t));
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetSubBlockIdx() != 0) {
+            return;
+        }
+        for (int64_t peer = 0; peer < npes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmem_putmem_signal(src_addr, src_addr, elem_size, signal_addr, signal, ACLSHMEM_SIGNAL_SET, peer);
+        }
+    }
+}
+
+void test_udma_highlevel_put_signal_split(
+    uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr, uint64_t elem_size, int32_t signal)
+{
+    UDMAHighLevelPutSignalSplitTest<<<block_dim, nullptr, stream>>>(gva, sig_addr, elem_size, signal);
+}
