@@ -60,14 +60,14 @@ struct aclshmemi_udma_cq_ctx_t {
     uint64_t db_addr; // doorbell address
 };
 
-// Queue / memory-region base-address table. All arrays are indexed by "slot"; the slot count
+// Queue / memory-region base-address table. All arrays are indexed by slot/QP; the slot count
 // differs per path (see aclshmemi_aiv_udma_info_t below).
 struct aclshmemi_udma_qp_table_t {
     uint64_t sq_ptr;  // send queue address array,              [slot_count][qp_num]
     uint64_t rq_ptr;  // receive queue address array,           [slot_count][qp_num]
     uint64_t scq_ptr; // send completion queue address array,   [slot_count][qp_num]
     uint64_t rcq_ptr; // receive completion queue address array,[slot_count][qp_num]
-    uint64_t mem_ptr; // memory region array,                   [slot_count]
+    uint64_t mem_ptr; // memory region array,                   [slot_count][qp_num]
 };
 
 struct aclshmemi_aiv_udma_info_t {

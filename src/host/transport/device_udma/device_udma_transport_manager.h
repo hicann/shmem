@@ -97,6 +97,14 @@ private:
         // the complete direct multi-QP name count before insertion so c_str() addresses stay stable.
         std::vector<std::string> channel_names;
     };
+    struct QpRoute {
+        uint32_t local_eid_index{0};
+        uint32_t remote_eid_index{0};
+    };
+    struct PeerRouteInfo {
+        QpRoute default_route{};
+        std::vector<QpRoute> qp_routes{};
+    };
     bool CreateEndpoint(uint32_t eid_index, const std::array<uint8_t, 16>& target_eid_raw);
     bool PrepareOpenDevice(uint32_t device_id, uint32_t rank_count);
     // Allgather the local HCOMM endpoint descriptors into `exchange`.
@@ -108,11 +116,11 @@ private:
     // remote_eid_index, and append them to `state` against udma info `slot`.
     Result CreateChannelsForSlot(
         const EndpointExchange& exchange, uint32_t local_eid_index, uint32_t remote_eid_index, uint32_t dst_pe,
-        uint32_t slot, uint32_t channel_num, ChannelBuildState& state);
+        uint32_t slot, uint32_t first_qp_idx, uint32_t channel_num, ChannelBuildState& state);
     // Create all channels for this build: dispatches to the direct or relay variant based on
     // ACLSHMEM_UDMA_RELAY_ENABLED. On failure the caller cleans up state.handles.
     Result BuildChannels(const EndpointExchange& exchange, ChannelBuildState& state);
-    // One batch per peer (direct build): slot == peer, batch size == qp_num_.
+    // Direct build: slot == peer, and each peer/QP route creates one HCOMM channel.
     Result BuildDirectChannels(const EndpointExchange& exchange, ChannelBuildState& state);
     // One channel per meaningful (actual_pe, relay_pe) slot (relay build). Only reached when
     // ACLSHMEM_UDMA_RELAY_ENABLED. Channels are created non-blocking; readiness is polled once
@@ -132,7 +140,7 @@ private:
         const std::vector<uint64_t>& channel_ptrs, const std::vector<uint32_t>& channel_slots,
         const std::vector<uint32_t>& channel_dst_pes, const std::vector<uint32_t>& channel_qp_indices,
         std::vector<SqContext>& sq_contexts_by_qp, std::vector<CqContext>& cq_contexts_by_qp,
-        std::vector<RegedBufferEntity>& remote_buffers_by_slot, std::vector<bool>& slot_valid) const;
+        std::vector<RegedBufferEntity>& remote_buffers_by_qp, std::vector<bool>& qp_valid) const;
     // Builds this rank's SyncEndpoint list (one entry per rank_addr across all levels,
     // including netLayer 0) from rootInfo, then allgathers it across all ranks via a
     // MessagePack blob so the TopoQuerier can resolve both the local and remote eidIndex
@@ -143,7 +151,7 @@ private:
     Result InitHostUdmaInfo(std::vector<uint8_t>& udma_info_buffer, aclshmemi_aiv_udma_info_t*& copy_info);
     Result FillHostUdmaInfo(
         const std::vector<SqContext>& sq_contexts_by_qp, const std::vector<CqContext>& cq_contexts_by_qp,
-        const std::vector<RegedBufferEntity>& remote_buffers_by_slot, const std::vector<bool>& slot_valid,
+        const std::vector<RegedBufferEntity>& remote_buffers_by_qp, const std::vector<bool>& qp_valid,
         std::vector<uint8_t>& eid_table_host, aclshmemi_aiv_udma_info_t& copy_info);
     Result CopyEidTableToDevice(const std::vector<uint8_t>& eid_table_host);
     Result CopyUdmaInfoToDevice(std::vector<uint8_t>& udma_info_buffer, aclshmemi_aiv_udma_info_t& copy_info);
@@ -177,8 +185,9 @@ private:
     uint32_t user_id_{0};
     uint32_t phy_id_{0};
     hybm_role_type role_{hybm_role_type::HYBM_ROLE_PEER};
-    std::map<uint32_t, uint32_t> peer_eid_index_map_;        // peerRankId -> local eid_index
-    std::map<uint32_t, uint32_t> peer_remote_eid_index_map_; // peerRankId -> remote eid_index
+    // peerRankId -> route state. default_route is the first resolved route and is used by
+    // relay/legacy slots; qp_routes is used by direct multi-QP slots.
+    std::map<uint32_t, PeerRouteInfo> peer_routes_;
     // N x N routing matrix: [rank * rank_count_ + peer] = local-port eid_index `rank` uses to reach
     // `peer`. Only read on the relay path to resolve each (actual_pe, relay_pe) slot's target EID.
     std::vector<int32_t> all_local_routes_;
@@ -197,9 +206,9 @@ private:
     // the original DeviceJettyManager allocation scheme.
     void* udma_info_dev_{nullptr}; // device pointer to the contiguous aclshmemi_aiv_udma_info_t blob
     uint64_t udma_info_size_{0};   // byte size of the contiguous blob
-    // device pointer to uint8_t[SlotCount()][16] remote EID raw, indexed by slot.
+    // device pointer to uint8_t[SlotCount()][qp_num_][16] remote EID raw, indexed by slot/QP.
     // Direct build: SlotCount() == rank_count_, slot == pe. Relay build: SlotCount() == rank_count_^2,
-    // slot == actual_pe * rank_count_ + relay_pe (each slot's remote target EID differs).
+    // slot == actual_pe * rank_count_ + relay_pe, qp == 0.
     void* eid_dev_{nullptr};
     // per-peer uint64_t AMO scratch device buffers, sized rank_count_ and indexed by the actual
     // destination pe in both builds (relay recovers dst_pe = slot / rank_count_).

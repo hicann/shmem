@@ -87,18 +87,51 @@ struct TopoInfo {
 };
 
 // Per-rank-addr view exchanged across ranks during PrepareOpenDevice. One SyncEndpoint
-// is emitted for every rank_addr on every level (including netLayer 0). Two ranks are
-// peers on a given plane when their (netLayer, netInstanceId, planeId) all match; the
-// peer's eidIndex/ports then identify the remote route. eidData is intentionally NOT
-// carried: the local eid raw is fetched from the local rootInfo by eidIndex.
+// is emitted for every rank_addr on every level. Two ranks are peers on a given CLOS
+// plane when their (netLayer, netInstanceId, planeId) all match; Mesh and CLOS are
+// selected by netType rather than assuming a fixed layer number. eidData is intentionally
+// NOT carried: the local eid raw is fetched from the local rootInfo by eidIndex.
 struct SyncEndpoint {
     uint32_t netLayer{};
     std::string netInstanceId{};
+    NetType netType{};
     std::string planeId{};
     std::vector<EidPort> ports{}; // used to reverse-map a peer port to its eidIndex
     uint32_t eidIndex{};
+};
 
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(SyncEndpoint, netLayer, netInstanceId, planeId, ports, eidIndex)
+inline void to_json(nlohmann::json& json, const SyncEndpoint& endpoint)
+{
+    json = nlohmann::json{
+        {"netLayer", endpoint.netLayer},
+        {"netInstanceId", endpoint.netInstanceId},
+        {"netType", static_cast<uint32_t>(endpoint.netType)},
+        {"planeId", endpoint.planeId},
+        {"ports", endpoint.ports},
+        {"eidIndex", endpoint.eidIndex},
+    };
+}
+
+inline void from_json(const nlohmann::json& json, SyncEndpoint& endpoint)
+{
+    json.at("netLayer").get_to(endpoint.netLayer);
+    json.at("netInstanceId").get_to(endpoint.netInstanceId);
+    if (json.contains("netType")) {
+        uint32_t netType = 0;
+        json.at("netType").get_to(netType);
+        endpoint.netType = static_cast<NetType>(netType);
+    } else {
+        endpoint.netType = (endpoint.netLayer == 0) ? NetType::Mesh : NetType::Clos;
+    }
+    json.at("planeId").get_to(endpoint.planeId);
+    json.at("ports").get_to(endpoint.ports);
+    json.at("eidIndex").get_to(endpoint.eidIndex);
+}
+
+struct EidRoute {
+    uint32_t localEidIndex{};
+    EidData localEidRaw{};
+    uint32_t remoteEidIndex{};
 };
 
 class EidConverter {
@@ -147,13 +180,14 @@ public:
           rankIdxToSyncEndpoint_(rankIdxToSyncEndpoint)
     {}
 
-    bool GetEidRouteMesh1D(
-        uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
-    bool GetEidRouteClos(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
-
+    bool GetEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes);
     bool GetEidRoute(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
 
 private:
+    bool ResolveEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes);
+    bool GetEidRouteMesh1D(
+        uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
+
     const RootInfo& rootInfo_;
     const TopoInfo& topoInfo_;
     uint32_t myRank_;

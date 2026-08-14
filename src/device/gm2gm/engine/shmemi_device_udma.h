@@ -32,14 +32,14 @@ enum class aclshmemi_udma_opcode_t : uint32_t {
     UDMA_OPCODE_NOP = 0x11
 };
 
-// Queue / memory-region base-address table. All arrays are indexed by "slot"
-// (see aclshmemi_udma_compute_slot); the slot count differs per path (see below).
+// Queue / memory-region base-address table. All arrays are indexed by
+// slot * qp_num + qp_idx (see aclshmemi_udma_compute_slot); the slot count differs per path.
 struct aclshmemi_udma_qp_table_t {
     uint64_t sq_ptr;  // send queue address array,             [slot_count][qp_num]
     uint64_t rq_ptr;  // receive queue address array,          [slot_count][qp_num]
     uint64_t scq_ptr; // send completion queue address array,  [slot_count][qp_num]
     uint64_t rcq_ptr; // receive completion queue address array,[slot_count][qp_num]
-    uint64_t mem_ptr; // memory region array,                  [slot_count]
+    uint64_t mem_ptr; // memory region array,                  [slot_count][qp_num]
 };
 
 struct aclshmemi_aiv_udma_info_t {

@@ -406,6 +406,14 @@ ACLSHMEM_DEVICE __gm__ aclshmemi_udma_wq_ctx_t* aclshmemi_udma_get_qp_ctx(
     return qp_ctx_entry;
 }
 
+ACLSHMEM_DEVICE __gm__ aclshmemi_ubmem_info_t* aclshmemi_udma_get_mem_info(
+    __gm__ aclshmemi_aiv_udma_info_t* udma_info, uint32_t slot, uint32_t qp_idx)
+{
+    uint32_t qp_num = udma_info->qp_num;
+    __gm__ aclshmemi_udma_qp_table_t* tbl = aclshmemi_udma_active_table(udma_info);
+    return (__gm__ aclshmemi_ubmem_info_t*)(tbl->mem_ptr + (slot * qp_num + qp_idx) * sizeof(aclshmemi_ubmem_info_t));
+}
+
 ACLSHMEM_DEVICE __gm__ aclshmemi_sqe_ctx_t* aclshmemi_udma_get_sqe_ctx(
     __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry, uint32_t cur_head, uint32_t wqe_size)
 {
@@ -470,10 +478,7 @@ ACLSHMEM_DEVICE void aclshmemi_udma_post_send(
     uint32_t wqe_cnt = qp_ctx_entry->wqe_cnt;
     // Poll CQ if send queue is full
     poll_cq_when_sq_overflow(qp_ctx_entry, wqe_cnt, slot, qp_idx);
-    // Get memory info for this (actualPe, relayPe) slot
-    __gm__ aclshmemi_ubmem_info_t* remote_mem_info =
-        (__gm__ aclshmemi_ubmem_info_t*)(aclshmemi_udma_active_table(udma_info)->mem_ptr +
-                                         sizeof(aclshmemi_ubmem_info_t) * slot);
+    __gm__ aclshmemi_ubmem_info_t* remote_mem_info = aclshmemi_udma_get_mem_info(udma_info, slot, qp_idx);
     // Write SQE to HBM
     __gm__ aclshmemi_sqe_ctx_t* sqe_ctx = aclshmemi_udma_get_sqe_ctx(qp_ctx_entry, cur_head, wqe_size);
     aclshmemi_udma_fill_sqe_ctx<T, OP_CODE>(sqe_ctx, remote_addr, remote_mem_info, cur_head, params);
@@ -586,9 +591,7 @@ ACLSHMEM_DEVICE void aclshmemi_udma_stage_send_wqe(
     __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
     ACLSHMEM_DEBUG_FUNC(assert_not_self_send, pe);
     uint32_t slot = aclshmemi_udma_compute_slot(pe, relay_pe);
-    __gm__ aclshmemi_ubmem_info_t* remote_mem_info =
-        (__gm__ aclshmemi_ubmem_info_t*)(aclshmemi_udma_active_table(udma_info)->mem_ptr +
-                                         sizeof(aclshmemi_ubmem_info_t) * slot);
+    __gm__ aclshmemi_ubmem_info_t* remote_mem_info = aclshmemi_udma_get_mem_info(udma_info, slot, qp_idx);
 
     uint32_t pending_count = state.pending_count;
     __ubuf__ uint8_t* ub_wqe = ub_scratch + pending_count * ACLSHMEM_UDMA_DATA_MOVER_WQE_SIZE;
@@ -651,9 +654,7 @@ ACLSHMEM_DEVICE void aclshmemi_udma_post_send_mte3(
     uint32_t wqe_cnt = qp_ctx_entry->wqe_cnt;
     poll_cq_when_sq_overflow(qp_ctx_entry, wqe_cnt, slot, qp_idx);
 
-    __gm__ aclshmemi_ubmem_info_t* remote_mem_info =
-        (__gm__ aclshmemi_ubmem_info_t*)(aclshmemi_udma_active_table(udma_info)->mem_ptr +
-                                         sizeof(aclshmemi_ubmem_info_t) * slot);
+    __gm__ aclshmemi_ubmem_info_t* remote_mem_info = aclshmemi_udma_get_mem_info(udma_info, slot, qp_idx);
 
     // Stage WQE (SQE + optional notify + SGE) in caller's UB scratch. Reuse the
     // address-space-templated fill helper so SQE field assignments are not duplicated.
