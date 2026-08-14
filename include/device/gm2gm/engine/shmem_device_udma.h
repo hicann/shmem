@@ -26,6 +26,8 @@
  * - Action overloads support PIPE_MTE3 only.
  * - Use one initialized @ref aclshmemx_submit_state_t for one active batch.
  * - Every call in a batch must use the same operation kind, state, PE arguments, buf base, and sync_id.
+ * - For QP-specific overloads, all defer and submit calls in one aggregate batch must use the same qp_idx;
+ *   if they differ, the qp_idx passed to the submit call is used.
  * - n is the total number of operations in the batch, including the final submit call. The batch must be
  *   smaller than the SQ ring depth.
  * - @p buf is caller-provided UB scratch. Its capacity must be at least 64 * n bytes and must not exceed the
@@ -305,8 +307,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
 
 /**
  * @brief Direct-mode asynchronous UDMA Get on an explicitly selected QP.
- * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
- *       error and aborts the calling kernel.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. This is checked only in debug
+ *       builds; release builds require the caller to pass a valid QP index.
  * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
  *       aclshmemx_udma_qp_quiet(pe, qp_idx) before reading @p dst.
  *
@@ -325,6 +327,26 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
+ * @brief Adds a direct-mode UDMA Get operation on an explicitly selected QP to a batch.
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action and call
+ *          aclshmemx_udma_qp_quiet(pe, qp_idx) before reading @p dst.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds a direct-mode UDMA Get operation on an explicitly selected QP and submits the active batch.
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_qp_quiet(pe, qp_idx) before
+ *          reading @p dst.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_submit_t action);
 
 /**
  * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_qp_get_nbi.
@@ -348,10 +370,20 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
 
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
+
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
+
 /**
  * @brief Direct-mode asynchronous UDMA Put on an explicitly selected QP.
- * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
- *       error and aborts the calling kernel.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. This is checked only in debug
+ *       builds; release builds require the caller to pass a valid QP index.
  * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
  *       aclshmemx_udma_qp_quiet(pe, qp_idx) before reusing @p src or relying on remote visibility.
  *
@@ -370,6 +402,26 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
 template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+/**
+ * @brief Adds a direct-mode UDMA Put operation on an explicitly selected QP to a batch.
+ * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action and call
+ *          aclshmemx_udma_qp_quiet(pe, qp_idx) before reusing @p src or relying on remote visibility.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds a direct-mode UDMA Put operation on an explicitly selected QP and submits the active batch.
+ * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_qp_quiet(pe, qp_idx) before
+ *          reusing @p src or relying on remote visibility.
+ */
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_submit_t action);
 
 /**
  * @brief GlobalTensor/LocalTensor overload of @ref aclshmemx_udma_qp_put_nbi.
@@ -394,6 +446,16 @@ template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
+
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
+
+template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
+    const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
+    uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
 
 /**
  * @brief Asynchronous relay-mode UDMA Put. Copy contiguous data from local PE to symmetric address on
@@ -796,8 +858,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
 /**
  * @brief Direct-mode asynchronous UDMA Put with remote signal update on an explicitly selected QP.
  * @note The data write and signal update are encoded in one WRITE_WITH_NOTIFY WQE on @p qp_idx. The caller must
- *       ensure qp_idx is smaller than the UDMA QP count configured at initialization. An invalid index prints an
- *       error and aborts the calling kernel.
+ *       ensure qp_idx is smaller than the UDMA QP count configured at initialization. This is checked only in debug
+ *       builds; release builds require the caller to pass a valid QP index.
  * @note A single request transfers at most 256 MB. A normal return only means the WQE was submitted; call
  *       aclshmemx_udma_qp_quiet(pe, qp_idx) or use the corresponding signal-wait protocol before reusing @p src.
  *
@@ -850,8 +912,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe);
 
 /**
  * @brief Wait for all UDMA requests submitted to one direct-mode QP of a remote PE.
- * @note qp_idx must be smaller than the UDMA QP count configured at initialization. An invalid index prints an
- *       error and aborts the calling kernel.
+ * @note qp_idx must be smaller than the UDMA QP count configured at initialization. This is checked only in debug
+ *       builds; release builds require the caller to pass a valid QP index.
  *
  * @param pe                [in] PE number of the remote PE.
  * @param qp_idx            [in] QP index whose submitted requests are to be completed.
