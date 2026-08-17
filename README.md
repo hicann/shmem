@@ -1,6 +1,8 @@
 
 # <div align="center">SHMEM</div>
-
+<div align="center">
+简体中文 | <a href="./README_en.md">English</a>
+</div>
 <h4><div align="center">基于对称内存的昇腾分布式内存通信加速库</div></h4>
 
 <div align="center">

@@ -1,13 +1,12 @@
 <div align="center">
 
 # SHMEM
-
+<div align="center">
+English | <a href="./README.md">简体中文</a>
+</div>
 <h4>Symmetric Memory-based Ascend Distributed Memory Communication Acceleration Library</h4>
 
-[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)
-[![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.3.0)
-[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)
-[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
+[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)[![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.3.0)[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
 
 </div>
 
