@@ -158,7 +158,7 @@ pe: 0 size: 1024 frame_id: 0
 ## 已知约束
 
 1. UDMA 头文件 `include/device/gm2gm/engine/shmem_device_udma.h` 注明：concurrent RMA/AMO operations to the same PE are not supported。本 perftest 通过 `block_dim=1` 规避，多核场景留作后续扩展。
-2. UDMA 仅在 Ascend950 (`__NPU_ARCH__ == 3510`) 编译期使能；在其他 SOC 上 kernel 会通过 `aclshmemi_kernel_abort` 报错退出。
+2. UDMA 仅在 Ascend950 编译期使能；在其他 SOC 上 kernel 会通过 `aclshmemi_kernel_abort` 报错退出。
 3. **不支持 D2H / `HOST_SIDE` (DRAM)**：UDMA 引擎当前未对 Host 侧 DRAM 提供 RMA 路径，仅测 HBM。
 4. 原子操作 (`aclshmemx_udma_atomic_add` 等) 不在本 perftest 范围。
 5. 高阶 UDMA RMA 接口默认通过 `PIPE_MTE3` staging 下发 WQE，默认 UB 配置为 `offset = 189 * 1024`、`ub_size = 128` 字节、`sync_id = 0`。如果调用 `aclshmemx_set_udma_config` 修改配置，`ub_size` 必须不小于 128 字节。本 perftest 的低阶接口路径仍按显式入参使用本地 UB。
