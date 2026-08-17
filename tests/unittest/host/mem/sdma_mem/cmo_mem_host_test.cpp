@@ -64,6 +64,7 @@ static void test_cmo_function(aclrtStream stream, uint32_t pe, uint32_t npes)
     ASSERT_EQ(aclrtMalloc((void**)&(res_ptr), res_size, ACL_MEM_MALLOC_HUGE_FIRST), 0);
     aclrtMallocHost((void**)(&res_host), res_size);
     ASSERT_EQ(aclrtCmoAsync(src_ptr, src_size, ACL_RT_CMO_TYPE_PREFETCH, stream), 0); // aclrtCmoAsync
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     copy_perf_kernel(n_blocks, stream, (uint8_t*)src_ptr, (uint8_t*)res_ptr, copypad_size, copypad_times);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     aclrtMemcpy(res_host, res_size, res_ptr, res_size, ACL_MEMCPY_DEVICE_TO_HOST);

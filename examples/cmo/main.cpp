@@ -248,6 +248,7 @@ int copy_test(
         is_device_block_prefetch = 1;
     } else if (prefetch_type == CMOEXAMPLE::HOST_PREFETCH) {
         CHECK_RET(aclrtCmoAsync(cache_gm_ptr, cache_gm_size, ACL_RT_CMO_TYPE_PREFETCH, stream));
+        CHECK_RET(aclrtSynchronizeStream(stream));
     }
 
     copy_perftest_kernel<T>(
