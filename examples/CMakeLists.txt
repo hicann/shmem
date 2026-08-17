@@ -165,6 +165,7 @@ foreach(EXAMPLE
     shmem_perftest
     udma_demo
     udma_atomic_add
+    tp_allreduce_udma
 )
     add_subdirectory(${EXAMPLE})
 endforeach()
