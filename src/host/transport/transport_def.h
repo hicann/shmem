@@ -51,6 +51,9 @@ struct TransportOptions {
     uint32_t rankId;
     uint32_t rankCount;
     uint32_t protocol;
+    struct RdmaQpConfig {
+        uint32_t qpNum{1};
+    } rdmaQpConfig{};
     hybm_role_type role;
     std::string nic;
     IpType type{IpV4};
@@ -59,9 +62,9 @@ struct TransportOptions {
     friend std::ostream& operator<<(std::ostream& output, const TransportOptions& options)
     {
         output << "TransportOptions(rankId=" << options.rankId << ", count=" << options.rankCount
-               << ", protocol=" << options.protocol << ", role=" << static_cast<uint32_t>(options.role)
-               << ", nid=" << options.nic << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum
-               << ")";
+               << ", protocol=" << options.protocol << ", rdmaQpNum=" << options.rdmaQpConfig.qpNum
+               << ", role=" << static_cast<uint32_t>(options.role) << ", nid=" << options.nic
+               << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum << ")";
         return output;
     }
 };

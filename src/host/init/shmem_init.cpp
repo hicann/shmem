@@ -101,6 +101,7 @@ aclshmemi_init_backend* init_manager = nullptr;
 // Protect instance context access
 static std::mutex g_aclshmem_ctx_mutex;
 static shm::transport::UdmaQpConfig g_udma_qp_config{};
+static shm::transport::TransportOptions::RdmaQpConfig g_rdma_qp_config{};
 static bool g_qp_config_frozen = false;
 
 // Instance context used to store global_resources
@@ -171,6 +172,8 @@ bool is_valid_data_op_engine_type(data_op_engine_type_t value)
     uint32_t int_value = static_cast<uint32_t>(value);
     return int_value > 0 && (int_value & ~valid_mask) == 0;
 }
+
+bool is_valid_rdma_qp_num(uint32_t qp_num) { return qp_num >= 1U && qp_num <= ACLSHMEM_MAX_QP_NUM; }
 
 bool aclshmemi_user_buffer_heap_engine_supported(data_op_engine_type_t engine)
 {
@@ -612,18 +615,24 @@ int aclshmemx_set_attr_uniqueid_args(
 int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
-    if (engine != ACLSHMEM_DATA_OP_UDMA) {
-        SHM_LOG_WARN("QP count configuration only supports UDMA, engine = " << engine);
-        return ACLSHMEM_NOT_SUPPORTED;
-    }
-    if (qp_num == 0 || qp_num > ACLSHMEM_MAX_QP_NUM) {
+    if (!is_valid_rdma_qp_num(qp_num)) {
+        SHM_LOG_ERROR("invalid qp num: " << qp_num);
         return ACLSHMEM_INVALID_VALUE;
     }
     if (g_qp_config_frozen) {
-        SHM_LOG_ERROR("UDMA QP configuration cannot be changed while an ACLSHMEM instance is initialized.");
+        SHM_LOG_ERROR("QP configuration cannot be changed while an ACLSHMEM instance is initialized.");
         return ACLSHMEM_NOT_SUPPORTED;
     }
-    g_udma_qp_config.qpNum = qp_num;
+
+    if (engine == ACLSHMEM_DATA_OP_ROCE) {
+        g_rdma_qp_config.qpNum = qp_num;
+    } else if (engine == ACLSHMEM_DATA_OP_UDMA) {
+        g_udma_qp_config.qpNum = qp_num;
+    } else {
+        SHM_LOG_WARN("QP count configuration does not support engine = " << engine);
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    SHM_LOG_INFO("set qp num success, engine=" << engine << ", qp_num=" << qp_num);
     return ACLSHMEM_SUCCESS;
 }
 
@@ -992,7 +1001,8 @@ static int32_t aclshmemi_init_attr_impl(
 
     // aclshmem_entity init
     ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(
-        attributes, &g_state, &g_boot_handle, std::move(user_buffer_heap_input), g_udma_qp_config));
+        attributes, &g_state, &g_boot_handle, std::move(user_buffer_heap_input), g_udma_qp_config,
+        g_rdma_qp_config.qpNum));
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
@@ -1141,6 +1151,7 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     g_state.is_aclshmem_initialized = false;
     recordCleanupStatus(aclshmemi_instance_ctx_destroy(instance_id), "destroy instance context");
     if (is_last_instance) {
+        g_rdma_qp_config = shm::transport::TransportOptions::RdmaQpConfig{};
         g_udma_qp_config = shm::transport::UdmaQpConfig{};
         g_qp_config_frozen = false;
     }

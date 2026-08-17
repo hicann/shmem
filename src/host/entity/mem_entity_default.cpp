@@ -15,6 +15,7 @@
 #include "dl_acl_api.h"
 #include "hybm_device_mem_segment.h"
 #include "hybm_ex_info_transfer.h"
+#include "host/init/shmem_host_init.h"
 #include "init/shmemi_init.h"
 #include "init/shmemi_user_buffer_heap.h"
 #include "mem_entity_default.h"

@@ -571,10 +571,19 @@ void test_aclshmem_multi_instance_invalid_id(int rank_id, int n_ranks, uint64_t 
     EXPECT_EQ(aclFinalize(), 0);
 }
 
+TEST(TestInitAPI, TestSetRdmaQpNumBeforeInit)
+{
+    for (uint32_t configured_qp_num : {1U, 2U, 4U, 8U, ACLSHMEM_MAX_QP_NUM}) {
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, configured_qp_num), ACLSHMEM_SUCCESS);
+    }
+
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 0), ACLSHMEM_INVALID_VALUE);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, ACLSHMEM_MAX_QP_NUM + 1), ACLSHMEM_INVALID_VALUE);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+}
+
 TEST(TestInitAPI, TestSetUdmaQpNumBeforeInit)
 {
-    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_NOT_SUPPORTED);
-
     for (uint32_t configured_qp_num : {1U, 2U, 4U, 8U, ACLSHMEM_MAX_QP_NUM}) {
         EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, configured_qp_num), ACLSHMEM_SUCCESS);
     }
@@ -950,6 +959,12 @@ void test_aclshmemx_finalize_active(int rank_id, int n_ranks, uint64_t local_mem
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(aclrtSetDevice(device_id), 0);
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 4), ACLSHMEM_SUCCESS);
+#else
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+#endif
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 4), ACLSHMEM_SUCCESS);
 
     uint64_t INSTANCE_ID = 1;
     aclshmemx_init_attr_t attr;
@@ -964,8 +979,16 @@ void test_aclshmemx_finalize_active(int rank_id, int n_ranks, uint64_t local_mem
     if (joined) {
         EXPECT_EQ(aclshmemx_init_status(), ACLSHMEM_STATUS_IS_INITIALIZED);
         EXPECT_EQ(attr.instance_id, INSTANCE_ID);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 2), ACLSHMEM_NOT_SUPPORTED);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
 
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID), ACLSHMEM_SUCCESS);
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 2), ACLSHMEM_SUCCESS);
+#else
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+#endif
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
 
     EXPECT_EQ(aclrtResetDevice(device_id), 0);

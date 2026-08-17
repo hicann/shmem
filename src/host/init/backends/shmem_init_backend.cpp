@@ -78,7 +78,7 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
 int aclshmemi_init_backend::bind_aclshmem_entity(
     aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
     std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input,
-    const shm::transport::UdmaQpConfig& udma_qp_config)
+    const shm::transport::UdmaQpConfig& udma_qp_config, uint32_t rdma_qp_num)
 {
     std::lock_guard<std::mutex> lock(entity_map_mutex_);
     // fetch entity resources
@@ -95,6 +95,7 @@ int aclshmemi_init_backend::bind_aclshmem_entity(
     elem->entity_boot_handle = handle;
     elem->user_buffer_heap_input = std::move(user_buffer_heap_input);
     elem->udma_qp_num = udma_qp_config.qpNum;
+    elem->rdma_qp_num = rdma_qp_num;
     if (elem->user_buffer_heap_input != nullptr) {
         const auto ret = setup_trusted_pids(elem, attr->n_pes, handle);
         if (ret != ACLSHMEM_SUCCESS) {
@@ -257,6 +258,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     transport_options.protocol = options.bmDataOpType;
     transport_options.role = hybm_role_type::HYBM_ROLE_PEER;
     transport_options.udmaQpConfig.qpNum = elem->udma_qp_num;
+    transport_options.rdmaQpConfig.qpNum = elem->rdma_qp_num;
     if (mem_type == HOST_SIDE) {
         options.memType = hybm_mem_type::HYBM_MEM_TYPE_HOST;
         options.deviceVASpace = 0;

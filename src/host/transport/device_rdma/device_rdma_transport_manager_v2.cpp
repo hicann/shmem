@@ -16,6 +16,7 @@
 #include "dl_hcomm_def.h"
 #include "device_rdma_common.h"
 #include "device_rdma_helper.h"
+#include "init/shmemi_init.h"
 #include "transport/topo/topo_reader.h"
 #include "device_rdma_transport_manager_v2.h"
 
@@ -36,6 +37,13 @@ constexpr uint32_t RDMA_CHANNEL_MEM_HANDLE_NUM = 2;
 // 非阻塞建链状态轮询参数(按通道个数缩放)
 constexpr uint32_t CHANNEL_STATUS_POLL_INTERVAL_PER_CH_MS = 10;   // 单通道单次轮询间隔(ms)
 constexpr uint32_t CHANNEL_STATUS_POLL_TIMEOUT_PER_CH_MS = 60000; // 单通道建链就绪等待超时(ms) = 1min
+
+std::string BuildStableChannelName(uint32_t localRank, uint32_t remoteRank, uint32_t qpIdx)
+{
+    const uint32_t serverRank = std::min(localRank, remoteRank);
+    const uint32_t clientRank = std::max(localRank, remoteRank);
+    return "aclshmem-r" + std::to_string(serverRank) + "-r" + std::to_string(clientRank) + "-q" + std::to_string(qpIdx);
+}
 
 constexpr uint32_t HNS_1825_DB_VENDOR_FIELD_MASK = 0x7;
 constexpr uint32_t HNS_1825_DB_COS_SHIFT = 24;
@@ -257,6 +265,17 @@ Result RdmaTransportManagerV2::OpenDevice(const TransportOptions& options)
     rankId_ = options.rankId;
     rankCount_ = options.rankCount;
     role_ = options.role;
+    qpNum_ = options.rdmaQpConfig.qpNum;
+    if (qpNum_ == 0 || qpNum_ > ACLSHMEM_MAX_QP_NUM) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] invalid rdma qp num: " << qpNum_);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+#if !defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+    if (qpNum_ != 1U) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] RDMA multi-QP is only supported on XSCALE, qpNum=" << qpNum_);
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+#endif
 
     if (options.type == IpV4) {
         deviceIp_.type = IpV4;
@@ -530,7 +549,19 @@ Result RdmaTransportManagerV2::Connect()
         return ACLSHMEM_INNER_ERROR;
     }
 
-    uint32_t channelNum = rankCount_ - 1;
+    auto consistencyRet = CheckQpNumConsistency();
+    if (consistencyRet != ACLSHMEM_SUCCESS) {
+        return consistencyRet;
+    }
+
+    const uint64_t peerCount = static_cast<uint64_t>(rankCount_ - 1);
+    const uint64_t channelNum64 = peerCount * static_cast<uint64_t>(qpNum_);
+    if (channelNum64 > std::numeric_limits<uint32_t>::max()) {
+        SHM_LOG_ERROR(
+            "rank[" << rankId_ << "] channel count overflow, peerCount=" << peerCount << ", qpNum=" << qpNum_);
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    uint32_t channelNum = static_cast<uint32_t>(channelNum64);
 
     if (!RegisterAtomicMemory()) {
         return ACLSHMEM_INNER_ERROR;
@@ -548,8 +579,9 @@ Result RdmaTransportManagerV2::Connect()
         SHM_LOG_ERROR("HcommChannelDescInit failed, ret = " << desc_init_ret);
         return ACLSHMEM_INNER_ERROR;
     }
-    std::vector<HcommMemHandle> channelMemHandles(channelNum * RDMA_CHANNEL_MEM_HANDLE_NUM);
-    std::vector<std::string> channelNames(channelNum);
+    std::vector<HcommMemHandle> channelMemHandles(static_cast<size_t>(channelNum) * RDMA_CHANNEL_MEM_HANDLE_NUM);
+    channelNames_.clear();
+    channelNames_.resize(channelNum);
 
     uint8_t roceTc = GetEnvUint8("HCCL_RDMA_TC", DEFAULT_RDMA_TC, 0, 255, true);
     uint8_t roceSl = GetEnvUint8("HCCL_RDMA_SL", DEFAULT_RDMA_SL, 0, 7);
@@ -566,46 +598,47 @@ Result RdmaTransportManagerV2::Connect()
             return ACLSHMEM_INVALID_PARAM;
         }
 
-        channelDescs[chIdx].remoteEndpoint.protocol = COMM_PROTOCOL_ROCE;
-
-        if (rankIt->second.network.type == IpV4) {
-            channelDescs[chIdx].remoteEndpoint.commAddr.type = COMM_ADDR_TYPE_IP_V4;
-            channelDescs[chIdx].remoteEndpoint.commAddr.addr = rankIt->second.network.ip.ipv4.sin_addr;
-        } else {
-            channelDescs[chIdx].remoteEndpoint.commAddr.type = COMM_ADDR_TYPE_IP_V6;
-            channelDescs[chIdx].remoteEndpoint.commAddr.addr6 = rankIt->second.network.ip.ipv6.sin6_addr;
-        }
-        channelDescs[chIdx].notifyNum = 3;
-        channelDescs[chIdx].exchangeAllMems = false;
-        HcommMemHandle* memHandles = channelMemHandles.data() + chIdx * RDMA_CHANNEL_MEM_HANDLE_NUM;
-        memHandles[0] = primaryMemHandle;
-        memHandles[1] = atomicMemHandle_;
-        channelDescs[chIdx].memHandles = memHandles;
-        channelDescs[chIdx].memHandleNum = RDMA_CHANNEL_MEM_HANDLE_NUM;
-        channelDescs[chIdx].roceAttr.queueNum = 1;
-        channelDescs[chIdx].roceAttr.tc = roceTc;
-        channelDescs[chIdx].roceAttr.sl = roceSl;
-        channelDescs[chIdx].roceAttr.retryCnt = DEFAULT_ROCE_RETRY_CNT;
-        channelDescs[chIdx].roceAttr.retryInterval = DEFAULT_ROCE_RETRY_INTERVAL;
-        SetChannelDescCqAttrFlags(channelDescs[chIdx], cqAttrFlags_);
-        channelDescs[chIdx].socket = nullptr;
-        bool isServer = (rankId_ < remoteRank);
-        channelDescs[chIdx].role = isServer ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
         uint16_t remotePort = 0U;
         auto portRet = GetDeviceNicPort(rankIt->second.network, remotePort);
         if (portRet != ACLSHMEM_SUCCESS) {
             SHM_LOG_ERROR("rank[" << rankId_ << "] rank " << remoteRank << " has invalid rdma port.");
             return portRet;
         }
-        channelDescs[chIdx].port = isServer ? devicePort_ : remotePort;
-        SHM_LOG_INFO(
-            "rank[" << rankId_ << "] rdma channel to rank[" << remoteRank
-                    << "] role=" << (isServer ? "server" : "client") << ", port=" << channelDescs[chIdx].port);
-        const uint32_t lowRank = std::min(rankId_, remoteRank);
-        const uint32_t highRank = std::max(rankId_, remoteRank);
-        channelNames[chIdx] = "aclshmem-rdma-v2/" + std::to_string(lowRank) + "-" + std::to_string(highRank) + "/ch0";
-        channelDescs[chIdx].channelName = channelNames[chIdx].c_str();
-        ++chIdx;
+        const bool isServer = (rankId_ < remoteRank);
+        for (uint32_t qpIdx = 0; qpIdx < qpNum_; ++qpIdx) {
+            auto& desc = channelDescs[chIdx];
+            desc.remoteEndpoint.protocol = COMM_PROTOCOL_ROCE;
+            if (rankIt->second.network.type == IpV4) {
+                desc.remoteEndpoint.commAddr.type = COMM_ADDR_TYPE_IP_V4;
+                desc.remoteEndpoint.commAddr.addr = rankIt->second.network.ip.ipv4.sin_addr;
+            } else {
+                desc.remoteEndpoint.commAddr.type = COMM_ADDR_TYPE_IP_V6;
+                desc.remoteEndpoint.commAddr.addr6 = rankIt->second.network.ip.ipv6.sin6_addr;
+            }
+            desc.notifyNum = 3;
+            desc.exchangeAllMems = false;
+            HcommMemHandle* memHandles = channelMemHandles.data() + chIdx * RDMA_CHANNEL_MEM_HANDLE_NUM;
+            memHandles[0] = primaryMemHandle;
+            memHandles[1] = atomicMemHandle_;
+            desc.memHandles = memHandles;
+            desc.memHandleNum = RDMA_CHANNEL_MEM_HANDLE_NUM;
+            desc.roceAttr.queueNum = 1;
+            desc.roceAttr.tc = roceTc;
+            desc.roceAttr.sl = roceSl;
+            desc.roceAttr.retryCnt = DEFAULT_ROCE_RETRY_CNT;
+            desc.roceAttr.retryInterval = DEFAULT_ROCE_RETRY_INTERVAL;
+            SetChannelDescCqAttrFlags(desc, cqAttrFlags_);
+            desc.socket = nullptr;
+            desc.role = isServer ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
+            desc.port = isServer ? devicePort_ : remotePort;
+            channelNames_[chIdx] = BuildStableChannelName(rankId_, remoteRank, qpIdx);
+            desc.channelName = channelNames_[chIdx].c_str();
+            SHM_LOG_INFO(
+                "rank[" << rankId_ << "] rdma channel to rank[" << remoteRank << "] qp=" << qpIdx
+                        << " role=" << (isServer ? "server" : "client") << ", port=" << desc.port
+                        << ", name=" << channelNames_[chIdx]);
+            ++chIdx;
+        }
     }
 
     channelPtrs_.resize(channelNum);
@@ -692,6 +725,33 @@ Result RdmaTransportManagerV2::Connect()
     return ACLSHMEM_SUCCESS;
 }
 
+Result RdmaTransportManagerV2::CheckQpNumConsistency() const
+{
+    if (rankCount_ <= 1) {
+        return ACLSHMEM_SUCCESS;
+    }
+    if (g_boot_handle.allgather == nullptr) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] bootstrap allgather is unavailable for QP consistency check");
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    std::vector<uint32_t> allQpNums(rankCount_, 0);
+    auto ret = g_boot_handle.allgather(&qpNum_, allQpNums.data(), sizeof(qpNum_), &g_boot_handle);
+    if (ret != 0) {
+        SHM_LOG_ERROR("rank[" << rankId_ << "] allgather rdma qp num failed: " << ret);
+        return ACLSHMEM_INNER_ERROR;
+    }
+    for (uint32_t rank = 0; rank < rankCount_; ++rank) {
+        if (allQpNums[rank] != qpNum_) {
+            SHM_LOG_ERROR(
+                "rank[" << rankId_ << "] inconsistent rdma qp num: local=" << qpNum_ << ", rank[" << rank
+                        << "]=" << allQpNums[rank]);
+            return ACLSHMEM_INVALID_PARAM;
+        }
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
 int RdmaTransportManagerV2::CheckPrepareOptions(const shm::transport::HybmTransPrepareOptions& options)
 {
     if (role_ != hybm_role_type::HYBM_ROLE_PEER) {
@@ -775,12 +835,12 @@ void RdmaTransportManagerV2::CopyAiCQInfo(struct AiQpRMACQ& dest, const CqContex
 
 void RdmaTransportManagerV2::FillQpPreSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo)
 {
-    copyInfo->count = 1;
+    copyInfo->count = qpNum_;
     copyInfo->sq = (AiQpRMAWQ*)(void*)(copyInfo + 1);
-    copyInfo->rq = (AiQpRMAWQ*)(void*)(copyInfo->sq + rankCount_);
-    copyInfo->scq = (AiQpRMACQ*)(void*)(copyInfo->rq + rankCount_);
-    copyInfo->rcq = (AiQpRMACQ*)(void*)(copyInfo->scq + rankCount_);
-    copyInfo->mr = (RdmaMemRegionInfo*)(void*)(copyInfo->rcq + rankCount_);
+    copyInfo->rq = (AiQpRMAWQ*)(void*)(copyInfo->sq + static_cast<uint64_t>(rankCount_) * qpNum_);
+    copyInfo->scq = (AiQpRMACQ*)(void*)(copyInfo->rq + static_cast<uint64_t>(rankCount_) * qpNum_);
+    copyInfo->rcq = (AiQpRMACQ*)(void*)(copyInfo->scq + static_cast<uint64_t>(rankCount_) * qpNum_);
+    copyInfo->mr = (RdmaMemRegionInfo*)(void*)(copyInfo->rcq + static_cast<uint64_t>(rankCount_) * qpNum_);
 }
 
 void RdmaTransportManagerV2::FillQpPostSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo)
@@ -789,16 +849,16 @@ void RdmaTransportManagerV2::FillQpPostSettingCopyInfo(AiQpRMAQueueInfo*& copyIn
     pointer += sizeof(AiQpRMAQueueInfo);
     copyInfo->sq = (AiQpRMAWQ*)(void*)(pointer);
 
-    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * rankCount_);
+    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * static_cast<uint64_t>(rankCount_) * qpNum_);
     copyInfo->rq = (AiQpRMAWQ*)(void*)(pointer);
 
-    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * rankCount_);
+    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMAWQ) * static_cast<uint64_t>(rankCount_) * qpNum_);
     copyInfo->scq = (AiQpRMACQ*)(void*)(pointer);
 
-    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * rankCount_);
+    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * static_cast<uint64_t>(rankCount_) * qpNum_);
     copyInfo->rcq = (AiQpRMACQ*)(void*)(pointer);
 
-    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * rankCount_);
+    pointer += static_cast<ptrdiff_t>(sizeof(AiQpRMACQ) * static_cast<uint64_t>(rankCount_) * qpNum_);
     copyInfo->mr = (RdmaMemRegionInfo*)(void*)pointer;
 }
 
@@ -901,96 +961,116 @@ Result RdmaTransportManagerV2::GetRdmaInfoFromChannelEntity(
             continue;
         }
 
-        uint32_t channelIdx = it->first;
-        if (channelIdx > rankId_) {
-            channelIdx--;
-        }
-        if (channelIdx >= channelPtrs.size()) {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] channel index " << channelIdx << " out of range");
-            continue;
-        }
+        const uint32_t remoteRank = it->first;
+        const uint32_t remoteOrdinal = remoteRank - (remoteRank > rankId_ ? 1U : 0U);
+        for (uint32_t qpIdx = 0; qpIdx < qpNum_; ++qpIdx) {
+            const uint64_t channelIdx64 = static_cast<uint64_t>(remoteOrdinal) * qpNum_ + qpIdx;
+            if (channelIdx64 >= channelPtrs.size()) {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] channel index overflow for rank " << remoteRank << ", qp=" << qpIdx
+                            << ", idx=" << channelIdx64);
+                return ACLSHMEM_INNER_ERROR;
+            }
 
-        ChannelHandle channelPtr = channelPtrs[channelIdx];
-        if (channelPtr == 0) {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] channel ptr is null for channel " << channelIdx);
-            continue;
-        }
+            ChannelHandle channelPtr = channelPtrs[static_cast<size_t>(channelIdx64)];
+            if (channelPtr == 0) {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] channel ptr is null for rank " << remoteRank << ", qp=" << qpIdx);
+                return ACLSHMEM_INNER_ERROR;
+            }
 
-        hostEntity = {};
-        auto aclRet = DlAclApi::AclrtMemcpy(
-            &hostEntity, sizeof(ChannelEntity), reinterpret_cast<void*>(channelPtr), sizeof(ChannelEntity),
-            ACL_MEMCPY_DEVICE_TO_HOST);
-        if (aclRet != 0) {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] copy channel entity from device failed: " << aclRet);
-            continue;
-        }
-        if (hostEntity.sqNum != 1U || hostEntity.cqNum != 1U ||
-            hostEntity.remoteBufferNum != RDMA_CHANNEL_MEM_HANDLE_NUM) {
-            SHM_LOG_ERROR(
-                "rank[" << rankId_ << "] invalid channel entity for rank " << it->first
-                        << ", sqNum=" << hostEntity.sqNum << ", cqNum=" << hostEntity.cqNum
-                        << ", remoteBufferNum=" << hostEntity.remoteBufferNum << ", expected sqNum=1, cqNum=1"
-                        << ", remoteBufferNum=" << RDMA_CHANNEL_MEM_HANDLE_NUM);
-            return ACLSHMEM_INNER_ERROR;
-        }
-
-        if (hostEntity.remoteBufferNum > 0 && hostEntity.remoteBufferAddr != nullptr) {
-            RegedBufferEntity remoteBuffer{};
-            aclRet = DlAclApi::AclrtMemcpy(
-                &remoteBuffer, sizeof(RegedBufferEntity), hostEntity.remoteBufferAddr, sizeof(RegedBufferEntity),
+            hostEntity = {};
+            auto aclRet = DlAclApi::AclrtMemcpy(
+                &hostEntity, sizeof(ChannelEntity), reinterpret_cast<void*>(channelPtr), sizeof(ChannelEntity),
                 ACL_MEMCPY_DEVICE_TO_HOST);
             if (aclRet != 0) {
-                SHM_LOG_ERROR("rank[" << rankId_ << "] copy remote buffer from device failed: " << aclRet);
-                continue;
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] copy channel entity from device failed: " << aclRet
+                            << ", rank=" << remoteRank << ", qp=" << qpIdx);
+                return ACLSHMEM_INNER_ERROR;
             }
-            copyInfo->mr[it->first].lkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.lkey;
-            copyInfo->mr[it->first].rkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.rkey;
-            remoteInfoRead = true;
-        } else {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] remoteBufferNum = 0 || remoteBufferAddr is null");
-            continue;
-        }
-
-        // 填充sq信息
-        if (hostEntity.sqNum > 0 && hostEntity.sqContextAddr != nullptr) {
-            std::vector<SqContext> sqContexts(hostEntity.sqNum);
-            aclRet = DlAclApi::AclrtMemcpy(
-                sqContexts.data(), sizeof(SqContext) * hostEntity.sqNum, hostEntity.sqContextAddr,
-                sizeof(SqContext) * hostEntity.sqNum, ACL_MEMCPY_DEVICE_TO_HOST);
-            if (aclRet != 0) {
-                SHM_LOG_ERROR("rank[" << rankId_ << "] copy sq context from device failed: " << aclRet);
-                continue;
+            if (hostEntity.sqNum != 1U || hostEntity.cqNum != 1U ||
+                hostEntity.remoteBufferNum != RDMA_CHANNEL_MEM_HANDLE_NUM) {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] invalid channel entity for rank " << remoteRank << ", qp=" << qpIdx
+                            << ", sqNum=" << hostEntity.sqNum << ", cqNum=" << hostEntity.cqNum
+                            << ", remoteBufferNum=" << hostEntity.remoteBufferNum << ", expected sqNum=1, cqNum=1"
+                            << ", remoteBufferNum=" << RDMA_CHANNEL_MEM_HANDLE_NUM);
+                return ACLSHMEM_INNER_ERROR;
             }
 
-            CopyAiWQInfo(copyInfo->sq[it->first], sqContexts[0]);
-        } else {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] sqNum = 0 || sqContextAddr is null");
-        }
-
-        // 填充cq信息
-        if (hostEntity.cqNum > 0 && hostEntity.cqContextAddr != nullptr) {
-            std::vector<CqContext> cqContexts(hostEntity.cqNum);
-            aclRet = DlAclApi::AclrtMemcpy(
-                cqContexts.data(), sizeof(CqContext) * hostEntity.cqNum, hostEntity.cqContextAddr,
-                sizeof(CqContext) * hostEntity.cqNum, ACL_MEMCPY_DEVICE_TO_HOST);
-            if (aclRet != 0) {
-                SHM_LOG_ERROR("rank[" << rankId_ << "] copy cq context from device failed: " << aclRet);
-                continue;
+            if (hostEntity.remoteBufferNum > 0 && hostEntity.remoteBufferAddr != nullptr) {
+                RegedBufferEntity remoteBuffer{};
+                aclRet = DlAclApi::AclrtMemcpy(
+                    &remoteBuffer, sizeof(RegedBufferEntity), hostEntity.remoteBufferAddr, sizeof(RegedBufferEntity),
+                    ACL_MEMCPY_DEVICE_TO_HOST);
+                if (aclRet != 0) {
+                    SHM_LOG_ERROR(
+                        "rank[" << rankId_ << "] copy remote buffer from device failed: " << aclRet
+                                << ", rank=" << remoteRank << ", qp=" << qpIdx);
+                    return ACLSHMEM_INNER_ERROR;
+                }
+                copyInfo->mr[remoteRank].lkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.lkey;
+                copyInfo->mr[remoteRank].rkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.rkey;
+                remoteInfoRead = true;
+            } else {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] remoteBufferNum = 0 || remoteBufferAddr is null, rank=" << remoteRank
+                            << ", qp=" << qpIdx);
+                return ACLSHMEM_INNER_ERROR;
             }
 
-            CopyAiCQInfo(copyInfo->scq[it->first], cqContexts[0]);
-        } else {
-            SHM_LOG_ERROR("rank[" << rankId_ << "] cqNum = 0 || cqContextAddr is null");
+            if (hostEntity.sqNum > 0 && hostEntity.sqContextAddr != nullptr) {
+                std::vector<SqContext> sqContexts(hostEntity.sqNum);
+                aclRet = DlAclApi::AclrtMemcpy(
+                    sqContexts.data(), sizeof(SqContext) * hostEntity.sqNum, hostEntity.sqContextAddr,
+                    sizeof(SqContext) * hostEntity.sqNum, ACL_MEMCPY_DEVICE_TO_HOST);
+                if (aclRet != 0) {
+                    SHM_LOG_ERROR(
+                        "rank[" << rankId_ << "] copy sq context from device failed: " << aclRet
+                                << ", rank=" << remoteRank << ", qp=" << qpIdx);
+                    return ACLSHMEM_INNER_ERROR;
+                }
+
+                CopyAiWQInfo(copyInfo->sq[static_cast<uint64_t>(remoteRank) * qpNum_ + qpIdx], sqContexts[0]);
+            } else {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] sqNum = 0 || sqContextAddr is null, rank=" << remoteRank
+                            << ", qp=" << qpIdx);
+                return ACLSHMEM_INNER_ERROR;
+            }
+
+            if (hostEntity.cqNum > 0 && hostEntity.cqContextAddr != nullptr) {
+                std::vector<CqContext> cqContexts(hostEntity.cqNum);
+                aclRet = DlAclApi::AclrtMemcpy(
+                    cqContexts.data(), sizeof(CqContext) * hostEntity.cqNum, hostEntity.cqContextAddr,
+                    sizeof(CqContext) * hostEntity.cqNum, ACL_MEMCPY_DEVICE_TO_HOST);
+                if (aclRet != 0) {
+                    SHM_LOG_ERROR(
+                        "rank[" << rankId_ << "] copy cq context from device failed: " << aclRet
+                                << ", rank=" << remoteRank << ", qp=" << qpIdx);
+                    return ACLSHMEM_INNER_ERROR;
+                }
+
+                CopyAiCQInfo(copyInfo->scq[static_cast<uint64_t>(remoteRank) * qpNum_ + qpIdx], cqContexts[0]);
+            } else {
+                SHM_LOG_ERROR(
+                    "rank[" << rankId_ << "] cqNum = 0 || cqContextAddr is null, rank=" << remoteRank
+                            << ", qp=" << qpIdx);
+                return ACLSHMEM_INNER_ERROR;
+            }
         }
 
-        // atomicSizePerRank 每个rank的atomic内存大小
-        size_t atomicSizePerRank = ATOMIC_MAX_NUM * sizeof(uint64_t);
-        copyInfo->sq[it->first].atomicAddr =
+        const size_t atomicSizePerRank = ATOMIC_MAX_NUM * sizeof(uint64_t);
+        const uint64_t atomicAddr =
             reinterpret_cast<uint64_t>(static_cast<char*>(atomicSharedMemory_) + it->first * atomicSizePerRank);
-        copyInfo->sq[it->first].atomicLkey = atomicLkey_;
-        copyInfo->rq[it->first].atomicAddr =
-            reinterpret_cast<uint64_t>(static_cast<char*>(atomicSharedMemory_) + it->first * atomicSizePerRank);
-        copyInfo->rq[it->first].atomicLkey = atomicLkey_;
+        for (uint32_t qpIdx = 0; qpIdx < qpNum_; ++qpIdx) {
+            const uint64_t qpOffset = static_cast<uint64_t>(it->first) * qpNum_ + qpIdx;
+            copyInfo->sq[qpOffset].atomicAddr = atomicAddr;
+            copyInfo->sq[qpOffset].atomicLkey = atomicLkey_;
+            copyInfo->rq[qpOffset].atomicAddr = atomicAddr;
+            copyInfo->rq[qpOffset].atomicLkey = atomicLkey_;
+        }
     }
 
     if (!remoteInfoRead && rankCount_ > 1) {
@@ -1020,7 +1100,8 @@ bool RdmaTransportManagerV2::ReserveRdmaInfoSpace() noexcept
 
     void* ptr = nullptr;
     auto oneQpSize = 2U * (sizeof(AiQpRMAWQ) + sizeof(AiQpRMACQ)) + sizeof(RdmaMemRegionInfo);
-    qpInfoSize_ = sizeof(AiQpRMAQueueInfo) + oneQpSize * rankCount_;
+    const uint64_t qpEntryCount = static_cast<uint64_t>(rankCount_) * qpNum_;
+    qpInfoSize_ = sizeof(AiQpRMAQueueInfo) + oneQpSize * qpEntryCount;
     auto ret = DlAclApi::AclrtMalloc(&ptr, qpInfoSize_, 0);
     if (ret != 0) {
         SHM_LOG_ERROR("rank[" << rankId_ << "] allocate device size: " << qpInfoSize_ << ", failed: " << ret);

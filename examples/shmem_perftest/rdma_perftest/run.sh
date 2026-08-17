@@ -23,7 +23,7 @@ EXEC_BIN=${PROJECT_ROOT}/build/bin/rdma_perftest
 TEST_TYPE="put"
 # 默认数据类型为float
 DATA_TYPE="float"
-# RDMA强制单核, block-size 仅作为入参兼容
+# RDMA block-size 仅作为入参兼容；多 QP 带宽自动模式按 QP 数决定 kernel block 数
 BLOCK_SIZE_INPUT="1"
 # 默认幂数范围
 MIN_EXPONENT="3"
@@ -36,11 +36,13 @@ UB_SIZE="192"
 BATCH="0"
 MAX_BATCH_SIZE="1024"
 XSCALE_AGGREGATE_CACHE_SIZE="64"
-XSCALE_WQE_SIZE="128"
+XSCALE_AGGREGATE_ITEM_SIZE="128"
 PERFTEST_WARMUP_ITERS="100"
 XSCALE_DEFAULT_BATCH_SIZE="100"
 SYNC_ID="0"
 QP_NUM="1"
+QP_INDEX="-1"
+QP_SPECIFIED="0"
 METRIC="bw"
 # 默认RANK配置 - RDMA目前强制PE数量为2
 PE_SIZE="2"
@@ -70,8 +72,11 @@ while [[ $# -gt 0 ]]; do
         --sync-id)
             if [ -n "$2" ]; then SYNC_ID="$2"; shift 2; else echo "Error: --sync-id requires a value."; exit 1; fi
             ;;
-        -q|--qp)
-            if [ -n "$2" ]; then QP_NUM="$2"; shift 2; else echo "Error: -q requires a value."; exit 1; fi
+        -q|--qp|--qp-count)
+            if [ -n "$2" ]; then QP_NUM="$2"; QP_SPECIFIED="1"; shift 2; else echo "Error: -q requires a value."; exit 1; fi
+            ;;
+        -i|--qp-index)
+            if [ -n "$2" ]; then QP_INDEX="$2"; QP_SPECIFIED="1"; shift 2; else echo "Error: --qp-index requires a value."; exit 1; fi
             ;;
         --metric)
             if [ -n "$2" ]; then METRIC="$2"; shift 2; else echo "Error: --metric requires a value."; exit 1; fi
@@ -80,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             if [ -n "$2" ]; then
                 BLOCK_SIZE_INPUT="$2"
                 if [[ "$BLOCK_SIZE_INPUT" != "1" ]]; then
-                    echo "WARN: RDMA perftest forces block_size=1, ignoring -b $BLOCK_SIZE_INPUT"
+                    echo "WARN: RDMA perftest ignores -b $BLOCK_SIZE_INPUT; bw + qp-count>1 + qp-index=-1 uses QP-derived block_dim"
                 fi
                 shift 2
             else echo "Error: -b requires a value."; exit 1; fi
@@ -88,7 +93,7 @@ while [[ $# -gt 0 ]]; do
         --block-range)
             if [ -n "$2" ] && [ -n "$3" ]; then
                 if [[ "$2" != "1" || "$3" != "1" ]]; then
-                    echo "WARN: RDMA perftest forces block_size=1, ignoring --block-range $2 $3"
+                    echo "WARN: RDMA perftest ignores --block-range $2 $3; bw + qp-count>1 + qp-index=-1 uses QP-derived block_dim"
                 fi
                 shift 3
             else echo "Error: --block-range requires two values."; exit 1; fi
@@ -132,15 +137,16 @@ while [[ $# -gt 0 ]]; do
             echo "使用方法: $0 [选项]"
             echo "  -t|--test-type <type>           put|bi_put|get|bi_get|all"
             echo "  -d|--datatype <type>            float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all"
-            echo "  -b|--block-size <size>          RDMA 强制为 1, 输入其他值会打印 WARN 后忽略"
-            echo "  --block-range <min> <max>       RDMA 强制为 1, 输入其他值会打印 WARN 后忽略"
+            echo "  -b|--block-size <size>          RDMA 兼容入参；实际 block_dim 由 QP 自动模式决定"
+            echo "  --block-range <min> <max>       RDMA 兼容入参；实际 block_dim 由 QP 自动模式决定"
             echo "  -e|--exponent <exponent>        数据量幂数"
             echo "  --exponent-range <min> <max>    数据量幂数范围"
             echo "  --loop-count <count>            循环次数 (默认 1000)"
             echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐；XSCALE 聚合路径会按 batch 自动上调 (默认 192)"
-            echo "  --batch <count>                 单 QP 上每次调用 quiet 前连续提交的 NBI 个数；XSCALE 要求 1~1023，非法值自动改为 100 (默认 0)"
+            echo "  --batch <count>                 连续发起多少次操作后等待完成；单 QP 模式下 --batch 0 自动设为 100，范围 1~1023 (默认 0)"
             echo "  --sync-id <id>                  显式传给 Put、Get、Quiet 的同步 ID (默认 0)"
-            echo "  -q|--qp <num>                   QP 的个数，当前版本仅支持单 QP (默认 1)"
+            echo "  -q|--qp|--qp-count <num>        每个 PE 对的 QP 个数，范围 1~32；仅云脉（XSCALE）支持 (默认 1)"
+            echo "  -i|--qp-index <index>           固定使用的 QP 编号；-1 表示多 QP 并行模式自动分配 (默认 -1)"
             echo "  --metric <bw|lat>              性能指标: bw=带宽, lat=接口延迟 (默认 bw)"
             echo "  -pes <size>                     PE 数量 (目前强制为 2)"
             echo "  -ipport <ip:port>               通信地址"
@@ -196,7 +202,7 @@ is_xscale_runtime() {
 
 get_xscale_required_ub_size() {
     local batch="$1"
-    echo $((XSCALE_AGGREGATE_CACHE_SIZE + XSCALE_WQE_SIZE * batch))
+    echo $((XSCALE_AGGREGATE_CACHE_SIZE + XSCALE_AGGREGATE_ITEM_SIZE * batch))
 }
 
 # 验证测试类型
@@ -238,6 +244,10 @@ validate_positive_int "QP_NUM" "$QP_NUM"
 validate_positive_int "PE_SIZE" "$PE_SIZE"
 validate_positive_int "GNPU_NUM" "$GNPU_NUM"
 validate_non_negative_int "FIRST_NPU" "$FIRST_NPU"
+if ! [[ "$QP_INDEX" =~ ^-1$|^[0-9]+$ ]]; then
+    echo "错误: QP_INDEX 必须是 -1 或非负整数 (got '$QP_INDEX')"
+    exit 1
+fi
 
 # 验证 IPPORT 格式
 validate_ipport "$IPPORT"
@@ -249,8 +259,21 @@ if [[ "$MIN_EXPONENT" -gt "$MAX_EXPONENT" ]]; then
 fi
 
 # 验证 QP_NUM
-if [[ "$QP_NUM" != "1" ]]; then
-    echo "错误: 当前版本仅支持单 QP，QP 数量必须为 1"
+if [[ "$QP_NUM" -lt "1" || "$QP_NUM" -gt "32" ]]; then
+    echo "错误: QP_NUM 必须在 1~32 范围内"
+    exit 1
+fi
+
+if ! is_xscale_runtime && [[ "$QP_SPECIFIED" == "1" ]]; then
+    echo "警告: 当前环境不支持多 QP，仅云脉（XSCALE）支持。"
+    echo "      已忽略 -q/--qp 和 -i/--qp-index 参数，回退为单 QP 模式。"
+    QP_NUM="1"
+    QP_INDEX="-1"
+    QP_SPECIFIED="0"
+fi
+
+if [[ "$QP_INDEX" -ge "$QP_NUM" ]]; then
+    echo "错误: --qp-index 的值必须为 -1 或小于 --qp 的值（当前 --qp=$QP_NUM, --qp-index=$QP_INDEX）"
     exit 1
 fi
 
@@ -265,7 +288,7 @@ if [[ "$UB_SIZE" -lt "192" || "$UB_SIZE" -gt "131136" ]]; then
     exit 1
 fi
 
-if is_xscale_runtime; then
+if is_xscale_runtime && [[ "$QP_SPECIFIED" == "0" ]] && [[ "$QP_NUM" == "1" ]]; then
     RDMA_NIC_TYPE="XSCALE"
 
     # 计算实际最大聚合数：warmup 路径固定 PERFTEST_WARMUP_ITERS，
@@ -279,9 +302,9 @@ if is_xscale_runtime; then
         MAX_AGGREGATE_COUNT="$BATCH"
     fi
 
-    # 聚合数不得达到 SQ depth 上限（1024），否则 defer 写入后 stage/commit 会 abort
+    # 聚合数不得达到 QP 队列深度上限（1024），否则聚合提交会失败
     if [[ "$MAX_AGGREGATE_COUNT" -ge "$MAX_BATCH_SIZE" ]]; then
-        echo "错误: XSCALE 最大聚合数 $MAX_AGGREGATE_COUNT 已达到 SQ depth 上限 $MAX_BATCH_SIZE"
+        echo "错误: XSCALE 最大聚合数 $MAX_AGGREGATE_COUNT 已达到 QP 队列深度上限 $MAX_BATCH_SIZE"
         if [[ "$METRIC" == "lat" ]]; then
             echo "       请减小 --loop-count（当前 $LOOP_COUNT）到 $((MAX_BATCH_SIZE - 1)) 以下"
         else
@@ -291,24 +314,28 @@ if is_xscale_runtime; then
     fi
 
     if [[ "$BATCH" -eq 0 ]]; then
-        echo "警告: XSCALE 下 --batch 0 使用自动值；已将 batch size 设置为 $XSCALE_DEFAULT_BATCH_SIZE"
+        echo "提示: --batch 未指定，自动设为 $XSCALE_DEFAULT_BATCH_SIZE"
         BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
     elif [[ "$BATCH" -gt "$LOOP_COUNT" || "$BATCH" -ge "$MAX_BATCH_SIZE" ]]; then
-        echo "警告: 请求的 XSCALE batch size $BATCH 非法（要求不大于 loop-count $LOOP_COUNT 且小于 SQ depth $MAX_BATCH_SIZE）；已将 batch size 设置为 $XSCALE_DEFAULT_BATCH_SIZE"
+        echo "警告: --batch 的值 $BATCH 无效（需不大于 loop-count $LOOP_COUNT 且小于 1024），已回退为 $XSCALE_DEFAULT_BATCH_SIZE"
         BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
     fi
 
     REQUIRED_UB_SIZE=$(get_xscale_required_ub_size "$MAX_AGGREGATE_COUNT")
     if [[ "$UB_SIZE" -lt "$REQUIRED_UB_SIZE" ]]; then
         if [[ "$REQUIRED_UB_SIZE" -gt "131136" ]]; then
-            echo "错误: XSCALE 聚合路径中最大聚合数 $MAX_AGGREGATE_COUNT 需要 UB size ${REQUIRED_UB_SIZE}B，超过最大值 131136B"
+            echo "错误: 所需 UB 大小 ${REQUIRED_UB_SIZE}B 超过上限 131136B，请减小 --batch 或 --loop-count"
             exit 1
         fi
-        echo "警告: XSCALE 聚合路径中最大聚合数 $MAX_AGGREGATE_COUNT 需要 UB size ${REQUIRED_UB_SIZE}B；已将 UB size 从 $UB_SIZE 调整为 $REQUIRED_UB_SIZE"
+        echo "提示: UB 大小自动从 ${UB_SIZE}B 调整为 ${REQUIRED_UB_SIZE}B"
         UB_SIZE="$REQUIRED_UB_SIZE"
     fi
 else
-    RDMA_NIC_TYPE="non-XSCALE or unknown"
+    if is_xscale_runtime; then
+        RDMA_NIC_TYPE="XSCALE (multi-QP immediate path)"
+    else
+        RDMA_NIC_TYPE="non-XSCALE or unknown"
+    fi
 fi
 
 echo "测试类型: $TEST_TYPE"
@@ -318,7 +345,9 @@ echo "循环次数: $LOOP_COUNT"
 echo "UB size(B): $UB_SIZE"
 echo "Batch size: $BATCH"
 echo "Sync ID: $SYNC_ID"
-echo "QP num: $QP_NUM"
+echo "QP count: $QP_NUM"
+echo "QP index: $QP_INDEX"
+echo "QP specified: $QP_SPECIFIED"
 echo "Metric: $METRIC"
 echo "RDMA NIC type: $RDMA_NIC_TYPE"
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
@@ -336,7 +365,7 @@ run_test() {
             --fnpu "$FIRST_NPU" -t "$test_type" -d "$data_type" \
             --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" \
             --ub-size "$UB_SIZE" --batch "$BATCH" --sync-id "$SYNC_ID" \
-            --metric "$METRIC" --qp "$QP_NUM" &
+            --metric "$METRIC" --qp-count "$QP_NUM" --qp-index "$QP_INDEX" --qp-specified "$QP_SPECIFIED" &
         pids+=($!)
     done
     local failed=0

@@ -17,6 +17,9 @@
 
 #include <map>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "mem_entity_def.h"
 #include "transport_manager.h"
@@ -68,6 +71,7 @@ private:
     bool ReserveRdmaInfoSpace() noexcept;
     bool RegisterAtomicMemory() noexcept;
     Result GetPrimaryMemoryHandle(HcommMemHandle& memHandle) const;
+    Result CheckQpNumConsistency() const;
     void FillQpPreSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo);
     void FillQpPostSettingCopyInfo(AiQpRMAQueueInfo*& copyInfo);
     Result GetRdmaInfoFromChannelEntity(AiQpRMAQueueInfo* copyInfo, const std::vector<ChannelHandle>& channelPtrs);
@@ -75,6 +79,7 @@ private:
 private:
     uint32_t rankId_{0};
     uint32_t rankCount_{1};
+    uint32_t qpNum_{1};
     uint32_t phyId_{0};
     hybm_role_type role_{hybm_role_type::HYBM_ROLE_PEER};
     net_addr_t deviceIp_{};
@@ -85,6 +90,7 @@ private:
     EndpointHandle endpointHandle_{nullptr};
     std::map<uint64_t, HcommMemRegEntry, std::greater<uint64_t>> registeredMRs_;
     std::vector<ChannelHandle> channelPtrs_;
+    std::vector<std::string> channelNames_;
     std::unordered_map<uint32_t, ConnectRankInfo> rankInfo_;
     void* atomicSharedMemory_{nullptr};
     HcommMemHandle atomicMemHandle_{nullptr};

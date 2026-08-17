@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -71,8 +72,8 @@ aclshmemx_uniqueid_t default_flag_uid;
 
 extern "C" void launch_rdma_perf_kernel(
     uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* dst_gva, uint8_t* src_gva, int elements,
-    int test_mode, int data_type, int ub_size_b, int loop_count, int metric, int batch, int sync_id,
-    uint8_t* timing_out_gva);
+    int test_mode, int data_type, int ub_size_b, int loop_count, int metric, int batch, int sync_id, int qp_num,
+    int qp_index, int qp_specified, uint8_t* timing_out_gva);
 
 static perftest::rdma_mode_t get_rdma_mode(const char* test_type_str)
 {
@@ -121,14 +122,24 @@ static perftest::perf_metric_t get_perf_metric(const char* metric_str)
     return perftest::PERF_METRIC_INVALID;
 }
 
+static uint64_t get_rdma_mem_factor(perftest::perf_metric_t metric, int qp_num, int qp_index)
+{
+    if (metric != perftest::PERF_METRIC_BW || qp_num <= 1 || qp_index >= 0) {
+        return 1;
+    }
+    return static_cast<uint64_t>(qp_num);
+}
+
 template <typename T>
 int test_rdma_perf_test_impl(
     int pe_id, int n_pes, uint64_t local_mem_size, int min_exponent, int max_exponent, int loop_count,
     perftest::rdma_mode_t test_mode, perftest::perf_data_type_t data_type_enum, int ub_size_b,
-    perftest::perf_metric_t metric, int batch, int sync_id, std::vector<std::vector<std::string>>& csv_data)
+    perftest::perf_metric_t metric, int batch, int sync_id, int qp_num, int qp_index, int qp_specified,
+    std::vector<std::vector<std::string>>& csv_data)
 {
     static const char* kFunc = "test_rdma_perf_test_impl";
-    constexpr uint32_t block_dim = 1;
+    const uint32_t block_dim =
+        (metric == perftest::PERF_METRIC_BW && qp_num > 1 && qp_index < 0) ? static_cast<uint32_t>(qp_num) : 1U;
     int32_t device_id = (pe_id % g_npus + f_npu);
     aclshmemx_init_attr_t attributes;
     aclrtStream stream = nullptr;
@@ -156,6 +167,7 @@ int test_rdma_perf_test_impl(
 
     test_set_attr(pe_id, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
+    CHECK_SHMEM_GOTO(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, static_cast<uint32_t>(qp_num)), ret, cleanup);
     CHECK_SHMEM_GOTO(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ret, cleanup);
     shmem_initialized = true;
 
@@ -163,10 +175,12 @@ int test_rdma_perf_test_impl(
         size_t datasize = static_cast<size_t>(1) << exponent;
         std::cout << "pe: " << pe_id << " size: " << datasize << std::endl;
 
+        const uint64_t mem_factor = get_rdma_mem_factor(metric, qp_num, qp_index);
+        const size_t alloc_datasize = datasize * mem_factor;
         // 合并一次分配 dst + src + timing_out，各段 64B 对齐，避免同一 cache line
         size_t dst_off = 0;
-        size_t src_off = ((dst_off + datasize) + 63) & ~(size_t)63;
-        size_t tim_off = ((src_off + datasize) + 63) & ~(size_t)63;
+        size_t src_off = ((dst_off + alloc_datasize) + 63) & ~(size_t)63;
+        size_t tim_off = ((src_off + alloc_datasize) + 63) & ~(size_t)63;
         size_t total = tim_off + sizeof(int64_t) * 2;
 
         combo_ptr = aclshmem_malloc(total);
@@ -189,21 +203,24 @@ int test_rdma_perf_test_impl(
 
         int trans_size = datasize / sizeof(T);
 
-        std::vector<T> src_input(trans_size, 0);
-        std::vector<T> dst_input(trans_size, 0);
-        for (int i = 0; i < trans_size; i++) {
+        const size_t alloc_elements = static_cast<size_t>(trans_size) * static_cast<size_t>(mem_factor);
+        std::vector<T> src_input(alloc_elements, 0);
+        std::vector<T> dst_input(alloc_elements, 0);
+        for (size_t i = 0; i < alloc_elements; i++) {
             src_input[i] = (T)(pe_id + 10);
             dst_input[i] = (T)(pe_id + 100);
         }
         CHECK_ACL_GOTO(
-            aclrtMemcpy(src_ptr, datasize, src_input.data(), datasize, ACL_MEMCPY_HOST_TO_DEVICE), ret, cleanup);
+            aclrtMemcpy(src_ptr, alloc_datasize, src_input.data(), alloc_datasize, ACL_MEMCPY_HOST_TO_DEVICE), ret,
+            cleanup);
         CHECK_ACL_GOTO(
-            aclrtMemcpy(dst_ptr, datasize, dst_input.data(), datasize, ACL_MEMCPY_HOST_TO_DEVICE), ret, cleanup);
+            aclrtMemcpy(dst_ptr, alloc_datasize, dst_input.data(), alloc_datasize, ACL_MEMCPY_HOST_TO_DEVICE), ret,
+            cleanup);
 
         launch_rdma_perf_kernel(
             block_dim, stream, fftsAddr, (uint8_t*)dst_ptr, (uint8_t*)src_ptr, trans_size, static_cast<int>(test_mode),
-            static_cast<int>(data_type_enum), ub_size_b, loop_count, static_cast<int>(metric), batch, sync_id,
-            (uint8_t*)timing_out_ptr);
+            static_cast<int>(data_type_enum), ub_size_b, loop_count, static_cast<int>(metric), batch, sync_id, qp_num,
+            qp_index, qp_specified, (uint8_t*)timing_out_ptr);
         CHECK_ACL_GOTO(aclrtSynchronizeStream(stream), ret, cleanup);
 
         bool is_put_get_mode =
@@ -230,6 +247,8 @@ int test_rdma_perf_test_impl(
             }
             double per_iter_us0 = (loop_count > 0) ? static_cast<double>(timing_host[0]) / cycle2us / loop_count : 0.0;
             double per_iter_us1 = (loop_count > 0) ? static_cast<double>(timing_host[1]) / cycle2us / loop_count : 0.0;
+            const uint32_t active_blocks = block_dim;
+            const double bytes_per_iter = static_cast<double>(datasize) * static_cast<double>(mem_factor);
 
             double bw_gb = 0.0, bw_gib = 0.0, per_iter_us = 0.0;
             if (is_bidir) {
@@ -239,8 +258,8 @@ int test_rdma_perf_test_impl(
                               << " reverse(PE1→PE0)=" << per_iter_us1 << " us"
                               << " avg=" << per_iter_us << " us" << std::endl;
                 } else {
-                    double bps0 = (per_iter_us0 > 0) ? datasize / per_iter_us0 * 1000000.0 : 0.0;
-                    double bps1 = (per_iter_us1 > 0) ? datasize / per_iter_us1 * 1000000.0 : 0.0;
+                    double bps0 = (per_iter_us0 > 0) ? bytes_per_iter / per_iter_us0 * 1000000.0 : 0.0;
+                    double bps1 = (per_iter_us1 > 0) ? bytes_per_iter / per_iter_us1 * 1000000.0 : 0.0;
                     double bw_gb_0 = bps0 / 1000.0 / 1000.0 / 1000.0;
                     double bw_gb_1 = bps1 / 1000.0 / 1000.0 / 1000.0;
                     bw_gb = bw_gb_0 + bw_gb_1;
@@ -258,7 +277,7 @@ int test_rdma_perf_test_impl(
                     std::cout << "[LAT] PE" << pe_id << ": " << per_iter_us << " us" << std::endl;
                 } else {
                     per_iter_us = (pe_id == 0) ? per_iter_us0 : per_iter_us1;
-                    double bps = (per_iter_us > 0) ? datasize / per_iter_us * 1000000.0 : 0.0;
+                    double bps = (per_iter_us > 0) ? bytes_per_iter / per_iter_us * 1000000.0 : 0.0;
                     bw_gb = bps / 1000.0 / 1000.0 / 1000.0;
                     bw_gib = bps / 1024.0 / 1024.0 / 1024.0;
                     std::cout << "[BW] PE" << pe_id << ": " << bw_gb << " GB/s" << std::endl;
@@ -266,7 +285,7 @@ int test_rdma_perf_test_impl(
             }
 
             std::vector<std::string> row = {
-                uint64_to_string(datasize),           int_to_string(g_npus),   "1",
+                uint64_to_string(datasize),           int_to_string(g_npus),   uint64_to_string(active_blocks),
                 double_to_string(ub_size_b / 1024.0), double_to_string(bw_gb), double_to_string(bw_gib),
                 double_to_string(per_iter_us),
             };
@@ -274,30 +293,32 @@ int test_rdma_perf_test_impl(
         }
 
         bool verify_success = true;
-        auto compare_values = [&](T* p1, T* p2, size_t count, const char* l1, const char* l2) -> bool {
+        auto compare_expected = [&](const T* data, T expected, size_t count, const char* label) -> bool {
             for (size_t i = 0; i < count; i++) {
-                if (p1[i] != p2[i]) {
-                    std::cout << "PE[" << pe_id << "]  [ERROR] Mismatch at index " << i << ": " << l1 << "="
-                              << (double)p1[i] << ", " << l2 << "=" << (double)p2[i] << std::endl;
+                if (data[i] != expected) {
+                    std::cout << "PE[" << pe_id << "]  [ERROR] Mismatch at index " << i << ": " << label << "="
+                              << (double)data[i] << ", expected=" << (double)expected << std::endl;
                     return false;
                 }
             }
             return true;
         };
 
-        std::vector<T> dst_host(trans_size, 0);
-        std::vector<T> src_host(trans_size, 0);
+        std::vector<T> dst_host(alloc_elements, 0);
+        std::vector<T> src_host(alloc_elements, 0);
         CHECK_ACL_GOTO(
-            aclrtMemcpy(dst_host.data(), datasize, dst_ptr, datasize, ACL_MEMCPY_DEVICE_TO_HOST), ret, cleanup);
+            aclrtMemcpy(dst_host.data(), alloc_datasize, dst_ptr, alloc_datasize, ACL_MEMCPY_DEVICE_TO_HOST), ret,
+            cleanup);
         CHECK_ACL_GOTO(
-            aclrtMemcpy(src_host.data(), datasize, src_ptr, datasize, ACL_MEMCPY_DEVICE_TO_HOST), ret, cleanup);
+            aclrtMemcpy(src_host.data(), alloc_datasize, src_ptr, alloc_datasize, ACL_MEMCPY_DEVICE_TO_HOST), ret,
+            cleanup);
 
         int peer_pe = (pe_id + 1) % n_pes;
         if (test_mode == perftest::TEST_MODE_RDMA_PUT) {
             std::cout << "\n[Verification] put: checking..." << std::endl;
             if (pe_id != 0) {
                 T expected_val = static_cast<T>(10);
-                if (!compare_values(dst_host.data(), &expected_val, 1, "dst[0]", "peer_src[0]")) {
+                if (!compare_expected(dst_host.data(), expected_val, alloc_elements, "dst")) {
                     verify_success = false;
                 }
             }
@@ -305,20 +326,20 @@ int test_rdma_perf_test_impl(
             std::cout << "\n[Verification] get: checking..." << std::endl;
             if (pe_id == 0) {
                 T expected_val = static_cast<T>(peer_pe + 10);
-                if (!compare_values(dst_host.data(), &expected_val, 1, "dst[0]", "peer_src[0]")) {
+                if (!compare_expected(dst_host.data(), expected_val, alloc_elements, "dst")) {
                     verify_success = false;
                 }
             }
         } else if (test_mode == perftest::TEST_MODE_RDMA_BI_PUT) {
             std::cout << "\n[Verification] bi_put: checking..." << std::endl;
             T expected_val = static_cast<T>(peer_pe + 10);
-            if (!compare_values(dst_host.data(), &expected_val, 1, "dst[0]", "peer_src[0]")) {
+            if (!compare_expected(dst_host.data(), expected_val, alloc_elements, "dst")) {
                 verify_success = false;
             }
         } else if (test_mode == perftest::TEST_MODE_RDMA_BI_GET) {
             std::cout << "\n[Verification] bi_get: checking..." << std::endl;
             T expected_val = static_cast<T>(peer_pe + 10);
-            if (!compare_values(dst_host.data(), &expected_val, 1, "dst[0]", "peer_src[0]")) {
+            if (!compare_expected(dst_host.data(), expected_val, alloc_elements, "dst")) {
                 verify_success = false;
             }
         }
@@ -388,6 +409,8 @@ int main(int argc, char* argv[])
     int batch = 0;
     int sync_id = 0;
     int qp_num = 1;
+    int qp_index = -1;
+    int qp_specified = 0;
 
     static struct option long_options[] = {
         {"pes", required_argument, 0, 0},
@@ -407,10 +430,13 @@ int main(int argc, char* argv[])
         {"batch", required_argument, 0, 0},
         {"sync-id", required_argument, 0, 0},
         {"qp", required_argument, 0, 'q'},
+        {"qp-count", required_argument, 0, 'q'},
+        {"qp-index", required_argument, 0, 'i'},
+        {"qp-specified", required_argument, 0, 0},
         {0, 0, 0, 0}};
 
     int opt, option_index = 0;
-    while ((opt = getopt_long(argc, argv, "t:d:b:e:q:", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "t:d:b:e:q:i:", long_options, &option_index)) != -1) {
         switch (opt) {
             case 't':
                 test_type = optarg;
@@ -426,6 +452,11 @@ int main(int argc, char* argv[])
                 break;
             case 'q':
                 qp_num = std::atoi(optarg);
+                qp_specified = 1;
+                break;
+            case 'i':
+                qp_index = std::atoi(optarg);
+                qp_specified = 1;
                 break;
             case 0:
                 if (strcmp(long_options[option_index].name, "pes") == 0)
@@ -459,8 +490,11 @@ int main(int argc, char* argv[])
                     batch = std::atoi(optarg);
                 else if (strcmp(long_options[option_index].name, "sync-id") == 0)
                     sync_id = std::atoi(optarg);
-                else if (strcmp(long_options[option_index].name, "qp") == 0)
+                else if (strcmp(long_options[option_index].name, "qp") == 0) {
                     qp_num = std::atoi(optarg);
+                    qp_specified = 1;
+                } else if (strcmp(long_options[option_index].name, "qp-specified") == 0)
+                    qp_specified = std::atoi(optarg) != 0 ? 1 : 0;
                 break;
             default:
                 std::cerr << "Unknown argument" << std::endl;
@@ -513,8 +547,20 @@ int main(int argc, char* argv[])
     if (batch == 0 || batch > loop_count) {
         batch = loop_count;
     }
-    if (qp_num != 1) {
-        std::cerr << "Error: --qp must be 1 (single QP only, got " << qp_num << ")" << std::endl;
+    if (qp_num < 1 || qp_num > static_cast<int>(ACLSHMEM_MAX_QP_NUM)) {
+        std::cerr << "Error: --qp must be in range [1, " << ACLSHMEM_MAX_QP_NUM << "] (got " << qp_num << ")"
+                  << std::endl;
+        return 1;
+    }
+#if !defined(ACLSHMEM_RDMA_V2_SUPPORT)
+    if (qp_specified != 0) {
+        std::cerr << "Error: explicit --qp/--qp-count requires an RDMA V2 build" << std::endl;
+        return 1;
+    }
+#endif
+    if (qp_index < -1 || qp_index >= qp_num) {
+        std::cerr << "Error: --qp-index must be -1 (automatic) or in range [0, " << qp_num << ") (got " << qp_index
+                  << ")" << std::endl;
         return 1;
     }
     if (sync_id < 0) {
@@ -533,8 +579,8 @@ int main(int argc, char* argv[])
 
     std::cout << "[INFO] rdma_perftest start, pe=" << pe_id << ", t=" << test_type << ", d=" << fuc_data_type
               << ", exp=" << min_exponent << "-" << max_exponent << ", loop=" << loop_count << ", ub=" << ub_size_b
-              << "B, metric=" << metric_str << ", batch=" << batch << ", sync_id=" << sync_id << ", qp=" << qp_num
-              << std::endl;
+              << "B, metric=" << metric_str << ", batch=" << batch << ", sync_id=" << sync_id << ", qp_count=" << qp_num
+              << ", qp_index=" << qp_index << ", qp_specified=" << qp_specified << std::endl;
 
     fuc_test_type = test_type;
     perftest::rdma_mode_t test_mode = get_rdma_mode(test_type);
@@ -545,8 +591,6 @@ int main(int argc, char* argv[])
     }
     perftest::perf_data_type_t data_type_enum = get_data_type(fuc_data_type);
 
-    // The exponent upper bound is 62: below, max_datasize = (1ULL << max_exponent) is then multiplied by 2.
-    // If exponent >= 63, (1ULL << 63) * 2 would overflow uint64_t itself.
     const int MAX_ALLOWED_EXPONENT = 62;
     if (min_exponent < 0 || max_exponent < min_exponent || max_exponent > MAX_ALLOWED_EXPONENT) {
         std::cerr << "Error: exponent range invalid, must be [0, " << MAX_ALLOWED_EXPONENT << "] and min<=max (got "
@@ -554,10 +598,20 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    uint64_t max_datasize = (1ULL << max_exponent);
+    const uint64_t max_single_datasize = 1ULL << max_exponent;
+    const uint64_t mem_factor = get_rdma_mem_factor(metric, qp_num, qp_index);
+    if (max_single_datasize > UINT64_MAX / mem_factor) {
+        std::cerr << "Error: required multi-QP buffer size overflows uint64_t" << std::endl;
+        return 1;
+    }
+    uint64_t max_datasize = max_single_datasize * mem_factor;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     const uint64_t ONE_GB = 1024UL * 1024UL * 1024;
     const uint64_t MAX_GB = 40;
+    if (max_datasize > UINT64_MAX / 2) {
+        std::cerr << "Error: required src/dst buffer size overflows uint64_t" << std::endl;
+        return 1;
+    }
     if (max_datasize * 2 > local_mem_size) {
         uint64_t gb_needed = (max_datasize * 2 + ONE_GB - 1) / ONE_GB;
         if (gb_needed > MAX_GB) {
@@ -574,7 +628,7 @@ int main(int argc, char* argv[])
 #define RDMA_TEST_IMPL_OP(type)                                                                                     \
     status = test_rdma_perf_test_impl<type>(                                                                        \
         pe_id, n_pes, local_mem_size, min_exponent, max_exponent, loop_count, test_mode, data_type_enum, ub_size_b, \
-        metric, batch, sync_id, csv_data)
+        metric, batch, sync_id, qp_num, qp_index, qp_specified, csv_data)
     DISPATCH_BY_TYPE(fuc_data_type, RDMA_TEST_IMPL_OP);
 #undef RDMA_TEST_IMPL_OP
 

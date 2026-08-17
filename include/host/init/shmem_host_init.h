@@ -120,14 +120,14 @@ ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(
 /**
  * @brief Configure the process-wide number of QPs created per peer for a data operation engine.
  *
- * @note This revision supports ACLSHMEM_DATA_OP_UDMA only. Call this interface when no ACLSHMEM instance is
- *       initialized. The configuration remains frozen while any instance is alive. After the last instance is
- *       finalized, the QP count is reset to 1 and can be configured again before the next initialization. The value
- *       must be in [1, ACLSHMEM_MAX_QP_NUM] and must be identical on every PE; inconsistent values produce
- *       incompatible UDMA metadata layouts. This function is thread-safe within a process and is serialized with
- *       ACLSHMEM initialization and finalization.
+ * @note This revision supports ACLSHMEM_DATA_OP_ROCE and ACLSHMEM_DATA_OP_UDMA. Call this interface when no
+ *       ACLSHMEM instance is initialized. The configuration remains frozen while any instance is alive. After the
+ *       last instance is finalized, the ROCE and UDMA QP counts are reset to 1 and can be configured again before the
+ *       next initialization. The value must be in [1, ACLSHMEM_MAX_QP_NUM] and must be identical on every PE;
+ *       inconsistent values produce incompatible metadata layouts. This function is thread-safe within a process and is
+ *       serialized with ACLSHMEM initialization and finalization.
  *
- * @param engine              [in] Data operation engine; must be ACLSHMEM_DATA_OP_UDMA.
+ * @param engine              [in] Data operation engine; must be ACLSHMEM_DATA_OP_ROCE or ACLSHMEM_DATA_OP_UDMA.
  * @param qp_num              [in] Number of QPs per peer connection.
  * @return ACLSHMEM_SUCCESS on success, otherwise an ACLSHMEM error code.
  */

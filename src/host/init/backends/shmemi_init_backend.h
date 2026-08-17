@@ -49,6 +49,7 @@ typedef struct entity_member {
     aclshmem_device_host_state_t* entity_host_state;
     aclshmem_device_host_state_t* entity_device_state;
     uint32_t udma_qp_num{1};
+    uint32_t rdma_qp_num{1};
 } entity_member;
 
 class aclshmemi_init_backend {
@@ -71,7 +72,7 @@ public:
     int bind_aclshmem_entity(
         aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
         std::unique_ptr<shm::UserBufferHeapInput> user_buffer_heap_input,
-        const shm::transport::UdmaQpConfig& udma_qp_config);
+        const shm::transport::UdmaQpConfig& udma_qp_config, uint32_t rdma_qp_num);
     void* get_buffer_ptr(const void* local_ptr);
     int release_aclshmem_entity(uint64_t instance_id);
 
