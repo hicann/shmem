@@ -395,6 +395,64 @@ TEST(TestMemApi, TestShmemUDMAHighLevelPutSignalSplit)
 
 namespace {
 
+constexpr size_t UDMA_HIGHLEVEL_LOCAL_REGION_COUNT = 8;
+
+void test_aclshmem_udma_highlevel_local_rma(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    const int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream = nullptr;
+    ASSERT_EQ(test_udma_init(rank_id, n_ranks, local_mem_size, &stream), 0);
+    ASSERT_NE(stream, nullptr);
+
+    ASSERT_EQ(g_state.mype, rank_id);
+    EXPECT_NE(g_state.topo_list[rank_id] & ACLSHMEM_TRANSPORT_MTE, 0);
+    EXPECT_EQ(g_state.topo_list[rank_id] & ACLSHMEM_TRANSPORT_UDMA, 0);
+
+    const size_t total_size = UDMA_TEST_MESSAGE_SIZE * UDMA_HIGHLEVEL_LOCAL_REGION_COUNT;
+    auto* symmetric = static_cast<uint8_t*>(aclshmem_malloc(total_size));
+    ASSERT_NE(symmetric, nullptr);
+
+    std::vector<uint8_t> host_data(total_size, 0);
+    for (size_t source_region = 0; source_region < UDMA_HIGHLEVEL_LOCAL_REGION_COUNT; source_region += 2) {
+        for (size_t offset = 0; offset < UDMA_TEST_MESSAGE_SIZE; ++offset) {
+            host_data[source_region * UDMA_TEST_MESSAGE_SIZE + offset] =
+                static_cast<uint8_t>(source_region * 17 + offset + 1);
+        }
+    }
+    ASSERT_EQ(aclrtMemcpy(symmetric, total_size, host_data.data(), total_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+
+    test_udma_highlevel_local_rma(1, stream, symmetric, util_get_ffts_config());
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    ASSERT_EQ(aclrtMemcpy(host_data.data(), total_size, symmetric, total_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    for (size_t source_region = 0; source_region < UDMA_HIGHLEVEL_LOCAL_REGION_COUNT; source_region += 2) {
+        const size_t destination_region = source_region + 1;
+        for (size_t offset = 0; offset < UDMA_TEST_MESSAGE_SIZE; ++offset) {
+            const size_t source_offset = source_region * UDMA_TEST_MESSAGE_SIZE + offset;
+            const size_t destination_offset = destination_region * UDMA_TEST_MESSAGE_SIZE + offset;
+            EXPECT_EQ(host_data[destination_offset], host_data[source_offset])
+                << "source_region=" << source_region << ", offset=" << offset;
+        }
+    }
+
+    aclshmem_free(symmetric);
+    test_finalize(stream, device_id);
+}
+
+} // namespace
+
+TEST(TestMemApi, TestShmemUDMAHighLevelLocalRma)
+{
+    const char* soc_name = aclrtGetSocName();
+    if (soc_name == nullptr || std::string(soc_name).find("Ascend950") == std::string::npos) {
+        GTEST_SKIP() << "UDMA high-level local RMA test requires Ascend950";
+    }
+    const int process_count = test_gnpu_num;
+    const uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
+    test_mutil_task(test_aclshmem_udma_highlevel_local_rma, local_mem_size, process_count);
+}
+
+namespace {
+
 #ifndef ACLSHMEM_RELAY_SUPPORT
 constexpr uint32_t UDMA_QP_TEST_SLICE_SIZE = 64;
 

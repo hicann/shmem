@@ -142,6 +142,43 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutTest(
 
 void test_udma_put(uint32_t block_dim, void* stream, uint8_t* gva) { UDMAPutTest<<<block_dim, nullptr, stream>>>(gva); }
 
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelLocalRmaTest(
+    GM_ADDR symmetric, uint64_t config)
+{
+    util_set_ffts_config(config);
+    int32_t my_pe = aclshmem_my_pe();
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
+    uint8_t original_transport = device_state->topo_list[my_pe];
+
+    // Force the UDMA topology bit to verify that the high-level self-copy guard still selects MTE.
+    device_state->topo_list[my_pe] = original_transport | ACLSHMEM_TRANSPORT_UDMA;
+    dcci_cacheline(reinterpret_cast<__gm__ uint8_t*>(&device_state->topo_list[my_pe]));
+
+    GM_ADDR blocking_put_src = symmetric;
+    GM_ADDR blocking_put_dst = symmetric + MESSAGE_SIZE;
+    GM_ADDR blocking_get_src = symmetric + MESSAGE_SIZE * 2;
+    GM_ADDR blocking_get_dst = symmetric + MESSAGE_SIZE * 3;
+    GM_ADDR nbi_put_src = symmetric + MESSAGE_SIZE * 4;
+    GM_ADDR nbi_put_dst = symmetric + MESSAGE_SIZE * 5;
+    GM_ADDR nbi_get_src = symmetric + MESSAGE_SIZE * 6;
+    GM_ADDR nbi_get_dst = symmetric + MESSAGE_SIZE * 7;
+
+    aclshmem_putmem(blocking_put_dst, blocking_put_src, MESSAGE_SIZE, my_pe);
+    aclshmem_getmem(blocking_get_dst, blocking_get_src, MESSAGE_SIZE, my_pe);
+    aclshmem_putmem_nbi(nbi_put_dst, nbi_put_src, MESSAGE_SIZE, my_pe);
+    aclshmemx_mte_quiet();
+    aclshmem_getmem_nbi(nbi_get_dst, nbi_get_src, MESSAGE_SIZE, my_pe);
+    aclshmemx_mte_quiet();
+
+    device_state->topo_list[my_pe] = original_transport;
+    dcci_cacheline(reinterpret_cast<__gm__ uint8_t*>(&device_state->topo_list[my_pe]));
+}
+
+void test_udma_highlevel_local_rma(uint32_t block_dim, void* stream, uint8_t* symmetric, uint64_t config)
+{
+    UDMAHighLevelLocalRmaTest<<<block_dim, nullptr, stream>>>(symmetric, config);
+}
+
 extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutActionPointerTest(GM_ADDR gva)
 {
     AscendC::TPipe pipe;

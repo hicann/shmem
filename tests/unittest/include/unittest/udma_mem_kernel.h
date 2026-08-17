@@ -25,5 +25,6 @@ void test_udma_highlevel_put_size_signal(uint32_t block_dim, void* stream, uint8
 void test_udma_highlevel_put_size_signal_sync(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);
 void test_udma_highlevel_put_signal_split(
     uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr, uint64_t elem_size, int32_t signal);
+void test_udma_highlevel_local_rma(uint32_t block_dim, void* stream, uint8_t* symmetric, uint64_t config);
 
 #endif // UDMA_MEM_KERNEL_H

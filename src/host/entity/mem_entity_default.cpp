@@ -936,7 +936,8 @@ hybm_data_op_type MemEntityDefault::CanReachDataOperators(uint32_t remoteRank) c
     if ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
         supportDataOp |= HYBM_DOP_TYPE_DEVICE_RDMA;
     }
-    if (sdmaReach && ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) != 0)) {
+    // UDMA does not support self-send; keep the local rank reachable through MTE only.
+    if (remoteRank != options_.rankId && sdmaReach && ((options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) != 0)) {
         supportDataOp |= HYBM_DOP_TYPE_DEVICE_UDMA;
     }
 

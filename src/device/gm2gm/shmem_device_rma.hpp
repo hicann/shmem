@@ -27,7 +27,7 @@
     (ACLSHMEM_TRANSPORT_SDMA_SUPPORTED && (((STATE)->topo_list[(PE)] & ACLSHMEM_TRANSPORT_SDMA) != 0))
 
 #define ACLSHMEM_UDMA_TRANSPORT_ENABLED(STATE, PE) \
-    (ACLSHMEM_UDMA_SUPPORTED && (((STATE)->topo_list[(PE)] & ACLSHMEM_TRANSPORT_UDMA) != 0))
+    (ACLSHMEM_UDMA_SUPPORTED && ((PE) != (STATE)->mype) && (((STATE)->topo_list[(PE)] & ACLSHMEM_TRANSPORT_UDMA) != 0))
 
 /**
  * @brief Standard RMA Types and Names
