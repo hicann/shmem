@@ -15,35 +15,45 @@
 
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
+#include "rdma_mem_kernel.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
 extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
-extern int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
+extern int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
 extern void test_finalize(aclrtStream stream, int device_id);
-
-extern void test_rdma_put_low_level(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
-extern void test_rdma_get_low_level(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
-extern void test_rdma_put_high_level(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
-extern void test_rdma_get_high_level(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
 
 namespace {
 constexpr int TIMEOUT = 30;
-}
 
-static void test_rdma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+constexpr uint32_t RDMA_AGGREGATE_ELEMENT_COUNT = 16;
+constexpr uint32_t RDMA_AGGREGATE_SLOT_COUNT = 34;
+
+constexpr uint32_t RDMA_AGGREGATE_GET_DESTINATION_LAST_SLOT = 5;
+constexpr uint32_t RDMA_AGGREGATE_PUT_DESTINATION_FIRST_SLOT = 9;
+constexpr uint32_t RDMA_AGGREGATE_RESERVED_SLOT = 7;
+
+uint32_t rdma_aggregate_expected_value(uint32_t pe, uint32_t slot, uint32_t element)
+{
+    return (pe + 1) * 100000U + slot * 1000U + element;
+}
+#endif
+} // namespace
+
+static void test_rdma_put_get(aclrtStream stream, uint8_t* gva, uint32_t rank_id, uint32_t rank_size)
 {
     size_t messageSize = 64;
     uint32_t rankOffset = 10;
-    uint32_t *inHost;
-    uint32_t *outHost;
+    uint32_t* inHost;
+    uint32_t* outHost;
     size_t totalSize = messageSize * rank_size;
     uint32_t block_dim = 1;
     aclshmem_handle_t handle;
     handle.team_id = ACLSHMEM_TEAM_WORLD;
 
-    ASSERT_EQ(aclrtMallocHost(reinterpret_cast<void **>(&inHost), totalSize), 0);
-    ASSERT_EQ(aclrtMallocHost(reinterpret_cast<void **>(&outHost), totalSize), 0);
+    ASSERT_EQ(aclrtMallocHost(reinterpret_cast<void**>(&inHost), totalSize), 0);
+    ASSERT_EQ(aclrtMallocHost(reinterpret_cast<void**>(&outHost), totalSize), 0);
     bzero(inHost, totalSize);
     for (uint32_t i = 0; i < messageSize / sizeof(uint32_t); i++) {
         inHost[i + rank_id * messageSize / sizeof(uint32_t)] = rank_id + rankOffset;
@@ -51,7 +61,7 @@ static void test_rdma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id
 
     ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
     aclshmemi_control_barrier_all();
-    test_rdma_put_low_level(block_dim, stream, (uint8_t *)gva, util_get_ffts_config());
+    test_rdma_put_low_level(block_dim, stream, (uint8_t*)gva, util_get_ffts_config());
     aclshmemx_handle_wait(handle, stream);
     ASSERT_EQ(aclrtSynchronizeStreamWithTimeout(stream, TIMEOUT), 0);
     ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
@@ -61,7 +71,7 @@ static void test_rdma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id
 
     ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
     aclshmemi_control_barrier_all();
-    test_rdma_get_low_level(block_dim, stream, (uint8_t *)gva, util_get_ffts_config());
+    test_rdma_get_low_level(block_dim, stream, (uint8_t*)gva, util_get_ffts_config());
     aclshmemx_handle_wait(handle, stream);
     ASSERT_EQ(aclrtSynchronizeStreamWithTimeout(stream, TIMEOUT), 0);
     ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
@@ -71,7 +81,7 @@ static void test_rdma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id
 
     ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
     aclshmemi_control_barrier_all();
-    test_rdma_put_high_level(block_dim, stream, (uint8_t *)gva, util_get_ffts_config());
+    test_rdma_put_high_level(block_dim, stream, (uint8_t*)gva, util_get_ffts_config());
     aclshmemx_handle_wait(handle, stream);
     ASSERT_EQ(aclrtSynchronizeStreamWithTimeout(stream, TIMEOUT), 0);
     ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
@@ -81,7 +91,7 @@ static void test_rdma_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id
 
     ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
     aclshmemi_control_barrier_all();
-    test_rdma_get_high_level(block_dim, stream, (uint8_t *)gva, util_get_ffts_config());
+    test_rdma_get_high_level(block_dim, stream, (uint8_t*)gva, util_get_ffts_config());
     aclshmemx_handle_wait(handle, stream);
     ASSERT_EQ(aclrtSynchronizeStreamWithTimeout(stream, TIMEOUT), 0);
     ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
@@ -104,7 +114,7 @@ void test_aclshmem_rdma_mem(int rank_id, int n_ranks, uint64_t local_mem_size)
     ASSERT_NE(stream, nullptr);
 
     void* ptr = aclshmem_malloc(1024);
-    test_rdma_put_get(stream, (uint8_t *)ptr, rank_id, n_ranks);
+    test_rdma_put_get(stream, (uint8_t*)ptr, rank_id, n_ranks);
     std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
     test_finalize(stream, device_id);
 }
@@ -115,3 +125,88 @@ TEST(TestMemApi, TestShmemRDMAMem)
     uint64_t local_mem_size = 1024UL * 1024UL * 64;
     test_mutil_task(test_aclshmem_rdma_mem, local_mem_size, processCount);
 }
+
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+
+static void test_rdma_aggregate_mem_func(aclrtStream stream, uint8_t* gva, uint32_t pe_id, uint32_t pe_size)
+{
+    ASSERT_GE(pe_size, 2U);
+
+    constexpr uint32_t block_dim = 1;
+    const size_t total_elements = RDMA_AGGREGATE_SLOT_COUNT * RDMA_AGGREGATE_ELEMENT_COUNT;
+    const size_t total_size = total_elements * sizeof(uint32_t);
+    std::vector<uint32_t> in_host(total_elements);
+    std::vector<uint32_t> out_host(total_elements);
+
+    for (uint32_t slot = 0; slot < RDMA_AGGREGATE_SLOT_COUNT; ++slot) {
+        for (uint32_t element = 0; element < RDMA_AGGREGATE_ELEMENT_COUNT; ++element) {
+            in_host[slot * RDMA_AGGREGATE_ELEMENT_COUNT + element] =
+                rdma_aggregate_expected_value(pe_id, slot, element);
+        }
+    }
+
+    ASSERT_EQ(aclrtMemcpy(gva, total_size, in_host.data(), total_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+
+    test_rdma_aggregate(block_dim, stream, gva, util_get_ffts_config());
+    ASSERT_EQ(aclrtSynchronizeStreamWithTimeout(stream, TIMEOUT), 0);
+
+    ASSERT_EQ(aclrtMemcpy(out_host.data(), total_size, gva, total_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+
+    const uint32_t next_peer = (pe_id + 1) % pe_size;
+    const uint32_t previous_peer = (pe_id + pe_size - 1) % pe_size;
+    for (uint32_t slot = 0; slot < RDMA_AGGREGATE_SLOT_COUNT; ++slot) {
+        const bool is_destination = (slot % 2) != 0 && slot != RDMA_AGGREGATE_RESERVED_SLOT;
+        const bool is_get_destination = is_destination && slot <= RDMA_AGGREGATE_GET_DESTINATION_LAST_SLOT;
+        const uint32_t expected_pe =
+            is_get_destination ?
+                next_peer :
+                (is_destination && slot >= RDMA_AGGREGATE_PUT_DESTINATION_FIRST_SLOT ? previous_peer : pe_id);
+        const uint32_t expected_source_slot = is_destination ? slot - 1 : slot;
+
+        for (uint32_t element = 0; element < RDMA_AGGREGATE_ELEMENT_COUNT; ++element) {
+            const uint32_t actual = out_host[slot * RDMA_AGGREGATE_ELEMENT_COUNT + element];
+            const uint32_t expected = rdma_aggregate_expected_value(expected_pe, expected_source_slot, element);
+            ASSERT_EQ(actual, expected) << "slot=" << slot << ", element=" << element << ", pe=" << pe_id;
+        }
+    }
+}
+
+void test_aclshmem_rdma_aggregate(int pe_id, int n_pes, uint64_t local_mem_size)
+{
+    if (n_pes < 2) {
+        return;
+    }
+
+    const int32_t device_id = pe_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream;
+    const auto status = test_rdma_init(pe_id, n_pes, local_mem_size, &stream);
+    if (status != 0) {
+        return;
+    }
+    ASSERT_NE(stream, nullptr);
+
+    const size_t total_size =
+        static_cast<size_t>(RDMA_AGGREGATE_SLOT_COUNT) * RDMA_AGGREGATE_ELEMENT_COUNT * sizeof(uint32_t);
+    void* ptr = aclshmem_malloc(total_size);
+    ASSERT_NE(ptr, nullptr);
+
+    test_rdma_aggregate_mem_func(
+        stream, static_cast<uint8_t*>(ptr), static_cast<uint32_t>(pe_id), static_cast<uint32_t>(n_pes));
+    std::cout << "[TEST] RDMA aggregate pointer/tensor defer+submit, including loop_defer pointer put and "
+              << "action reuse, finished, pe_id: " << pe_id << std::endl;
+
+    aclshmem_free(ptr);
+    test_finalize(stream, device_id);
+}
+
+TEST(TestMemApi, TestShmemRDMAAggregateNbi)
+{
+    const int processCount = test_gnpu_num;
+    if (processCount < 2) {
+        GTEST_SKIP() << "RDMA aggregate UT requires at least 2 PEs";
+    }
+    const uint64_t local_mem_size = 1024UL * 1024UL * 64;
+    test_mutil_task(test_aclshmem_rdma_aggregate, local_mem_size, processCount);
+}
+
+#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE
