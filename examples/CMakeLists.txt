@@ -174,6 +174,10 @@ foreach(EXAMPLE
     add_subdirectory(${EXAMPLE})
 endforeach()
 
+if(HAS_ACLRT_MEM_FABRIC_HANDLE)
+    add_subdirectory(user_buffer)
+endif()
+
 if(SOC_TYPE STREQUAL "Ascend950"
    AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shmem_mega_moe/kernel/arch35/shmem_mega_moe_tiling.h"
    AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shmem_mega_moe/kernel/dispatch/quantize_functions.h"
