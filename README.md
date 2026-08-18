@@ -7,17 +7,21 @@
 
 <div align="center">
 
-[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)[![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.3.0)[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
+[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)[![Release](https://img.shields.io/badge/Release-v1.6.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.6.0)[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
 
 </div>
 
 ## 最新动态
 
-🚀 [2026/04] [SHMEM v1.3.0](https://gitcode.com/cann/shmem/releases/v1.3.0) 版本发布，欢迎下载体验。
+🚀 [2026/07] [SHMEM v1.6.0](https://gitcode.com/cann/shmem/releases/v1.6.0) 正式发布。
 
-   - 新增 AICore 直驱能力： A2/A3 SDMA 访存和预取，950 MTE 访存，覆盖更多通信引擎。
-   - 新增 40+ 接口，覆盖 RMA、Signal、P2P 同步、Barrier 等，完善通信编程语义。
-   - 增强 log、sanitizer、profiling、debug 等 DFX 能力，提升问题定位效率。
+   - 完善 Ascend 950 RDMA 能力，支持 XSCALE（云脉）和 HNS 1825 后端，并补齐 Device 侧 RMA、Atomic、Sync/Barrier 接口。
+   - 增强 Ascend 950 UDMA/MTE 与 SIMT 数据搬运能力，新增 relay RMA、MTE Atomic 和 UB↔GM 接口。
+   - 改进安装与诊断：Python wheel 集成多平台后端，新增 `shmem-config` 环境检查，并补充性能测试与示例。
+
+> 升级前请阅读 [v1.6.0 Release Notes](https://gitcode.com/cann/shmem/releases/v1.6.0)，重点关注非阻塞接口完成语义、ROCE `atomic_add` 行为变化和版本一致性要求。
+
+📌 [2026/04] [SHMEM v1.3.0](https://gitcode.com/cann/shmem/releases/v1.3.0) 发布：新增 AICore 直驱能力和 40+ 通信接口，并完善 DFX 工具链。
 
 🔥 [2025/12] SHMEM 项目首次上线。
 

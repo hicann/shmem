@@ -6,15 +6,19 @@ English | <a href="./README.md">简体中文</a>
 </div>
 <h4>Symmetric Memory-based Ascend Distributed Memory Communication Acceleration Library</h4>
 
-[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)[![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.3.0)[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
+[![Documentation](https://img.shields.io/badge/Documentation-SHMEM-blue)](https://shmem-doc.pages.dev/)[![Release](https://img.shields.io/badge/Release-v1.6.0-brightgreen)](https://gitcode.com/cann/shmem/releases/v1.6.0)[![Platform](https://img.shields.io/badge/Platform-Ascend%20NPU-red)](https://www.hiascend.com/)[![SIG](https://img.shields.io/badge/SIG-shmem-lightgrey)](https://gitcode.com/cann/community/tree/master/CANN/sigs/shmem)
 
 </div>
 
 ## What's New
-🚀 [April 2026] [SHMEM v1.3.0 release](https://gitcode.com/cann/shmem/releases/v1.3.0). Download and experience it now.
-   - Introduced AI Core direct-driven capabilities: 910B/910C SDMA memory access and prefetch, 950 MTE memory access, and more communication engines.
-   - Added 40+ new APIs, spanning RMA, signaling, P2P synchronization, and barrier operations, enriching communication semantics.
-   - Enhanced DFX capabilities, such as logging, sanitizers, profiling, and debugging, for faster problem pinpointing.
+🚀 [July 2026] [SHMEM v1.6.0](https://gitcode.com/cann/shmem/releases/v1.6.0) is now available.
+   - Expanded Ascend 950 RDMA support with XSCALE and HNS 1825 backends, plus Device-side RMA, Atomic, and Sync/Barrier APIs.
+   - Added Ascend 950 UDMA/MTE and SIMT data-movement capabilities, including relay RMA, MTE Atomic, and UB↔GM APIs.
+   - Improved installation and diagnostics with multi-platform backends in the Python wheel, `shmem-config` environment checks, and new performance tests and examples.
+
+> Before upgrading, read the [v1.6.0 release notes](https://gitcode.com/cann/shmem/releases/v1.6.0), especially the changes to nonblocking completion semantics, ROCE `atomic_add`, and mixed-version compatibility.
+
+📌 [April 2026] [SHMEM v1.3.0](https://gitcode.com/cann/shmem/releases/v1.3.0): added AI Core direct-driven capabilities and 40+ communication APIs, with expanded DFX tooling.
 
 🔥 [December 2025] Initial launch of the SHMEM project
 
