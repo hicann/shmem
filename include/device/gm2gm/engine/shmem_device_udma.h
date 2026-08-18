@@ -918,11 +918,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_quiet(int pe);
  * @param pe                [in] PE number of the remote PE.
  * @param qp_idx            [in] QP index whose submitted requests are to be completed.
  */
-#if defined(ACLSHMEM_RELAY_SUPPORT)
-ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx) = delete;
-#else
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx);
-#endif
 
 /**
  * @brief Asynchronous interface. Add value to dst (remote symmetric address) on the specified PE pe,

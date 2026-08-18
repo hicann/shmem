@@ -782,19 +782,23 @@ ACLSHMEM_DEVICE void aclshmemi_udma_debug_check_qp_index(uint32_t qp_idx)
     }
 }
 
-#if !defined(ACLSHMEM_RELAY_SUPPORT)
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx)
 {
-    ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
-    __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
-    __gm__ aclshmemi_udma_qp_table_t* tbl = aclshmemi_udma_active_table(udma_info);
-    const uint32_t actual_pe = static_cast<uint32_t>(pe);
-    __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry =
-        (__gm__ aclshmemi_udma_wq_ctx_t*)(tbl->sq_ptr +
-                                          (actual_pe * udma_info->qp_num + qp_idx) * sizeof(aclshmemi_udma_wq_ctx_t));
-    aclshmemi_udma_poll_cq(actual_pe, qp_idx, qp_ctx_entry->wqe_cnt);
+    if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
+        (void)pe;
+        (void)qp_idx;
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
+    } else {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
+        __gm__ aclshmemi_aiv_udma_info_t* udma_info = aclshmemi_udma_qp_info_fetch();
+        __gm__ aclshmemi_udma_qp_table_t* tbl = aclshmemi_udma_active_table(udma_info);
+        const uint32_t actual_pe = static_cast<uint32_t>(pe);
+        __gm__ aclshmemi_udma_wq_ctx_t* qp_ctx_entry =
+            (__gm__ aclshmemi_udma_wq_ctx_t*)(tbl->sq_ptr + (actual_pe * udma_info->qp_num + qp_idx) *
+                                                                sizeof(aclshmemi_udma_wq_ctx_t));
+        aclshmemi_udma_poll_cq(actual_pe, qp_idx, qp_ctx_entry->wqe_cnt);
+    }
 }
-#endif
 
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_udma_get_nbi(__gm__ T* dst, __gm__ T* src, uint32_t elem_size, int pe)
@@ -934,7 +938,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     static_assert(
         WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         auto remote_src = aclshmem_ptr(src, pe);
@@ -971,7 +975,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
 {
     static_assert(WQE_PIPE == PIPE_MTE3, "UDMA QP aggregate action get requires WQE_PIPE == PIPE_MTE3");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         (void)sync_id;
@@ -992,7 +996,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
 {
     static_assert(WQE_PIPE == PIPE_MTE3, "UDMA QP aggregate action get requires WQE_PIPE == PIPE_MTE3");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         auto remote_src = aclshmem_ptr(src, pe);
@@ -1032,7 +1036,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     static_assert(
         WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         auto remote_dst = aclshmem_ptr(dst, pe);
@@ -1069,7 +1073,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
 {
     static_assert(WQE_PIPE == PIPE_MTE3, "UDMA QP aggregate action put requires WQE_PIPE == PIPE_MTE3");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         (void)sync_id;
@@ -1090,7 +1094,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
 {
     static_assert(WQE_PIPE == PIPE_MTE3, "UDMA QP aggregate action put requires WQE_PIPE == PIPE_MTE3");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         auto remote_dst = aclshmem_ptr(dst, pe);
@@ -1518,7 +1522,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
     uint32_t qp_idx)
 {
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
         auto remote_dst = aclshmem_ptr(dst, pe);
@@ -1540,7 +1544,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
     static_assert(
         WQE_PIPE == PIPE_S || WQE_PIPE == PIPE_MTE3, "Only PIPE_S and PIPE_MTE3 are supported for UDMA WQE_PIPE");
     if constexpr (ACLSHMEM_RELAY_SUPPORTED) {
-        static_assert(sizeof(T) == 0, "QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF");
+        aclshmemi_kernel_abort("QP-specific UDMA APIs require ACLSHMEM_RELAY_SUPPORT=OFF\n");
     } else if constexpr (ACLSHMEM_UDMA_SUPPORTED) {
         if constexpr (WQE_PIPE == PIPE_MTE3) {
             ACLSHMEM_DEBUG_FUNC(aclshmemi_udma_debug_check_qp_index, qp_idx);
