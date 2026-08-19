@@ -52,7 +52,15 @@ bash examples/udma_demo/run.sh 0 16 8 192.168.1.10:8899 0 8 0
 bash examples/udma_demo/run.sh 0 16 8 192.168.1.10:8899 8 8 0
 ```
 
-mssanitizer 检测：当前实验在 MTE3 路径恢复结构体字段填充，并由 all-gather 与 put signal 两个 kernel 在首次调用前对完整 128 字节 scratch 做一次性清零（`udma_demo_kernel.cpp` 中的 `init_udma_wqe_scratch`）。这既初始化结构体位域读改写可能读取的原值，也覆盖 put signal 的 32 字节尾部填充，用于验证调用方全量预初始化能否消除 initcheck 的未初始化读。检测运行方式：
+### mssanitizer 检测
+
+执行 mssanitizer 前，使用 `-mssanitizer` 重新编译：
+
+```bash
+bash scripts/build.sh -examples -soc_type Ascend950 -mssanitizer
+```
+
+当前实验在 MTE3 路径恢复结构体字段填充，并由 all-gather 与 put signal 两个 kernel 在首次调用前对完整 128 字节 scratch 做一次性清零（`udma_demo_kernel.cpp` 中的 `init_udma_wqe_scratch`）。这既初始化结构体位域读改写可能读取的原值，也覆盖 put signal 的 32 字节尾部填充，用于验证调用方全量预初始化能否消除 initcheck 未初始化读。
 
 ```bash
 mssanitizer -- bash examples/udma_demo/run.sh 0
