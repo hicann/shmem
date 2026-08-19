@@ -229,91 +229,65 @@ examples/shmem_mega_moe/
 
 ### 环境依赖
 
-- Ascend950 环境及与之匹配的 CANN Toolkit；
-- 支持 Ascend950 MXFP8 GEMM 的 Catlass 源码；
-- CMake 和 C++ 编译工具链。
+- `shmem_mega_moe` 仅支持 Ascend950，其他平台不会生成可用的该样例目标。
+- 编译前需加载 CANN Toolkit 环境：`source /usr/local/Ascend/ascend-toolkit/set_env.sh`。如果
+  Toolkit 安装在其他目录，请替换为实际路径。
+- `-examples` 会检查 `3rdparty/catlass`；目录不存在时，构建脚本会尝试从 Catlass 仓库下载依赖。
+  无法访问下载源时，请先准备好兼容 Ascend950 的 Catlass 源码。
 
-从仓库根目录执行：
+### 构建
 
-```bash
-cmake -S . -B build_arch35 \
-  -DSOC_TYPE=Ascend950 \
-  -DUSE_EXAMPLES=ON \
-  -DCATLASS_ROOT=/path/to/catlass
-
-cmake --build build_arch35 --target shmem_mega_moe -j
-```
-
-如果 CMake 无法自动找到 CANN AscendC 头文件，请显式设置：
+在 SHMEM 仓库根目录执行：
 
 ```bash
-export ASCEND_HOME_PATH=/path/to/ascend-toolkit/latest
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+bash scripts/build.sh -examples -soc_type Ascend950
 ```
 
-CMake 会检查 SHMEM MegaMoE 的 Host、Tiling、Kernel 头文件及 Catlass 依赖，只有依赖完整时
-才注册 `shmem_mega_moe` 目标。
+构建成功后，可执行文件位于 `build/bin/shmem_mega_moe`。`scripts/build.sh` 会清理并重新生成
+`build/` 和 `install/` 目录；请确认其中没有需要保留的本地构建产物。
 
 ## 运行
 
-### 命令行接口
+### 启动脚本
 
-每个 Rank 启动一个进程，命令格式为：
+推荐使用随样例提供的脚本一次拉起所有 Rank。以下命令适用于同一台机器上的两个 NPU；脚本会
+为每个 Rank 启动一个进程，并将 Rank 0、1 映射到设备 0、1：
 
+在 SHMEM 仓库根目录执行：
 ```bash
-shmem_mega_moe <rank_size> <rank> <ip:port> <npu_num> <first_npu> \
-  <mode> <token_count> <model_dim> <ffn_dim> \
-  <experts_per_token> <local_expert_count> \
-  [max_received_tokens] [warmup] [loop]
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source install/set_env.sh
+
+BIN="$PWD/build/bin/shmem_mega_moe" \
+    RANK_SIZE=2 NPU_NUM=2 FIRST_NPU=0 \
+    MODE=arch35_e5m2 \
+    TOKEN_COUNT=256 MODEL_DIM=4096 FFN_DIM=1024 \
+    EXPERTS_PER_TOKEN=6 LOCAL_EXPERT_COUNT=4 \
+    WARMUP=5 LOOP=20 \
+    bash examples/shmem_mega_moe/scripts/run_shmem_mega_moe_arch35.sh
 ```
 
-| 参数 | 含义 |
-| --- | --- |
-| `rank_size` | 参与通信的进程/Rank 总数 |
-| `rank` | 当前进程的 Rank 编号，范围为 `[0, rank_size)` |
-| `ip:port` | ACLSHMEM 初始化地址，例如 `tcp://127.0.0.1:8766` |
-| `npu_num` | 从 `first_npu` 开始参与映射的 NPU 数量 |
-| `first_npu` | 第一个逻辑 NPU 编号 |
-| `mode` | `arch35_e4m3` 或 `arch35_e5m2` |
-| `token_count` | 每个 Rank 的本地 Token 数 |
-| `model_dim` | 输入、输出隐藏维度 |
-| `ffn_dim` | 第一次投影输出维度，必须为偶数 |
-| `experts_per_token` | 每个 Token 选择的专家数，即 Top-K |
-| `local_expert_count` | 每个 Rank 部署的专家数 |
-| `max_received_tokens` | 每个局部专家的最大接收容量；传 `0` 时自动计算 |
-| `warmup` | 不计入统计的预热轮数，默认 `0` |
-| `loop` | 计时运行轮数，默认 `1` |
+运行前请确认：
 
-当前进程使用的设备按下式映射：
+- 所有 Rank 使用相同的 `RANK_SIZE`、`IP_PORT`、Shape 和 `MODE`；
+- `BIN` 指向已构建的可执行文件，且 `source install/set_env.sh` 已完成，以便加载 SHMEM 动态库；
+- 单机多进程且每个进程使用一个 NPU 时，`NPU_NUM` 至少应覆盖 `RANK_SIZE`，`FIRST_NPU` 与 `NPU_NUM` 组合必须对应
+  实际可用的设备编号；
+- 跨主机运行时，将 `IP_PORT` 设置为所有 Rank 均可访问的同一个地址和端口，并确保网络和端口
+  已放通。脚本当前只负责拉起本机进程，不负责跨主机进程编排。
 
-```text
-device_id = rank % npu_num + first_npu
-```
-
-### 多 Rank 启动脚本
-
-推荐使用脚本一次拉起所有 Rank：
-
-```bash
-cd examples/shmem_mega_moe
-
-BIN=../../build_arch35/bin/shmem_mega_moe \
-RANK_SIZE=2 NPU_NUM=2 FIRST_NPU=0 \
-MODE=arch35_e5m2 \
-TOKEN_COUNT=256 MODEL_DIM=4096 FFN_DIM=1024 \
-EXPERTS_PER_TOKEN=6 LOCAL_EXPERT_COUNT=4 \
-WARMUP=5 LOOP=20 \
-bash scripts/run_shmem_mega_moe_arch35.sh
-```
+### 参数说明
 
 脚本支持的环境变量及默认值如下：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `BIN` | `./shmem_mega_moe` | 可执行文件路径 |
+| `BIN` | `./shmem_mega_moe` | 可执行文件路径；从其他目录调用脚本时建议使用绝对路径 |
 | `RANK_SIZE` | `2` | Rank 数量 |
 | `IP_PORT` | `tcp://127.0.0.1:8766` | ACLSHMEM 初始化地址 |
-| `NPU_NUM` | `8` | 用于 Rank 映射的 NPU 数量 |
-| `FIRST_NPU` | `0` | 起始 NPU 编号 |
+| `NPU_NUM` | `8` | 参与 Rank 映射的连续 NPU 数量；设备编号为 `FIRST_NPU + rank % NPU_NUM` |
+| `FIRST_NPU` | `0` | Rank 映射使用的起始 NPU 编号 |
 | `MODE` | `arch35_e4m3` | FP8 模式 |
 | `TOKEN_COUNT` | `4` | 每 Rank Token 数 |
 | `MODEL_DIM` | `4096` | 隐藏维度 |
@@ -330,7 +304,8 @@ bash scripts/run_shmem_mega_moe_arch35.sh
 Rank，并返回非零状态，避免通信错误被某个成功进程掩盖。
 
 设置 `AIC_NUM` 或 `AIV_NUM` 时，覆盖值不能超过运行时检测到的硬件核数，并且必须保持
-`AIC_NUM:AIV_NUM=1:2` 的 MIX Kernel 比例；同时覆盖两项可以避免单项覆盖后比例不匹配。
+`AIC_NUM:AIV_NUM=1:2` 的 MIX Kernel 比例。建议同时设置两个变量，例如
+`AIC_NUM=4 AIV_NUM=8`，避免只覆盖一个变量导致比例校验失败。
 
 ## 参数约束
 
