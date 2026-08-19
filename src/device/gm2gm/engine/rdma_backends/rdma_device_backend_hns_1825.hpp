@@ -238,14 +238,15 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
     uint32_t pe, uint32_t qp_idx, uint32_t target_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
     AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
 {
+    // GetSystemCycle advances at 50 cycles/us on Ascend A2/A3 and 1000 cycles/us on Ascend950.
 #if defined(__DAV_C220_VEC__) || defined(__DAV_C220_CUBE__)
-    constexpr uint32_t ACLSHMEMI_HNS_1825_CYCLE_TO_TIME_BASE = 50;
+    constexpr uint64_t ACLSHMEMI_HNS_1825_CYCLES_PER_US = 50;
 #else
-    constexpr uint32_t ACLSHMEMI_HNS_1825_CYCLE_TO_TIME_BASE = 1000;
+    constexpr uint64_t ACLSHMEMI_HNS_1825_CYCLES_PER_US = 1000;
 #endif
-    constexpr uint32_t ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_DURATION = 5 * 60 * 1000000; // 5 minutes in microseconds
+    constexpr uint64_t ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_US = 60ULL * 1000 * 1000;
     constexpr uint64_t ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_CYCLES =
-        (uint64_t)ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_DURATION * ACLSHMEMI_HNS_1825_CYCLE_TO_TIME_BASE;
+        ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_US * ACLSHMEMI_HNS_1825_CYCLES_PER_US;
     // Use a value outside the CQE syndrome range to report timeout.
     constexpr uint32_t ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_ERROR = 0x10000;
     constexpr uint32_t ACLSHMEMI_HNS_1825_CQE_OPCODE_SHIFT = 27; // op_type at dw2[31:27]
@@ -255,9 +256,6 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
     // CQE slot stride in the CQ ring. The hardware slot is 64B even though SHMEM only parses the first
     // 32B (aclshmemi_hns_1825_cqe_t); used only when the control plane leaves cqe_size unset.
     constexpr uint32_t ACLSHMEMI_HNS_1825_DEFAULT_CQE_SIZE = 64;
-    // Extra CQ slots included in the physical ring: physical ring = depth + this value.
-    constexpr uint32_t ACLSHMEMI_HNS_1825_CQE_MAX_GEN_NUM = 1024;
-
     if (target_idx == 0) {
         return 0;
     }
@@ -268,16 +266,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_cq_ctx));
 
     uint32_t cqe_size = cq_context->cqe_size == 0 ? ACLSHMEMI_HNS_1825_DEFAULT_CQE_SIZE : cq_context->cqe_size;
-    // depth is the usable CQE count; slot index and owner parity use the physical ring, not depth.
-    uint32_t depth = cq_context->depth;
-    uint32_t cq_ring = depth + ACLSHMEMI_HNS_1825_CQE_MAX_GEN_NUM;
+    uint32_t cq_ring = cq_context->depth;
     uint32_t cur_tail = aclshmemi_hns_1825_read_u32_gm(cq_context->tail_addr);
     uint32_t original_cur_tail = cur_tail;
-    uint64_t run_cycles = 0;
     uint32_t status = 0;
 
     while (cur_tail != target_idx) {
-        run_cycles = 0;
         __gm__ uint8_t* cqe_addr =
             (__gm__ uint8_t*)(cq_context->buf_addr + (uint64_t)(cur_tail & (cq_ring - 1)) * cqe_size);
         AscendC::GlobalTensor<uint32_t> cqe_gm;
@@ -287,20 +281,22 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
         __ubuf__ aclshmemi_hns_1825_cqe_t* cqe =
             (__ubuf__ aclshmemi_hns_1825_cqe_t*)(__ubuf__ void*)ub_local32.GetPhyAddr();
         uint32_t cqe_type = ACLSHMEMI_HNS_1825_CQE_OPTYPE_INVALID;
+        bool cqe_ready = false;
+        uint64_t start_cycles = static_cast<uint64_t>(AscendC::GetSystemCycle());
 
         // Copy the CQE into UB and wait until it carries the expected owner bit.
-        while (run_cycles < ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_CYCLES) {
+        while (!cqe_ready && static_cast<uint64_t>(AscendC::GetSystemCycle()) - start_cycles <
+                                 ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_CYCLES) {
             AscendC::DataCopyPad(ub_local32, cqe_gm, copy_params, pad_params);
-            AscendC::PipeBarrier<PIPE_ALL>();
+            aclshmemi_hns_1825_sync_func<AscendC::HardEvent::MTE2_S>(sync_id);
             cqe_type = (cqe->op_sr_wqebb >> ACLSHMEMI_HNS_1825_CQE_OPCODE_SHIFT) & ACLSHMEMI_HNS_1825_CQE_OPCODE_MASK;
-            if (cqe_type != ACLSHMEMI_HNS_1825_CQE_OPTYPE_INVALID &&
-                aclshmemi_roce_hns_1825_check_cqe_owner(cqe, cur_tail, cq_ring)) {
-                break;
+            cqe_ready = cqe_type != ACLSHMEMI_HNS_1825_CQE_OPTYPE_INVALID &&
+                        aclshmemi_roce_hns_1825_check_cqe_owner(cqe, cur_tail, cq_ring);
+            if (!cqe_ready) {
+                dcci_cachelines(cqe_addr, cqe_size);
             }
-            run_cycles++;
-            dcci_cachelines(cqe_addr, cqe_size);
         }
-        if (run_cycles >= ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_CYCLES) {
+        if (!cqe_ready) {
             // No CQE with the expected owner bit was observed before timeout.
             status = ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_ERROR;
             ACLSHMEM_DEBUG_FUNC(
