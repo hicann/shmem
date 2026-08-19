@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 
 #include "shmem.h"
 #include "host_device/shmem_common_types.h"
@@ -26,7 +25,7 @@
 // NOTE: cycle2us mapping must stay in sync with src/host/utils/prof/prof_util.cpp:prof_data_print
 inline int64_t get_cycle2us()
 {
-    const char *soc_name = aclrtGetSocName();
+    const char* soc_name = aclrtGetSocName();
     int64_t cycle2us = 50;
     if (soc_name != nullptr) {
         std::string soc_str(soc_name);
@@ -37,10 +36,9 @@ inline int64_t get_cycle2us()
     return cycle2us;
 }
 
-static void print_perf_result(aclshmem_prof_pe_t *out_profs, int32_t frame_id,
-                                uint32_t block_dim, size_t transfer_bytes, size_t per_block_bytes,
-                                const char *tag, int64_t cycle2us,
-                                std::vector<std::vector<std::string>> &csv_data)
+static void print_perf_result(
+    aclshmem_prof_pe_t* out_profs, int32_t frame_id, uint32_t block_dim, size_t transfer_bytes, size_t per_block_bytes,
+    const char* tag, int64_t cycle2us, std::vector<std::vector<std::string>>& csv_data)
 {
     double max_core_time_us = 0.0;
 
@@ -48,8 +46,7 @@ static void print_perf_result(aclshmem_prof_pe_t *out_profs, int32_t frame_id,
     int valid_block_count = 0;
     std::vector<double> core_times;
     std::cout << "============================================================" << std::endl;
-    std::cout << "[" << tag << "] Perf Result: B/PerBlock=" << per_block_bytes
-              << ", DataSize/B=" << transfer_bytes
+    std::cout << "[" << tag << "] Perf Result: B/PerBlock=" << per_block_bytes << ", DataSize/B=" << transfer_bytes
               << ", blocks=" << block_dim << std::endl;
     std::cout << "BlockID   FrameID   B/PerBlock     Cycles         Count          AvgTime(us)" << std::endl;
     std::cout << "------------------------------------------------------------" << std::endl;
@@ -59,15 +56,11 @@ static void print_perf_result(aclshmem_prof_pe_t *out_profs, int32_t frame_id,
         uint64_t total_count = 0;
         total_cycles = out_profs->block_prof[b].cycles[frame_id];
         total_count = out_profs->block_prof[b].ccount[frame_id];
-        double avg_time_us = (total_count > 0)
-            ? static_cast<double>(total_cycles) / static_cast<double>(total_count) / cycle2us
-            : 0.0;
-        std::cout << std::left << std::setw(10) << b
-                  << std::setw(10) << frame_id
-                  << std::setw(15) << per_block_bytes
-                  << std::setw(15) << total_cycles
-                  << std::setw(15) << total_count
-                  << std::fixed << std::setprecision(3) << avg_time_us << std::endl;
+        double avg_time_us =
+            (total_count > 0) ? static_cast<double>(total_cycles) / static_cast<double>(total_count) / cycle2us : 0.0;
+        std::cout << std::left << std::setw(10) << b << std::setw(10) << frame_id << std::setw(15) << per_block_bytes
+                  << std::setw(15) << total_cycles << std::setw(15) << total_count << std::fixed << std::setprecision(3)
+                  << avg_time_us << std::endl;
         if (avg_time_us > max_core_time_us) {
             max_core_time_us = avg_time_us;
         }
@@ -85,12 +78,12 @@ static void print_perf_result(aclshmem_prof_pe_t *out_profs, int32_t frame_id,
     if (max_core_time_us > 0.0) {
         bandwidth = static_cast<double>(transfer_bytes) / max_core_time_us * 1e6 / (1024.0 * 1024.0 * 1024.0);
     }
-    std::cout << "[" << tag << "] MaxCoreTime=" << std::fixed << std::setprecision(3)
-              << max_core_time_us << " us" << std::endl;
-    std::cout << "[" << tag << "] AvgCoreTime=" << std::fixed << std::setprecision(3)
-              << avg_core_time_us << " us" << std::endl;
-    std::cout << "[" << tag << "] Bandwidth=" << std::fixed << std::setprecision(4)
-              << bandwidth << " GB/s" << std::endl;
+    std::cout << "[" << tag << "] MaxCoreTime=" << std::fixed << std::setprecision(3) << max_core_time_us << " us"
+              << std::endl;
+    std::cout << "[" << tag << "] AvgCoreTime=" << std::fixed << std::setprecision(3) << avg_core_time_us << " us"
+              << std::endl;
+    std::cout << "[" << tag << "] Bandwidth=" << std::fixed << std::setprecision(4) << bandwidth << " GB/s"
+              << std::endl;
     std::cout << "============================================================" << std::endl;
 
     std::vector<std::string> row;
@@ -107,30 +100,18 @@ static void print_perf_result(aclshmem_prof_pe_t *out_profs, int32_t frame_id,
     csv_data.push_back(row);
 }
 
-static void write_perf_csv(const std::string &filename, const std::vector<std::vector<std::string>> &data)
+static void write_perf_csv(const std::string& filename, const std::vector<std::vector<std::string>>& data)
 {
-    std::string dir;
-    size_t pos = filename.find_last_of("/");
-    if (pos != std::string::npos) {
-        dir = filename.substr(0, pos);
-    }
-    if (!dir.empty()) {
-        std::error_code ec;
-        if (!std::filesystem::create_directories(dir, ec) && ec) {
-            std::cerr << "Failed to create directory: " << dir << ", error: " << ec.message() << std::endl;
-            return;
-        }
-    }
-
     std::ofstream ofs(filename);
     if (!ofs.is_open()) {
         std::cerr << "Failed to open CSV file: " << filename << std::endl;
         return;
     }
-    for (const auto &row : data) {
+    for (const auto& row : data) {
         for (size_t i = 0; i < row.size(); i++) {
             ofs << row[i];
-            if (i + 1 < row.size()) ofs << ",";
+            if (i + 1 < row.size())
+                ofs << ",";
         }
         ofs << "\n";
     }

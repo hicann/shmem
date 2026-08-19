@@ -76,6 +76,8 @@ bash scripts/build.sh -examples
 
 本工具通过 `run.sh` 脚本启动，脚本会为每个 PE 启动一个后台进程，各 PE 之间通过 shmem 初始化建立通信。
 
+> **直接运行二进制**：`run.sh` 会在性能测试模式下自动创建 `output` 目录。如果绕过脚本直接运行 `build/bin/hccs_sio_link`，请先在进程的工作目录中执行 `mkdir -p output`，否则性能 CSV 文件无法写入。
+
 ### 运行命令
 
 ```bash

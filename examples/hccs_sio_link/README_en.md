@@ -70,6 +70,8 @@ Build output: `build/bin/hccs_sio_link`
 
 This tool is started using the `run.sh` script. The script starts a background process for each PE, and communication between PEs is established through SHMEM initialization.
 
+> **Running the binary directly**: In performance test modes, `run.sh` creates the `output` directory automatically. If you bypass the script and run `build/bin/hccs_sio_link` directly, first run `mkdir -p output` in the process working directory; otherwise, the performance CSV files cannot be written.
+
 ### Run Command
 
 ```bash
