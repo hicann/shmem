@@ -22,7 +22,6 @@
 #include "utils/shmemi_logger.h"
 
 const std::string DRIVER_VER_V5_BEGIN = "V100R001C10B001"; // hdk26.0.0
-const std::string DRIVER_VER_V5_END = "V100R001C14B999";
 const std::string DRIVER_VER_V4 = "V100R001C23SPC005B219"; // hdk25.5.0
 const std::string DRIVER_VER_V3 = "V100R001C21B035";
 const std::string DRIVER_VER_V2 = "V100R001C19SPC109B220";
@@ -217,14 +216,20 @@ std::string CastDriverVersion(const std::string& driverEnv)
     std::string driverVersionPath = GetDriverVersionPath(driverEnv, "/driver/lib64");
     if (!driverVersionPath.empty()) {
         driverVersionPath += "/driver/version.info";
-        std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
-        return driverVersion;
     } else {
         SHM_LOG_WARN("cannot found version file in :" << driverEnv << ", try local default path.");
         driverVersionPath = "/usr/local/Ascend/driver/version.info"; // try default path
-        std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
-        return driverVersion;
     }
+
+    std::string driverVersion = LoadDriverVersionInfoFile(driverVersionPath, "Innerversion=");
+    std::string version = LoadDriverVersionInfoFile(driverVersionPath, "Version=");
+    if (!driverVersion.empty()) {
+        SHM_LOG_INFO("Ascend driver Innerversion=" << driverVersion);
+    }
+    if (!version.empty()) {
+        SHM_LOG_INFO("Ascend driver Version=" << version);
+    }
+    return driverVersion;
 }
 
 int32_t GetValueFromVersion(const std::string& ver, std::string key)
@@ -250,15 +255,8 @@ int32_t GetValueFromVersion(const std::string& ver, std::string key)
     return val;
 }
 
-static bool DriverVersionCheck(const std::string& ver)
+static bool DriverVersionCheck(const std::string& ver, const std::string& readVer)
 {
-    auto libPath = std::getenv("LD_LIBRARY_PATH");
-    if (libPath == nullptr) {
-        SHM_LOG_ERROR("check driver version failed, Environment LD_LIBRARY_PATH not set.");
-        return false;
-    }
-
-    std::string readVer = CastDriverVersion(libPath);
     if (readVer.empty()) {
         SHM_LOG_WARN("Read version is empty; inner package skipped, defaulting to the latest version.");
         return true;
@@ -267,21 +265,21 @@ static bool DriverVersionCheck(const std::string& ver)
     int32_t baseVal = GetValueFromVersion(ver, "V");
     int32_t readVal = GetValueFromVersion(readVer, "V");
     if (baseVal == -1 || readVal == -1 || baseVal != readVal) {
-        SHM_LOG_INFO("driver version mismatch detected, V Version not equal");
+        SHM_LOG_INFO("check driver version failed, V Version not equal");
         return false;
     }
 
     baseVal = GetValueFromVersion(ver, "R");
     readVal = GetValueFromVersion(readVer, "R");
     if (baseVal == -1 || readVal == -1 || baseVal != readVal) {
-        SHM_LOG_INFO("driver version mismatch detected, R Release not equal");
+        SHM_LOG_INFO("check driver version failed, R Release not equal");
         return false;
     }
 
     baseVal = GetValueFromVersion(ver, "C");
     readVal = GetValueFromVersion(readVer, "C");
     if (baseVal == -1 || readVal == -1 || readVal < baseVal) {
-        SHM_LOG_INFO("driver version mismatch detected, C Customer is too low");
+        SHM_LOG_INFO("check driver version failed, C Customer is too low");
         return false;
     }
     if (readVal > baseVal) {
@@ -307,7 +305,7 @@ static bool DriverVersionCheck(const std::string& ver)
     baseVal = GetValueFromVersion(ver, "B");
     readVal = GetValueFromVersion(readVer, "B");
     if (baseVal == -1 || readVal == -1 || readVal < baseVal) {
-        SHM_LOG_INFO("driver version mismatch detected, B Build is too low");
+        SHM_LOG_INFO("check driver version failed, B Build is too low");
         return false;
     }
     return true;
@@ -315,32 +313,49 @@ static bool DriverVersionCheck(const std::string& ver)
 
 int32_t HalGvaPrecheck(void)
 {
-    if (!DriverVersionCheck(DRIVER_VER_V5_END) && DriverVersionCheck(DRIVER_VER_V5_BEGIN)) {
-        SHM_LOG_INFO("Driver version V5 found, compatible with V4");
+    const char* libPath = std::getenv("LD_LIBRARY_PATH");
+    if (libPath == nullptr) {
+        SHM_LOG_ERROR("check driver version failed, Environment LD_LIBRARY_PATH not set.");
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    const std::string readVer = CastDriverVersion(libPath);
+    auto checkVersion = [&readVer](const std::string& requiredVersion) {
+        return DriverVersionCheck(requiredVersion, readVer);
+    };
+
+    if (checkVersion(DRIVER_VER_V4)) {
+        SHM_LOG_INFO("Driver version meets the V4 or newer compatibility threshold; using GVA V4");
         checkVer = HYBM_GVA_V4;
         return ACLSHMEM_SUCCESS;
     }
-    if (DriverVersionCheck(DRIVER_VER_V4)) {
-        SHM_LOG_INFO("Driver version V4 found");
-        checkVer = HYBM_GVA_V4;
-        return ACLSHMEM_SUCCESS;
-    }
-    if (DriverVersionCheck(DRIVER_VER_V3)) {
-        SHM_LOG_INFO("Driver version V3 found");
+
+    if (checkVersion(DRIVER_VER_V3)) {
+        SHM_LOG_INFO("Driver version meets the V3 compatibility threshold and is below V4; using GVA V3");
         checkVer = HYBM_GVA_V3;
         return ACLSHMEM_SUCCESS;
     }
-    if (DriverVersionCheck(DRIVER_VER_V2)) {
-        SHM_LOG_INFO("Driver version V2 found");
+
+    if (checkVersion(DRIVER_VER_V2)) {
+        SHM_LOG_INFO("Driver version meets the V2 compatibility threshold and is below V3; using GVA V2");
         checkVer = HYBM_GVA_V2;
         return ACLSHMEM_SUCCESS;
     }
-    if (DriverVersionCheck(DRIVER_VER_V1)) {
-        SHM_LOG_INFO("Driver version V1 found");
+
+    if (checkVersion(DRIVER_VER_V1)) {
+        SHM_LOG_INFO("Driver version meets the V1 compatibility threshold and is below V2; using GVA V1");
         checkVer = HYBM_GVA_V1;
         return ACLSHMEM_SUCCESS;
     }
 
-    SHM_LOG_ERROR("Failed to determine driver version");
-    return ACLSHMEM_INNER_ERROR;
+    if (checkVersion(DRIVER_VER_V5_BEGIN)) {
+        SHM_LOG_INFO("Driver version is outside the known V1-V4 thresholds but meets the V5 compatibility minimum; "
+                     "using GVA V4");
+        checkVer = HYBM_GVA_V4;
+        return ACLSHMEM_SUCCESS;
+    }
+
+    SHM_LOG_WARN("Unable to determine a supported driver version; defaulting to GVA V4 compatibility mode");
+    checkVer = HYBM_GVA_V4;
+    return ACLSHMEM_SUCCESS;
 }

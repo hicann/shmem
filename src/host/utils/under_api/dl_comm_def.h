@@ -96,7 +96,7 @@ HybmGvaVersion HybmGetGvaVersion();
 std::string GetCannVersion();
 bool CannVersionCheck(const std::string& requiredVer);
 
-static bool DriverVersionCheck(const std::string& ver);
+static bool DriverVersionCheck(const std::string& ver, const std::string& readVer);
 
 int32_t HalGvaPrecheck(void);
 
