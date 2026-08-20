@@ -142,6 +142,37 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutTest(
 
 void test_udma_put(uint32_t block_dim, void* stream, uint8_t* gva) { UDMAPutTest<<<block_dim, nullptr, stream>>>(gva); }
 
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAOpConfigPutGetTest(GM_ADDR gva)
+{
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+    __ubuf__ uint8_t* ub_ptr = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        GM_ADDR src_addr = gva + rank * MESSAGE_SIZE;
+        aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_SO>(
+            src_addr, src_addr, ub_ptr, MESSAGE_SIZE, peer, 0);
+        aclshmemx_udma_quiet(peer);
+
+        GM_ADDR dest_addr = gva + peer * MESSAGE_SIZE;
+        aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_SO>(
+            dest_addr, dest_addr, ub_ptr, MESSAGE_SIZE, peer, 0);
+        aclshmemx_udma_quiet(peer);
+    }
+}
+
+void test_udma_op_config_put_get(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAOpConfigPutGetTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
 extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAHighLevelLocalRmaTest(
     GM_ADDR symmetric, uint64_t config)
 {
@@ -252,6 +283,57 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAPutActio
 void test_udma_put_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva)
 {
     UDMAPutActionTensorTest<<<block_dim, nullptr, stream>>>(gva);
+}
+
+extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void UDMAOpConfigActionPointerTest(GM_ADDR gva)
+{
+    AscendC::TPipe pipe;
+    AscendC::TBuf<AscendC::TPosition::VECOUT> buf;
+    pipe.InitBuffer(buf, UDMA_ACTION_UB_SIZE);
+    AscendC::LocalTensor<uint8_t> ubLocal = buf.GetWithOffset<uint8_t>(UDMA_ACTION_UB_SIZE, 0);
+    __ubuf__ uint8_t* ub_ptr = (__ubuf__ uint8_t*)ubLocal.GetPhyAddr();
+
+    int64_t rank = aclshmem_my_pe();
+    int64_t rank_size = aclshmem_n_pes();
+    for (int64_t peer = 0; peer < rank_size; peer++) {
+        if (peer == rank) {
+            continue;
+        }
+        aclshmemx_submit_state_t put_state{};
+        aclshmemx_defer_t put_defer(put_state);
+        aclshmemx_submit_t put_submit(put_state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR src_addr = get_udma_action_slot(gva, rank, i);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_SO>(
+                    src_addr, src_addr, ub_ptr, MESSAGE_SIZE, peer, 0, put_submit);
+            } else {
+                aclshmemx_udma_put_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>(
+                    src_addr, src_addr, ub_ptr, MESSAGE_SIZE, peer, 0, put_defer);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+
+        aclshmemx_submit_state_t get_state{};
+        aclshmemx_defer_t get_defer(get_state);
+        aclshmemx_submit_t get_submit(get_state);
+        for (uint32_t i = 0; i < UDMA_ACTION_BATCH_COUNT; ++i) {
+            GM_ADDR dest_addr = get_udma_action_slot(gva, peer, i);
+            if (i + 1 == UDMA_ACTION_BATCH_COUNT) {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_SO>(
+                    dest_addr, dest_addr, ub_ptr, MESSAGE_SIZE, peer, 0, get_submit);
+            } else {
+                aclshmemx_udma_get_nbi<uint8_t, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>(
+                    dest_addr, dest_addr, ub_ptr, MESSAGE_SIZE, peer, 0, get_defer);
+            }
+        }
+        aclshmemx_udma_quiet(peer);
+    }
+}
+
+void test_udma_op_config_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva)
+{
+    UDMAOpConfigActionPointerTest<<<block_dim, nullptr, stream>>>(gva);
 }
 
 #ifdef ACLSHMEM_RELAY_SUPPORT

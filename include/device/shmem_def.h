@@ -49,9 +49,9 @@ struct non_contiguous_copy_param {
  * @brief State shared by aclshmemx_defer_t and aclshmemx_submit_t actions in one active batch.
  *
  * Value-initialize the object as aclshmemx_submit_state_t state{} before the first operation.
- * The library maintains pending_count and resets it to zero after a successful submit; callers
- * must not modify the fields directly. Use one state object for only one active batch, and keep
- * it alive until every action that references it is no longer used.
+ * The library maintains pending_count and resets it to zero after a successful submit; callers must not modify the
+ * field directly. Use one state object for only one active batch, and keep it alive until every action that references
+ * it is no longer used.
  *
  * @note If submit validation or completion polling fails, the calling device kernel is aborted
  *       and pending_count is not reset.

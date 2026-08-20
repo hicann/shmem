@@ -46,7 +46,7 @@ struct aclshmemi_udma_exception_report_wq_t {
     int32_t db_mode;
     uint64_t db_addr;
     uint32_t sl;
-    uint32_t wqe_cnt;
+    uint32_t cqe_cnt;
     uint64_t amo_addr;
 };
 

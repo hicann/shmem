@@ -88,7 +88,7 @@ ACLSHMEM_DEVICE bool aclshmemi_udma_exception_report_read_wq(
     out->wq.db_mode = static_cast<int32_t>(wq->db_mode);
     out->wq.db_addr = wq->db_addr;
     out->wq.sl = wq->sl;
-    out->wq.wqe_cnt = wq->wqe_cnt;
+    out->wq.cqe_cnt = wq->cqe_cnt;
     out->wq.amo_addr = wq->amo_addr;
     return true;
 }

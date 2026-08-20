@@ -45,7 +45,7 @@ struct aclshmemi_udma_wq_ctx_t {
     aclshmemi_udma_db_mode_t db_mode;
     uint64_t db_addr;  // doorbell address
     uint32_t sl;       // service level
-    uint32_t wqe_cnt;  // wqe count
+    uint32_t cqe_cnt;  // CQE count
     uint64_t amo_addr; // amo address to store fetch data
 };
 

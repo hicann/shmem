@@ -808,7 +808,7 @@ void UdmaTransportManager::FillWqCtx(
     dst_wq.db_mode = aclshmemi_udma_db_mode_t::SW_DB;
     dst_wq.db_addr = ubJfs.dbVa;
     dst_wq.sl = 0;
-    dst_wq.wqe_cnt = 0;
+    dst_wq.cqe_cnt = 0;
     // amo scratch is per actual destination pe (the data plane reads it from the direct slot).
     dst_wq.amo_addr = reinterpret_cast<uint64_t>(amo_dev_list_[dst_pe]);
 }
@@ -868,7 +868,7 @@ void UdmaTransportManager::PrintHostUdmaInfo(const aclshmemi_aiv_udma_info_t& ho
                 "rank[" << rank_id_ << "] slot[" << slot << "] qp[" << qp_idx << "] WQCtx.buf_addr: " << wq.buf_addr
                         << ", wqe_size: " << wq.wqe_size << ", depth: " << wq.depth << ", head: " << wq.head
                         << ", tail: " << wq.tail << ", db_mode: " << static_cast<int>(wq.db_mode)
-                        << ", db_addr: " << wq.db_addr << ", sl: " << wq.sl << ", wqe_cnt: " << wq.wqe_cnt
+                        << ", db_addr: " << wq.db_addr << ", sl: " << wq.sl << ", cqe_cnt: " << wq.cqe_cnt
                         << ", amo_addr: " << wq.amo_addr);
             SHM_LOG_DEBUG(
                 "rank[" << rank_id_ << "] slot[" << slot << "] qp[" << qp_idx << "] CQCtx.cqn: " << cq.cqn

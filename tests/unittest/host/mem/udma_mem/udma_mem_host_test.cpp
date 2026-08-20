@@ -206,10 +206,21 @@ static void test_udma_put_get(aclrtStream stream, uint8_t* gva, uint32_t rank_id
         ASSERT_EQ(outHost[i * messageSize / sizeof(uint32_t)], i + rankOffset);
     }
 
+    ASSERT_EQ(aclrtMemcpy(gva, totalSize, inHost, totalSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    aclshmemi_control_barrier_all();
+    test_udma_op_config_put_get(block_dim, stream, (uint8_t*)gva);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+    aclshmemi_control_barrier_all();
+    ASSERT_EQ(aclrtMemcpy(outHost, totalSize, gva, totalSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    for (uint32_t i = 0; i < rank_size; i++) {
+        ASSERT_EQ(outHost[i * messageSize / sizeof(uint32_t)], i + rankOffset);
+    }
+
     run_udma_action_test(stream, gva, rank_id, rank_size, test_udma_put_action_pointer);
     run_udma_action_test(stream, gva, rank_id, rank_size, test_udma_put_action_tensor);
     run_udma_action_test(stream, gva, rank_id, rank_size, test_udma_get_action_pointer);
     run_udma_action_test(stream, gva, rank_id, rank_size, test_udma_get_action_tensor);
+    run_udma_action_test(stream, gva, rank_id, rank_size, test_udma_op_config_action_pointer);
 
     // Test udma put signal
     uint8_t* sig_addr = static_cast<uint8_t*>(aclshmem_malloc(rank_size * sizeof(uint64_t)));

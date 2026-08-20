@@ -14,10 +14,12 @@
 
 void test_udma_put(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_get(uint32_t block_dim, void* stream, uint8_t* gva);
+void test_udma_op_config_put_get(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_put_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_put_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_get_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_get_action_tensor(uint32_t block_dim, void* stream, uint8_t* gva);
+void test_udma_op_config_action_pointer(uint32_t block_dim, void* stream, uint8_t* gva);
 void test_udma_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);
 void test_udma_highlevel_put_signal(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);
 void test_udma_highlevel_put_signal_sync(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* sig_addr);

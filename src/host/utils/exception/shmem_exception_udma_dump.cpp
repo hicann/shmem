@@ -262,7 +262,7 @@ int aclshmemi_udma_exception_report_read_wq_ctx(
     wq.db_mode = static_cast<aclshmemi_udma_db_mode_t>(entry.wq.db_mode);
     wq.db_addr = entry.wq.db_addr;
     wq.sl = entry.wq.sl;
-    wq.wqe_cnt = entry.wq.wqe_cnt;
+    wq.cqe_cnt = entry.wq.cqe_cnt;
     wq.amo_addr = entry.wq.amo_addr;
     return ACLSHMEM_SUCCESS;
 }
@@ -383,7 +383,7 @@ void aclshmemi_exception_report_log_wqe_unavailable(
     SHM_LOG_ERROR(
         "[EXCEPTION][UDMA " << queue_name << " WQE DETAIL] unavailable " << aclshmemi_exception_report_slot_text(label)
                             << " qp=" << qp_idx << " reason=" << reason << " head=" << wq.head << " tail=" << wq.tail
-                            << " depth=" << wq.depth << " wqeSize=" << wq.wqe_size << " wqeCnt=" << wq.wqe_cnt
+                            << " depth=" << wq.depth << " wqeSize=" << wq.wqe_size << " cqeCnt=" << wq.cqe_cnt
                             << " bufAddr=0x" << std::hex << wq.buf_addr << std::dec);
 }
 
@@ -589,7 +589,7 @@ int aclshmemi_exception_report_dump_udma(bool detail_enabled)
             std::ostringstream qp_log;
             qp_log << "[EXCEPTION][UDMA QP] " << aclshmemi_exception_report_slot_text(label) << " qp=" << qp_idx
                    << " cqPi=" << cq.head << " cqCi=" << cq.tail << " wqPi=" << wq.head << " wqCi=" << wq.tail
-                   << " wqeCnt=" << wq.wqe_cnt;
+                   << " cqeCnt=" << wq.cqe_cnt;
             if (detail_enabled) {
                 qp_log << " cqRealtimeRead=" << cq_realtime_read << " sqRealtimeRead=" << sq_realtime_read
                        << " rqRealtimeRead=" << rq_realtime_read;

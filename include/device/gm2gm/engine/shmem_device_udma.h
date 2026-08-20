@@ -18,6 +18,43 @@
 #include "device/shmem_def.h"
 #include "host_device/shmem_common_types.h"
 
+typedef struct {
+    uint32_t cqe;   ///< Completion queue event enable. Valid values: 0 or 1.
+    uint32_t se;    ///< Solicited event enable. Reserved, must be 0 until supported.
+    uint32_t fence; ///< Fence enable. Valid values: 0 or 1.
+    uint32_t odr;   ///< Ordering domain restriction. Valid values: 0..7.
+} aclshmemx_udma_op_config_t;
+
+inline constexpr uint32_t ACLSHMEMX_UDMA_ODR_NO = 0b000U;
+inline constexpr uint32_t ACLSHMEMX_UDMA_ODR_RO = 0b101U;
+inline constexpr uint32_t ACLSHMEMX_UDMA_ODR_SO = 0b110U;
+inline constexpr aclshmemx_udma_op_config_t ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT{1U, 0U, 0U, ACLSHMEMX_UDMA_ODR_NO};
+inline constexpr aclshmemx_udma_op_config_t ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE{0U, 0U, 0U, ACLSHMEMX_UDMA_ODR_NO};
+inline constexpr aclshmemx_udma_op_config_t ACLSHMEMX_UDMA_OP_CONFIG_SO{1U, 0U, 0U, ACLSHMEMX_UDMA_ODR_SO};
+inline constexpr aclshmemx_udma_op_config_t ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT{1U, 0U, 0U, ACLSHMEMX_UDMA_ODR_NO};
+
+/**
+ * @anchor udma_op_config_contract
+ * @par UDMA op config contract
+ * - CONFIG must have static storage duration because it is passed as a C++17 non-type template parameter by reference.
+ * - CONFIG.cqe must be 0 or 1. Immediate NBI, atomic, and aggregate submit operations require CONFIG.cqe=1; aggregate
+ *   defer operations require CONFIG.cqe=0.
+ * - CONFIG.se is reserved and must be 0 until supported.
+ * - CONFIG.fence must be 0 or 1. The fence bit is written to the WQE as-is.
+ * - CONFIG.odr selects the WQE ordering domain. No Order (NO) is 0b000, Relax Order (RO) is 0b101, and Strong Order
+ *   (SO) is 0b110.
+ * - ACLSHMEMX_UDMA_OP_CONFIG_SO publishes a Strong Order WQE. It is used on the later ordering point, such as an
+ *   atomic flag update after one or more UDMA Put operations to the same PE/QP, and ensures preceding Relax Order or
+ *   Strong Order WQEs complete before the Strong Order WQE is executed. No Order WQEs are not covered by this ordering
+ *   guarantee.
+ *
+ * Example for data-then-flag ordering:
+ * @code
+ * aclshmemx_udma_put_nbi<T, PIPE_MTE3, ACLSHMEMX_UDMA_OP_CONFIG_SO>(dst, src, buf, elem_size, pe, sync_id);
+ * aclshmemx_udma_atomic_add<uint32_t, ACLSHMEMX_UDMA_OP_CONFIG_SO>(flag, 1U, pe);
+ * @endcode
+ */
+
 /**
  * @anchor udma_submit_action_contract
  * @par UDMA submit action contract
@@ -26,14 +63,18 @@
  * - Action overloads support PIPE_MTE3 only.
  * - Use one initialized @ref aclshmemx_submit_state_t for one active batch.
  * - Every call in a batch must use the same operation kind, state, PE arguments, buf base, and sync_id.
+ * - Immediate non-aggregate UDMA NBI calls require CONFIG.cqe=1.
+ * - Defer calls require CONFIG.cqe=0 and default to ODR=NO. The submit call requires CONFIG.cqe=1 and defaults to
+ *   ODR=NO to add the completion checkpoint covering the batch.
+ * - UDMA op config defaults to the NO ordering domain. Pass an explicit CONFIG when RO or SO ordering is required.
  * - For QP-specific overloads, all defer and submit calls in one aggregate batch must use the same qp_idx;
  *   if they differ, the qp_idx passed to the submit call is used.
  * - n is the total number of operations in the batch, including the final submit call. The batch must be
  *   smaller than the SQ ring depth.
  * - @p buf is caller-provided UB scratch. Its capacity must be at least 64 * n bytes and must not exceed the
  *   caller's available UB capacity; split larger batches into multiple submit batches.
- * - The submit call contributes one operation to n, submits all pending operations, and resets pending_count
- *   after a successful submit.
+ * - The submit call contributes one operation to n, submits all pending operations, and resets pending_count after a
+ *   successful submit.
  * - On a submit failure, the calling device kernel is aborted and the submit state is not reset.
  * - After submit, call @ref aclshmemx_udma_quiet for the target PE before consuming Get destinations or reusing
  *   Put sources whose contents must remain stable.
@@ -66,7 +107,9 @@
  * @param pe                [in] Target PE that owns src.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id = 0);
 
@@ -85,7 +128,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -105,7 +149,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -123,7 +169,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param pe                [in] Target PE that owns src.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id = 0);
@@ -143,7 +191,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action);
@@ -163,7 +212,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action);
@@ -197,7 +248,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_get_nbi(
  * @param pe                [in] Target PE that owns dst.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id = 0);
 
@@ -217,7 +270,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -237,7 +291,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -256,7 +312,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param pe                [in] Target PE that owns dst.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id);
@@ -278,7 +336,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_defer_t action);
@@ -299,7 +358,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t sync_id, aclshmemx_submit_t action);
@@ -324,7 +385,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_nbi(
  * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
 
@@ -333,7 +396,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
  * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action and call
  *          aclshmemx_udma_qp_quiet(pe, qp_idx) before reading @p dst.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -343,7 +407,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
  * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_qp_quiet(pe, qp_idx) before
  *          reading @p dst.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -365,17 +431,22 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
  * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
 
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
 
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
@@ -399,7 +470,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_get_nbi(
  * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
 
@@ -408,7 +481,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
  * @details See @ref udma_submit_action_contract. Finish the batch with an aclshmemx_submit_t action and call
  *          aclshmemx_udma_qp_quiet(pe, qp_idx) before reusing @p src or relying on remote visibility.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -418,7 +492,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
  * @details See @ref udma_submit_action_contract. After submit, call aclshmemx_udma_qp_quiet(pe, qp_idx) before
  *          reusing @p src or relying on remote visibility.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -442,17 +518,22 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
  * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id = 0);
 
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
 
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
@@ -502,7 +583,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_nbi(
  *                               PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S. Defaults to 0 for
  *                               backward compatibility with existing callers.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
 
@@ -524,7 +607,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -546,7 +630,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -576,7 +662,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param sync_id           [in] Hardware event ID used by the MTE3->S sync in the PIPE_MTE3 path.
  *                               Ignored when WQE_PIPE == PIPE_S. Defaults to 0.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
@@ -599,7 +687,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action);
@@ -621,7 +710,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action);
@@ -660,7 +751,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_put_nbi(
  * @param sync_id           [in] Hardware event ID used by the MTE3->S sync in the PIPE_MTE3 path.
  *                               Ignored when WQE_PIPE == PIPE_S. Defaults to 0.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
 
@@ -681,7 +774,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
     aclshmemx_defer_t action);
@@ -702,7 +796,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id,
     aclshmemx_submit_t action);
@@ -732,7 +828,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param sync_id           [in] Hardware event ID used by the MTE3->S sync in the PIPE_MTE3 path.
  *                               Ignored when WQE_PIPE == PIPE_S. Defaults to 0.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id = 0);
@@ -754,7 +852,8 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param action            [in] aclshmemx_defer_t action referencing the batch's initialized
  *                          aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_NO_CQE>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_defer_t action);
@@ -775,7 +874,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param sync_id           [in] Hardware event ID used for MTE3 pipeline synchronization.
  * @param action            [in] aclshmemx_submit_t action referencing the same aclshmemx_submit_state_t.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_SUBMIT_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
     const AscendC::GlobalTensor<T>& dst, const AscendC::GlobalTensor<T>& src, const AscendC::LocalTensor<T>& buf,
     uint32_t elem_size, int pe, int relay_pe, uint32_t sync_id, aclshmemx_submit_t action);
@@ -811,7 +912,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_relay_get_nbi(
  * @param signal              [in] The value used to update sig_addr.
  * @param pe                  [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
     __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe);
 
@@ -850,7 +951,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
  *                                 DataCopyPad in the PIPE_MTE3 path. Ignored when
  *                                 WQE_PIPE == PIPE_S. Defaults to 0.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
     __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
     __ubuf__ uint8_t* buf, uint32_t sync_id = 0);
@@ -872,7 +975,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_put_signal_nbi(
  * @param pe                [in] Target PE that owns dst and sig_addr.
  * @param qp_idx            [in] QP index selected for this operation. Must be in the configured QP range.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
     __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
     uint32_t qp_idx);
@@ -897,7 +1000,9 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
  *                          ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE bytes. Ignored when WQE_PIPE == PIPE_S.
  * @param sync_id           [in] Hardware event ID used by the PIPE_MTE3 path. Ignored when WQE_PIPE == PIPE_S.
  */
-template <typename T, pipe_t WQE_PIPE = PIPE_MTE3>
+template <
+    typename T, pipe_t WQE_PIPE = PIPE_MTE3,
+    const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_qp_put_signal_nbi(
     __gm__ T* dst, __gm__ T* src, uint32_t elem_size, __gm__ uint64_t* sig_addr, uint64_t signal, int pe,
     uint32_t qp_idx, __ubuf__ uint8_t* buf, uint32_t sync_id = 0);
@@ -930,7 +1035,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_qp_quiet(int pe, uint32_t qp_idx);
  * @param value             [in] Operand of atomic add
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_add(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -944,7 +1049,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_add(__gm__ T* dst, T value, int32_t p
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous content of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_add(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -961,7 +1066,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_add(__gm__ T* dst, T value, int32_
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous content of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_compare_swap(__gm__ T* dst, T cond, T value, int32_t pe);
 
 /**
@@ -974,7 +1079,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_compare_swap(__gm__ T* dst, T cond, T va
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch(__gm__ T* dst, int32_t pe);
 
 /**
@@ -987,7 +1092,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch(__gm__ T* dst, int32_t pe);
  * @param value             [in] Value to be atomically written to the remote PE.
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_set(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1001,7 +1106,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_set(__gm__ T* dst, T value, int32_t p
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_swap(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1014,7 +1119,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_swap(__gm__ T* dst, T value, int32_t pe)
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_inc(__gm__ T* dst, int32_t pe);
 
 /**
@@ -1026,7 +1131,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_inc(__gm__ T* dst, int32_t pe);
  * @param dst               [in] Pointer on local device of the destination data.
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_inc(__gm__ T* dst, int32_t pe);
 
 /**
@@ -1041,7 +1146,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_inc(__gm__ T* dst, int32_t pe);
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_and(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1055,7 +1160,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_and(__gm__ T* dst, T value, int32_
  * @param value             [in] Operand of bitwise AND operation.
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_and(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1070,7 +1175,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_and(__gm__ T* dst, T value, int32_t p
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_or(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1084,7 +1189,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_or(__gm__ T* dst, T value, int32_t
  * @param value             [in] Operand of bitwise OR operation.
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_or(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1099,7 +1204,7 @@ ACLSHMEM_DEVICE void aclshmemx_udma_atomic_or(__gm__ T* dst, T value, int32_t pe
  * @param pe                [in] PE number of the remote PE.
  * @return                  Return the previous contents of dst.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_xor(__gm__ T* dst, T value, int32_t pe);
 
 /**
@@ -1113,7 +1218,7 @@ ACLSHMEM_DEVICE T aclshmemx_udma_atomic_fetch_xor(__gm__ T* dst, T value, int32_
  * @param value             [in] Operand of bitwise XOR operation.
  * @param pe                [in] PE number of the remote PE.
  */
-template <typename T>
+template <typename T, const aclshmemx_udma_op_config_t& CONFIG = ACLSHMEMX_UDMA_OP_CONFIG_DEFAULT>
 ACLSHMEM_DEVICE void aclshmemx_udma_atomic_xor(__gm__ T* dst, T value, int32_t pe);
 
 #include "gm2gm/engine/shmem_device_udma.hpp" // IWYU pragma: keep
