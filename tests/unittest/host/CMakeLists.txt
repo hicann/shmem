@@ -17,7 +17,7 @@ if(NOT SOC_TYPE STREQUAL "Ascend950")
 endif()
 if(NOT SOC_TYPE STREQUAL "Ascend950")
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo")
-else()
+elseif(NOT ACLSHMEM_RDMA_SUPPORT)
     list(FILTER ACLSHMEM_HOST_FILES EXCLUDE REGEX "host/transport/topo/rootinfo/aclshmemi_hal")
 endif()
 if(NOT (ACLSHMEM_RDMA_SUPPORT AND SOC_TYPE STREQUAL "Ascend950"))
@@ -32,10 +32,13 @@ else()
 endif()
 
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
+file(GLOB_RECURSE TOPO_TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/topo/*_test.cpp")
 if(NOT SOC_TYPE STREQUAL "Ascend950")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "init/user_buffer_heap_test[.]cpp$")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "topo/")
     list(FILTER TEST_HOST_FILES EXCLUDE REGEX "transport/device_udma/")
+elseif(ACLSHMEM_RDMA_SUPPORT)
+    list(FILTER TEST_HOST_FILES EXCLUDE REGEX "topo/")
 endif()
 file(GLOB_RECURSE CONFIG_STORE_FILES ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/*.cpp)
 file(GLOB_RECURSE UNDER_API_FILES ${PROJECT_SOURCE_DIR}/src/host/utils/under_api/*.cpp)
@@ -62,7 +65,7 @@ int main()
 set(CMAKE_REQUIRED_INCLUDES "${_ACLSHMEM_SAVED_CMAKE_REQUIRED_INCLUDES}")
 unset(_ACLSHMEM_SAVED_CMAKE_REQUIRED_INCLUDES)
 
-if(SOC_TYPE STREQUAL "Ascend950")
+if(SOC_TYPE STREQUAL "Ascend950" AND NOT ACLSHMEM_RDMA_SUPPORT)
     file(GLOB_RECURSE TOPO_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/host/transport/topo/*.cpp)
     list(FILTER TOPO_SOURCE_FILES EXCLUDE REGEX "root_info_generate")
     list(FILTER TOPO_SOURCE_FILES EXCLUDE REGEX "aclshmemi_hal")
@@ -70,6 +73,49 @@ if(SOC_TYPE STREQUAL "Ascend950")
 else()
     set(TOPO_SOURCE_FILES "")
     set(MOCK_TOPO_FILES "")
+endif()
+
+if(SOC_TYPE STREQUAL "Ascend950" AND ACLSHMEM_RDMA_SUPPORT)
+    file(GLOB_RECURSE RDMA_TOPO_SOURCE_FILES ${PROJECT_SOURCE_DIR}/src/host/transport/topo/*.cpp)
+    list(FILTER RDMA_TOPO_SOURCE_FILES EXCLUDE REGEX "root_info_generate")
+    list(FILTER RDMA_TOPO_SOURCE_FILES EXCLUDE REGEX "aclshmemi_hal")
+    add_executable(
+        aclshmem_rdma_topo_unittest
+        ${TOPO_TEST_HOST_FILES}
+        ${RDMA_TOPO_SOURCE_FILES}
+        ${UNDER_API_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/topo/mock_hal.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/topo/topo_test_main.cpp)
+    target_compile_options(aclshmem_rdma_topo_unittest PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS} -g -fprofile-arcs -ftest-coverage)
+    target_include_directories(aclshmem_rdma_topo_unittest PRIVATE
+        ${PROJECT_SOURCE_DIR}/include/
+        ${PROJECT_SOURCE_DIR}/src/host
+        ${PROJECT_SOURCE_DIR}/src/device
+        ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include
+        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+        ${PROJECT_SOURCE_DIR}/tests/unittest/
+        ${PROJECT_SOURCE_DIR}/tests/unittest/include
+        ${PROJECT_SOURCE_DIR}/tests/unittest/include/unittest/utils/
+        ${PROJECT_SOURCE_DIR}/src/host/entity
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver
+        ${PROJECT_SOURCE_DIR}/src/host/mem/heap/driver/userspace
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/include
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/common
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/security
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api
+        ${PROJECT_SOURCE_DIR}/src/host/bootstrap/config_store/acc_links/csrc/under_api/openssl
+        ${PROJECT_SOURCE_DIR}/src/host/utils
+        ${PROJECT_SOURCE_DIR}/src/host/utils/under_api
+        ${PROJECT_SOURCE_DIR}/src/host/transport
+        ${PROJECT_SOURCE_DIR}/src/host/transport/device_rdma
+        ${PROJECT_SOURCE_DIR}/src/host/transport/device_sdma
+        ${PROJECT_SOURCE_DIR}/src/host/transport/device_udma
+        ${PROJECT_SOURCE_DIR}/src/host/transport/topo/rootinfo)
+    target_link_directories(aclshmem_rdma_topo_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/lib)
+    target_link_libraries(aclshmem_rdma_topo_unittest PRIVATE gtest gmock gcov shmem_utils)
 endif()
 
 add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FILES} ${CONFIG_STORE_FILES} ${TOPO_SOURCE_FILES} ${UNDER_API_FILES} ${MOCK_TOPO_FILES})

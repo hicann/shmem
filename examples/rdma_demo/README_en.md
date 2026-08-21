@@ -2,6 +2,10 @@
 
 - Before running this example, ensure that the RDMA environment is available (the RDMA NIC and driver have been correctly installed and configured).
 
+### Ascend950 CANN Version Requirement
+
+RDMA examples on Ascend950 require the **CANN 9.1.0** package. Other versions are not currently supported by these examples. Download the corresponding package from the [CANN 9.1.0 resources](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.1.0).
+
 ### Checking the RDMA Environment
 ```bash
 lspci | grep -i RDMA

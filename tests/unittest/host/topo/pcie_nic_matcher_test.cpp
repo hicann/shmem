@@ -34,7 +34,7 @@ TEST_F(PcieNicMatcherTest, IsPixTopoSamePrefixReturnsTrue)
 TEST_F(PcieNicMatcherTest, IsPixTopoDifferentPrefixReturnsFalse)
 {
     const char* path_a = "/sys/devices/pci0000:80/0000:80:01.0/0000:81:00.0";
-    const char* path_b = "/sys/devices/pci0000:80/0000:80:02.0/0000:82:00.0";
+    const char* path_b = "/sys/devices/pci0000:80/0000:81:02.0/0000:82:00.0";
     // Different switches and lspci not available in unit test → false
     EXPECT_FALSE(is_pix_topo(path_a, path_b));
 }

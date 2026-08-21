@@ -17,5 +17,9 @@ void test_rdma_roce_qp_put_nbi_raw_do(uint32_t block_dim, void* stream, uint8_t*
 void test_rdma_roce_qp_get_nbi_raw_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
 void test_rdma_roce_qp_put_nbi_tensor_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
 void test_rdma_roce_qp_get_nbi_tensor_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
+void test_rdma_roce_qp_put_nbi_raw_aggregate_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
+void test_rdma_roce_qp_get_nbi_raw_aggregate_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
+void test_rdma_roce_qp_put_nbi_tensor_aggregate_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
+void test_rdma_roce_qp_get_nbi_tensor_aggregate_do(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config);
 
 #endif // QP_SPECIFIC_APIS_TEST_KERNELS_H

@@ -37,6 +37,8 @@ BATCH="0"
 MAX_BATCH_SIZE="1024"
 XSCALE_AGGREGATE_CACHE_SIZE="64"
 XSCALE_AGGREGATE_ITEM_SIZE="128"
+XSCALE_MULTI_QP_AGGREGATE_THRESHOLD=$((64 * 1024))
+XSCALE_AGGREGATE_THRESHOLD_EXPONENT="16"
 PERFTEST_WARMUP_ITERS="100"
 XSCALE_DEFAULT_BATCH_SIZE="100"
 SYNC_ID="0"
@@ -142,8 +144,8 @@ while [[ $# -gt 0 ]]; do
             echo "  -e|--exponent <exponent>        数据量幂数"
             echo "  --exponent-range <min> <max>    数据量幂数范围"
             echo "  --loop-count <count>            循环次数 (默认 1000)"
-            echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐；XSCALE 聚合路径会按 batch 自动上调 (默认 192)"
-            echo "  --batch <count>                 连续发起多少次操作后等待完成；单 QP 模式下 --batch 0 自动设为 100，范围 1~1023 (默认 0)"
+            echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐；XSCALE 聚合路径会警告并自动修正到最小值 (默认 192)"
+            echo "  --batch <count>                 连续发起多少次操作后等待完成；XSCALE 聚合路径下会自动修正到可运行值 (默认 0)"
             echo "  --sync-id <id>                  显式传给 Put、Get、Quiet 的同步 ID (默认 0)"
             echo "  -q|--qp|--qp-count <num>        每个 PE 对的 QP 个数，范围 1~32；仅云脉（XSCALE）支持 (默认 1)"
             echo "  -i|--qp-index <index>           固定使用的 QP 编号；-1 表示多 QP 并行模式自动分配 (默认 -1)"
@@ -203,6 +205,11 @@ is_xscale_runtime() {
 get_xscale_required_ub_size() {
     local batch="$1"
     echo $((XSCALE_AGGREGATE_CACHE_SIZE + XSCALE_AGGREGATE_ITEM_SIZE * batch))
+}
+
+uses_xscale_aggregation() {
+    is_xscale_runtime && [[ "$METRIC" == "bw" ]] && [[ "$QP_NUM" -le "2" ]] && \
+        [[ "$MIN_EXPONENT" -lt "$XSCALE_AGGREGATE_THRESHOLD_EXPONENT" ]]
 }
 
 # 验证测试类型
@@ -277,65 +284,67 @@ if [[ "$QP_INDEX" -ge "$QP_NUM" ]]; then
     exit 1
 fi
 
+if [[ "$METRIC" == "lat" && "$QP_NUM" -gt "1" ]]; then
+    echo "错误: latency 测试不支持 qp_num > 1，请使用 --qp 1"
+    exit 1
+fi
+
 # 验证并强制 PE_SIZE
 if [[ "$PE_SIZE" != "2" ]]; then
     echo "WARN: RDMA perftest 目前强制 PE 数量为 2，忽略 -pes $PE_SIZE"
     PE_SIZE="2"
 fi
 
-if [[ "$UB_SIZE" -lt "192" || "$UB_SIZE" -gt "131136" ]]; then
-    echo "错误: UB size 必须在 192B~131136B(128.0625KB)之间"
-    exit 1
+if [[ "$UB_SIZE" -lt "192" ]]; then
+    echo "警告: --ub-size $UB_SIZE 过小，已修正为 192"
+    UB_SIZE="192"
+elif [[ "$UB_SIZE" -gt "131136" ]]; then
+    echo "警告: --ub-size $UB_SIZE 过大，已修正为 131136"
+    UB_SIZE="131136"
 fi
 
-if is_xscale_runtime && [[ "$QP_SPECIFIED" == "0" ]] && [[ "$QP_NUM" == "1" ]]; then
+if is_xscale_runtime; then
     RDMA_NIC_TYPE="XSCALE"
 
-    # 计算实际最大聚合数：warmup 路径固定 PERFTEST_WARMUP_ITERS，
-    # bw 路径按 batch 分组（每 quiet 前 batch 个 NBI），
-    # lat 路径把 loop_count 个 NBI 聚合到一次 submit（不按 batch 分组）
-    MAX_AGGREGATE_COUNT="$PERFTEST_WARMUP_ITERS"
-    if [[ "$METRIC" == "lat" ]] && [[ "$LOOP_COUNT" -gt "$MAX_AGGREGATE_COUNT" ]]; then
-        MAX_AGGREGATE_COUNT="$LOOP_COUNT"
-    fi
-    if [[ "$METRIC" == "bw" ]] && [[ "$BATCH" -ne 0 ]] && [[ "$BATCH" -gt "$MAX_AGGREGATE_COUNT" ]]; then
-        MAX_AGGREGATE_COUNT="$BATCH"
-    fi
-
-    # 聚合数不得达到 QP 队列深度上限（1024），否则聚合提交会失败
-    if [[ "$MAX_AGGREGATE_COUNT" -ge "$MAX_BATCH_SIZE" ]]; then
-        echo "错误: XSCALE 最大聚合数 $MAX_AGGREGATE_COUNT 已达到 QP 队列深度上限 $MAX_BATCH_SIZE"
-        if [[ "$METRIC" == "lat" ]]; then
-            echo "       请减小 --loop-count（当前 $LOOP_COUNT）到 $((MAX_BATCH_SIZE - 1)) 以下"
-        else
-            echo "       请减小 --batch（当前 $BATCH）到 $((MAX_BATCH_SIZE - 1)) 以下"
+    if uses_xscale_aggregation; then
+        # Normalize batch before calculating the aggregate count and required UB size.
+        if [[ "$BATCH" -eq 0 ]]; then
+            echo "提示: --batch 未指定，自动设为 $XSCALE_DEFAULT_BATCH_SIZE"
+            BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
+        elif [[ "$BATCH" -gt "$LOOP_COUNT" || "$BATCH" -ge "$MAX_BATCH_SIZE" ]]; then
+            CORRECT_BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
+            if [[ "$LOOP_COUNT" -lt "$CORRECT_BATCH" ]]; then
+                CORRECT_BATCH="$LOOP_COUNT"
+            fi
+            echo "警告: --batch 的值 $BATCH 无效（需不大于 loop-count $LOOP_COUNT 且小于 1024），已修正为 $CORRECT_BATCH"
+            BATCH="$CORRECT_BATCH"
         fi
-        exit 1
-    fi
 
-    if [[ "$BATCH" -eq 0 ]]; then
-        echo "提示: --batch 未指定，自动设为 $XSCALE_DEFAULT_BATCH_SIZE"
-        BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
-    elif [[ "$BATCH" -gt "$LOOP_COUNT" || "$BATCH" -ge "$MAX_BATCH_SIZE" ]]; then
-        echo "警告: --batch 的值 $BATCH 无效（需不大于 loop-count $LOOP_COUNT 且小于 1024），已回退为 $XSCALE_DEFAULT_BATCH_SIZE"
-        BATCH="$XSCALE_DEFAULT_BATCH_SIZE"
-    fi
+        # XSCALE bandwidth aggregation is enabled only for qp_num <= 2 and messages below 64 KiB.
+        MAX_AGGREGATE_COUNT="$PERFTEST_WARMUP_ITERS"
+        if [[ "$BATCH" -gt "$MAX_AGGREGATE_COUNT" ]]; then
+            MAX_AGGREGATE_COUNT="$BATCH"
+        fi
 
-    REQUIRED_UB_SIZE=$(get_xscale_required_ub_size "$MAX_AGGREGATE_COUNT")
-    if [[ "$UB_SIZE" -lt "$REQUIRED_UB_SIZE" ]]; then
-        if [[ "$REQUIRED_UB_SIZE" -gt "131136" ]]; then
-            echo "错误: 所需 UB 大小 ${REQUIRED_UB_SIZE}B 超过上限 131136B，请减小 --batch 或 --loop-count"
+        # 聚合数不得达到 QP 队列深度上限（1024），否则聚合提交会失败
+        if [[ "$MAX_AGGREGATE_COUNT" -ge "$MAX_BATCH_SIZE" ]]; then
+            echo "错误: XSCALE 最大聚合数 $MAX_AGGREGATE_COUNT 已达到 QP 队列深度上限 $MAX_BATCH_SIZE"
+            echo "       请减小 --batch（当前 $BATCH）到 $((MAX_BATCH_SIZE - 1)) 以下"
             exit 1
         fi
-        echo "提示: UB 大小自动从 ${UB_SIZE}B 调整为 ${REQUIRED_UB_SIZE}B"
-        UB_SIZE="$REQUIRED_UB_SIZE"
+
+        REQUIRED_UB_SIZE=$(get_xscale_required_ub_size "$MAX_AGGREGATE_COUNT")
+        if [[ "$REQUIRED_UB_SIZE" -gt "131136" ]]; then
+            echo "错误: 所需 UB 大小 ${REQUIRED_UB_SIZE}B 超过上限 131136B，请减小 --batch"
+            exit 1
+        fi
+        if [[ "$UB_SIZE" -lt "$REQUIRED_UB_SIZE" ]]; then
+            echo "警告: 聚合场景要求 --ub-size >= ${REQUIRED_UB_SIZE}B，当前为 ${UB_SIZE}B，已自动修正"
+            UB_SIZE="$REQUIRED_UB_SIZE"
+        fi
     fi
 else
-    if is_xscale_runtime; then
-        RDMA_NIC_TYPE="XSCALE (multi-QP immediate path)"
-    else
-        RDMA_NIC_TYPE="non-XSCALE or unknown"
-    fi
+    RDMA_NIC_TYPE="non-XSCALE or unknown"
 fi
 
 echo "测试类型: $TEST_TYPE"
@@ -350,6 +359,9 @@ echo "QP index: $QP_INDEX"
 echo "QP specified: $QP_SPECIFIED"
 echo "Metric: $METRIC"
 echo "RDMA NIC type: $RDMA_NIC_TYPE"
+if uses_xscale_aggregation; then
+    echo "XSCALE bandwidth aggregation: qp <= 2 and message below ${XSCALE_MULTI_QP_AGGREGATE_THRESHOLD}B"
+fi
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
 echo "FIRST_NPU: $FIRST_NPU"
 

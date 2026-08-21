@@ -20,7 +20,7 @@
 | 维度 | `mte_perftest` | `udma_perftest` | `rdma_perftest` |
 |------|---------------|-----------------|-----------------|
 | 引擎 | 默认 MTE | 显式 `ACLSHMEM_DATA_OP_UDMA` | RDMA 引擎 |
-| 并发能力 | 同 peer 多核（默认 32 核切分数据） | 强制单核（UDMA 不允许同 peer 并发） | 单 QP；多 QP 并行模式支持多 QP 并发 |
+| 并发能力 | 同 peer 多核（默认 32 核切分数据） | 强制单核（UDMA 不允许同 peer 并发） | 单 QP；XSCALE 支持多 QP 并行，满足聚合条件时按 QP 聚合提交 |
 | `-b/--block-size` | 控制核数 | 兼容入参，强制 1 | 兼容入参，实际由测试模式决定 |
 | UB 缓冲 | MTE 必需 | UDMA 必须 | 必须，至少 192B，默认 192B |
 | 测试模式 | put / bi_put / get / bi_get | put / bi_put / get / bi_get / **put_signal** | put / bi_put / get / bi_get |
@@ -34,6 +34,36 @@
 ## 编译说明
 
 RDMA 功能需在编译时启用 `-enable_rdma` 参数，并根据 SOC 类型配置后端。详见 [编译与构建 - RDMA 参数使用说明](../../../docs/compilation_build_guide.md#rdma参数使用说明)。
+
+### RDMA 后端能力
+
+下表描述 RDMA 后端接口本身是否具备对应能力，不表示 `rdma_perftest` 已经覆盖该能力。
+
+| 后端能力 | IN_DIE | XSCALE | HNS_1825 |
+|----------|--------|--------|----------|
+| 适用平台 | A2/A3 | Ascend950（云脉网卡） | Ascend950（1825 网卡） |
+| 基础 Put/Get NBI | 支持 | 支持 | 支持 |
+| 基础 Quiet 和同步 | 支持 | 支持 | 支持 |
+| 普通单 QP 聚合功能 | 不支持 | 支持 | 不支持 |
+| 多 QP 功能 | 不支持 | 支持 | 不支持 |
+| 多 QP 聚合功能 | 不支持 | 支持 | 不支持 |
+| RDMA 原子操作 | 不支持 | 支持 | 不支持 |
+
+### rdma_perftest 支持范围
+
+下表描述本测试在各后端实际开放的功能。后端具备能力但本测试未覆盖时，仍标记为“不支持”。
+
+| 本测试功能 | IN_DIE | XSCALE | HNS_1825 |
+|------------|--------|--------|----------|
+| Put/Get 与单向/双向模式 | 支持 | 支持 | 支持 |
+| 单 QP 带宽测试 | 支持 | 支持 | 支持 |
+| 单 QP 时延测试 | 支持 | 支持 | 支持 |
+| 带宽测试的 `batch` 分组与完成等待 | 支持 | 支持 | 支持 |
+| 显式 QP 数量和 QP 编号 | 不支持，`run.sh` 回退到默认单 QP | 支持，QP 数量范围 1~32 | 不支持，`run.sh` 回退到默认单 QP |
+| 多 QP 并行带宽测试 | 不支持 | 支持，QP 数量范围 2~32 | 不支持 |
+| 固定 QP 诊断模式 | 不支持 | 支持 | 不支持 |
+| 聚合提交 | 不支持 | 支持，仅 `bw`、`qp_num <= 2` 且消息小于 64 KiB | 不支持 |
+| 原子操作测试 | 不支持 | 不支持，未提供测试模式 | 不支持 |
 
 ## 使用方法
 
@@ -83,7 +113,7 @@ QP（Queue Pair，队列对）是 RDMA 通信的基本单元，每个 QP 维护�
 
 不传任何 QP 参数时，两个 PE 之间使用 1 个 QP 完成所有传输。每次测试 `loop-count` 次数据传输，`DataSize/B` 是每次传输的数据量，带宽 = 总数据量 / 总耗时。
 
-在 XSCALE 后端且消息小于 64KB 时，此模式会自动将同组 NBI 操作批量聚合提交，减少提交开销。`run.sh` 会自动调整 `--ub-size` 和 `--batch` 以满足聚合所需资源。
+在 XSCALE 后端执行带宽测试且消息小于 `64 * 1024B` 时，此模式会自动将同组 NBI 操作批量聚合提交，减少提交开销。时延测试不聚合。`run.sh` 会检查 `--ub-size` 是否满足聚合所需最小值，不足时会警告并自动修正。
 
 #### 多 QP 并行模式（`--qp N --qp-index -1`）
 
@@ -91,7 +121,7 @@ QP（Queue Pair，队列对）是 RDMA 通信的基本单元，每个 QP 维护�
 
 - 此模式需配合 `--metric bw` 使用。`-q N` 指定 QP 数量（范围 1~32），`-i -1` 表示自动为每个 QP 分配独立数据区。
 - 例如 `-q 4 -i -1`、`DataSize=4MB`、`loop-count=1000`：4 个 QP 各自提交 1000 次 4MB 传输，单次并发总数据量 16MB，累计总数据量 16GB。
-- 显式指定 QP 参数后，XSCALE 的聚合提交优化关闭，每个 QP 独立提交。
+- 在 XSCALE 后端，仅 `N <= 2` 且单个 QP 的消息小于 `64 * 1024B` 时，每个 QP 会将同组 NBI 聚合后提交。`N > 2` 或消息达到该阈值时使用立即提交路径。`run.sh` 会在聚合所需的 `--ub-size` 不足时警告并自动修正。
 
 > 仅 **云脉（XSCALE）** 支持多 QP。非云脉环境（如 HNS_1825）不支持，`run.sh` 会拦截并回退为单 QP 模式。
 
@@ -100,8 +130,8 @@ QP（Queue Pair，队列对）是 RDMA 通信的基本单元，每个 QP 维护�
 固定使用第 K 个 QP（0 ≤ K < N）完成全部测试，其他 QP 不参与。用于比较单个 QP 的行为或排查特定 QP 的问题。
 
 - `-q N` 声明 QP 池大小，`-i K` 固定选择第 K 个 QP。`-i` 必须满足 `-1 ≤ K < N`，否则 `run.sh` 会报错退出。
-- 时延测试（`--metric lat`）也仅使用一个 QP，计时只覆盖该 QP 的传输耗时。
-- 显式指定 QP 参数后，即使 `-q 1`，也会关闭 XSCALE 的聚合提交。
+- 时延测试（`--metric lat`）要求 `qp_num=1`，不支持 `qp_num>1`；计时只覆盖唯一 QP 的传输耗时。
+- XSCALE 中，默认单 QP、固定 QP 和多 QP 模式遵循同一聚合条件：`--metric bw`、`qp_num <= 2` 且消息小于 `64 * 1024B`。其他情况使用立即提交路径。
 
 > 仅 **云脉（XSCALE）** 支持。非云脉环境（如 HNS_1825）不支持，`run.sh` 会拦截并回退为单 QP 模式。
 
@@ -110,17 +140,20 @@ QP（Queue Pair，队列对）是 RDMA 通信的基本单元，每个 QP 维护�
 `--batch N` 控制带宽路径（`--metric bw`）中操作的分组方式：连续发起 N 次非阻塞操作后，等待这一组全部完成，再开始下一组。
 
 - 完成语义：每组操作完成后，**Put 的源缓冲区可安全复用**（数据已被远端接收），**Get 的目标缓冲区数据已就绪可读**。
-- `batch=0` 或 `batch > loop_count`：自动设为 `loop_count`，即所有操作完成后统一等待一次。
+- 直接执行二进制时，`batch=0` 或 `batch > loop_count` 按 `loop_count` 处理，即所有操作完成后统一等待一次。
 - 延迟路径（`--metric lat`）不按 `batch` 分组，全部 `loop-count` 次提交后统一等待。
-- 单 QP 默认模式下，`batch=0` 会被 `run.sh` 自动设为 100；`batch >= 1024` 或 `batch > loop-count` 会被视为非法值并回退为 100。
+- 对 XSCALE 聚合候选测试，`batch=0` 会被 `run.sh` 自动设为 100；`batch >= 1024` 或 `batch > loop-count` 会被修正为不超过 `loop-count` 的默认值 100。非聚合测试不执行此项修正。
 
-#### XSCALE 平台自动调整
+#### XSCALE 平台约束
 
-`run.sh` 通过 `IBV_EXTEND_DRIVERS` 环境变量或 `ibv_devinfo` 输出自动识别 XSCALE 环境。识别后，在单 QP 默认模式下会进行以下自动调整：
+`run.sh` 通过 `IBV_EXTEND_DRIVERS` 环境变量或 `ibv_devinfo` 输出自动识别 XSCALE 环境。识别后，会对 XSCALE 聚合候选路径执行以下约束：
 
-1. **UB 大小**：计算聚合路径所需最小 UB（`64 + 128 × max_aggregate_count` 字节），`max_aggregate_count` 取 warmup(100)、`batch`（bw 路径）或 `loop-count`（lat 路径）三者的最大值。若当前 `--ub-size` 不足则自动上调，上限 131136B。
-2. **batch 值**：`--batch 0` 自动设为 100；`--batch >= 1024` 或 `--batch > loop-count` 视为非法，回退为 100。
-3. 显式指定 QP 参数（`-q` 或 `-i`）时跳过上述自动调整，`run.sh` 打印 "XSCALE (multi-QP immediate path)" 并直接使用用户指定的 `--ub-size` 和 `--batch`。
+1. **启用条件**：仅带宽测试、`qp_num <= 2` 且测试数据范围包含小于 `64 * 1024B` 的消息时，脚本执行以下聚合准备。时延测试、`qp_num > 2` 或全部消息均不小于 64 KiB 时不聚合。
+2. **UB 大小**：所需最小 UB 为 `64 + 128 × max_aggregate_count` 字节，`max_aggregate_count` 取 warmup(100) 和 `batch` 的较大值。若当前 `--ub-size` 不足则警告并自动修正，上限 131136B。
+3. **batch 值**：`--batch 0` 自动设为 100；`--batch >= 1024` 或 `--batch > loop-count` 会修正为不超过 `loop-count` 的默认值 100。
+4. **逐数据量路径**：满足上述测试条件时，小于 `64 * 1024B` 的消息走聚合提交，达到或超过阈值的消息走立即提交。
+
+以上 UB 和 batch 自动调整由 `run.sh` 完成。直接执行 `build/bin/rdma_perftest` 时不会经过脚本修正；如果运行满足 XSCALE 聚合条件的带宽测试（包括固定 QP），请手动将 `--ub-size` 设置为满足 `64 + 128 × max_aggregate_count` 的容量，否则可能出现 UB 空间不足。
 
 ### 使用示例
 
@@ -134,8 +167,8 @@ QP（Queue Pair，队列对）是 RDMA 通信的基本单元，每个 QP 维护�
 # 批量完成：每 100 次操作后等待完成，再开始下一组
 ./run.sh -t put -d float --exponent-range 8 20 --loop-count 1000 --batch 100
 
-# 多 QP 并行模式：4 个 QP 并行，每 100 次操作后等待完成，每个 QP 独立传输完整数据量
-./run.sh -t put -d float --exponent-range 8 20 --loop-count 1000 -q 4 -i -1 --metric bw --batch 100
+# 多 QP 带宽测试：2 个 QP 并行，每个 QP 每 100 次完成一批；小于 64KiB 时批内聚合
+./run.sh -t put -d float --exponent-range 8 20 --loop-count 1000 -q 2 -i -1 --metric bw --batch 100
 
 # 单 QP 诊断模式：仅测试编号为 0 的 QP，每 100 次操作后等待完成
 ./run.sh -t put -d float --exponent-range 8 20 --loop-count 1000 -q 4 -i 0 --metric bw --batch 100

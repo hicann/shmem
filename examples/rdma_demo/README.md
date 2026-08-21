@@ -4,6 +4,10 @@
 
 - 运行本示例需要机器具备RDMA环境（RDMA网卡及驱动已正确安装配置）。
 
+### Ascend950 CANN 版本要求
+
+Ascend950 平台上的 RDMA 样例要求安装 **CANN 9.1.0** 的cann包，其他版本不在当前样例的支持范围内。请从 [CANN 9.1.0 资源](https://www.hiascend.com/developer/download/community/result?module=cann&cann=9.1.0)下载对应安装包。
+
 ### 检查RDMA环境
 
 #### A2/A3平台

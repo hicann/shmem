@@ -16,6 +16,25 @@
 #include "device/shmem_def.h"
 #include "gm2gm/engine/shmem_device_rdma.hpp"
 
+/** @brief Maximum operations in one XSCALE QP-specific aggregate batch, including the submit operation. */
+constexpr uint32_t ACLSHMEM_ROCE_QP_AGGREGATE_MAX_OPS = 1023;
+
+/**
+ * @anchor roce_qp_aggregate_contract
+ * @par QP-specific aggregate RoCE contract
+ * QP-specific aggregate operations are supported only on XSCALE.
+ * - A batch contains deferred operations followed by exactly one submit operation. The submit operation publishes the
+ *   complete batch and resets its state after success.
+ * - A batch must use one operation kind, PE, QP index, submit state, UB workspace base, and synchronization ID.
+ * - The total number of operations, including the submit operation, must not exceed
+ *   @ref ACLSHMEM_ROCE_QP_AGGREGATE_MAX_OPS. Split larger work into multiple batches.
+ * - The UB workspace capacity must be at least `64 + 128 * n` bytes, where n is the total batch size.
+ * - Different QP indices may concurrently access the same PE when each execution unit owns its QP index, submit state,
+ *   and UB workspace. A single `(pe, qp_idx)` supports one producer and one active batch at a time.
+ * - After submit, call @ref aclshmemx_roce_qp_quiet before consuming Get destinations, reusing Put sources, or
+ *   reusing the batch workspace.
+ */
+
 /**
  * @brief Translate a local symmetric address to the corresponding symmetric address on the specified PE for RDMA
  *        operations.
@@ -30,7 +49,7 @@ ACLSHMEM_DEVICE __gm__ void* aclshmem_roce_ptr(__gm__ void* ptr, int pe);
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
- *        to the same PE are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
+ *        to the same PE are not supported.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data on the local PE.
@@ -48,7 +67,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
- *        to the same PE are not supported.
+ *        to the same PE are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data on the local PE.
@@ -68,8 +87,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory using an
  *        explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
- *        to the same PE are not supported.
+ *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data on the local PE.
@@ -90,8 +108,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory using an
  *        explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations
- *        to the same PE are not supported.
+ *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] GlobalTensor at the symmetric address of the destination data on the local PE.
@@ -109,6 +126,98 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
     AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
     uint32_t qp_idx, uint32_t sync_id);
+
+/**
+ * @brief Adds one asynchronous RoCE Get operation to an aggregate batch on an explicitly selected QP.
+ *
+ * @details Adds this operation to the active batch without submitting it. See @ref roce_qp_aggregate_contract.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Local symmetric destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by @p pe.
+ * @param buf               [in] Local UB workspace for this batch. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p src.
+ * @param qp_idx            [in] QP index for @p pe. Must be less than the configured RDMA QP count.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Defer action referencing the batch's initialized submit state.
+ *
+ * @note Call aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) after the matching submit operation and before
+ *       reading @p dst.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds one asynchronous RoCE Get operation to an aggregate batch and submits the batch on an explicitly
+ *        selected QP.
+ *
+ * @details Adds this operation, submits the active batch, and resets the submit state on success. See
+ *          @ref roce_qp_aggregate_contract.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Local symmetric destination address.
+ * @param src               [in] Symmetric source address on the target PE specified by @p pe.
+ * @param buf               [in] Local UB workspace for this batch. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p src.
+ * @param qp_idx            [in] QP index for @p pe. Must be less than the configured RDMA QP count.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Submit action referencing the same submit state used by the staged operations.
+ *
+ * @note A normal return means the batch was submitted, not that the transfer completed. Call
+ *       aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) before reading @p dst.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of the deferred QP-specific aggregate RoCE Get interface.
+ *
+ * @details Has the same batch, backend, buffer-capacity, address, and completion requirements as the pointer
+ *          overload. The tensor objects must refer to symmetric GM allocations and local UB storage, respectively.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Local symmetric destination GlobalTensor.
+ * @param src               [in] Remote symmetric source GlobalTensor.
+ * @param buf               [in] Local UB workspace LocalTensor. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p src.
+ * @param qp_idx            [in] QP index for @p pe.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Defer action referencing the batch submit state.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of the submitting QP-specific aggregate RoCE Get interface.
+ *
+ * @details Has the same batch, backend, buffer-capacity, address, and completion requirements as the pointer
+ *          overload. This call adds the final operation, submits the batch, and resets the submit state on success.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Local symmetric destination GlobalTensor.
+ * @param src               [in] Remote symmetric source GlobalTensor.
+ * @param buf               [in] Local UB workspace LocalTensor. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p src.
+ * @param qp_idx            [in] QP index for @p pe.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Submit action referencing the same submit state used by the staged operations.
+ *
+ * @note Call aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) before reading the destination tensor.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
 
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory.
@@ -259,7 +368,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
- *        are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
+ *        are not supported.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data.
@@ -277,7 +386,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(__gm__ T* dst, __gm__ T* src, __ubuf
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
- *        are not supported.
+ *        are not supported. Use sync_id in device_state.rdma_config for pipeline synchronization.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data.
@@ -297,8 +406,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE using
  *        an explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
- *        are not supported.
+ *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] Symmetric address of the destination data.
@@ -319,8 +427,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE using
  *        an explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
- *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same PE
- *        are not supported.
+ *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
  * @param dst               [in] GlobalTensor at the symmetric address of the destination data.
@@ -338,6 +445,97 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
     AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
     uint32_t qp_idx, uint32_t sync_id);
+
+/**
+ * @brief Adds one asynchronous RoCE Put operation to an aggregate batch on an explicitly selected QP.
+ *
+ * @details Adds this operation to the active batch without submitting it. See @ref roce_qp_aggregate_contract.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Symmetric destination address on the target PE specified by @p pe.
+ * @param src               [in] Local symmetric source address.
+ * @param buf               [in] Local UB workspace for this batch. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p dst.
+ * @param qp_idx            [in] QP index for @p pe. Must be less than the configured RDMA QP count.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Defer action referencing the batch submit state.
+ *
+ * @note Keep @p src unchanged until aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) returns.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_defer_t action);
+
+/**
+ * @brief Adds one asynchronous RoCE Put operation to an aggregate batch and submits the batch on an explicitly
+ *        selected QP.
+ *
+ * @details Adds this operation, submits the active batch, and resets the submit state on success. See
+ *          @ref roce_qp_aggregate_contract.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Symmetric destination address on the target PE specified by @p pe.
+ * @param src               [in] Local symmetric source address.
+ * @param buf               [in] Local UB workspace for this batch. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p dst.
+ * @param qp_idx            [in] QP index for @p pe. Must be less than the configured RDMA QP count.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Submit action referencing the same submit state as the staged operations.
+ *
+ * @note A normal return means the batch was submitted, not that the transfer completed. Keep @p src unchanged until
+ *       aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) returns.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
+    __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id,
+    aclshmemx_submit_t action);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of the deferred QP-specific aggregate RoCE Put interface.
+ *
+ * @details Has the same batch, backend, buffer-capacity, address, and completion requirements as the pointer
+ *          overload.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Remote symmetric destination GlobalTensor.
+ * @param src               [in] Local symmetric source GlobalTensor.
+ * @param buf               [in] Local UB workspace LocalTensor. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p dst.
+ * @param qp_idx            [in] QP index for @p pe.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Defer action referencing the batch submit state.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t qp_idx, uint32_t sync_id, aclshmemx_defer_t action);
+
+/**
+ * @brief GlobalTensor/LocalTensor overload of the submitting QP-specific aggregate RoCE Put interface.
+ *
+ * @details Has the same batch, backend, buffer-capacity, address, and completion requirements as the pointer
+ *          overload. This call adds the final operation, submits the batch, and resets the submit state on success.
+ *
+ * @tparam T                Element type of the transfer.
+ * @param dst               [in] Remote symmetric destination GlobalTensor.
+ * @param src               [in] Local symmetric source GlobalTensor.
+ * @param buf               [in] Local UB workspace LocalTensor. See @ref roce_qp_aggregate_contract.
+ * @param elem_size         [in] Number of T elements transferred by this operation.
+ * @param pe                [in] Target PE that owns @p dst.
+ * @param qp_idx            [in] QP index for @p pe.
+ * @param sync_id           [in] Synchronization ID for this batch.
+ * @param action             [in] Submit action referencing the same submit state as the staged operations.
+ *
+ * @note Keep @p src unchanged until aclshmemx_roce_qp_quiet(pe, qp_idx, buf, sync_id) returns.
+ */
+template <typename T>
+ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
+    AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe,
+    uint32_t qp_idx, uint32_t sync_id, aclshmemx_submit_t action);
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE.
  *        WARNING: When using RDMA as the underlying transport, concurrent RMA/AMO operations to the same
@@ -502,6 +700,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_quiet(uint32_t pe, __ubuf__ T* buf, uint32_t
 /**
  * @brief Wait for completion of previously submitted RDMA operations on one explicitly selected QP.
  *        This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        The caller must own the selected QP while its completion is being waited for.
  *
  * @tparam T                  Element type used for the UB pointer.
  * @param pe                [in] PE number of the remote PE.
@@ -515,6 +714,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_quiet(uint32_t pe, uint32_t qp_idx, __ubu
 /**
  * @brief Wait for completion of previously submitted RDMA operations on one explicitly selected QP.
  *        This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        The caller must own the selected QP while its completion is being waited for.
  *
  * @tparam T                  Element type used for the UB tensor.
  * @param pe                [in] PE number of the remote PE.

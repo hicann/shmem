@@ -73,7 +73,7 @@ aclshmemx_uniqueid_t default_flag_uid;
 extern "C" void launch_rdma_perf_kernel(
     uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* dst_gva, uint8_t* src_gva, int elements,
     int test_mode, int data_type, int ub_size_b, int loop_count, int metric, int batch, int sync_id, int qp_num,
-    int qp_index, int qp_specified, uint8_t* timing_out_gva);
+    int qp_index, uint8_t* timing_out_gva);
 
 static perftest::rdma_mode_t get_rdma_mode(const char* test_type_str)
 {
@@ -134,7 +134,7 @@ template <typename T>
 int test_rdma_perf_test_impl(
     int pe_id, int n_pes, uint64_t local_mem_size, int min_exponent, int max_exponent, int loop_count,
     perftest::rdma_mode_t test_mode, perftest::perf_data_type_t data_type_enum, int ub_size_b,
-    perftest::perf_metric_t metric, int batch, int sync_id, int qp_num, int qp_index, int qp_specified,
+    perftest::perf_metric_t metric, int batch, int sync_id, int qp_num, int qp_index,
     std::vector<std::vector<std::string>>& csv_data)
 {
     static const char* kFunc = "test_rdma_perf_test_impl";
@@ -220,7 +220,7 @@ int test_rdma_perf_test_impl(
         launch_rdma_perf_kernel(
             block_dim, stream, fftsAddr, (uint8_t*)dst_ptr, (uint8_t*)src_ptr, trans_size, static_cast<int>(test_mode),
             static_cast<int>(data_type_enum), ub_size_b, loop_count, static_cast<int>(metric), batch, sync_id, qp_num,
-            qp_index, qp_specified, (uint8_t*)timing_out_ptr);
+            qp_index, (uint8_t*)timing_out_ptr);
         CHECK_ACL_GOTO(aclrtSynchronizeStream(stream), ret, cleanup);
 
         bool is_put_get_mode =
@@ -563,6 +563,10 @@ int main(int argc, char* argv[])
                   << ")" << std::endl;
         return 1;
     }
+    if (metric == perftest::PERF_METRIC_LAT && qp_num > 1) {
+        std::cerr << "Error: latency test does not support qp_num > 1; use --qp 1" << std::endl;
+        return 1;
+    }
     if (sync_id < 0) {
         std::cerr << "Error: --sync-id must be >= 0 (got " << sync_id << ")" << std::endl;
         return 1;
@@ -628,7 +632,7 @@ int main(int argc, char* argv[])
 #define RDMA_TEST_IMPL_OP(type)                                                                                     \
     status = test_rdma_perf_test_impl<type>(                                                                        \
         pe_id, n_pes, local_mem_size, min_exponent, max_exponent, loop_count, test_mode, data_type_enum, ub_size_b, \
-        metric, batch, sync_id, qp_num, qp_index, qp_specified, csv_data)
+        metric, batch, sync_id, qp_num, qp_index, csv_data)
     DISPATCH_BY_TYPE(fuc_data_type, RDMA_TEST_IMPL_OP);
 #undef RDMA_TEST_IMPL_OP
 

@@ -99,6 +99,9 @@ protected:
 
     void ExpectVisibleNpu()
     {
+        EXPECT_CALL(MockHal::instance(), get_npu_count())
+            .Times(testing::AnyNumber())
+            .WillRepeatedly(testing::Return(std::optional<int>(1)));
         EXPECT_CALL(MockHal::instance(), get_user_id_from_phy_id(testing::_))
             .Times(testing::AnyNumber())
             .WillRepeatedly(testing::Return(std::optional<uint32_t>(0)));

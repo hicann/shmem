@@ -135,6 +135,10 @@ export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_L
 cd "$BUILD_PATH"
 ./bin/aclshmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU"  --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER}
 
+if grep -q '^ACLSHMEM_RDMA_SUPPORT:BOOL=ON$' CMakeCache.txt && [ -x ./bin/aclshmem_rdma_topo_unittest ]; then
+    ./bin/aclshmem_rdma_topo_unittest --gtest_output=xml:rdma_topo_test_detail.xml
+fi
+
 # Collect coverage
 if [[ $lcov_not_found -ne 0 ]]; then
     echo "lcov not found, code coverage generation will skipped."
