@@ -166,6 +166,9 @@ shmem/                                  # 项目根目录
 │   │   └── utils/                      # 工具与通用辅助代码
 │   ├── host_device/                    # 共用目录
 │   └── python/                         # Python 相关目录
+├── tools/                              # 工程配套工具
+│   ├── pre-commit/                     # pre-commit 检查工具（头文件依赖检查、拼写检查等配置）
+│   └── rootinfo/                       # root_info_generate 工具源码
 └── tests/                              # 测试用例集合（UT/功能测试）
 ```
 

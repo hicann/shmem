@@ -45,10 +45,12 @@ bash scripts/build.sh -enable_rdma -examples
     ```
     > Note: \<shmem-root-directory\> is the root directory of the SHMEM project.
 
-3. Parameters in the command line
+#### Command Line Parameters
+
 ```bash
-    ./rdma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
+./rdma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
 ```
+
 - n_pes: number of global PEs.
 - pe_id: PE ID of the current process.
 - ipport: IP address and port number required for SHMEM initialization. The format is tcp://`<IP_address>:<port_number>`. To perform a cross-server test, set the IP address to the IP address of the host where PE0 is located.

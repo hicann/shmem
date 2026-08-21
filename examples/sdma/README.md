@@ -46,12 +46,12 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf
                                             uint32_t elem_size, int pe, uint32_t sync_id)
 ```
 
-接口功能：把PE pe上的src地址中的数据传输到dst地址，传输elem_size个元素。
+接口功能：将当前 PE 本地 src 的数据，传输至目标 PE pe 的远端对称地址 dst，传输 elem_size 个元素。
 
 | 参数名       | 含义                                                                 |
 |--------------|----------------------------------------------------------------------|
-| dst          | 目标卡上目的地址在本卡上的对称地址                                   |
-| src          | 本卡上的源地址                                                       |
+| dst          | 目标 PE pe 上写入数据的远端对称地址                                  |
+| src          | 当前 PE 本地的源地址                                                 |
 | buf          | 缓冲区地址                                                           |
 | ub_size      | 缓冲区大小                                                           |
 | elem_size    | 元素个数                                                             |
@@ -67,12 +67,12 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf
                                             uint32_t elem_size, int pe, uint32_t sync_id)
 ```
 
-接口功能：把PE pe上的dst地址中的数据传输到src地址，传输elem_size个元素。
+接口功能：从目标 PE pe 的远端对称地址 src 拉取数据，写入当前 PE 本地 dst，传输 elem_size 个元素。
 
 | 参数名       | 含义                                                                 |
 |--------------|----------------------------------------------------------------------|
-| dst          | 目标卡上目的地址在本卡上的对称地址                                   |
-| src          | 本卡上的源地址                                                       |
+| dst          | 当前 PE 本地的写入地址                                               |
+| src          | 目标 PE pe 上读取数据的远端对称地址                                  |
 | buf          | 缓冲区地址                                                           |
 | ub_size      | 缓冲区大小                                                           |
 | elem_size    | 元素个数                                                             |

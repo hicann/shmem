@@ -332,8 +332,11 @@ sudo ./root_info_generate 0
 **现象**:
 
 ```bash
-Error: get_mainboard_id returned null for phy_id=100
+topo_addr_info_get_size failed: get_mainboard_id returned null for phy_id=100
+Error: topo_addr_info_get_size failed with ret=-1
 ```
+
+第一行为库侧日志，第二行为工具打印的错误信息，两者对应同一故障（与[示例3：无效物理ID](#示例3无效物理id)的输出一致）。
 
 **解决方案**:
 

@@ -70,7 +70,7 @@ threshold_den = max(pe_size - 1, 1) * local_expert_num
 2. 根据远端总 token 数计算平均阈值，并为每个 segment 标记 `sdma_flags`。
 3. 先提交所有 SDMA payload：使用 `aclshmemx_sdma_put_nbi` 非阻塞写远端 payload。
 4. 每提交 256 次 SDMA issue 后调用 `aclshmemx_sdma_quiet`，避免 outstanding 请求无限积压。
-5. SDMA payload 阶段结束后，如果仍有未 quiet 的请求，再统一 `sdma_quiet`。
+5. SDMA payload 阶段结束后，如果仍有未 quiet 的请求，再统一调用 `aclshmemx_sdma_quiet`。
 6. 小段 payload 使用 MTE 直连路径传输。
 7. 控制面信号统一用 MTE 写入，包括 `assist_info_for_combine`、ready flag 和 count signal。
 8. 接收端等待 count/ready 后，按经典 dispatch 的顺序构造最终 `expand_x`、`assist_info_for_combine`、`ep_recv_count` 和 `expert_token_nums`。

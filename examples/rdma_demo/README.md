@@ -138,15 +138,15 @@ bash scripts/build.sh -soc_type Ascend950 -enable_rdma -rdma_backend HNS_1825 -e
     >
     > 如需在容器中运行跨机测试，启动容器时指定`--net=host`模式即可。
 
-  命令行参数说明
+#### 命令行参数说明
 
-  ```bash
-  ./rdma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
-  ```
+```bash
+./rdma_demo <n_pes> <pe_id> <ipport> <g_npus> <f_pe> <f_npu>
+```
 
-  - n_pes: 全局PE数量。
-  - pe_id: 当前进程的PE号。
-  - ipport: SHMEM初始化需要的IP及端口号，格式为`tcp://<IP>:<端口号>`。如果执行跨机测试，需要将IP设为PE0所在Host的IP。
-  - g_npus: 当前机器上启动的NPU卡的数量。
-  - f_pe: 当前机器上使用的第一个PE号。
-  - f_npu: 当前机器执行本样例使用的第一张NPU卡的卡号
+- n_pes: 全局PE数量。
+- pe_id: 当前进程的PE号。
+- ipport: SHMEM初始化需要的IP及端口号，格式为`tcp://<IP>:<端口号>`。如果执行跨机测试，需要将IP设为PE0所在Host的IP。
+- g_npus: 当前机器上启动的NPU卡的数量。
+- f_pe: 当前机器上使用的第一个PE号。
+- f_npu: 当前机器执行本样例使用的第一张NPU卡的卡号。

@@ -196,8 +196,8 @@ bash scripts/build.sh -soc_type Ascend950
 
 ```bash
 cd examples/init
-# 编译并运行两个pe的mpi初始化流程
-bash run.sh -mode mpi -pesize 2
+# 编译并运行两个pe的uniqueid初始化流程
+bash run.sh -mode uid -pesize 2
 ```
 
 ### 代码实现

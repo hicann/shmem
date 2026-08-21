@@ -55,12 +55,14 @@ yum install python3-devel
 apt-get install python3-dev
 ```
 
-获取 mstx 源码并安装 whl 包：
+获取 mstx 源码，编译并安装 whl 包：
 
 ```sh
 git clone https://gitcode.com/Ascend/mstx.git
 cd mstx
-cd output
+# 编译，构建产物生成在 artifacts/ 目录下
+python3 build.py
+cd artifacts
 pip3 install --upgrade mstx-xxxxx.whl --target ${ASCEND_HOME_PATH}/tools/mstx/
 ```
 

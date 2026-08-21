@@ -64,7 +64,7 @@ ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t
   - `buf`：临时UB缓冲区地址
   - `ub_size`：UB缓冲区大小
   - `sync_id`：同步ID
-- **特点**：通过下SDMA的Flag任务，并轮询Flag等待STARS队列中的操作完成
+- **特点**：通过下发SDMA的Flag任务，并轮询Flag等待STARS队列中的操作完成
 
 ## 环境要求
 

@@ -8,15 +8,15 @@
 
 | 接口                                         | 跨机支持 | 说明                                                                                                 |
 | ------------------------------------------ | ---- | -------------------------------------------------------------------------------------------------- |
-| aclshmemx\_putmem\_on\_stream              | 支持   | HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA                                                                     |
-| aclshmemx\_getmem\_on\_stream              | 支持   | HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA                                                                     |
-| aclshmemx\_signal\_op\_on\_stream          | 部分支持 | `ACLSHMEM_SIGNAL_SET`：HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA；`ACLSHMEM_SIGNAL_ADD`不支持RDMA跨机，但HCCS可通时支持MTE跨机 |
+| aclshmemx\_putmem\_on\_stream              | 支持   | HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA                                                                     |
+| aclshmemx\_getmem\_on\_stream              | 支持   | HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA                                                                     |
+| aclshmemx\_signal\_op\_on\_stream          | 部分支持 | `ACLSHMEM_SIGNAL_SET`：HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA；`ACLSHMEM_SIGNAL_ADD`不支持RDMA跨机，但HCCS/UB可通时支持MTE跨机 |
 | aclshmemx\_signal\_wait\_until\_on\_stream | 不支持  | 语义为等待本卡上地址到达某个值                                                                                    |
 
 跨机器场景下的数据传输路径选择策略：
 
-- **优先使用MTE接口**：当HCCS链路连通时，优先走MTE路径
-- **RDMA接口**：当HCCS链路不通但RDMA配置可用时，自动切换到RDMA路径进行跨机通信
+- **优先使用MTE接口**：当HCCS/UB链路连通时，优先走MTE路径
+- **RDMA接口**：当HCCS/UB链路不通但RDMA配置可用时，自动切换到RDMA路径进行跨机通信
 
 若要实现上述自动选择MTE/RDMA路径的功能，需要通过以下方式初始化：
 
@@ -39,7 +39,7 @@ int status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
 
 同步接口，在指定流上将本地 PE 的连续数据复制到指定 PE 的对称地址。
 
-**跨机支持：** 支持，HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA。
+**跨机支持：** 支持，HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA。
 
 **函数原型：**
 
@@ -104,7 +104,7 @@ aclFinalize();
 
 同步接口，在指定流上将指定 PE 对称内存中的连续数据复制到本地 PE。
 
-**跨机支持：** 支持。HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA。
+**跨机支持：** 支持。HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA。
 
 **函数原型：**
 
@@ -172,8 +172,8 @@ aclFinalize();
 
 **跨机支持：** 部分支持。
 
-- `ACLSHMEM_SIGNAL_SET`：HCCS可通时支持MTE跨机，也支持RDMA跨机
-- `ACLSHMEM_SIGNAL_ADD`：不支持RDMA跨机，HCCS可通时支持MTE跨机
+- `ACLSHMEM_SIGNAL_SET`：HCCS/UB可通时支持MTE跨机，也支持RDMA跨机
+- `ACLSHMEM_SIGNAL_ADD`：不支持RDMA跨机，HCCS/UB可通时支持MTE跨机
 
 **函数原型：**
 
@@ -217,7 +217,7 @@ aclshmemx_signal_op_on_stream(signal_var, 1, ACLSHMEM_SIGNAL_SET, target_pe, str
 aclshmem_handle_t handle;
 handle.team_id = ACLSHMEM_TEAM_WORLD;
 aclshmemx_handle_wait(handle, stream);
-// 5. 累加信号值（不支持RDMA跨机，仅HCCS可通时支持MTE跨机）
+// 5. 累加信号值（不支持RDMA跨机，仅HCCS/UB可通时支持MTE跨机）
 aclshmemx_signal_op_on_stream(signal_var, 10, ACLSHMEM_SIGNAL_ADD, target_pe, stream);
 
 // 6. 等待操作完成
@@ -351,8 +351,8 @@ aclFinalize();
 1. **内存申请**：初始化使能 RDMA 后，通用 Put/Get 的 `src`、`dst` 都必须使用`aclshmem_malloc`分配，
    且完整传输范围不得越过对应的对称内存分配；调用者无需判断单次实际选择的引擎。
 2. **跨机通信**：
-   - `aclshmemx_putmem_on_stream`和`aclshmemx_getmem_on_stream`支持跨机，HCCS连通时优先走MTE，否则RDMA链路可用时走RDMA
-   - `aclshmemx_signal_op_on_stream`：`ACLSHMEM_SIGNAL_SET`支持RDMA跨机；`ACLSHMEM_SIGNAL_ADD`不支持RDMA跨机，HCCS可通时支持MTE跨机
-   - `aclshmemx_signal_wait_until_on_stream`不支持RDMA跨机，HCCS可通时支持MTE跨机
+   - `aclshmemx_putmem_on_stream`和`aclshmemx_getmem_on_stream`支持跨机，HCCS/UB连通时优先走MTE，否则RDMA链路可用时走RDMA
+   - `aclshmemx_signal_op_on_stream`：`ACLSHMEM_SIGNAL_SET`支持RDMA跨机；`ACLSHMEM_SIGNAL_ADD`不支持RDMA跨机，HCCS/UB可通时支持MTE跨机
+   - `aclshmemx_signal_wait_until_on_stream`不支持跨机，语义为等待本卡上地址到达某个值
    - 跨机场景下需确保网络配置正确，相关环境变量已正确设置
    - **RDMA路径同步**：当使用RDMA接口时，需要调用`aclshmemx_handle_wait`来保证数据已经被接收完成。

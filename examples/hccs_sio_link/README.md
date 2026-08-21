@@ -93,7 +93,7 @@ bash run.sh
 # 指定 4 个 PE，仅测 HCCS 链路
 bash run.sh -pes 4 -mode hccs
 
-# 指定 8 个 PE，8MB 数据，fp32 类型，仅测 SIO 链路
+# 指定 8 个 PE，8KB 数据，fp32 类型，仅测 SIO 链路
 bash run.sh -pes 8 -size 8 -type fp32 -mode sio
 
 # SIO + HCCS 混合测试（3/5 数据走 SIO，2/5 数据走 HCCS）
@@ -137,7 +137,7 @@ bash run.sh -mode mixed_put_perf
 
 ### 工作原理
 
-- 数据按 3:5 比例分配到 SIO 和 HCCS 链路（3/5 数据走 SIO，2/5 数据走 HCCS）
+- 数据按 3:2 比例分配到 SIO 和 HCCS 链路（3/5 数据走 SIO，2/5 数据走 HCCS）
 - Kernel 内部按 block 维度划分：部分 block 负责 SIO 链路传输，其余 block 负责 HCCS 链路传输
 - 使用 `aclshmemx_mte_get_nbi` / `aclshmemx_mte_put_nbi` 进行非阻塞 DMA 传输
 - 通过 cycle 计数器采集每次传输的耗时，并利用 shmem profiling 机制（`aclshmemx_get_prof`）输出统计结果

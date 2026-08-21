@@ -89,7 +89,7 @@ while [[ $# -gt 0 ]]; do
                 DATA_SIZE_KB="$2"
                 shift 2
             else
-                echo "Error: -size requires a value (MB)."
+                echo "Error: -size requires a value (KB)."
                 exit 1
             fi
             ;;

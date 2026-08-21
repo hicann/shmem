@@ -35,12 +35,12 @@ struct GvaHeap {
 };
 GvaHeap g_gvaHeapMgr;
 
-static void SetModuleId2Advise(uint32_t modelId, uint32_t *advise)
+static void SetModuleId2Advise(uint32_t modelId, uint32_t* advise)
 {
     *advise = *advise | ((modelId & DV_ADVISE_MODULE_ID_MASK) << DV_ADVISE_MODULE_ID_BIT);
 }
 
-static void FillSvmHeapType(uint32_t advise, struct DevVirtHeapType *heapType)
+static void FillSvmHeapType(uint32_t advise, struct DevVirtHeapType* heapType)
 {
     heapType->heap_list_type = SVM_LIST;
     heapType->heap_sub_type = SUB_SVM_TYPE;
@@ -90,8 +90,9 @@ static bool GvaHeapCheckInRange(uint64_t key, uint64_t len)
         uint64_t l = it->first;
         uint64_t r = it->second;
         if (key <= l && l < key + len) {
-            SHM_LOG_ERROR("check in range. (key=0x" << std::hex << key <<
-                " len=0x" << len << " L=0x" << l << " R=0x" << r << ")");
+            SHM_LOG_ERROR(
+                "check in range. (key=0x" << std::hex << key << " len=0x" << len << " L=0x" << l << " R=0x" << r
+                                          << ")");
             return true;
         }
     }
@@ -104,8 +105,8 @@ static bool GvaHeapCheckInRange(uint64_t key, uint64_t len)
     uint64_t l = it->first;
     uint64_t r = it->second;
     if (l <= key && key < r) {
-        SHM_LOG_ERROR("check in range. (key=0x" << std::hex << key <<
-            " len=0x" << len << " L=0x" << l << " R=0x" << r << ")");
+        SHM_LOG_ERROR(
+            "check in range. (key=0x" << std::hex << key << " len=0x" << len << " L=0x" << l << " R=0x" << r << ")");
         return true;
     }
     return false;
@@ -119,8 +120,10 @@ static bool TryUpdateGvaHeap(uint64_t va, size_t len)
     }
 
     if (va < g_gvaHeapMgr.start || va + len > g_gvaHeapMgr.end) {
-        SHM_LOG_ERROR("update gva heap failed, out of range. (key=0x" << std::hex << va <<
-            " len=0x" << len << " st=0x" << g_gvaHeapMgr.start << " ed=0x" << g_gvaHeapMgr.end << ")");
+        SHM_LOG_ERROR(
+            "update gva heap failed, out of range. (key=0x" << std::hex << va << " len=0x" << len << " st=0x"
+                                                            << g_gvaHeapMgr.start << " ed=0x" << g_gvaHeapMgr.end
+                                                            << ")");
         return false;
     }
 
@@ -179,14 +182,14 @@ static void GvaHeapRemoveReserved(uint64_t va)
     (void)pthread_mutex_unlock(&g_gvaHeapMgr.treeLock);
 }
 
-static struct DevVirtComHeap *VirtAllocHeapForBaseMem(void *mgmt,
-    struct DevVirtHeapType *heapType, uint64_t allocPtr, size_t allocSize)
+static struct DevVirtComHeap* VirtAllocHeapForBaseMem(
+    void* mgmt, struct DevVirtHeapType* heapType, uint64_t allocPtr, size_t allocSize)
 {
-    struct DevVirtComHeap *heapSet = nullptr;
+    struct DevVirtComHeap* heapSet = nullptr;
     uint32_t heapIdx;
 
     heapIdx = DlHalApi::HalVaToHeapIdx(mgmt, allocPtr);
-    heapSet = (struct DevVirtComHeap *)DlHalApi::HalVirtGetHeapFromQueue(mgmt, heapIdx, allocSize);
+    heapSet = (struct DevVirtComHeap*)DlHalApi::HalVirtGetHeapFromQueue(mgmt, heapIdx, allocSize);
     if (heapSet == nullptr) {
         SHM_LOG_ERROR("Base alloc heap failed. (size=0x" << std::hex << allocSize << ")");
         return nullptr;
@@ -195,8 +198,7 @@ static struct DevVirtComHeap *VirtAllocHeapForBaseMem(void *mgmt,
     return heapSet;
 }
 
-static inline void VirtListAddInner(struct DVirtListHead *new_, struct DVirtListHead *prev,
-    struct DVirtListHead *next)
+static inline void VirtListAddInner(struct DVirtListHead* new_, struct DVirtListHead* prev, struct DVirtListHead* next)
 {
     next->prev = new_;
     new_->next = next;
@@ -204,18 +206,18 @@ static inline void VirtListAddInner(struct DVirtListHead *new_, struct DVirtList
     prev->next = new_;
 }
 
-static inline void VirtListAdd(struct DVirtListHead *new_, struct DVirtListHead *head)
+static inline void VirtListAdd(struct DVirtListHead* new_, struct DVirtListHead* head)
 {
     VirtListAddInner(new_, head, head->next);
 }
 
-static inline void VirtListDelInner(struct DVirtListHead *prev, struct DVirtListHead *next)
+static inline void VirtListDelInner(struct DVirtListHead* prev, struct DVirtListHead* next)
 {
     next->prev = prev;
     prev->next = next;
 }
 
-static inline void VirtListDel(struct DVirtListHead *entry)
+static inline void VirtListDel(struct DVirtListHead* entry)
 {
     VirtListDelInner(entry->prev, entry->next);
     // init
@@ -226,12 +228,8 @@ static inline void VirtListDel(struct DVirtListHead *entry)
 static inline uint32_t HeapSubTypeToMemVal(uint32_t type)
 {
     static const std::map<uint32_t, uint32_t> type_to_mem_val = {
-        {SUB_SVM_TYPE, MEM_SVM_VAL},
-        {SUB_DEVICE_TYPE, MEM_DEV_VAL},
-        {SUB_HOST_TYPE, MEM_HOST_VAL},
-        {SUB_DVPP_TYPE, MEM_DEV_VAL},
-        {SUB_READ_ONLY_TYPE, MEM_DEV_VAL},
-        {SUB_RESERVE_TYPE, MEM_RESERVE_VAL},
+        {SUB_SVM_TYPE, MEM_SVM_VAL},           {SUB_DEVICE_TYPE, MEM_DEV_VAL},    {SUB_HOST_TYPE, MEM_HOST_VAL},
+        {SUB_DVPP_TYPE, MEM_DEV_VAL},          {SUB_READ_ONLY_TYPE, MEM_DEV_VAL}, {SUB_RESERVE_TYPE, MEM_RESERVE_VAL},
         {SUB_DEV_READ_ONLY_TYPE, MEM_DEV_VAL},
     };
 
@@ -242,8 +240,7 @@ static inline uint32_t HeapSubTypeToMemVal(uint32_t type)
     return MEM_DEV_VAL;
 }
 
-static void PrimaryHeapModuleMemStatsInc(struct DevVirtComHeap *heap,
-    uint32_t moduleId, uint64_t size)
+static void PrimaryHeapModuleMemStatsInc(struct DevVirtComHeap* heap, uint32_t moduleId, uint64_t size)
 {
     uint32_t memVal = HeapSubTypeToMemVal(heap->heap_sub_type);
     uint32_t pageType = (heap->heap_type == DEVMM_HEAP_HUGE_PAGE) ? DEVMM_HUGE_PAGE_TYPE : DEVMM_NORMAL_PAGE_TYPE;
@@ -256,27 +253,27 @@ static void PrimaryHeapModuleMemStatsInc(struct DevVirtComHeap *heap,
     type.phy_memtype = phyMemtype;
     if (heap->heap_sub_type != SUB_RESERVE_TYPE) {
         if (HybmGetGvaVersion() == HYBM_GVA_V3) {
-            DlHalApi::HalSvmModuleAllocedSizeInc((void *)&type, devid, moduleId, size);
+            DlHalApi::HalSvmModuleAllocedSizeInc((void*)&type, devid, moduleId, size);
         }
         heap->module_id = moduleId;
     }
 }
 
-static void UpdateTreeNode(struct DevRbtreeNode *node,
-                           struct DevVirtComHeap *heap, uint64_t va, uint64_t size, uint32_t flag)
+static void UpdateTreeNode(
+    struct DevRbtreeNode* node, struct DevVirtComHeap* heap, uint64_t va, uint64_t size, uint32_t flag)
 {
     DlHalApi::HalAssignNodeData(va, size, size, flag, node);
     (void)DlHalApi::HalInsertIdleSizeTree(node, &heap->rbtree_queue);
     (void)DlHalApi::HalInsertIdleVaTree(node, &heap->rbtree_queue);
 }
 
-static void SeparateNodeByVa(struct DevVirtComHeap *heap, struct DevRbtreeNode *node, uint64_t va)
+static void SeparateNodeByVa(struct DevVirtComHeap* heap, struct DevRbtreeNode* node, uint64_t va)
 {
-    struct DevRbtreeNode *new_node = nullptr;
+    struct DevRbtreeNode* new_node = nullptr;
     uint64_t new_node_size;
     uint64_t node_size;
 
-    new_node = (struct DevRbtreeNode *)DlHalApi::HalAllocRbtreeNode(&heap->rbtree_queue);
+    new_node = (struct DevRbtreeNode*)DlHalApi::HalAllocRbtreeNode(&heap->rbtree_queue);
     if (new_node == nullptr) {
         SHM_LOG_ERROR("Out of memory, cannot malloc new_node.");
         return;
@@ -293,13 +290,13 @@ static void SeparateNodeByVa(struct DevVirtComHeap *heap, struct DevRbtreeNode *
     UpdateTreeNode(node, heap, va, node_size, node->data.flag);
 }
 
-static struct DevRbtreeNode *GetNodeFromIdleVaTree(struct DevVirtComHeap *heap, size_t allocSize, uint64_t va)
+static struct DevRbtreeNode* GetNodeFromIdleVaTree(struct DevVirtComHeap* heap, size_t allocSize, uint64_t va)
 {
-    struct DevRbtreeNode *node = nullptr;
+    struct DevRbtreeNode* node = nullptr;
 
-    node = (struct DevRbtreeNode *)DlHalApi::HalGetIdleVaNodeInRange(va, &heap->rbtree_queue);
+    node = (struct DevRbtreeNode*)DlHalApi::HalGetIdleVaNodeInRange(va, &heap->rbtree_queue);
     if (node == nullptr) {
-        node = (struct DevRbtreeNode *)DlHalApi::HalGetAllocedNodeInRange(va, &heap->rbtree_queue);
+        node = (struct DevRbtreeNode*)DlHalApi::HalGetAllocedNodeInRange(va, &heap->rbtree_queue);
         if (node == nullptr) {
             SHM_LOG_ERROR("Cannot find va in allocated tree. size=0x" << std::hex << allocSize);
         } else {
@@ -319,7 +316,7 @@ static struct DevRbtreeNode *GetNodeFromIdleVaTree(struct DevVirtComHeap *heap, 
     return node;
 }
 
-static void UpdatePeakCacheMem(struct DevVirtComHeap *heap, uint32_t memType)
+static void UpdatePeakCacheMem(struct DevVirtComHeap* heap, uint32_t memType)
 {
     if (heap->peak_alloc_cache_mem[memType] < heap->cur_alloc_cache_mem[memType]) {
         heap->peak_alloc_cache_time[memType] = time(nullptr);
@@ -327,7 +324,7 @@ static void UpdatePeakCacheMem(struct DevVirtComHeap *heap, uint32_t memType)
     }
 }
 
-static inline void NodeFlagSetValue(uint32_t *flag, uint32_t shift, uint32_t wide, uint32_t value)
+static inline void NodeFlagSetValue(uint32_t* flag, uint32_t shift, uint32_t wide, uint32_t value)
 {
     uint32_t msk = ((1U << wide) - 1);
     uint32_t val = (msk & value);
@@ -336,9 +333,9 @@ static inline void NodeFlagSetValue(uint32_t *flag, uint32_t shift, uint32_t wid
     (*flag) |= (val << shift);
 }
 
-static int32_t AllocFromNode(struct DevVirtComHeap *heap, struct DevRbtreeNode *node, uint32_t advise, uint32_t memtype)
+static int32_t AllocFromNode(struct DevVirtComHeap* heap, struct DevRbtreeNode* node, uint32_t advise, uint32_t memtype)
 {
-    struct DevRbtreeNode *treeNode = nullptr;
+    struct DevRbtreeNode* treeNode = nullptr;
     uint64_t mapSize = node->data.size; // mapSize = allocSize in base_heap
     uint64_t va = node->data.va;
 
@@ -364,18 +361,19 @@ static int32_t AllocFromNode(struct DevVirtComHeap *heap, struct DevRbtreeNode *
     return 0;
 }
 
-static uint64_t VirtAllocGvaMemInnerCommon(struct DevVirtComHeap *heap, uint64_t bytesize,
-                                           uint32_t advise, uint64_t allocPtr)
+static uint64_t VirtAllocGvaMemInnerCommon(
+    struct DevVirtComHeap* heap, uint64_t bytesize, uint32_t advise, uint64_t allocPtr)
 {
     uint64_t va = ALIGN_DOWN(allocPtr, DEVMM_HEAP_SIZE);
-    struct DevRbtreeNode *node = nullptr;
+    struct DevRbtreeNode* node = nullptr;
     uint32_t memtype = DEVMM_MEM_NORMAL;
     uint64_t allocSize;
     int32_t ret;
 
     if ((heap == nullptr) || (bytesize > heap->heap_size) || (bytesize == 0)) {
-        SHM_LOG_ERROR("Heap is nullptr or alloc memory too large bytesize:" << bytesize
-                     << " heap_size:" << (heap != nullptr ? std::to_string(heap->heap_size) : "nullptr"));
+        SHM_LOG_ERROR(
+            "Heap is nullptr or alloc memory too large bytesize:"
+            << bytesize << " heap_size:" << (heap != nullptr ? std::to_string(heap->heap_size) : "nullptr"));
         return 1;
     }
 
@@ -405,7 +403,7 @@ static uint64_t VirtAllocGvaMemInnerCommon(struct DevVirtComHeap *heap, uint64_t
     return va;
 }
 
-static uint64_t VirtAllocGvaMemInner(DevVirtHeapMgmt *mgmt, uint64_t bytesize, uint32_t advise, uint64_t allocPtr)
+static uint64_t VirtAllocGvaMemInner(DevVirtHeapMgmt* mgmt, uint64_t bytesize, uint32_t advise, uint64_t allocPtr)
 {
     if (mgmt == nullptr) {
         SHM_LOG_ERROR("Invalid mgmt pointer for V1 alloc");
@@ -414,7 +412,7 @@ static uint64_t VirtAllocGvaMemInner(DevVirtHeapMgmt *mgmt, uint64_t bytesize, u
     return VirtAllocGvaMemInnerCommon(&mgmt->heap_queue.base_heap, bytesize, advise, allocPtr);
 }
 
-static uint64_t VirtAllocGvaMemInnerV2(DevVirtHeapMgmtV2 *mgmt, uint64_t bytesize, uint32_t advise, uint64_t allocPtr)
+static uint64_t VirtAllocGvaMemInnerV2(DevVirtHeapMgmtV2* mgmt, uint64_t bytesize, uint32_t advise, uint64_t allocPtr)
 {
     if (mgmt == nullptr) {
         SHM_LOG_ERROR("Invalid mgmt pointer for V2 alloc");
@@ -423,7 +421,7 @@ static uint64_t VirtAllocGvaMemInnerV2(DevVirtHeapMgmtV2 *mgmt, uint64_t bytesiz
     return VirtAllocGvaMemInnerCommon(&mgmt->heap_queue.base_heap, bytesize, advise, allocPtr);
 }
 
-static int32_t VirtDestroyHeap(void *mgmt, void *heap)
+static int32_t VirtDestroyHeap(void* mgmt, void* heap)
 {
     if (HybmGetGvaVersion() == HYBM_GVA_V1) {
         return DlHalApi::HalVirtDestroyHeapV1(mgmt, heap);
@@ -434,25 +432,27 @@ static int32_t VirtDestroyHeap(void *mgmt, void *heap)
     }
 }
 
-static uint64_t VirtAllocGvaMem(void *mgmt, uint64_t allocPtr,
-    size_t allocSize, struct DevVirtHeapType *heap_type, uint32_t advise)
+static uint64_t VirtAllocGvaMem(
+    void* mgmt, uint64_t allocPtr, size_t allocSize, struct DevVirtHeapType* heap_type, uint32_t advise)
 {
     uint32_t module_id = ((advise >> DV_ADVISE_MODULE_ID_BIT) & DV_ADVISE_MODULE_ID_MASK);
-    struct DevHeapList *heap_list = nullptr;
-    struct DevVirtComHeap *heap = nullptr;
+    struct DevHeapList* heap_list = nullptr;
+    struct DevVirtComHeap* heap = nullptr;
     uint64_t retPtr;
     int32_t ret;
 
     if (HybmGetGvaVersion() == HYBM_GVA_V1) {
-        retPtr = VirtAllocGvaMemInner((DevVirtHeapMgmt *) mgmt, allocSize, 0, allocPtr);
+        retPtr = VirtAllocGvaMemInner((DevVirtHeapMgmt*)mgmt, allocSize, 0, allocPtr);
     } else if (HybmGetGvaVersion() == HYBM_GVA_V2) {
-        retPtr = VirtAllocGvaMemInnerV2((DevVirtHeapMgmtV2 *) mgmt, allocSize, 0, allocPtr);
+        retPtr = VirtAllocGvaMemInnerV2((DevVirtHeapMgmtV2*)mgmt, allocSize, 0, allocPtr);
     } else {
         retPtr = DlHalApi::HalVirtAllocMemFromBase(mgmt, allocSize, 0, allocPtr);
     }
     if (retPtr != allocPtr) {
-        SHM_LOG_ERROR("gva alloc mem failed. (size=0x" << std::hex << allocSize <<
-            (retPtr >= DEVMM_SVM_MEM_START ? ", maybe ascend driver need to update)" : ")") << " ret=0x" << retPtr << std::dec);
+        SHM_LOG_ERROR(
+            "gva alloc mem failed. (size=0x"
+            << std::hex << allocSize << (retPtr >= DEVMM_SVM_MEM_START ? ", maybe ascend driver need to update)" : ")")
+            << " ret=0x" << retPtr << std::dec);
         return 0;
     }
 
@@ -463,8 +463,8 @@ static uint64_t VirtAllocGvaMem(void *mgmt, uint64_t allocPtr,
         return 0;
     }
 
-    ret = DlHalApi::HalIoctlEnableHeap(heap->heap_idx, heap_type->heap_type,
-        heap_type->heap_sub_type, heap->heap_size, heap_type->heap_list_type);
+    ret = DlHalApi::HalIoctlEnableHeap(
+        heap->heap_idx, heap_type->heap_type, heap_type->heap_sub_type, heap->heap_size, heap_type->heap_list_type);
     if (ret != 0) {
         SHM_LOG_ERROR("gva update heap failed. (size=0x" << std::hex << allocSize << ")");
         (void)DlHalApi::HalVirtSetHeapIdle(mgmt, heap);
@@ -487,9 +487,9 @@ static uint64_t VirtAllocGvaMem(void *mgmt, uint64_t allocPtr,
 
 static int32_t FreeManagedNomal(uint64_t va)
 {
-    void *mgmt = nullptr;
-    struct DevVirtComHeap *heap = nullptr;
-    heap = (DevVirtComHeap *)DlHalApi::HalVaToHeap(va);
+    void* mgmt = nullptr;
+    struct DevVirtComHeap* heap = nullptr;
+    heap = (DevVirtComHeap*)DlHalApi::HalVaToHeap(va);
     if ((heap == nullptr) || heap->heap_type != DEVMM_HEAP_HUGE_PAGE || heap->heap_sub_type != SUB_SVM_TYPE ||
         heap->heap_list_type != SVM_LIST) {
         SHM_LOG_ERROR("FreeManagedNomal get heap info error.");
@@ -502,7 +502,7 @@ static int32_t FreeManagedNomal(uint64_t va)
         return ACLSHMEM_INNER_ERROR;
     }
 
-    struct DevHeapList *heap_list = nullptr;
+    struct DevHeapList* heap_list = nullptr;
     struct DevVirtHeapType heap_type;
     heap_type.heap_type = heap->heap_type;
     heap_type.heap_list_type = heap->heap_list_type;
@@ -519,20 +519,21 @@ static int32_t FreeManagedNomal(uint64_t va)
     (void)pthread_rwlock_unlock(&heap_list->list_lock);
 
     if (VirtDestroyHeap(mgmt, heap) != 0) {
-        SHM_LOG_ERROR("Destory ptr error.");
+        SHM_LOG_ERROR("Destroy ptr error.");
         return ACLSHMEM_INNER_ERROR;
     }
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t HalGvaReserveMemory(uint64_t *address, size_t size, int32_t deviceId, uint64_t flags)
+int32_t HalGvaReserveMemory(uint64_t* address, size_t size, int32_t deviceId, uint64_t flags)
 {
     uint32_t advise = 0;
     struct DevVirtHeapType heap_type;
     size_t allocSize = ALIGN_UP(size, DEVMM_HEAP_SIZE);
     if (allocSize == 0 || allocSize > (DEVMM_SVM_MEM_SIZE >> 1) || address == nullptr) { // init size <= 4T
-        SHM_LOG_ERROR("gva init failed, (size must > 0 && <= 4T) or address is null. (flag=" << flags <<
-            " size=0x" << std::hex << size << ")");
+        SHM_LOG_ERROR(
+            "gva init failed, (size must > 0 && <= 4T) or address is null. (flag=" << flags << " size=0x" << std::hex
+                                                                                   << size << ")");
         return -1;
     }
 
@@ -541,7 +542,7 @@ int32_t HalGvaReserveMemory(uint64_t *address, size_t size, int32_t deviceId, ui
     SetModuleId2Advise(HCCL_HAL_MODULE_ID, &advise);
     FillSvmHeapType(advise, &heap_type);
 
-    void *mgmt = nullptr;
+    void* mgmt = nullptr;
     mgmt = DlHalApi::HalVirtGetHeapMgmt();
     if (mgmt == nullptr) {
         SHM_LOG_ERROR("HalGvaInitMemory get heap mgmt is nullptr.");
@@ -592,8 +593,9 @@ int32_t HalGvaAlloc(uint64_t address, size_t size, uint64_t flags)
     SetModuleId2Advise(APP_MODULE_ID, &advise);
     int32_t ret = DevmmIoctlAllocAnddAdvice(va, size, g_gvaHeapMgr.deviceId, advise);
     if (ret != 0) {
-        SHM_LOG_ERROR("Alloc gva local mem error. (ret=" << ret << " size=0x" << std::hex <<
-            size << ", advise=0x" << advise << ")");
+        SHM_LOG_ERROR(
+            "Alloc gva local mem error. (ret=" << ret << " size=0x" << std::hex << size << ", advise=0x" << advise
+                                               << ")");
         (void)RemoveInGvaHeap(va);
         return -1;
     }
@@ -613,8 +615,7 @@ int32_t HalGvaFree(uint64_t address, size_t size)
 static int32_t OpenGvaMalloc(uint64_t va, size_t len, uint64_t flags)
 {
     if ((va % DEVMM_MAP_ALIGN_SIZE != 0) || (len % DEVMM_MAP_ALIGN_SIZE != 0)) {
-        SHM_LOG_ERROR("open gva va check failed, size must the align of 2M. (size=0x" <<
-            std::hex << len << ")");
+        SHM_LOG_ERROR("open gva va check failed, size must the align of 2M. (size=0x" << std::hex << len << ")");
         return -1;
     }
 
@@ -627,8 +628,8 @@ static int32_t OpenGvaMalloc(uint64_t va, size_t len, uint64_t flags)
     SetModuleId2Advise(HCCL_HAL_MODULE_ID, &advise);
     int32_t ret = DevmmIoctlAllocAnddAdvice(va, len, g_gvaHeapMgr.deviceId, advise);
     if (ret != 0) {
-        SHM_LOG_ERROR("Alloc gva open mem error. (ret=" << ret << " size=0x" << std::hex <<
-            len << "advise=0x" << advise << ")");
+        SHM_LOG_ERROR(
+            "Alloc gva open mem error. (ret=" << ret << " size=0x" << std::hex << len << "advise=0x" << advise << ")");
         (void)RemoveInGvaHeap(va);
         return -1;
     }
@@ -636,14 +637,14 @@ static int32_t OpenGvaMalloc(uint64_t va, size_t len, uint64_t flags)
     return 0;
 }
 
-int32_t HalGvaOpen(uint64_t address, const char *name, size_t size, uint64_t flags)
+int32_t HalGvaOpen(uint64_t address, const char* name, size_t size, uint64_t flags)
 {
     if (OpenGvaMalloc(address, size, flags) != 0) {
         SHM_LOG_ERROR("HalGvaOpen malloc gva error. (size=0x" << std::hex << size << ")");
         return -1;
     }
 
-    auto ret = DevmmMapShareMemory(name, reinterpret_cast<void *>(address), size, flags);
+    auto ret = DevmmMapShareMemory(name, reinterpret_cast<void*>(address), size, flags);
     if (ret != 0) {
         HalGvaFree(address, 0);
     }
@@ -652,7 +653,7 @@ int32_t HalGvaOpen(uint64_t address, const char *name, size_t size, uint64_t fla
 
 int32_t HalGvaClose(uint64_t address, uint64_t flags)
 {
-    auto ret = DevmmUnmapShareMemory(reinterpret_cast<void *>(address), flags);
+    auto ret = DevmmUnmapShareMemory(reinterpret_cast<void*>(address), flags);
     if (ret != 0) {
         SHM_LOG_ERROR("Close error. ret:" << ret);
         return ret;
@@ -661,5 +662,5 @@ int32_t HalGvaClose(uint64_t address, uint64_t flags)
     return HalGvaFree(address, 0);
 }
 
-}
-}
+} // namespace drv
+} // namespace shm

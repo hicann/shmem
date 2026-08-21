@@ -57,7 +57,7 @@
     - ipport: SHMEM初始化需要的IP及端口号，格式为`tcp://<IP>:<端口号>`。如果执行跨机测试，需要将IP设为PE0所在Host的IP。
     - g_npus: 当前机器上启动的NPU卡的数量。
     - f_pe: 当前机器上使用的第一个PE号。
-    - f_npu: 当前机器执行本样例使用的第一张NPU卡的卡号
+    - f_npu: 当前机器执行本样例使用的第一张NPU卡的卡号。
     - test_type: 测试类型。
         - highlevel_put_pingpong_latency：测试Put高阶接口的pingpong时延。
         - postsend_cost: 测试postsend接口耗时。

@@ -263,6 +263,9 @@ shmem/                                 # Project root directory
 │   │   └── utils/                     # Tools and general auxiliary code
 │   ├── host_device/                   # Shared directory
 │   └── python/                         # Python-related directory
+├── tools/                              # Project auxiliary tools
+│   ├── pre-commit/                     # pre-commit check tools (header file dependency check, spelling check, and other configurations)
+│   └── rootinfo/                       # root_info_generate tool source code
 └── tests/                              # Test case set (UTs/functional tests)
 ```
 

@@ -148,7 +148,7 @@ examples/shmem_perftest/output/
 ├── rdma_perftest/        # rdma_perftest测试结果（单独运行rdma_perftest后拷贝至此）
 │   └── rdma_put_float_0.csv
 ├── simt_rma_perftest/    # simt_rma_perftest测试结果
-│   └── 32_32-32_put_simt_3-20_l1000_t1024_.csv
+│   └── 32_32-32_put_simt_3-20_l1000_t1024.csv
 └── performance_report.md  # （使用--markdown时生成）性能测试报告
 ```
 

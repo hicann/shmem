@@ -153,8 +153,8 @@ bash scripts/build.sh
 
 ```bash
 cd examples/init
-# Build and run the MPI initialization process of two PEs.
-bash run.sh -mode mpi -pesize 2
+# Build and run the uniqueid initialization process of two PEs.
+bash run.sh -mode uid -pesize 2
 ```
 ### Code Implementation
 ```cpp

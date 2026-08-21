@@ -39,7 +39,7 @@
 | `THREAD_COUNT` | SIMT 模式下单 Core 启动的线程数，决定向量指令流的并发规模。 | 默认 `1024` |
 
 > **提示**：修改上述常量后，需重新回到根目录执行编译（见下文），新配置才会生效。
-> 由于部分原因，目前同一个编译单元中，两个仅调用相似simt rma接口的vf函数会导致编译错误（尽管编译不会报错，运行时会有错误），本样例通过修改源码以测试不同的simt RMA接口，并提供了常量定义以方便修改。
+> 由于部分原因，目前同一个编译单元中，两个仅调用相似 SIMT RMA 接口的 vf 函数会导致编译错误（尽管编译不会报错，运行时会有错误），本样例通过修改源码以测试不同的 SIMT RMA 接口，并提供了常量定义以方便修改。
 
 ## 支持的设备
 
@@ -84,7 +84,7 @@
 | `-fnpu <int>` | 首个 NPU ID，实际 device id 为 `pe_id % gnpus + fnpu`。 | 0 |
 | `-fpe <int>` | 首个 PE ID。保留为与 shmem_perftest 参数兼容，当前不参与 rank 或 device 计算。 | 0 |
 | `-t`/`--test-type <put\|get\|none>` | 可选校验项；若指定，必须与源码编译期 `OP_TYPE` 一致，否则二进制报错。 | - |
-| `-d`/`--datatype <type>` | 可选校验项；类型名会映射到 bit 位宽，必须与源码编译期 `DATA_SIZE` 一致。 | - |
+| `-d`/`--datatype <type>` | 可选校验项；类型名会映射到 bit 位宽，必须与源码编译期 `DATA_SIZE` 一致。可取 `float`、`int8`、`int16`、`int32`、`int64`、`uint8`、`uint16`、`uint32`、`uint64`、`char`。 | - |
 | `-b`/`--block-size` | 每个 PE 使用的 Core（Block）数量。 | 32 |
 | `--block-range <min> <max>` | Core（Block）数量扫描范围，每个核数各产出统计结果。 | 32 32 |
 | `--block-list <b1,b2,...>` | 以逗号分隔显式指定要测试的核数（如 `2,4,8`）。指定后优先于 `-b`/`--block-range`。 | - |
@@ -107,7 +107,7 @@ bash run.sh -b 4 --exponent-range 8 12
 测试正常结束后，Active PE（PE 0）会在示例目录下的 `output/` 子目录中输出一个 `.csv` 性能统计文件，文件名格式为：
 
 ```bash
-[DATA_SIZE]_[blocks]_[OpType]_[VfType]_[minExp]-[maxExp]_l[loop_count]_t[THREAD_COUNT]_.csv
+[DATA_SIZE]_[blocks]_[OpType]_[VfType]_[minExp]-[maxExp]_l[loop_count]_t[THREAD_COUNT].csv
 ```
 
 其中 `[blocks]` 段反映本次实际测试的核数：连续区间（如 `--block-range 1 4`）记为 `1-4`；通过 `--block-list` 指定的离散核数（如 `2,4,8`）按测试顺序以 `_` 连接，记为 `2_4_8`。

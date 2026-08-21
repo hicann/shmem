@@ -298,8 +298,11 @@ sudo ./root_info_generate 0
 
 **Symptom**:
 ```bash
-Error: get_mainboard_id returned null for phy_id=100
+topo_addr_info_get_size failed: get_mainboard_id returned null for phy_id=100
+Error: topo_addr_info_get_size failed with ret=-1
 ```
+
+The first line is the library-side log and the second is the error message printed by the tool. Both indicate the same failure (consistent with the output in Example 3: Invalid Physical ID).
 
 **Solution**:
 - Use a valid physical ID ranging from 0 to `ACLSHMEMI_MAX_NPU_COUNT` – 1.

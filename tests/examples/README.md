@@ -87,7 +87,7 @@ tests/examples/
 
 4. **输出示例** <br/>
 ![本地图片](./assets/test_mm_ar_output_example.png)
-<br/>说明：带“correctness"的用例是正确性测试用例，带”stability"是用例是数值稳定性测试用例。
+<br/>说明：带"correctness"的用例是正确性测试用例，带"stability"的用例是数值稳定性测试用例。
 
 ## 5. 如何扩展
 

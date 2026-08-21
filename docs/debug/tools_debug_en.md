@@ -52,12 +52,14 @@ yum install python3-devel
 apt-get install python3-dev
 ```
 
-Obtain the mstx source code and install the .whl package.
+Obtain the mstx source code, compile it, and install the .whl package.
 
 ```sh
 git clone https://gitcode.com/Ascend/mstx.git
 cd mstx
-cd output
+# Build the source code. The build artifacts are generated in the artifacts/ directory.
+python3 build.py
+cd artifacts
 pip3 install --upgrade mstx-xxxxx.whl --target ${ASCEND_HOME_PATH}/tools/mstx/
 ```
 

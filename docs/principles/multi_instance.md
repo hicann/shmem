@@ -106,7 +106,7 @@ aclshmemx_init_attr_t attr;
 attr.my_pe = pe_id;
 attr.n_pes = pe_size;
 attr.local_mem_size = 1024UL * 1024UL * 1024UL;
-attr.ip_port = "tcp://x.x.x.x:0"        // 预先置为0,后续会分配
+attr.ip_port = "tcp://x.x.x.x:0";       // 预先置为0,后续会分配
 attr.comm_args = nullptr;               // default mode
 attr.instance_id = 2;
 

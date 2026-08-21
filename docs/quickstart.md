@@ -341,18 +341,19 @@ bash scripts/build.sh -soc_type Ascend950 -examples
 2.在shmem/examples/allgather目录执行demo:
 
 ```sh
-bash run.sh -pes 2 -type int
+bash run.sh -pes 2 -type int32_t
 ```
 
 注：example及其他样例代码仅供参考，在生产环境中请谨慎使用。
 
-`run.sh`脚本提供`-ranks`、`-ipport`、`-test_filter`等参数自定义执行用例的卡数、ip端口、gtest_filter等。例：
+`run.sh`脚本提供`-pes`、`-type`、`-ipport`、`-gnpus`、`-fnpu`、`-fpe`等参数，自定义执行用例的卡数、数据类型、ip端口、NPU卡数、起始NPU卡号和起始PE号等。例：
 
 ```sh
-# 8卡，ip:port 127.0.0.1:8666，运行所有*Init*用例
-# 注意：-ipport 只传 host:port，脚本会自动拼接 tcp:// 前缀
-bash scripts/run.sh -ranks 8 -ipport 127.0.0.1:8666 -test_filter Init
+# 2卡，数据类型int32_t
+bash run.sh -pes 2 -type int32_t
 ```
+
+更详细的参数说明请参考`examples/allgather/README.md`。单元测试脚本`scripts/run.sh`的`-ranks`、`-test_filter`参数请参见[9.1 运行单元测试](#81-运行单元测试)。
 
 ### 5.3 debug 模式使用
 
@@ -402,11 +403,13 @@ torchrun --nproc-per-node=<n> test.py # <n> 为想运行的 ranksize，替换为
 
 ## 7 `unique id` 初始化方式
 
-注：使用unique id的接口初始化，可以配置环境变量SHMEM_UID_SESSION_ID或者SHMEM_UID_SOCK_IFNAME，同时配置时只读SHMEM_UID_SESSION_ID，都不配置时会自动搜索可用网口。SHMEM_UID_SESSION_ID支持IPv4地址、IPv6地址和主机名。SHMEM_UID_SESSION_ID配置示例：
+注：使用unique id的接口初始化，可以手动配置环境变量SHMEM_UID_SESSION_ID或者SHMEM_UID_SOCK_IFNAME，同时配置时只读SHMEM_UID_SESSION_ID，都不配置时默认自动搜索可用网口。SHMEM_UID_SESSION_ID支持IPv4地址、IPv6地址和主机名。
+SHMEM_UID_SESSION_ID配置示例：
 
 ```bash
 SHMEM_UID_SESSION_ID=127.0.0.1:1234
 SHMEM_UID_SESSION_ID=[6666:6666:6666:6666:6666:6666:6666:6666]:886
+SHMEM_UID_SESSION_ID=[6666:6666:6666:6666:6666:6666:6666:6666%eth]:886
 SHMEM_UID_SESSION_ID=localhost:8888
 ```
 
@@ -418,7 +421,7 @@ SHMEM_UID_SOCK_IFNAME=enpxxxx:inet6  取ipv6
 SHMEM_UID_SOCK_IFNAME=eth0          自动探测可用协议（优先ipv4）
 ```
 
-未配置时可自动搜索可用网口（IPv4/IPv6均可，优先非虚拟网口）。
+不配置时默认自动搜索可用网口(IPv4/IPv6均可)，搜索优先级：非虚拟网口(排除lo/docker/veth/br-/virbr/tun/tap) >> 虚拟网口。
 
 - python初始化例子
 
@@ -439,44 +442,13 @@ ret = ash.aclshmem_init_using_unique_id(rank, world_size, mem_size, uid)
 
 ```cpp
 aclshmemx_uniqueid_t uid;
-aclshmemx_init_attr_t *attr;
+aclshmemx_init_attr_t attributes;
 int ret = aclshmemx_get_uniqueid(&uid);
-ret = aclshmemx_set_attr_uniqueid_args(my_pe, n_pes, mem_size, &uid, attr);
+ret = aclshmemx_set_attr_uniqueid_args(my_pe, n_pes, mem_size, &uid, &attributes);
+status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, &attributes);
 ```
 
-## 8 SHMEM 方式
-
-注：使用unique id的接口初始化，可以手动配置环境变量SHMEM_UID_SESSION_ID或者SHMEM_UID_SOCK_IFNAME，同时配置时只读SHMEM_UID_SESSION_ID，都不配置会自动搜索可用网口。SHMEM_UID_SESSION_ID支持IPv4地址、IPv6地址和主机名。
-SHMEM_UID_SESSION_ID配置示例：
-
-```bash
-SHMEM_UID_SESSION_ID=127.0.0.1:1234
-SHMEM_UID_SESSION_ID=[6666:6666:6666:6666:6666:6666:6666:6666]:886
-SHMEM_UID_SESSION_ID=[6666:6666:6666:6666:6666:6666:6666:6666%eth]:886
-SHMEM_UID_SESSION_ID=localhost:8888
-```
-
-SHMEM_UID_SOCK_IFNAME配置示例：
-
-```bash
-SHMEM_UID_SOCK_IFNAME=enpxxxx:inet4  取ipv4
-SHMEM_UID_SOCK_IFNAME=enpxxxx:inet6  取ipv6
-SHMEM_UID_SOCK_IFNAME=eth0          自动探测可用协议（优先ipv4）
-```
-
-不配置默认自动搜索可用网口(IPv4/IPv6均可)，搜索优先级：非虚拟网口(排除lo/docker/veth/br-/virbr/tun/tap) >> 虚拟网口。
-
-- c++ 初始化例子
-
-```cpp
-aclshmemx_uniqueid_t uid;
-aclshmemx_init_attr_t *attr;
-int ret = aclshmemx_get_uniqueid(&uid);
-aclshmemx_set_attr_uniqueid_args(rank, rank_size, local_mem_size, &uid, &attributes);
-status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, attributes);
-```
-
-## 9 测试框架
+## 8 测试框架
 
 - **单元测试：** 覆盖核心接口（初始化、内存操作、同步等），位于 `tests/unittest/`
 
@@ -484,7 +456,7 @@ status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_UNIQUEID, attributes);
 
 测试和样例分为编译阶段与运行阶段：编译阶段需要 CANN toolkit、`bisheng` 和对应第三方依赖；运行阶段的 `scripts/run.sh`、`scripts/run_examples.sh` 需要可用 NPU、驱动、CANN 运行时和正确的 rank/NPU 参数。无 NPU 的普通容器环境可用于依赖检查和编译验证，不能完整验证 UT 或 examples 的运行时行为。
 
-### 9.1 运行单元测试
+### 8.1 运行单元测试
 
 ```bash
 # 编译并运行单元测试
@@ -504,7 +476,7 @@ bash scripts/run.sh -ranks 8 -test_filter Init
 
 具体参数请见[编译与构建](compilation_build_guide.md)文档中的「run.sh脚本使用」章节。
 
-### 9.2 样例编译与执行
+### 8.2 样例编译与执行
 
 ```bash
 # A2/A3 平台
@@ -514,11 +486,11 @@ bash scripts/build.sh -soc_type Ascend950 -examples
 bash scripts/run_examples.sh
 ```
 
-### 9.3 样例单独执行
+### 8.3 样例单独执行
 
 可查看 examples 目录下对应的样例目录下的 README.md
 
-### 9.4 运行 Python 测试用例
+### 8.4 运行 Python 测试用例
 
 ```bash
 # 构建同时包含 910 和 950 后端的 Python wheel
@@ -535,14 +507,14 @@ shmem-config --diagnose
 torchrun --nproc-per-node=2 examples/python_extension/test/init_test.py
 ```
 
-### 9.5 自定义测试
+### 8.5 自定义测试
 
 基于 `tests/` 目录的 gtest 框架，新增测试用例需遵循：
 
 - 测试文件命名：`{module}_test.cc`
 - 测试用例命名：`{FunctionName}_{Scenario}_Test`
 
-## 10 配置与调优（可选，进阶使用）
+## 9 配置与调优（可选，进阶使用）
 
 **1. 关闭 TLS 加密（提升通信性能）**
 

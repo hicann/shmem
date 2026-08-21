@@ -30,11 +30,10 @@ The basic SHMEM build command is `bash build.sh`. The default build mode generat
 - `-enable_rdma`: builds and enables RDMA capabilities. By default, the RDMA backend type is configured for Ascend 910B/C. For Ascend 950, you need to use `-rdma_backend` to specify the backend type.
 - `-rdma_backend`: specifies the RDMA backend type (not supported by Ascend 910B/C). The value can be `XSCALE` (Yunsilicon NICs are used). This option must be used together with `-enable_rdma`. Otherwise, an error is returned. The parameter sequence is not limited.
 - `-enable_ascendc_dump`: enables the `AscendC_Dump` mode for debugging the operator kernel code.
-- `-package`:
-    * builds a .whl package extended by Python.
-    * generates `SHMEM\_{version}\_linux-{arch}.run` in the `{project_root}/package/{arch}/` directory.
-    * generates the Python .whl package `shmem-xxx.whl` in the `{project_root}/package/{arch}/` directory.
-- `-python_extension`: generates the Python .whl package `shmem-xxx.whl` in the `{project_root}/dist/` directory.
+- `-package`: builds the installation package for delivery, and generates the run package and Python wheel at the same time (including the behavior of `-python_extension`)
+    * generates the run package `SHMEM\_{version}\_linux-{arch}.run` in the `{project_root}/package/{arch}/` directory.
+    * generates the Python wheel `cann_shmem-*.whl` containing both the 910/950 backends in the `{project_root}/package/{arch}/` directory.
+- `-python_extension`: generates the Python wheel `cann_shmem-*.whl` containing both the 910/950 backends in the `{project_root}/dist/` directory.
 - `-gendoc`: generates documents.
 - `-onlygendoc`: generates documents without building the source code.
 - `-debug`: sets the build type to `Debug`.

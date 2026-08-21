@@ -8,15 +8,15 @@ This document describes how to use four stream-based SHMEM C++ APIs. These APIs 
 
 | API                                        | Cross-Server Support| Description                                                                                                |
 | ------------------------------------------ | ---- | -------------------------------------------------------------------------------------------------- |
-| aclshmemx\_putmem\_on\_stream              | Supported  | MTE is preferred when HCCS is connected. Otherwise, RDMA is used when the RDMA links are available.                                                                    |
-| aclshmemx\_getmem\_on\_stream              | Supported  | MTE is preferred when HCCS is connected. Otherwise, RDMA is used when the RDMA links are available.                                                                    |
-| aclshmemx\_signal\_op\_on\_stream          | Partially supported| `ACLSHMEM_SIGNAL_SET`: MTE is preferred when HCCS is connected. Otherwise, RDMA is used when the RDMA links are available. `ACLSHMEM_SIGNAL_ADD` does not support cross-server RDMA, but supports MTE cross-server communication when the HCCS is connected.|
+| aclshmemx\_putmem\_on\_stream              | Supported  | MTE is preferred when HCCS/UB is connected. Otherwise, RDMA is used when the RDMA links are available.                                                                    |
+| aclshmemx\_getmem\_on\_stream              | Supported  | MTE is preferred when HCCS/UB is connected. Otherwise, RDMA is used when the RDMA links are available.                                                                    |
+| aclshmemx\_signal\_op\_on\_stream          | Partially supported| `ACLSHMEM_SIGNAL_SET`: MTE is preferred when HCCS/UB is connected. Otherwise, RDMA is used when the RDMA links are available. `ACLSHMEM_SIGNAL_ADD` does not support cross-server RDMA, but supports MTE cross-server communication when the HCCS/UB is connected.|
 | aclshmemx\_signal\_wait\_until\_on\_stream | Not supported | Semantic: Wait for the address on the card to reach a value.                                                                                   |
 
 Policy for selecting a data transmission path in the cross-server scenario:
 
-- **MTE preferred**: When HCCS is connected, the MTE path is preferentially used.
-- **RDMA**: When HCCS is disconnected but RDMA is available, the RDMA path is automatically used for cross-server communication.
+- **MTE preferred**: When HCCS/UB is connected, the MTE path is preferentially used.
+- **RDMA**: When HCCS/UB is disconnected but RDMA is available, the RDMA path is automatically used for cross-server communication.
 
 For automatic selection of the MTE or RDMA path, perform initialization in the following manner:
 
@@ -39,7 +39,7 @@ For details about the initialization, see the `void test_cross_init()` function 
 
 Copies data from the symmetric memory of the local card to the address of a specified PE through a specified stream. This is a synchronous API.
 
-**Cross-server support**: Supported. MTE is preferred when HCCS is connected. Otherwise, RDMA is used when the RDMA links are available.
+**Cross-server support**: Supported. MTE is preferred when HCCS/UB is connected. Otherwise, RDMA is used when the RDMA links are available.
 
 **Prototype**:
 
@@ -104,7 +104,7 @@ aclFinalize();
 
 Copies continuous data on the specified PE in the symmetric memory to the address of the local PE through the specified stream. This is a synchronous API.
 
-**Cross-server support**: Supported. MTE is preferred when HCCS is connected. Otherwise, RDMA is used when the RDMA links are available.
+**Cross-server support**: Supported. MTE is preferred when HCCS/UB is connected. Otherwise, RDMA is used when the RDMA links are available.
 
 **Prototype**:
 
@@ -172,8 +172,8 @@ Performs operations on signal variables on a specified PE. The operations are pe
 
 **Cross-server support**: Partially supported
 
-- `ACLSHMEM_SIGNAL_SET`: MTE cross-server communication and RDMA are supported when HCCS is connected.
-- `ACLSHMEM_SIGNAL_ADD`: Cross-server RDMA is not supported. MTE cross-server communication is supported when HCCS is connected.
+- `ACLSHMEM_SIGNAL_SET`: MTE cross-server communication and RDMA are supported when HCCS/UB is connected.
+- `ACLSHMEM_SIGNAL_ADD`: Cross-server RDMA is not supported. MTE cross-server communication is supported when HCCS/UB is connected.
 
 **Prototype**:
 
@@ -217,7 +217,7 @@ aclshmemx_signal_op_on_stream(signal_var, 1, ACLSHMEM_SIGNAL_SET, target_pe, str
 aclshmem_handle_t handle;
 handle.team_id = ACLSHMEM_TEAM_WORLD;
 aclshmemx_handle_wait(handle, stream);
-// 5. Accumulate the signal value. (Cross-server RDMA is not supported. MTE cross-server communication is supported only when HCCS is connected.)
+// 5. Accumulate the signal value. (Cross-server RDMA is not supported. MTE cross-server communication is supported only when HCCS/UB is connected.)
 aclshmemx_signal_op_on_stream(signal_var, 10, ACLSHMEM_SIGNAL_ADD, target_pe, stream);
 
 // 6. Wait until the operation is complete.
@@ -349,8 +349,8 @@ aclFinalize();
 
 1. **Memory allocation**: When RDMA APIs are called across servers, `aclshmem_malloc` must be used to allocate symmetric memory.
 2. **Cross-server communication**:
-   - `aclshmemx_putmem_on_stream` and `aclshmemx_getmem_on_stream` support cross-server communication. When HCCS is connected, MTE is preferentially used. Otherwise, RDMA is used when the RDMA links are available.
-   - `aclshmemx_signal_op_on_stream`: `ACLSHMEM_SIGNAL_SET` supports cross-server RDMA. `ACLSHMEM_SIGNAL_ADD` does not support cross-server RDMA. MTE cross-server communication is supported when HCCS is connected.
-   - `aclshmemx_signal_wait_until_on_stream` does not support cross-server RDMA but supports MTE cross-server communication when HCCS is connected.
+   - `aclshmemx_putmem_on_stream` and `aclshmemx_getmem_on_stream` support cross-server communication. When HCCS/UB is connected, MTE is preferentially used. Otherwise, RDMA is used when the RDMA links are available.
+   - `aclshmemx_signal_op_on_stream`: `ACLSHMEM_SIGNAL_SET` supports cross-server RDMA. `ACLSHMEM_SIGNAL_ADD` does not support cross-server RDMA. MTE cross-server communication is supported when HCCS/UB is connected.
+   - `aclshmemx_signal_wait_until_on_stream` does not support cross-server communication. Its semantics is to wait until the address on the local NPU reaches a specified value.
    - In cross-server scenarios, ensure that the network configuration is correct and related environment variables are correctly configured.
    - **RDMA path synchronization**: When RDMA APIs are used, `aclshmemx_handle_wait` needs to be called to ensure that data has been received.

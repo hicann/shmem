@@ -56,13 +56,13 @@ private:
 
 | Parameter     | Input/Output| Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | :------------ | :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| uint8_t* k_cache| Input/Output     | Pointer to the Key Cache global memory, which stores the key data blocks for the shuffle operation. The memory is contiguous and organized by block. The size of each block is kv_head_num * page_size * head_dim * sizeof(data_type).|
-| uint8_t* v_cache | Input/Output     | Pointer to the Value Cache global memory, which stores the value data blocks for the shuffle operation. It shares the same contiguous memory layout as `k_cache`.|
+| uint8_t* k_cache| Input/Output     | Pointer to the Key Cache global memory, which stores the key data blocks for the shuffle operation. The memory is contiguous and organized by block. The size of each block is kv_head_num * page_size * head_dim * sizeof(data_type). The sending PE reads the source data blocks from this pointer, and the receiving PE writes the received data into it (the operator has copy semantics, and the source data of the sending PE remains unchanged).|
+| uint8_t* v_cache | Input/Output     | Pointer to the Value Cache global memory, which stores the value data blocks for the shuffle operation. It shares the same contiguous memory layout as `k_cache`. The sending PE reads the source data blocks from this pointer, and the receiving PE writes the received data into it.|
 | uint8_t* global_shuffle_table | Input     | Global shuffle table, which stores the pairing information and operation type of each rank. It actually stores data of the `int64_t` type. The memory layout is an array structure, with each PE corresponding to two `int64_t` entries: `[pair_rank_0, operation_0, pair_rank_1, operation_1, ..., pair_rank_n, operation_n]`. Data restrictions: The size must be `2 * n_pes * sizeof(int64_t)`, where `n_pes` is the total number of ranks. The value of `operation` can only be `0` or `1` (`0` for sending and `1` for receiving). The pairing relationship must be bidirectional (if A's `pair_rank` is B, then B's `pair_rank` must be A).|
 | uint8_t* src_block_table | Input     | Source block index table, which indicates the source block ID of each shuffle operation. The actual data is of the `int64_t` type and stored in a one-dimensional array with a length of `block_nums`. The value of each element must be a valid block ID (0 ≤ src_block_id < block_nums).|
-| uint8_t* dst_block_table | Input     |Destination block index table, which indicates the destination block ID of each shuffle operation. The actual data is of the `int64_t` type. The value of each element must be a valid block ID (0 ≤ dst_block_id < block_nums).|
+| uint8_t* dst_block_table | Input     | Destination block index table, which indicates the destination block ID of each shuffle operation. The actual data is of the `int64_t` type. The value of each element must be a valid block ID (0 ≤ dst_block_id < block_nums).|
 | int64_t block_nums | Input     | Number of blocks to be shuffled.|
-| int64_t kv_head_num | Input     |Number of key-value data heads.|
+| int64_t kv_head_num | Input     | Number of key-value data heads.|
 | int64_t page_size | Input     | Size of each page in the KV Cache.|
 | int64_t head_dim | Input     | Dimension of each head.|
 
@@ -75,6 +75,8 @@ kv_shuffle = torch.classes.ShmemOps.KVShuffle()
 kv_shuffle.compute(global_shuffle_tensor, aclshmem_k_cache_tensor,
                                 aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)
 ```
+
+> **Note**: The `compute` parameters of the Python API differ from those of the C++ API in order. The Python parameter order is `(global_shuffle_tensor, aclshmem_k_cache_tensor, aclshmem_v_cache_tensor, src_block_tensor, dst_block_tensor)`, where `global_shuffle_tensor` comes first. The C++ parameter order is `(k_cache, v_cache, global_shuffle_table, src_block_table, dst_block_table)`, where `global_shuffle_table` comes third. Follow the corresponding order when passing parameters to each API to avoid parameter misplacement.
 
 **API Parameters**
 
@@ -145,10 +147,10 @@ kv_shuffle.compute(global_shuffle_tensor, aclshmem_k_cache_tensor,
 
 In the C++ implementation of the PyTorch extension, the following parameters are derived from the input tensor:
 
-- `block_nums`: obtained from `dst_block_tensor.size(0)`, representing the number of blocks to be processed
-- `kv_head_num`: obtained from `KeyCache.size(1)`, representing the number of key-value data heads
-- `page_size`: obtained from `KeyCache.size(2)`, representing the number of tokens per page
-- `head_dim`: obtained from `KeyCache.size(3)`, representing the dimension of each head
+- `block_nums`: obtained from `dst_block_tensor.size(0)`, representing the number of blocks to be processed.
+- `kv_head_num`: obtained from `KeyCache.size(1)`, representing the number of key-value data heads.
+- `page_size`: obtained from `KeyCache.size(2)`, representing the number of tokens per page.
+- `head_dim`: obtained from `KeyCache.size(3)`, representing the dimension of each head.
 
 ### Data Flow Effect of the KVShuffle Operator
 
@@ -276,9 +278,9 @@ This mapping ensures that tokens can be efficiently stored and accessed in the K
 [[[4.1, 4.2], [4.3, 4.4], [4.5, 4.6], [4.7, 4.8]]]
 ```
 
-#### 3. Load Balancing and Transmission Policy Computation
+#### 4. Load Balancing and Transmission Policy Computation
 
-##### 3.1 Batch Token Length
+##### 4.1 Batch Token Length
 
 Assume that the generated batch token lengths are as follows:
 
@@ -287,7 +289,7 @@ Assume that the generated batch token lengths are as follows:
 | 0 | 6 | 7 | 13 |
 | 1 | 3 | 3 | 6 |
 
-##### 3.2 Calculating the Number of Blocks
+##### 4.2 Calculating the Number of Blocks
 
 Formula for calculating the number of blocks in each batch: `block_num = seqlen // PAGE_SIZE + 1`
 
@@ -298,7 +300,7 @@ Formula for calculating the number of blocks in each batch: `block_num = seqlen 
 
 **Note**: Tokens are managed by block, so the last block may not be fully filled (for example, Block 1 of Batch 0 has only two tokens).
 
-##### 3.3 Batch-to-Block Mapping
+##### 4.3 Batch-to-Block Mapping
 
 **batch_blocks_list of Rank 0**:
 
@@ -318,13 +320,13 @@ Formula for calculating the number of blocks in each batch: `block_num = seqlen 
 ]
 ```
 
-##### 3.4 Load Balancing Computation
+##### 4.4 Load Balancing Computation
 
 - Average number of tokens: `(13 + 6) / 2 = 9.5`
 - Number of tokens to be transmitted by Rank 0: `13 - 9.5 = 3.5` (rounded down to 3)
 - Number of tokens to be received by Rank 1: `9.5 - 6 = 3.5` (rounded down to 3)
 
-##### 3.5 Selection of Batches for Transmission
+##### 4.5 Selection of Batches for Transmission
 
 Since tokens are managed by block, Batch 0 (with 6 tokens) is selected for transmission to approach the ideal load as closely as possible:
 
@@ -337,9 +339,9 @@ Since tokens are managed by block, Batch 0 (with 6 tokens) is selected for trans
 ]
 ```
 
-#### 4. Block Table Generation
+#### 5. Block Table Generation
 
-##### 4.1 src_block_table
+##### 5.1 src_block_table
 
 Rank 0 needs to transmit the block IDs [0, 1] corresponding to Batch 0:
 
@@ -352,7 +354,7 @@ Rank 0 needs to transmit the block IDs [0, 1] corresponding to Batch 0:
 ]
 ```
 
-##### 4.2 dst_block_table
+##### 5.2 dst_block_table
 
 Rank 1 currently uses two blocks (0 and 1), so the destination block IDs start from 2:
 
@@ -365,7 +367,7 @@ Rank 1 currently uses two blocks (0 and 1), so the destination block IDs start f
 ]
 ```
 
-##### 4.3 Pairing Relationship
+##### 5.3 Pairing Relationship
 
 **pair_list**:
 
@@ -376,16 +378,16 @@ Rank 1 currently uses two blocks (0 and 1), so the destination block IDs start f
 ]
 ```
 
-#### 5. KVShuffle Data Transformation
+#### 6. KVShuffle Data Transformation
 
-##### 5.1 Data Transmission Process
+##### 6.1 Data Transmission Process
 
 | Source Rank| Source Block ID| Destination Rank| Destination Block ID| Transmitted Data|
 |--------|--------|----------|----------|------------|
 | 0 | 0 | 1 | 2 | K Block 0 and V Block 0 of Rank 0|
 | 0 | 1 | 1 | 3 | K Block 1 and V Block 1 of Rank 0|
 
-##### 5.2 Notes on Clearing Source Rank Blocks
+##### 6.2 Notes on Clearing Source Rank Blocks
 
 **Why are the blocks of Rank 0 not cleared?**
 
@@ -394,7 +396,7 @@ Rank 1 currently uses two blocks (0 and 1), so the destination block IDs start f
 - If the application layer indeed needs to clear the data of the source rank, these blocks can be manually released or marked as available after the KVShuffle operation is complete.
 - The clearing operation is usually determined by the application layer based on the specific service logic, rather than being automatically performed by the KVShuffle operator.
 
-##### 5.3 Data Status After Transformation
+##### 6.3 Data Status After Transformation
 
 ###### Final Data of Rank 0 (Unchanged)
 
@@ -464,16 +466,16 @@ Rank 1 currently uses two blocks (0 and 1), so the destination block IDs start f
 [[[0.9, 1.0], [1.1, 1.2], [1.3, 1.4], [1.5, 1.6]]]
 ```
 
-#### 6. Data Verification
+#### 7. Data Verification
 
-##### 6.1 Data Consistency Before and After Transmission
+##### 7.1 Data Consistency Before and After Transmission
 
 - K Block 2 of Rank 1 is identical to K Block 0 of Rank 0.
 - K Block 3 of Rank 1 is identical to K Block 1 of Rank 0.
 - V Block 2 of Rank 1 is identical to V Block 0 of Rank 0.
 - V Block 3 of Rank 1 is identical to V Block 1 of Rank 0.
 
-##### 6.2 Load Balancing Effect
+##### 7.2 Load Balancing Effect
 
 Token distribution before and after transmission:
 
@@ -482,7 +484,7 @@ Token distribution before and after transmission:
 | 0 | 13 | 13 - 6 = 7 | Closer to the average value 9.5|
 | 1 | 6 | 6 + 6 = 12 | Closer to the average value 9.5|
 
-#### 7. Data Flow Summary
+#### 8. Data Flow Summary
 
 ```
 ┌─────────────────────────┐     ┌────────────────────────┐
@@ -522,16 +524,16 @@ Token distribution before and after transmission:
 └─────────────────────────┘     └─────────────────────────┘
 ```
 
-#### 8. Key Data Structure Examples
+#### 9. Key Data Structure Examples
 
-##### 8.1 global_shuffle_tensor
+##### 9.1 global_shuffle_tensor
 
 ```
 [1, 0],  # Rank 0 is paired with Rank 1 and acts as the sender.
  [0, 1]   # Rank 1 is paired with Rank 0 and acts as the receiver.
 ```
 
-##### 8.2 aclshmem_k_cache_tensor (Rank 0)
+##### 9.2 aclshmem_k_cache_tensor (Rank 0)
 
 ```
 # Shape: (4, 1, 4, 2)
@@ -541,19 +543,19 @@ Token distribution before and after transmission:
  [[[4.1, 4.2], [4.3, 4.4], [4.5, 4.6], [4.7, 4.8]]]]  # Block 3
 ```
 
-##### 8.3 src_block_tensor (Rank 0)
+##### 9.3 src_block_tensor (Rank 0)
 
 ```
 [0, 1]  # ID of the source block to be transmitted
 ```
 
-##### 8.4 dst_block_tensor (Rank 0)
+##### 9.4 dst_block_tensor (Rank 0)
 
 ```
 [2, 3]  # ID of the block transmitted to the destination rank
 ```
 
-#### 9. Performance Metric Examples
+#### 10. Performance Metric Examples
 
 | Metric| Value| Description|
 |------|-----|------|
@@ -562,7 +564,7 @@ Token distribution before and after transmission:
 | Transmitted Data Volume| 2 x 1 x 4 x 2 x 2 = 32 bytes| 16 bytes for K and V each (float16 type)|
 | Load Balancing Effect| From 13:6 to 7:12| Closer to the ideal 9.5:9.5|
 
-#### 10. Application Scenarios
+#### 11. Application Scenarios
 
 Through this specific data flow example, we can see that the KVShuffle operator:
 

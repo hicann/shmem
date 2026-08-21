@@ -32,11 +32,11 @@ For example, consider an API with pointer-type parameters:
 ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                             uint32_t elem_size, int pe, uint32_t sync_id)
 ```
-API function: This API transfers elements (with the number specified by `elem_size`) from the address specified by `src` on the PE specified by `pe` to the address specified by `dst`.
+API function: This API transfers elements (with the number specified by `elem_size`) from the local `src` address of the current PE to the remote symmetric address `dst` on the target PE `pe`.
 | Parameter      | Description                                                                |
 |--------------|----------------------------------------------------------------------|
-| dst          | Symmetric address of the target device's destination address on the local device                                  |
-| src          | Source address on the local device                                                      |
+| dst          | Remote symmetric address on the target PE `pe` where data is written                                  |
+| src          | Local source address on the current PE                                                      |
 | buf          | Buffer address                                                          |
 | ub_size      | Buffer size                                                          |
 | elem_size    | Number of elements                                                            |
@@ -49,11 +49,11 @@ For example, consider an API with pointer-type parameters:
 ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
                                             uint32_t elem_size, int pe, uint32_t sync_id)
 ```
-API function: This API transfers elements (with the number specified by `elem_size`) from the address specified by `dst` on the PE specified by `pe` to the address specified by `src`.
+API function: This API pulls elements (with the number specified by `elem_size`) from the remote symmetric address `src` on the target PE `pe` and writes them to the local `dst` address of the current PE.
 | Parameter      | Description                                                                |
 |--------------|----------------------------------------------------------------------|
-| dst          | Symmetric address of the target device's destination address on the local device                                  |
-| src          | Source address on the local device                                                      |
+| dst          | Local destination address on the current PE to which data is written                                  |
+| src          | Remote symmetric address on the target PE `pe` from which data is read                                                      |
 | buf          | Buffer address                                                          |
 | ub_size      | Buffer size                                                          |
 | elem_size    | Number of elements                                                            |

@@ -80,9 +80,9 @@ Linux命令（CentOS/Ubuntu）：
 ```bash
 # 在项目根目录执行
 # A2/A3 平台
-bash scripts/build.sh install
+bash scripts/build.sh
 # Ascend950 平台
-bash scripts/build.sh -soc_type Ascend950 install
+bash scripts/build.sh -soc_type Ascend950
 
 # 产物检查
 ls -l install/lib/*.so
@@ -146,9 +146,9 @@ Linux命令（CentOS/Ubuntu）：
 
 ```bash
 # A2/A3 平台
-bash scripts/build.sh install
+bash scripts/build.sh
 # Ascend950 平台
-bash scripts/build.sh -soc_type Ascend950 install
+bash scripts/build.sh -soc_type Ascend950
 ls -l install/lib/
 ```
 
@@ -238,9 +238,9 @@ LD_DEBUG=libs,files ${CUSTOM_PROJECT}/bin/app --version 2>&1 | grep -E "libshmem
 ```bash
 rm -rf build output install
 # A2/A3 平台
-bash scripts/build.sh install
+bash scripts/build.sh
 # Ascend950 平台
-bash scripts/build.sh -soc_type Ascend950 install
+bash scripts/build.sh -soc_type Ascend950
 ```
 
 ### 1.8.2 项目路径权限不足

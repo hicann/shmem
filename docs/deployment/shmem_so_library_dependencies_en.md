@@ -39,9 +39,9 @@ Note: `libssl.so` and `libcrypto.so` are dynamically loaded from the absolute pa
 ### 1.3.2 Mermaid Dependency Diagram (Example)
 ```mermaid
 graph TD
-    A[${CUSTOM_PROJECT}/lib/libshmem.so] --> B[${CUSTOM_PROJECT}/lib/libshmem_utils.so]
-    A --> C[${CUSTOM_PROJECT}/lib/aclshmem_bootstrap_config_store.so]
-    A --> D[${CUSTOM_PROJECT}/lib/aclshmem_bootstrap_mpi.so]
+    A["${CUSTOM_PROJECT}/lib/libshmem.so"] --> B["${CUSTOM_PROJECT}/lib/libshmem_utils.so"]
+    A --> C["${CUSTOM_PROJECT}/lib/aclshmem_bootstrap_config_store.so"]
+    A --> D["${CUSTOM_PROJECT}/lib/aclshmem_bootstrap_mpi.so"]
     A --> E[libascend_hal.so]
     A --> F[libascendcl.so]
     A --> G[libruntime.so]
@@ -50,10 +50,10 @@ graph TD
     A --> J[libtsdclient.so]
     C --> K[libssl.so]
     C --> L[libcrypto.so]
-    A --> M[/lib64/libc.so.6]
-    A --> N[/lib64/libpthread.so.0]
-    A --> O[/lib64/libdl.so.2]
-    D --> P[/usr/lib64/libmpi.so]
+    A --> M["/lib64/libc.so.6"]
+    A --> N["/lib64/libpthread.so.0"]
+    A --> O["/lib64/libdl.so.2"]
+    D --> P["/usr/lib64/libmpi.so"]
 
     classDef strong fill:#FDE2E2,stroke:#C53030,stroke-width:1px;
     classDef weak fill:#E6FFFA,stroke:#2C7A7B,stroke-width:1px;
@@ -69,7 +69,10 @@ The output directory of `build.sh` must be `install/`. Do not use the historical
 Linux commands (CentOS/Ubuntu):
 ```bash
 # Run the command in the root directory.
-bash build.sh install
+# For the A2/A3 platform
+bash scripts/build.sh
+# For the Ascend950 platform
+bash scripts/build.sh -soc_type Ascend950
 
 # Product check
 ls -l install/lib/*.so
@@ -121,7 +124,11 @@ cp -f ${BUILD_DIR}/lib/*.so "${INSTALL_LIB_DIR}/"
 ### 1.5.3 Command Execution After Adjustment
 Linux commands (CentOS/Ubuntu):
 ```bash
-bash build.sh install
+# Run the command in the root directory.
+# For the A2/A3 platform
+bash scripts/build.sh
+# For the Ascend950 platform
+bash scripts/build.sh -soc_type Ascend950
 ls -l install/lib/
 ```
 
@@ -189,7 +196,11 @@ Solution:
 - Delete the old directory and perform the build again.
 ```bash
 rm -rf build output install
-bash build.sh install
+# Run the command in the root directory.
+# For the A2/A3 platform
+bash scripts/build.sh
+# For the Ascend950 platform
+bash scripts/build.sh -soc_type Ascend950
 ```
 
 ### 1.8.2 Insufficient Permission on the Project Path
