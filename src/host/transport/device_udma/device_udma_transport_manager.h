@@ -68,6 +68,8 @@ private:
     struct ExchangedEndpointDesc {
         uint32_t eid_index{0};
         uint32_t valid{0};
+        uint16_t listen_port{0};
+        uint16_t reserved{0};
         EndpointDesc desc{};
     };
     // Result of the endpoint-descriptor allgather. `descs` is a flat [rank * max_count + idx] table.
@@ -166,6 +168,7 @@ private:
     std::vector<int32_t> all_local_routes_;
     std::map<uint32_t, EndpointDesc> endpoint_desc_map_;                    // eid_index -> local hcomm endpoint desc
     std::map<uint32_t, EndpointHandle> endpoint_handle_map_;                // eid_index -> hcomm endpoint handle
+    std::map<uint32_t, uint16_t> endpoint_listen_port_map_;                 // eid_index -> actual listen port
     std::map<uint64_t, std::map<uint32_t, HcommMemHandle>> mem_record_map_; // addr -> eid_index -> hcomm mem handle
     std::vector<ChannelHandle> channel_handles_;
     // The control plane fills a contiguous aclshmemi_aiv_udma_info_t blob using the legacy

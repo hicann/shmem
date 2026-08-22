@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -829,9 +830,15 @@ Result UdmaTransportManager::ExchangeEndpointDescriptors(EndpointExchange& excha
     std::vector<ExchangedEndpointDesc> local_endpoints(exchange.max_count);
     uint32_t packed_index = 0;
     for (const auto& endpoint_entry : endpoint_desc_map_) {
+        auto port_it = endpoint_listen_port_map_.find(endpoint_entry.first);
+        if (port_it == endpoint_listen_port_map_.end() || port_it->second == 0) {
+            SHM_LOG_ERROR("No valid listen port for local Hcomm endpoint on EID index " << endpoint_entry.first);
+            return ACLSHMEM_INNER_ERROR;
+        }
         ExchangedEndpointDesc& packed = local_endpoints[packed_index];
         packed.eid_index = endpoint_entry.first;
         packed.valid = 1;
+        packed.listen_port = port_it->second;
         packed.desc = endpoint_entry.second;
         ++packed_index;
     }
@@ -894,6 +901,29 @@ Result UdmaTransportManager::CreateChannelForSlot(
     channel_desc.exchangeAllMems = false;
     channel_desc.memHandles = mem_handles.data();
     channel_desc.memHandleNum = static_cast<uint32_t>(mem_handles.size());
+    const bool is_server = rank_id_ < dst_pe;
+    channel_desc.role = is_server ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
+    if (is_server) {
+        auto local_port_it = endpoint_listen_port_map_.find(local_eid_index);
+        if (local_port_it == endpoint_listen_port_map_.end() || local_port_it->second == 0) {
+            SHM_LOG_ERROR("No valid local Hcomm listen port for EID index " << local_eid_index);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        channel_desc.port = local_port_it->second;
+    } else {
+        if (remote_endpoint_info->listen_port == 0) {
+            SHM_LOG_ERROR(
+                "No valid remote Hcomm listen port for dst_pe " << dst_pe << " on EID index " << remote_eid_index);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        channel_desc.port = remote_endpoint_info->listen_port;
+    }
+    SHM_LOG_INFO(
+        "Create Hcomm UDMA channel: rank=" << rank_id_ << ", dstPe=" << dst_pe << ", slot=" << slot
+                                           << ", role=" << (is_server ? "server" : "client")
+                                           << ", port=" << channel_desc.port << ", localEidIndex=" << local_eid_index
+                                           << ", remoteEidIndex=" << remote_eid_index);
+
 #if defined(HCOMM_CHANNEL_DESC_ABI_V1_SIZE)
     // CANN HCOM ABI v2 moves the communication-domain QoS out of the
     // protocol-specific union.
@@ -1244,8 +1274,24 @@ bool UdmaTransportManager::CreateEndpoint(
         SHM_LOG_ERROR("HcommEndpointCreate failed for EID index " << eid_index << ", ret = " << ret);
         return false;
     }
+
+    uint32_t listen_port = 0;
+    ret = DlHcommApi::HcommEndpointGetListenPort(endpoint_handle, &listen_port);
+    if (ret != 0 || listen_port == 0 || listen_port > std::numeric_limits<uint16_t>::max()) {
+        SHM_LOG_ERROR(
+            "HcommEndpointGetListenPort failed for EID index " << eid_index << ", ret = " << ret
+                                                               << ", port = " << listen_port);
+        auto destroy_ret = DlHcommApi::HcommEndpointDestroy(endpoint_handle);
+        if (destroy_ret != 0) {
+            SHM_LOG_WARN(
+                "HcommEndpointDestroy rollback failed for EID index " << eid_index << ", ret = " << destroy_ret);
+        }
+        return false;
+    }
     endpoint_desc_map_[eid_index] = endpoint_desc;
     endpoint_handle_map_[eid_index] = endpoint_handle;
+    endpoint_listen_port_map_[eid_index] = static_cast<uint16_t>(listen_port);
+    SHM_LOG_INFO("Created Hcomm endpoint on EID index " << eid_index << ", listenPort = " << listen_port);
     return true;
 }
 
@@ -1343,6 +1389,7 @@ void UdmaTransportManager::CleanupResources()
     peer_eid_index_map_.clear();
     peer_remote_eid_index_map_.clear();
     endpoint_desc_map_.clear();
+    endpoint_listen_port_map_.clear();
     channel_handles_.clear();
     connected_ = false;
 }
