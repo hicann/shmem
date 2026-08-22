@@ -38,7 +38,8 @@ ACLSHMEM_DEVICE void aclshmemi_dump_wqe(__gm__ uint8_t* wqe_addr, uint32_t atomi
 
 ACLSHMEM_DEVICE __gm__ aclshmemi_aiv_udma_info_t* aclshmemi_udma_qp_info_fetch()
 {
-    __gm__ aclshmemi_aiv_udma_info_t* udma_info = (__gm__ aclshmemi_aiv_udma_info_t*)(aclshmemi_get_qp_info_address(0));
+    __gm__ aclshmemi_aiv_udma_info_t* udma_info =
+        (__gm__ aclshmemi_aiv_udma_info_t*)(aclshmemi_get_udma_info_address(0));
     return udma_info;
 }
 

@@ -533,7 +533,7 @@ int MemEntityDefault::LoadExtendLibrary() noexcept
 
 int MemEntityDefault::UpdateHybmDeviceInfo(uint32_t extCtxSize) noexcept
 {
-    HybmDeviceMeta info;
+    HybmDeviceMeta info{};
     auto addr = HYBM_DEVICE_META_ADDR + HYBM_DEVICE_GLOBAL_META_SIZE + id_ * HYBM_DEVICE_PRE_META_SIZE;
 
     SetHybmDeviceInfo(info);
@@ -550,15 +550,16 @@ int MemEntityDefault::UpdateHybmDeviceInfo(uint32_t extCtxSize) noexcept
 
 void MemEntityDefault::SetHybmDeviceInfo(HybmDeviceMeta& info)
 {
+    info = {};
     info.entityId = id_;
     info.rankId = options_.rankId;
     info.rankSize = options_.rankCount;
     info.symmetricSize = options_.deviceVASpace;
     info.extraContextSize = 0;
     if (transportManager_ != nullptr) {
-        info.qpInfoAddress = (uint64_t)(ptrdiff_t)transportManager_->GetQpInfo();
-    } else {
-        info.qpInfoAddress = 0UL;
+        auto deviceInfo = transportManager_->GetDeviceInfo();
+        info.qpInfoAddress = deviceInfo.rdmaInfoAddress;
+        info.udmaInfoAddress = deviceInfo.udmaInfoAddress;
     }
 }
 
@@ -796,17 +797,10 @@ Result MemEntityDefault::InitTransManager()
         return ACLSHMEM_SUCCESS;
     }
 
-    if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) {
-        transportManager_ = transport::TransportManager::Create(transport::TransportType::TT_HCCP);
-    } else if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) {
-        transportManager_ = transport::TransportManager::Create(transport::TransportType::TT_SDMA);
-    } else if (options_.bmDataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) {
-#if defined(ACLSHMEM_SOC_950)
-        transportManager_ = transport::TransportManager::Create(transport::TransportType::TT_UDMA);
-#else
-        SHM_LOG_ERROR("DEVICE UDMA support is not enabled in this build.");
+    transportManager_ = transport::TransportManager::CreateForDataOpType(options_.bmDataOpType);
+    if (transportManager_ == nullptr) {
+        SHM_LOG_ERROR("create transport manager failed, data op type: " << options_.bmDataOpType);
         return ACLSHMEM_NOT_SUPPORTED;
-#endif
     }
 
     transport::TransportOptions options;
