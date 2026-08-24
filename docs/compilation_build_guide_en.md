@@ -40,6 +40,7 @@ The basic SHMEM build command is `bash build.sh`. The default build mode generat
 - `-mssanitizer`: enables the msSanitizer memory detection tool for samples. The script can be executed only after msSanitizer is used to start the task. The AllGather sample running script provides the `tool` option to use the tool. For details about how to use the tool, see [Exception Detection Tool (msSanitizer, MindStudio Sanitizer)](https://www.hiascend.com/document/detail/en/canncommercial/850/devaids/optool/atlasopdev_16_0039.html). Note: If this option is enabled, ensure that the msSanitizer tool is used to start the operator. If other methods are used to start the operator, there may be unknown errors.
 - `-soc_type`: If the SoC is Ascend 950, add the `-soc_type Ascend950` parameter. You can run the `npu-smi info` command to view the parameter. For other SoCs, you do not need to add this parameter.
 - `-enable_simt`: enables the SIMT programming mode.
+- `-enable_relay`: builds and enables the UDMA relay (detour) capability. Relay is built on top of UDMA, which is available only on Ascend 950, so this option **must be used together with `-soc_type Ascend950`**. It is also allowed in multi-SOC wheel/package builds (`-python_extension` / `-package` / `-full`), where relay is applied only to the 950 backend. For details, see [Relay Parameters](#relay-parameters) below.
 - `-full`: compiles the package, Python extension, UT tests, and examples. The SHMEM automatic compilation script automatically downloads the dependency libraries, compiles the project and UT test cases, and packages the libraries.
 
 ### RDMA Parameters
@@ -104,6 +105,41 @@ The `-rdma_backend` parameter supports the following backend types:
    - Do not manually add the compilation definition named `ACLSHMEMI_K_RDMA_BACKEND`.
    - This is an internal macro used by the device code and is set by the system in `src/device/gm2gm/engine/shmem_device_rdma.hpp` based on the automatically-generated definition.
    - Manually defining this macro may cause compilation errors or runtime function exceptions.
+
+### Relay Parameters
+
+The relay (detour) capability allows communication traffic to be forwarded through other PEs in addition to the direct path, improving bandwidth utilization for specific topologies (for example, the tailcut mode of the `tp_allreduce_udma` sample). Relay is built on top of the UDMA transport, which is available only on Ascend 950. Therefore, the platform dependency must be satisfied when `-enable_relay` is used.
+
+When `-enable_relay` is enabled, CMake automatically adds the `ACLSHMEM_RELAY_SUPPORT` compilation macro. You do not need to define it manually.
+
+**Parameter dependency rules**:
+
+- For a single-SOC build, `-enable_relay` **must** be used together with `-soc_type Ascend950`. Otherwise, the build script reports an error.
+- In multi-SOC wheel/package builds (`-python_extension` / `-package` / `-full`), `-enable_relay` is allowed. In this case, the script enables relay only for the 950 backend, not the 910 backend.
+- The sequence of `-enable_relay` and `-soc_type Ascend950` is not limited.
+
+**Valid command examples**:
+
+```shell
+# Build examples and enable relay on the Ascend 950 platform
+bash scripts/build.sh -examples -soc_type Ascend950 -enable_relay
+
+# The reversed parameter sequence is also valid
+bash scripts/build.sh -enable_relay -soc_type Ascend950 -examples
+
+# Multi-SOC wheel build; relay is applied only to the 950 backend
+bash scripts/build.sh -python_extension -enable_relay
+```
+
+**Invalid command examples**:
+
+```shell
+# Error: -enable_relay is used on a non-Ascend 950 platform (-soc_type Ascend950 not specified).
+bash scripts/build.sh -examples -enable_relay
+# Error message: "Error: -enable_relay requires UDMA support, which is only enabled for Ascend950."
+```
+
+> Note: Sample features that depend on relay, such as tailcut, must be compiled with `-enable_relay` enabled. For details, see `examples/tp_allreduce_udma/README.md`.
 
 ## Key SHMEM Files
 ### `scripts` Directory

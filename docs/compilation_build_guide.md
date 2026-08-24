@@ -47,6 +47,7 @@ SHMEM的基本编译命令是`bash build.sh`，默认构建模式下生成版本
 - `-mssanitizer`：example启用mssanitizer内存检测工具，脚本执行需用mssanitizer拉起任务才能实际生效，allgather样例运行脚本提供了tool选项使用工具。工具使用方法参见[异常检测工具（msSanitizer，MindStudio Sanitizer）](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/optool/atlasopdev_16_0039.html) 注：如果开启该选项请确保使用mssanitizer工具拉起算子，如使用其他方式拉起算子可能导致未知错误！
 - `-soc_type`：如果SOC是Ascend950类别，需要增加`-soc_type Ascend950`参数，可以通过`npu-smi info`命令查看，其他SOC可不加该参数。
 - `-enable_simt`：使能simt编程模式接口。
+- `-enable_relay`：构建并启用 UDMA relay（绕路/detour）能力。relay 构建在 UDMA 之上，仅 Ascend950 提供 UDMA，因此该选项**必须配合 `-soc_type Ascend950`** 使用；在多 SOC 的 wheel/包构建（`-python_extension` / `-package` / `-full`）中也可使用，此时 relay 仅应用于 950 后端。详见下文[Relay参数使用说明](#relay参数使用说明)。
 - `-full`：编译 package + python_extension + uttests + examples。SHMEM自动编译脚本，会自动完成依赖库的下载，工程编译，UT用例编译，库打包。
 
 ### RDMA参数使用说明
@@ -118,6 +119,41 @@ bash scripts/build.sh -enable_rdma -rdma_backend XSCALE
    - 用户不应手动添加名为 `ACLSHMEMI_K_RDMA_BACKEND` 的编译定义
    - 这是一个设备端代码使用的内部宏，由系统在 `src/device/gm2gm/engine/shmem_device_rdma.hpp` 中根据上述自动生成的定义进行设置
    - 手动定义此宏会导致编译错误或运行时功能异常
+
+### Relay参数使用说明
+
+relay（绕路/detour）能力允许将通信流量在直发路径之外，经由其他 PE 绕路转发，用于提升特定拓扑下的带宽利用率（例如 `tp_allreduce_udma` 样例的 tailcut 模式）。relay 构建在 UDMA 传输之上，而 UDMA 仅在 Ascend950 上提供，因此使用 `-enable_relay` 时需满足对应的平台依赖。
+
+启用 `-enable_relay` 后，CMake 会自动添加 `ACLSHMEM_RELAY_SUPPORT` 编译宏，用户无需手动定义。
+
+**参数依赖规则：**
+
+- 单 SOC 构建时，`-enable_relay` **必须**同时指定 `-soc_type Ascend950`，否则构建脚本会报错。
+- 在多 SOC 的 wheel/包构建（`-python_extension` / `-package` / `-full`）中允许使用 `-enable_relay`，此时脚本会自动只对 950 后端启用 relay，910 后端不启用。
+- `-enable_relay` 与 `-soc_type Ascend950` 参数顺序不限。
+
+**有效命令示例：**
+
+```shell
+# Ascend950 平台构建 examples 并启用 relay
+bash scripts/build.sh -examples -soc_type Ascend950 -enable_relay
+
+# 参数顺序调换同样有效
+bash scripts/build.sh -enable_relay -soc_type Ascend950 -examples
+
+# 多 SOC wheel 构建，relay 仅应用于 950 后端
+bash scripts/build.sh -python_extension -enable_relay
+```
+
+**无效命令示例：**
+
+```shell
+# 错误：在非 Ascend950 平台（未指定 -soc_type Ascend950）使用 -enable_relay
+bash scripts/build.sh -examples -enable_relay
+# 将报错：Error: -enable_relay requires UDMA support, which is only enabled for Ascend950.
+```
+
+> 说明：tailcut 等依赖 relay 的样例功能，必须在启用 `-enable_relay` 的前提下编译，详见 `examples/tp_allreduce_udma/README.md`。
 
 ## SHMEM关键文件介绍
 
