@@ -165,7 +165,7 @@ private:
 
 CompositeTransportManager MakeManager(std::shared_ptr<MockState> state)
 {
-    return CompositeTransportManager({TT_HCCP, TT_SDMA, TT_UDMA}, [state](TransportType type) -> TransManagerPtr {
+    return CompositeTransportManager({TT_SDMA, TT_HCCP, TT_UDMA}, [state](TransportType type) -> TransManagerPtr {
         state->events.push_back(Event("create", type));
         return std::make_shared<MockTransportManager>(type, state);
     });
@@ -193,11 +193,11 @@ TEST(CompositeTransportManagerTest, OpenDeviceCreatesRequestedManagersAndCloseRu
 
     EXPECT_EQ(manager.OpenDevice({}), ACLSHMEM_SUCCESS);
     EXPECT_EQ(
-        state->events, (std::vector<std::string>{"create:0", "open:0", "create:1", "open:1", "create:2", "open:2"}));
+        state->events, (std::vector<std::string>{"create:1", "open:1", "create:0", "open:0", "create:2", "open:2"}));
 
     state->events.clear();
     EXPECT_EQ(manager.CloseDevice(), ACLSHMEM_SUCCESS);
-    EXPECT_EQ(state->events, (std::vector<std::string>{"close:2", "close:1", "close:0"}));
+    EXPECT_EQ(state->events, (std::vector<std::string>{"close:2", "close:0", "close:1"}));
 }
 
 TEST(CompositeTransportManagerTest, OpenDeviceFailureRollsBackOpenedManagersInReverseOrder)
@@ -210,7 +210,7 @@ TEST(CompositeTransportManagerTest, OpenDeviceFailureRollsBackOpenedManagersInRe
     EXPECT_EQ(
         state->events,
         (std::vector<std::string>{
-            "create:0", "open:0", "create:1", "open:1", "create:2", "open:2", "close:2", "close:1", "close:0"}));
+            "create:1", "open:1", "create:0", "open:0", "create:2", "open:2", "close:2", "close:0", "close:1"}));
 }
 
 TEST(CompositeTransportManagerTest, RegisterFailureUnregistersAlreadyRegisteredManagersInReverseOrder)
@@ -227,7 +227,7 @@ TEST(CompositeTransportManagerTest, RegisterFailureUnregistersAlreadyRegisteredM
     EXPECT_EQ(manager.RegisterMemoryRegion(mr), ACLSHMEM_INVALID_PARAM);
     EXPECT_EQ(
         state->events,
-        (std::vector<std::string>{"register:0", "register:1", "register:2", "unregister:1", "unregister:0"}));
+        (std::vector<std::string>{"register:1", "register:0", "register:2", "unregister:0", "unregister:1"}));
 }
 
 TEST(CompositeTransportManagerTest, ConnectFailureClosesManagersInReverseOrder)
@@ -239,7 +239,7 @@ TEST(CompositeTransportManagerTest, ConnectFailureClosesManagersInReverseOrder)
     state->events.clear();
     state->failConnectType = TT_SDMA;
     EXPECT_EQ(manager.Connect(), ACLSHMEM_INVALID_PARAM);
-    EXPECT_EQ(state->events, (std::vector<std::string>{"connect:0", "connect:1", "close:2", "close:1", "close:0"}));
+    EXPECT_EQ(state->events, (std::vector<std::string>{"connect:1", "close:2", "close:0", "close:1"}));
 }
 
 TEST(CompositeTransportManagerTest, ConnectWithOptionsFailureClosesManagersInReverseOrder)
@@ -251,9 +251,7 @@ TEST(CompositeTransportManagerTest, ConnectWithOptionsFailureClosesManagersInRev
     state->events.clear();
     state->failConnectType = TT_SDMA;
     EXPECT_EQ(manager.ConnectWithOptions({}), ACLSHMEM_INVALID_PARAM);
-    EXPECT_EQ(
-        state->events, (std::vector<std::string>{
-                           "connect_with_options:0", "connect_with_options:1", "close:2", "close:1", "close:0"}));
+    EXPECT_EQ(state->events, (std::vector<std::string>{"connect_with_options:1", "close:2", "close:0", "close:1"}));
 }
 
 TEST(CompositeTransportManagerTest, GetDeviceInfoSeparatesRdmaAndUdmaAddresses)
