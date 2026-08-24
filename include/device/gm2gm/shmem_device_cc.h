@@ -10,26 +10,26 @@
  * @endcond
  */
 
+// clang-format off
 /*
-    WARNING：Restrictions of Barrier APIs.
-
-    1. Barrier APIs can be used only in MIX kernels. The compiler will optimize the kernel to VEC or CUBE if
-       it lacks effective cube instructions (eg. Mmad) or vector instructions (eg: DataCopy).
-    Need compiler updates to remove this feature, or insert Mmad/DataCopy calls manully.
-
-    2. Barrier APIs conflict with SyncAll. Avoid mixing them together.
-
-    3. We provide 2 kinds of barrier:
-        a. aclshmem_barrier_xxx
-            Barrier of all cores. On systems with only HCCS: All operations of all pes of a team on executing
-            stream before the barrier are visible to all pes of the team after the barrier.
-        b. aclshmemx_barrier_xxx_vec
-            Barrier of all VEC cores. On systems with only HCCS: All operations of ALL VEC CORES of all pes of a
-            team on executing stream before the barrier are visible to ALL VEC CORES of all pes of the team after
-            the barrier.
-
-    4. The scalar unit of cube core is not affected by aclshmem_barrier_xxx. Make sure don't use that.
-*/
+ * WARNING: Restrictions of device collective synchronization APIs.
+ *
+ * 1. All-core synchronization APIs can be used only in MIX kernels. The compiler will optimize the kernel to VEC
+ *    or CUBE if it lacks effective cube instructions (for example, Mmad) or vector instructions (for example,
+ *    DataCopy). Compiler support is required to remove this restriction; otherwise insert effective Mmad/DataCopy
+ *    calls.
+ *
+ * 2. ACLSHMEM inter-PE synchronization conflicts with SyncAll. Avoid mixing them in the same kernel.
+ *
+ * 3. We provide two participant scopes:
+ *    a. aclshmem_barrier_xxx: all cores participate.
+ *    b. aclshmemx_sync_vec / aclshmemx_sync_vec_all: only VEC cores participate. On systems using HCCS or UB,
+ *       memory stores issued by participating VEC cores before the sync are visible to participating VEC cores after
+ *       the sync. The sync does not complete remote updates issued through ACLSHMEM communication APIs.
+ *
+ * 4. The scalar unit of a cube core is not synchronized by these APIs. Do not rely on it across the collective.
+ */
+// clang-format on
 
 /*!
  * \file shmem_device_cc.h
@@ -77,20 +77,34 @@ ACLSHMEM_DEVICE void aclshmem_barrier_all(void);
 #define shmem_barrier_all aclshmem_barrier_all
 
 /**
- * @brief Similar to aclshmem_barrier except that only vector cores participate. Useful in communication-over-compute
- *        operators. Cube core may call the api but takes no effect.
+ * @brief Collective synchronization over a team in which only vector cores participate. This routine does not
+ * ensure
+ *        completion of remote memory updates issued through ACLSHMEM communication APIs. Cube cores may call
+ * the API
+ *        but take no effect.
  *
- * @param team              [in] team to do barrier
+ * @param team              [in] team to synchronize
  */
-[[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier instead.")]]
+ACLSHMEM_DEVICE void aclshmemx_sync_vec(aclshmem_team_t team);
+
+/**
+ * @brief aclshmemx_sync_vec over ACLSHMEM_TEAM_WORLD.
+ */
+ACLSHMEM_DEVICE void aclshmemx_sync_vec_all(void);
+
+/**
+ * @brief Compatibility wrapper for aclshmemx_sync_vec.
+ *
+ * @param team              [in] team to synchronize
+ */
+[[deprecated("aclshmemx_barrier_vec is deprecated, please use aclshmemx_sync_vec instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_vec(aclshmem_team_t team);
 #define shmemx_barrier_vec aclshmemx_barrier_vec
 
 /**
- * @brief aclshmemx_barrier_vec of all PEs.
- *
+ * @brief Compatibility wrapper for aclshmemx_sync_vec_all.
  */
-[[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmem_barrier_all instead.")]]
+[[deprecated("aclshmemx_barrier_all_vec is deprecated, please use aclshmemx_sync_vec_all instead.")]]
 ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
 #define shmemx_barrier_all_vec aclshmemx_barrier_all_vec
 
@@ -99,7 +113,7 @@ ACLSHMEM_DEVICE void aclshmemx_barrier_all_vec(void);
  *        completion and visibility of previously issued memory stores and does not ensure completion of remote memory
  *        updates issued via ACLSHMEM routines.
  *
- * @param team           [in] team to do barrier
+ * @param team           [in] team to synchronize
  */
 ACLSHMEM_DEVICE void aclshmem_sync(aclshmem_team_t team);
 

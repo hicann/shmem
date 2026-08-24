@@ -17,7 +17,7 @@ extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t confi
     util_set_ffts_config(config);
     int64_t team_rank = aclshmem_team_my_pe(team_id);
     int64_t team_size = aclshmem_team_n_pes(team_id);
-    __gm__ int32_t* gva_gm = (__gm__ int32_t *)gva;
+    __gm__ int32_t* gva_gm = (__gm__ int32_t*)gva;
     AscendC::PipeBarrier<PIPE_ALL>();
     // All Gather
     for (int i = 0; i < team_size - 1; i++) {
@@ -26,7 +26,7 @@ extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t confi
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
-    aclshmemi_barrier(team_id);
+    aclshmemi_sync(team_id);
 }
 
 void team_allgather(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, aclshmem_team_t team_id)
