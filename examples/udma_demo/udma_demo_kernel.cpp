@@ -42,7 +42,7 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_all_gat
             message_length, i, SYNC_ID);
         aclshmemx_udma_quiet(i);
     }
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 void launch_udma_all_gather(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dump, int elements)
@@ -78,7 +78,7 @@ extern "C" [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void udma_put_sig
             signal, i, (__ubuf__ uint8_t*)ubLocal.GetPhyAddr(), SYNC_ID);
         aclshmemx_udma_quiet(i);
     }
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 void launch_udma_put_signal(

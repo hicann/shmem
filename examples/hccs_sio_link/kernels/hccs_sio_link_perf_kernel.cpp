@@ -15,7 +15,7 @@
 #include "host_device/shmem_common_types.h"
 
 template <typename T>
-__aicore__ inline void perf_local_copy_gm2ub(__ubuf__ T *dst_ub, __gm__ T *src_gm, uint32_t size)
+__aicore__ inline void perf_local_copy_gm2ub(__ubuf__ T* dst_ub, __gm__ T* src_gm, uint32_t size)
 {
     AscendC::LocalTensor<T> ub_tensor;
     AscendC::GlobalTensor<T> gm_tensor;
@@ -23,13 +23,13 @@ __aicore__ inline void perf_local_copy_gm2ub(__ubuf__ T *dst_ub, __gm__ T *src_g
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(dst_ub);
     ub_tensor.address_.dataLen = ALIGN_UP(size, UB_ALIGN_SIZE);
-    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(src_gm));
+    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(src_gm));
     AscendC::DataCopyPadExtParams<T> pad_params;
     AscendC::DataCopyPad(ub_tensor, gm_tensor, params, pad_params);
 }
 
 template <typename T>
-__aicore__ inline void perf_local_copy_ub2gm(__gm__ T *dst_gm, __ubuf__ T *src_ub, uint32_t size)
+__aicore__ inline void perf_local_copy_ub2gm(__gm__ T* dst_gm, __ubuf__ T* src_ub, uint32_t size)
 {
     AscendC::LocalTensor<T> ub_tensor;
     AscendC::GlobalTensor<T> gm_tensor;
@@ -37,14 +37,14 @@ __aicore__ inline void perf_local_copy_ub2gm(__gm__ T *dst_gm, __ubuf__ T *src_u
     ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
     ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(src_ub);
     ub_tensor.address_.dataLen = ALIGN_UP(size, UB_ALIGN_SIZE);
-    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(dst_gm));
+    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dst_gm));
     AscendC::DataCopyPad(gm_tensor, ub_tensor, params);
 }
 
 template <typename T>
-__aicore__ inline void perf_local_mte_get_hccs(__gm__ T *hccs_src, __gm__ T *local_dst,
-                                                  __ubuf__ T *buf, uint32_t ub_size_bytes,
-                                                  uint32_t elem_size, uint32_t sync_id)
+__aicore__ inline void perf_local_mte_get_hccs(
+    __gm__ T* hccs_src, __gm__ T* local_dst, __ubuf__ T* buf, uint32_t ub_size_bytes, uint32_t elem_size,
+    uint32_t sync_id)
 {
     uint64_t block_size = ub_size_bytes / sizeof(T) * sizeof(T);
     if (block_size == 0) {
@@ -75,13 +75,13 @@ __aicore__ inline void perf_local_mte_get_hccs(__gm__ T *hccs_src, __gm__ T *loc
 
 template <typename T>
 [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void mte_get_mixed_perf_kernel(
-    GM_ADDR sio_dst_gva, GM_ADDR sio_src_gva, int sio_elements, int peer_pe,
-    GM_ADDR hccs_dst_gva, GM_ADDR hccs_remote_gva, int hccs_elements,
-    int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count, bool is_unilateral)
+    GM_ADDR sio_dst_gva, GM_ADDR sio_src_gva, int sio_elements, int peer_pe, GM_ADDR hccs_dst_gva,
+    GM_ADDR hccs_remote_gva, int hccs_elements, int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup,
+    int loop_count, bool is_unilateral)
 {
     int64_t pe = aclshmem_my_pe();
     if (is_unilateral && pe != prof_pe_val) {
-        aclshmemx_barrier_all_vec();
+        aclshmemx_sync_vec_all();
         return;
     }
 
@@ -98,11 +98,11 @@ template <typename T>
 
     constexpr uint32_t sync_id = 0;
 
-    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
     int32_t block_idx = AscendC::GetBlockIdx();
-    bool do_prof = (device_state != nullptr && device_state->profs != nullptr &&
-                    frame_id < ACLSHMEM_CYCLE_PROF_FRAME_CNT && block_idx < ACLSHMEM_CYCLE_PROF_MAX_BLOCK &&
-                    device_state->profs->pe_id == pe);
+    bool do_prof =
+        (device_state != nullptr && device_state->profs != nullptr && frame_id < ACLSHMEM_CYCLE_PROF_FRAME_CNT &&
+         block_idx < ACLSHMEM_CYCLE_PROF_MAX_BLOCK && device_state->profs->pe_id == pe);
 
     AscendC::PipeBarrier<PIPE_ALL>();
 
@@ -117,8 +117,8 @@ template <typename T>
         }
 
         if (current_block_index < sio_block_count && sio_elements > 0) {
-            __gm__ T *sio_dst = (__gm__ T *)sio_dst_gva;
-            __gm__ T *sio_src = (__gm__ T *)sio_src_gva;
+            __gm__ T* sio_dst = (__gm__ T*)sio_dst_gva;
+            __gm__ T* sio_src = (__gm__ T*)sio_src_gva;
 
             int32_t sio_block_idx = current_block_index;
             int32_t sio_offset_elem = sio_elements / sio_block_count;
@@ -131,15 +131,15 @@ template <typename T>
                 AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(sync_id);
 
                 aclshmemx_mte_get_nbi(
-                    sio_dst + sio_offset, sio_src + sio_offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes,
+                    sio_dst + sio_offset, sio_src + sio_offset, reinterpret_cast<__ubuf__ T*>(0), ub_size_bytes,
                     sio_block_elements, peer_pe, sync_id);
 
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(sync_id);
             }
         } else if (hccs_block_count > 0 && hccs_elements > 0) {
-            __gm__ T *hccs_dst = (__gm__ T *)hccs_dst_gva;
-            __gm__ T *hccs_remote = (__gm__ T *)hccs_remote_gva;
+            __gm__ T* hccs_dst = (__gm__ T*)hccs_dst_gva;
+            __gm__ T* hccs_remote = (__gm__ T*)hccs_remote_gva;
 
             int32_t hccs_block_idx = current_block_index - sio_block_count;
             int32_t hccs_offset_elem = hccs_elements / hccs_block_count;
@@ -152,7 +152,7 @@ template <typename T>
                 AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(sync_id);
 
                 perf_local_mte_get_hccs(
-                    hccs_remote + hccs_offset, hccs_dst + hccs_offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes,
+                    hccs_remote + hccs_offset, hccs_dst + hccs_offset, reinterpret_cast<__ubuf__ T*>(0), ub_size_bytes,
                     hccs_block_elements, sync_id);
 
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
@@ -173,29 +173,31 @@ template <typename T>
         device_state->profs->block_prof[block_idx].ccount[frame_id] += total_count;
     }
 
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 template <typename T>
-void launch_mte_get_mixed_perf(uint32_t block_dim, void *stream,
-                                uint8_t *sio_dst, uint8_t *sio_src, int sio_elements, int peer_pe,
-                                uint8_t *hccs_dst, uint8_t *hccs_remote, int hccs_elements,
-                                int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count, bool is_unilateral)
+void launch_mte_get_mixed_perf(
+    uint32_t block_dim, void* stream, uint8_t* sio_dst, uint8_t* sio_src, int sio_elements, int peer_pe,
+    uint8_t* hccs_dst, uint8_t* hccs_remote, int hccs_elements, int ub_size_kb, int32_t frame_id, int64_t prof_pe_val,
+    int warmup, int loop_count, bool is_unilateral)
 {
     mte_get_mixed_perf_kernel<T><<<block_dim, nullptr, stream>>>(
-        sio_dst, sio_src, sio_elements, peer_pe,
-        hccs_dst, hccs_remote, hccs_elements,
-        ub_size_kb, frame_id, prof_pe_val, warmup, loop_count, is_unilateral);
+        sio_dst, sio_src, sio_elements, peer_pe, hccs_dst, hccs_remote, hccs_elements, ub_size_kb, frame_id,
+        prof_pe_val, warmup, loop_count, is_unilateral);
 }
 
-template void launch_mte_get_mixed_perf<int>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
-template void launch_mte_get_mixed_perf<int64_t>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
-template void launch_mte_get_mixed_perf<float>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_get_mixed_perf<int>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_get_mixed_perf<int64_t>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_get_mixed_perf<float>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);
 
 template <typename T>
-__aicore__ inline void perf_local_mte_put_hccs(__gm__ T *local_src, __gm__ T *hccs_dst,
-                                                  __ubuf__ T *buf, uint32_t ub_size_bytes,
-                                                  uint32_t elem_size, uint32_t sync_id)
+__aicore__ inline void perf_local_mte_put_hccs(
+    __gm__ T* local_src, __gm__ T* hccs_dst, __ubuf__ T* buf, uint32_t ub_size_bytes, uint32_t elem_size,
+    uint32_t sync_id)
 {
     // Precondition: ub_size_bytes >= sizeof(T). If violated, block_size becomes 0 and
     // the function silently returns without transferring any data.
@@ -228,13 +230,13 @@ __aicore__ inline void perf_local_mte_put_hccs(__gm__ T *local_src, __gm__ T *hc
 
 template <typename T>
 [[bisheng::core_ratio(0, 1)]] __global__ __aicore__ void mte_put_mixed_perf_kernel(
-    GM_ADDR sio_dst_gva, GM_ADDR sio_src_gva, int sio_elements, int peer_pe,
-    GM_ADDR hccs_remote_gva, GM_ADDR hccs_src_gva, int hccs_elements,
-    int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count, bool is_unilateral)
+    GM_ADDR sio_dst_gva, GM_ADDR sio_src_gva, int sio_elements, int peer_pe, GM_ADDR hccs_remote_gva,
+    GM_ADDR hccs_src_gva, int hccs_elements, int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup,
+    int loop_count, bool is_unilateral)
 {
     int64_t pe = aclshmem_my_pe();
     if (is_unilateral && pe != prof_pe_val) {
-        aclshmemx_barrier_all_vec();
+        aclshmemx_sync_vec_all();
         return;
     }
 
@@ -251,11 +253,11 @@ template <typename T>
 
     constexpr uint32_t sync_id = 0;
 
-    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
     int32_t block_idx = AscendC::GetBlockIdx();
-    bool do_prof = (device_state != nullptr && device_state->profs != nullptr &&
-                    frame_id < ACLSHMEM_CYCLE_PROF_FRAME_CNT && block_idx < ACLSHMEM_CYCLE_PROF_MAX_BLOCK &&
-                    device_state->profs->pe_id == pe);
+    bool do_prof =
+        (device_state != nullptr && device_state->profs != nullptr && frame_id < ACLSHMEM_CYCLE_PROF_FRAME_CNT &&
+         block_idx < ACLSHMEM_CYCLE_PROF_MAX_BLOCK && device_state->profs->pe_id == pe);
 
     AscendC::PipeBarrier<PIPE_ALL>();
 
@@ -270,8 +272,8 @@ template <typename T>
         }
 
         if (current_block_index < sio_block_count && sio_elements > 0) {
-            __gm__ T *sio_dst = (__gm__ T *)sio_dst_gva;
-            __gm__ T *sio_src = (__gm__ T *)sio_src_gva;
+            __gm__ T* sio_dst = (__gm__ T*)sio_dst_gva;
+            __gm__ T* sio_src = (__gm__ T*)sio_src_gva;
 
             int32_t sio_block_idx = current_block_index;
             int32_t sio_offset_elem = sio_elements / sio_block_count;
@@ -284,15 +286,15 @@ template <typename T>
                 AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(sync_id);
 
                 aclshmemx_mte_put_nbi(
-                    sio_dst + sio_offset, sio_src + sio_offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes,
+                    sio_dst + sio_offset, sio_src + sio_offset, reinterpret_cast<__ubuf__ T*>(0), ub_size_bytes,
                     sio_block_elements, peer_pe, sync_id);
 
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(sync_id);
             }
         } else if (hccs_block_count > 0 && hccs_elements > 0) {
-            __gm__ T *hccs_remote = (__gm__ T *)hccs_remote_gva;
-            __gm__ T *hccs_src = (__gm__ T *)hccs_src_gva;
+            __gm__ T* hccs_remote = (__gm__ T*)hccs_remote_gva;
+            __gm__ T* hccs_src = (__gm__ T*)hccs_src_gva;
 
             int32_t hccs_block_idx = current_block_index - sio_block_count;
             int32_t hccs_offset_elem = hccs_elements / hccs_block_count;
@@ -305,7 +307,7 @@ template <typename T>
                 AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(sync_id);
 
                 perf_local_mte_put_hccs(
-                    hccs_src + hccs_offset, hccs_remote + hccs_offset, reinterpret_cast<__ubuf__ T *>(0), ub_size_bytes,
+                    hccs_src + hccs_offset, hccs_remote + hccs_offset, reinterpret_cast<__ubuf__ T*>(0), ub_size_bytes,
                     hccs_block_elements, sync_id);
 
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
@@ -326,21 +328,23 @@ template <typename T>
         device_state->profs->block_prof[block_idx].ccount[frame_id] += total_count;
     }
 
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 template <typename T>
-void launch_mte_put_mixed_perf(uint32_t block_dim, void *stream,
-                                uint8_t *sio_dst, uint8_t *sio_src, int sio_elements, int peer_pe,
-                                uint8_t *hccs_remote, uint8_t *hccs_src, int hccs_elements,
-                                int ub_size_kb, int32_t frame_id, int64_t prof_pe_val, int warmup, int loop_count, bool is_unilateral)
+void launch_mte_put_mixed_perf(
+    uint32_t block_dim, void* stream, uint8_t* sio_dst, uint8_t* sio_src, int sio_elements, int peer_pe,
+    uint8_t* hccs_remote, uint8_t* hccs_src, int hccs_elements, int ub_size_kb, int32_t frame_id, int64_t prof_pe_val,
+    int warmup, int loop_count, bool is_unilateral)
 {
     mte_put_mixed_perf_kernel<T><<<block_dim, nullptr, stream>>>(
-        sio_dst, sio_src, sio_elements, peer_pe,
-        hccs_remote, hccs_src, hccs_elements,
-        ub_size_kb, frame_id, prof_pe_val, warmup, loop_count, is_unilateral);
+        sio_dst, sio_src, sio_elements, peer_pe, hccs_remote, hccs_src, hccs_elements, ub_size_kb, frame_id,
+        prof_pe_val, warmup, loop_count, is_unilateral);
 }
 
-template void launch_mte_put_mixed_perf<int>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
-template void launch_mte_put_mixed_perf<int64_t>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
-template void launch_mte_put_mixed_perf<float>(uint32_t, void *, uint8_t *, uint8_t *, int, int, uint8_t *, uint8_t *, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_put_mixed_perf<int>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_put_mixed_perf<int64_t>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);
+template void launch_mte_put_mixed_perf<float>(
+    uint32_t, void*, uint8_t*, uint8_t*, int, int, uint8_t*, uint8_t*, int, int, int32_t, int64_t, int, int, bool);

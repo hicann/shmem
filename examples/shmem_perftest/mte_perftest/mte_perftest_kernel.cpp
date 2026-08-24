@@ -32,7 +32,7 @@ __aicore__ inline void mte_perf_test_put_impl(
 
     bool is_unilateral = (test_mode == perftest::TEST_MODE_MTE_PUT || test_mode == perftest::TEST_MODE_MTE_GET);
     if (is_unilateral && pe != prof_pe) {
-        aclshmemx_barrier_all_vec();
+        aclshmemx_sync_vec_all();
         return;
     }
 
@@ -79,7 +79,7 @@ __aicore__ inline void mte_perf_test_put_impl(
     AscendC::PipeBarrier<PIPE_ALL>();
     SHMEMI_PROF_END(frame_id);
     AscendC::PipeBarrier<PIPE_ALL>();
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 template <typename T>
@@ -97,7 +97,7 @@ __aicore__ inline void mte_perf_test_get_impl(
 
     bool is_unilateral = (test_mode == perftest::TEST_MODE_MTE_PUT || test_mode == perftest::TEST_MODE_MTE_GET);
     if (is_unilateral && pe != prof_pe) {
-        aclshmemx_barrier_all_vec();
+        aclshmemx_sync_vec_all();
         return;
     }
 
@@ -144,7 +144,7 @@ __aicore__ inline void mte_perf_test_get_impl(
     AscendC::PipeBarrier<PIPE_ALL>();
     SHMEMI_PROF_END(frame_id);
     AscendC::PipeBarrier<PIPE_ALL>();
-    aclshmemx_barrier_all_vec();
+    aclshmemx_sync_vec_all();
 }
 
 #define DEFINE_MTE_PERF_KERNEL_FOR_TYPE(type_name, cpp_type)                                                 \

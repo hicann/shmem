@@ -19,21 +19,18 @@
 ACLSHMEM_GLOBAL void barrier_on_stream_kernel(aclshmem_team_t team, uint64_t ffts_config)
 {
     AscendC::SetSyncBaseAddr(ffts_config);
-    aclshmemi_barrier<false>(team);
+    aclshmemi_sync<false>(team);
 }
 
 // interfaces
- int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream)
+int32_t aclshmemi_call_barrier_on_stream_kernel(aclshmem_team_t team, aclrtStream stream)
 {
     barrier_on_stream_kernel<<<1, nullptr, stream>>>(team, util_get_ffts_config());
     return ACLSHMEM_SUCCESS;
 }
 
 // kernels
-ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_handle_wait(int32_t tid)
-{
-    aclshmemi_handle(tid);
-}
+ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_handle_wait(int32_t tid) { aclshmemi_handle(tid); }
 
 // interfaces
 void aclshmemi_handle_wait_on_stream(aclshmem_handle_t handle, aclrtStream stream)
@@ -49,7 +46,7 @@ ACLSHMEM_GLOBAL void k_memset(GM_ADDR array, int32_t len, T val, int32_t count)
     if (array == 0) {
         return;
     }
-    auto tmp = (__gm__ T *)array;
+    auto tmp = (__gm__ T*)array;
     int32_t valid_count = count < len ? count : len;
     for (int32_t i = 0; i < valid_count; i++) {
         *tmp++ = val;
@@ -59,28 +56,29 @@ ACLSHMEM_GLOBAL void k_memset(GM_ADDR array, int32_t len, T val, int32_t count)
 }
 
 // interfaces
-int32_t aclshmemi_memset(int32_t *array, int32_t len, int32_t val, int32_t count)
+int32_t aclshmemi_memset(int32_t* array, int32_t len, int32_t val, int32_t count)
 {
-    k_memset<int32_t><<<1, nullptr, nullptr>>>((uint8_t *)array, len, val, count);
+    k_memset<int32_t><<<1, nullptr, nullptr>>>((uint8_t*)array, len, val, count);
     return aclrtSynchronizeStream(nullptr);
 }
 
-ACLSHMEM_GLOBAL void k_aclshmem_signal_wait_until(__gm__ int32_t *sig_addr, int cmp, int32_t cmp_val)
+ACLSHMEM_GLOBAL void k_aclshmem_signal_wait_until(__gm__ int32_t* sig_addr, int cmp, int32_t cmp_val)
 {
     aclshmem_signal_wait_until(sig_addr, cmp, cmp_val);
 }
 
-void call_aclshmemi_signal_wait_until_on_stream_kernel(int32_t *sig_addr, int cmp, int32_t cmp_val, aclrtStream stream)
+void call_aclshmemi_signal_wait_until_on_stream_kernel(int32_t* sig_addr, int cmp, int32_t cmp_val, aclrtStream stream)
 {
     k_aclshmem_signal_wait_until<<<1, nullptr, stream>>>(sig_addr, cmp, cmp_val);
 }
 
-ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe)
+ACLSHMEM_GLOBAL_VECTOR void k_aclshmem_signal_op(__gm__ int32_t* sig_addr, int32_t signal, int sig_op, int pe)
 {
     aclshmemx_signal_op(sig_addr, signal, sig_op, pe);
 }
 
-void call_aclshmemi_signal_op_on_stream_kernel(int32_t *sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
+void call_aclshmemi_signal_op_on_stream_kernel(
+    int32_t* sig_addr, int32_t signal, int sig_op, int pe, aclrtStream stream)
 {
     k_aclshmem_signal_op<<<1, nullptr, stream>>>(sig_addr, signal, sig_op, pe);
 }

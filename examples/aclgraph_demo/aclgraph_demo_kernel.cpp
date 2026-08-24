@@ -208,7 +208,7 @@ ACLSHMEM_DEVICE void all_gather_big_data(
         *ctrl_ub = 0;
         PipeBarrier<PIPE_ALL>();
         int32_t len = total_num > max_gva_num ? max_gva_num : total_num;
-        aclshmemx_barrier_all_vec();
+        aclshmemx_sync_vec_all();
         all_gather_origin(
             input + i * max_gva_num, output + i * max_gva_num, gva, max_gva_num, elements, len,
             (magic_data + i) * 1024);
