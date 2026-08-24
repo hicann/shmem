@@ -48,11 +48,12 @@ std::shared_ptr<TransportManager> TransportManager::Create(TransportType type)
 std::shared_ptr<TransportManager> TransportManager::CreateForDataOpType(uint32_t dataOpType)
 {
     std::vector<TransportType> order;
-    if ((dataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
-        order.push_back(TT_HCCP);
-    }
+    // SDMA STARS/AICPU initialization must run before RDMA/ROCE opens device resources.
     if ((dataOpType & HYBM_DOP_TYPE_DEVICE_SDMA) != 0) {
         order.push_back(TT_SDMA);
+    }
+    if ((dataOpType & HYBM_DOP_TYPE_DEVICE_RDMA) != 0) {
+        order.push_back(TT_HCCP);
     }
     if ((dataOpType & HYBM_DOP_TYPE_DEVICE_UDMA) != 0) {
         order.push_back(TT_UDMA);
