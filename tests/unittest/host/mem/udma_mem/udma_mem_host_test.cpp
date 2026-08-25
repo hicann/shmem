@@ -33,6 +33,17 @@ extern void test_udma_qp_data_path(
 
 constexpr size_t UDMA_TEST_MESSAGE_SIZE = 64;
 constexpr uint32_t UDMA_TEST_ACTION_BATCH_COUNT = 2;
+constexpr size_t UDMA_TEST_WRAP_WORKSPACE_SIZE = 5UL * 1024UL * 1024UL;
+constexpr uint64_t UDMA_TEST_WRAP_GUARD_VALUE = 0xC0FFEE1234567890ULL;
+constexpr size_t UDMA_TEST_WRAP_RESULT_COUNT = 8;
+constexpr size_t UDMA_TEST_WRAP_PIPE_S_LAYOUT_IDX = 0;
+constexpr size_t UDMA_TEST_WRAP_PIPE_MTE3_LAYOUT_IDX = 1;
+constexpr size_t UDMA_TEST_WRAP_PIPE_S_GUARD_IDX = 2;
+constexpr size_t UDMA_TEST_WRAP_PIPE_MTE3_GUARD_IDX = 3;
+constexpr size_t UDMA_TEST_WRAP_FAA_LAYOUT_IDX = 4;
+constexpr size_t UDMA_TEST_WRAP_CAS_LAYOUT_IDX = 5;
+constexpr size_t UDMA_TEST_WRAP_FAA_GUARD_IDX = 6;
+constexpr size_t UDMA_TEST_WRAP_CAS_GUARD_IDX = 7;
 using UdmaActionTestKernel = void (*)(uint32_t, void*, uint8_t*);
 
 static void prepare_udma_action_input(uint32_t* host_data, size_t total_size, uint32_t rank_id)
@@ -402,6 +413,57 @@ TEST(TestMemApi, TestShmemUDMAHighLevelPutSignalSplit)
     }
     const uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
     test_mutil_task(test_aclshmem_udma_highlevel_put_signal_split, local_mem_size, required_rank_size);
+}
+
+void test_aclshmem_udma_put_signal_sq_wrap(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    const int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream = nullptr;
+    ASSERT_EQ(test_udma_init(rank_id, n_ranks, local_mem_size, &stream), 0);
+    ASSERT_NE(stream, nullptr);
+
+    auto* workspace = static_cast<uint8_t*>(aclshmem_malloc(UDMA_TEST_WRAP_WORKSPACE_SIZE));
+    ASSERT_NE(workspace, nullptr);
+    ASSERT_EQ(aclrtMemset(workspace, UDMA_TEST_WRAP_WORKSPACE_SIZE, 0, UDMA_TEST_WRAP_WORKSPACE_SIZE), 0);
+
+    test_udma_put_signal_sq_wrap(1, stream, workspace);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+
+    std::vector<uint64_t> result(UDMA_TEST_WRAP_RESULT_COUNT, 0);
+    ASSERT_EQ(
+        aclrtMemcpy(
+            result.data(), result.size() * sizeof(uint64_t), workspace, result.size() * sizeof(uint64_t),
+            ACL_MEMCPY_DEVICE_TO_HOST),
+        0);
+    EXPECT_EQ(result[UDMA_TEST_WRAP_PIPE_S_LAYOUT_IDX], 1U) << "PIPE_S wrap WQE layout is invalid";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_PIPE_MTE3_LAYOUT_IDX], 1U) << "PIPE_MTE3 wrap WQE layout is invalid";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_PIPE_S_GUARD_IDX], UDMA_TEST_WRAP_GUARD_VALUE) << "PIPE_S wrote past the SQ ring";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_PIPE_MTE3_GUARD_IDX], UDMA_TEST_WRAP_GUARD_VALUE)
+        << "PIPE_MTE3 wrote past the SQ ring";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_FAA_LAYOUT_IDX], 1U) << "FAA wrap WQE layout is invalid";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_CAS_LAYOUT_IDX], 1U) << "CAS wrap WQE layout is invalid";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_FAA_GUARD_IDX], UDMA_TEST_WRAP_GUARD_VALUE) << "FAA wrote past the SQ ring";
+    EXPECT_EQ(result[UDMA_TEST_WRAP_CAS_GUARD_IDX], UDMA_TEST_WRAP_GUARD_VALUE) << "CAS wrote past the SQ ring";
+
+    aclshmem_free(workspace);
+    test_finalize(stream, device_id);
+}
+
+TEST(TestMemApi, TestShmemUDMAPutSignalSqWrap)
+{
+    constexpr int min_rank_size = 2;
+    if (test_global_ranks < min_rank_size) {
+        GTEST_SKIP() << "UDMA SQ wrap test requires at least " << min_rank_size << " ranks";
+    }
+    if (test_gnpu_num < test_global_ranks) {
+        GTEST_SKIP() << "UDMA SQ wrap test requires at least " << test_global_ranks << " NPUs";
+    }
+    const char* soc_name = aclrtGetSocName();
+    if (soc_name == nullptr || std::string(soc_name).find("Ascend950") == std::string::npos) {
+        GTEST_SKIP() << "UDMA SQ wrap test requires Ascend950";
+    }
+    const uint64_t local_mem_size = 1024UL * 1024UL * 1024UL;
+    test_mutil_task(test_aclshmem_udma_put_signal_sq_wrap, local_mem_size, test_global_ranks);
 }
 
 namespace {
