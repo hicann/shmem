@@ -147,7 +147,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --ub-size <size>                UB size(B), 192B~131136B, 自动对齐；XSCALE 聚合路径会警告并自动修正到最小值 (默认 192)"
             echo "  --batch <count>                 连续发起多少次操作后等待完成；XSCALE 聚合路径下会自动修正到可运行值 (默认 0)"
             echo "  --sync-id <id>                  显式传给 Put、Get、Quiet 的同步 ID (默认 0)"
-            echo "  -q|--qp|--qp-count <num>        每个 PE 对的 QP 个数，范围 1~32；仅云脉（XSCALE）支持 (默认 1)"
+            echo "  -q|--qp|--qp-count <num>        每个 PE 对的 QP 个数，范围 1~32；XSCALE 和 HNS_1825 支持 (默认 1)"
             echo "  -i|--qp-index <index>           固定使用的 QP 编号；-1 表示多 QP 并行模式自动分配 (默认 -1)"
             echo "  --metric <bw|lat>              性能指标: bw=带宽, lat=接口延迟 (默认 bw)"
             echo "  -pes <size>                     PE 数量 (目前强制为 2)"
@@ -200,6 +200,23 @@ is_xscale_runtime() {
     fi
 
     return 1
+}
+
+is_hns_1825_runtime() {
+    if [[ "${IBV_EXTEND_DRIVERS:-}" =~ [Hh][Nn][Ss].*1825 ]] || \
+        [[ "${IBV_EXTEND_DRIVERS:-}" =~ libhrn5-rdma ]]; then
+        return 0
+    fi
+
+    if command -v ibv_devinfo &>/dev/null && ibv_devinfo 2>/dev/null | grep -Eqi "hns.*1825"; then
+        return 0
+    fi
+
+    return 1
+}
+
+is_roce_multi_qp_runtime() {
+    is_xscale_runtime || is_hns_1825_runtime
 }
 
 get_xscale_required_ub_size() {
@@ -271,8 +288,8 @@ if [[ "$QP_NUM" -lt "1" || "$QP_NUM" -gt "32" ]]; then
     exit 1
 fi
 
-if ! is_xscale_runtime && [[ "$QP_SPECIFIED" == "1" ]]; then
-    echo "警告: 当前环境不支持多 QP，仅云脉（XSCALE）支持。"
+if ! is_roce_multi_qp_runtime && [[ "$QP_SPECIFIED" == "1" ]]; then
+    echo "警告: 当前环境不支持多 QP，仅云脉（XSCALE）和 1825 网卡支持。"
     echo "      已忽略 -q/--qp 和 -i/--qp-index 参数，回退为单 QP 模式。"
     QP_NUM="1"
     QP_INDEX="-1"
@@ -343,6 +360,8 @@ if is_xscale_runtime; then
             UB_SIZE="$REQUIRED_UB_SIZE"
         fi
     fi
+elif is_hns_1825_runtime; then
+    RDMA_NIC_TYPE="HNS_1825"
 else
     RDMA_NIC_TYPE="non-XSCALE or unknown"
 fi

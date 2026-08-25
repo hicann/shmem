@@ -22,7 +22,8 @@ __aicore__ inline void rdma_perf_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_num, int qp_index,
     uint32_t op_idx, uint32_t sync_id)
 {
-    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE;
+    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+                                     ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825;
     const uint32_t block_id = static_cast<uint32_t>(AscendC::GetBlockIdx());
     const bool multi_core = AscendC::GetBlockNum() > 1;
     const uint32_t selected_qp =
@@ -39,7 +40,8 @@ __aicore__ inline void rdma_perf_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_num, int qp_index,
     uint32_t op_idx, uint32_t sync_id)
 {
-    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE;
+    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+                                     ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825;
     const uint32_t block_id = static_cast<uint32_t>(AscendC::GetBlockIdx());
     const bool multi_core = AscendC::GetBlockNum() > 1;
     const uint32_t selected_qp =
@@ -51,6 +53,7 @@ __aicore__ inline void rdma_perf_get_nbi(
     }
 }
 
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
 template <typename T>
 __aicore__ inline void rdma_perf_put_aggregate_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t selected_qp, uint32_t op_count,
@@ -86,6 +89,7 @@ __aicore__ inline void rdma_perf_get_aggregate_nbi(
         }
     }
 }
+#endif
 
 __aicore__ inline bool rdma_perf_should_aggregate(uint32_t qp_num, uint64_t msg_size, int metric)
 {
@@ -105,7 +109,8 @@ __aicore__ inline void rdma_perf_quiet(
     uint32_t pe, __ubuf__ T* buf, uint32_t qp_num, uint32_t op_count, int qp_index, uint32_t qp_start_idx,
     uint32_t sync_id)
 {
-    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE;
+    constexpr bool use_qp_specific = ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+                                     ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825;
     const uint32_t block_id = static_cast<uint32_t>(AscendC::GetBlockIdx());
     const bool multi_core = AscendC::GetBlockNum() > 1;
     if constexpr (use_qp_specific) {

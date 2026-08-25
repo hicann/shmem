@@ -219,9 +219,10 @@ endforeach()
 
     if(DEFINED ACLSHMEM_RDMA_BACKEND)
         string(TOUPPER "${ACLSHMEM_RDMA_BACKEND}" RDMA_BACKEND_UPPER)
+        add_subdirectory(rdma_qp_demo)
+
         if(RDMA_BACKEND_UPPER STREQUAL "XSCALE")
             add_subdirectory(rdma_aggregate_demo)
-            add_subdirectory(rdma_qp_demo)
         endif()
     endif()
 endif()

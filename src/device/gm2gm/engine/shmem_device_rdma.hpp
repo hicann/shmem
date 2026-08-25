@@ -227,8 +227,9 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_get_nbi only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_get_nbi only supports XSCALE and HNS_1825 backends");
     auto ptr = aclshmem_ptr(src, pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
@@ -249,8 +250,9 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
     uint32_t qp_idx, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_get_nbi only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_get_nbi only supports XSCALE and HNS_1825 backends");
     auto ptr = aclshmem_ptr((__gm__ void*)src.GetPhyAddr(), pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
@@ -496,8 +498,9 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
     __gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_put_nbi only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_put_nbi only supports XSCALE and HNS_1825 backends");
     auto ptr = aclshmem_ptr(dst, pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
@@ -518,8 +521,9 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
     uint32_t qp_idx, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_put_nbi only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_put_nbi only supports XSCALE and HNS_1825 backends");
     auto ptr = aclshmem_ptr((__gm__ void*)dst.GetPhyAddr(), pe);
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
@@ -744,8 +748,9 @@ template <typename T>
 ACLSHMEM_DEVICE void aclshmemx_roce_qp_quiet(uint32_t pe, uint32_t qp_idx, __ubuf__ T* buf, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_quiet only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_quiet only supports XSCALE and HNS_1825 backends");
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
     ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
@@ -763,8 +768,9 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_quiet(
     uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<T> buf, uint32_t sync_id)
 {
     static_assert(
-        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE || sizeof(T) == 0,
-        "aclshmemx_roce_qp_quiet only supports XSCALE backend");
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+            ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825 || sizeof(T) == 0,
+        "aclshmemx_roce_qp_quiet only supports XSCALE and HNS_1825 backends");
     AscendC::LocalTensor<uint32_t> ub_tensor_32;
     ub_tensor_32.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
     ub_tensor_32.address_.bufferAddr = reinterpret_cast<uint64_t>(buf.GetPhyAddr());

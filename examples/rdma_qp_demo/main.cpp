@@ -59,7 +59,11 @@ void PrintUsage(const char* program)
 {
     std::cerr << "Usage: " << program
               << " -pe ID -pes N -gnpus N -fpe ID -fnpu ID [-qp N]"
-                 " [-op put|get|aggregate_put|aggregate_get|all] [-ipport tcp://IP:PORT]\n";
+                 " [-op put|get"
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+                 "|aggregate_put|aggregate_get"
+#endif
+                 "|all] [-ipport tcp://IP:PORT]\n";
 }
 
 bool ParseUint64(const char* text, uint64_t& value)
@@ -184,27 +188,47 @@ int Cleanup(RuntimeResources& resources, int status)
     return status;
 }
 
-DemoOperation ParseOperation(const std::string& operation)
+bool ParseOperation(const std::string& operation, DemoOperation& parsed_operation)
 {
-    if (operation == "put")
-        return DemoOperation::PUT;
-    if (operation == "get")
-        return DemoOperation::GET;
-    if (operation == "aggregate_put")
-        return DemoOperation::AGGREGATE_PUT;
-    return DemoOperation::AGGREGATE_GET;
+    if (operation == "put") {
+        parsed_operation = DemoOperation::PUT;
+        return true;
+    }
+    if (operation == "get") {
+        parsed_operation = DemoOperation::GET;
+        return true;
+    }
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+    if (operation == "aggregate_put") {
+        parsed_operation = DemoOperation::AGGREGATE_PUT;
+        return true;
+    }
+    if (operation == "aggregate_get") {
+        parsed_operation = DemoOperation::AGGREGATE_GET;
+        return true;
+    }
+#endif
+    return false;
 }
 
 bool IsPut(DemoOperation operation)
 {
-    return operation == DemoOperation::PUT || operation == DemoOperation::AGGREGATE_PUT;
+    return operation == DemoOperation::PUT
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+           || operation == DemoOperation::AGGREGATE_PUT
+#endif
+        ;
 }
 
 bool RunCase(
     const Options& options, RuntimeResources& resources, uint64_t ffts_addr, const std::string& operation_name,
     const std::vector<uint8_t>& own_pattern)
 {
-    const DemoOperation operation = ParseOperation(operation_name);
+    DemoOperation operation{};
+    if (!ParseOperation(operation_name, operation)) {
+        std::cerr << "unsupported operation: " << operation_name << std::endl;
+        return false;
+    }
     const uint64_t elements = static_cast<uint64_t>(options.qp) * ELEMENTS_PER_QP;
     uint8_t* src = resources.symmetric;
     uint8_t* dst = resources.symmetric + elements;
@@ -245,8 +269,11 @@ int main(int argc, char** argv)
         PrintUsage(argv[0]);
         return 1;
     }
-    const bool valid_op = options.op == "put" || options.op == "get" || options.op == "aggregate_put" ||
-                          options.op == "aggregate_get" || options.op == "all";
+    const bool valid_op = options.op == "put" || options.op == "get" || options.op == "all"
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+                          || options.op == "aggregate_put" || options.op == "aggregate_get"
+#endif
+        ;
     const uint64_t local_pe_end = static_cast<uint64_t>(options.fpe) + static_cast<uint64_t>(options.gnpus);
     if (options.pes < 2 || options.pe < 0 || options.pe >= options.pes || options.gnpus <= 0 || options.fpe < 0 ||
         options.fnpu < 0 || local_pe_end > static_cast<uint64_t>(options.pes) || options.pe < options.fpe ||
@@ -264,42 +291,64 @@ int main(int argc, char** argv)
     RuntimeResources resources;
     resources.device_id = options.fnpu + local_rank;
     int status = aclInit(nullptr);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "aclInit failed, status=" << status << std::endl;
         return status;
+    }
     resources.acl_initialized = true;
     status = aclrtSetDevice(resources.device_id);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "aclrtSetDevice failed, device=" << resources.device_id << " status=" << status << std::endl;
         return Cleanup(resources, status);
+    }
     resources.device_set = true;
     status = aclrtCreateStream(&resources.stream);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "aclrtCreateStream failed, status=" << status << std::endl;
         return Cleanup(resources, status);
+    }
     resources.stream_created = true;
 
     aclshmemx_uniqueid_t uid{};
     aclshmemx_init_attr_t attr{};
     status = test_set_attr(options.pe, options.pes, HEAP_BYTES, options.ipport.c_str(), uid, &attr);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "test_set_attr failed, status=" << status << std::endl;
         return Cleanup(resources, status);
+    }
     attr.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     status = aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, options.qp);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "aclshmemx_set_qp_num failed, qp=" << options.qp << " status=" << status << std::endl;
         return Cleanup(resources, status);
+    }
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attr);
-    if (status != 0)
+    if (status != 0) {
+        std::cerr << "aclshmemx_init_attr failed, status=" << status << std::endl;
         return Cleanup(resources, status);
+    }
     resources.shmem_initialized = true;
 
     const uint64_t elements = static_cast<uint64_t>(options.qp) * ELEMENTS_PER_QP;
     resources.symmetric = static_cast<uint8_t*>(aclshmem_malloc(static_cast<size_t>(elements * 2)));
-    if (resources.symmetric == nullptr)
+    if (resources.symmetric == nullptr) {
+        std::cerr << "aclshmem_malloc failed, bytes=" << elements * 2 << std::endl;
         return Cleanup(resources, 1);
+    }
 
     const uint64_t ffts_addr = util_get_ffts_config();
     const std::vector<uint8_t> own_pattern = MakePattern(options.pe, elements);
     const std::vector<std::string> operations =
-        options.op == "all" ? std::vector<std::string>{"put", "get", "aggregate_put", "aggregate_get"} :
-                              std::vector<std::string>{options.op};
+        options.op == "all"
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+            ?
+            std::vector<std::string>{"put", "get", "aggregate_put", "aggregate_get"}
+#else
+            ?
+            std::vector<std::string>{"put", "get"}
+#endif
+            :
+            std::vector<std::string>{options.op};
     bool passed = true;
     for (const auto& operation : operations) {
         passed = RunCase(options, resources, ffts_addr, operation, own_pattern) && passed;

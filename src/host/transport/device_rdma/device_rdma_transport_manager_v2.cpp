@@ -270,13 +270,6 @@ Result RdmaTransportManagerV2::OpenDevice(const TransportOptions& options)
         SHM_LOG_ERROR("rank[" << rankId_ << "] invalid rdma qp num: " << qpNum_);
         return ACLSHMEM_INVALID_PARAM;
     }
-#if !defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
-    if (qpNum_ != 1U) {
-        SHM_LOG_ERROR("rank[" << rankId_ << "] RDMA multi-QP is only supported on XSCALE, qpNum=" << qpNum_);
-        return ACLSHMEM_NOT_SUPPORTED;
-    }
-#endif
-
     if (options.type == IpV4) {
         deviceIp_.type = IpV4;
     } else if (options.type == IpV6) {

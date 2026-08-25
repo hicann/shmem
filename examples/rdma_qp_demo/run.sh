@@ -56,7 +56,7 @@ esac
 
 if [[ ! -x "${BIN}" ]]; then
     echo "Binary not found: ${BIN}" >&2
-    echo "Build with RDMA XSCALE enabled before running this demo." >&2
+    echo "Build with RDMA XSCALE or HNS_1825 enabled before running this demo." >&2
     exit 1
 fi
 

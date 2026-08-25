@@ -86,7 +86,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_get_nbi(
 
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory using an
- *        explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        explicitly selected QP. This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
@@ -107,7 +107,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_get_nbi(
 
 /**
  * @brief Asynchronously copy contiguous data from symmetric memory on the specified PE to local device memory using an
- *        explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        explicitly selected QP. This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
@@ -405,7 +405,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_put_nbi(
 
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE using
- *        an explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        an explicitly selected QP. This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
@@ -426,7 +426,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_put_nbi(
 
 /**
  * @brief Asynchronously copy contiguous data from local device memory to symmetric memory on the specified PE using
- *        an explicitly selected QP. This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        an explicitly selected QP. This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        See @ref roce_qp_aggregate_contract for QP-specific concurrency rules.
  *
  * @tparam T                  Element type of the transfer.
@@ -699,7 +699,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_quiet(uint32_t pe, __ubuf__ T* buf, uint32_t
 
 /**
  * @brief Wait for completion of previously submitted RDMA operations on one explicitly selected QP.
- *        This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        The caller must own the selected QP while its completion is being waited for.
  *
  * @tparam T                  Element type used for the UB pointer.
@@ -713,7 +713,7 @@ ACLSHMEM_DEVICE void aclshmemx_roce_qp_quiet(uint32_t pe, uint32_t qp_idx, __ubu
 
 /**
  * @brief Wait for completion of previously submitted RDMA operations on one explicitly selected QP.
- *        This QP-specific ROCE interface is supported only on XSCALE backend.
+ *        This QP-specific ROCE interface is supported on XSCALE and HNS_1825 backends.
  *        The caller must own the selected QP while its completion is being waited for.
  *
  * @tparam T                  Element type used for the UB tensor.
