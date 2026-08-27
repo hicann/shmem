@@ -9,6 +9,8 @@
  */
 #include <iostream>
 #include <cstdlib>
+#include <algorithm>
+#include <vector>
 #include <string>
 #include <gtest/gtest.h>
 
@@ -20,20 +22,20 @@
 #include <gtest/gtest.h>
 using namespace std;
 
-static int32_t test_get_device_state(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size,
-                                     aclshmem_team_t team_id, int stride)
+static int32_t test_get_device_state(
+    aclrtStream stream, uint8_t* gva, uint32_t rank_id, uint32_t rank_size, aclshmem_team_t team_id, int stride)
 {
-    int *y_host;
+    int* y_host;
     int num3 = 3;
     int num5 = 5;
     size_t input_size = 1024 * sizeof(int);
-    EXPECT_EQ(aclrtMallocHost(reinterpret_cast<void **>(&y_host), input_size), 0);  // size = 1024
+    EXPECT_EQ(aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size), 0); // size = 1024
 
     uint32_t block_dim = 1;
-    void *ptr          = aclshmem_malloc(1024);
+    void* ptr = aclshmem_malloc(1024);
     int32_t device_id;
     ACLSHMEM_CHECK_RET(aclrtGetDevice(&device_id));
-    get_device_state(block_dim, stream, (uint8_t *)ptr, team_id);
+    get_device_state(block_dim, stream, (uint8_t*)ptr, team_id);
     EXPECT_EQ(aclrtSynchronizeStream(stream), 0);
     sleep(1);
 
@@ -61,14 +63,14 @@ void test_aclshmem_team(int rank_id, int n_ranks, uint64_t local_mem_size)
     // #################### 子通信域切分测试 ############################
     const int STRIDE_LENGTH_2 = 2;
     aclshmem_team_t team_odd;
-    int start     = 1;
-    int stride    = STRIDE_LENGTH_2;
+    int start = 1;
+    int stride = STRIDE_LENGTH_2;
     int team_size = n_ranks / stride;
     aclshmem_team_split_strided(ACLSHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
 
     aclshmem_team_t team_even;
-    start     = 0;
-    stride    = STRIDE_LENGTH_2;
+    start = 0;
+    stride = STRIDE_LENGTH_2;
     team_size = n_ranks / stride;
     aclshmem_team_split_strided(ACLSHMEM_TEAM_WORLD, start, stride, team_size, &team_even);
 
@@ -79,7 +81,7 @@ void test_aclshmem_team(int rank_id, int n_ranks, uint64_t local_mem_size)
         ASSERT_EQ(aclshmem_n_pes(), n_ranks);
         ASSERT_EQ(aclshmem_my_pe(), rank_id);
 
-        int local_idx  = aclshmem_team_my_pe(team_odd);
+        int local_idx = aclshmem_team_my_pe(team_odd);
         int global_idx = aclshmem_team_translate_pe(team_odd, local_idx, ACLSHMEM_TEAM_WORLD);
         ASSERT_EQ(global_idx, rank_id);
 
@@ -102,8 +104,8 @@ void test_aclshmem_team(int rank_id, int n_ranks, uint64_t local_mem_size)
     // #################### 2d子通信域切分测试 ############################
     aclshmem_team_t team_x;
     aclshmem_team_t team_y;
-    int x_range   = 2;
-    int y_range   = n_ranks / 2;
+    int x_range = 2;
+    int y_range = n_ranks / 2;
     int errorCode = aclshmem_team_split_2d(ACLSHMEM_TEAM_WORLD, x_range, &team_x, &team_y);
     ASSERT_EQ(errorCode, 0);
 
@@ -113,14 +115,14 @@ void test_aclshmem_team(int rank_id, int n_ranks, uint64_t local_mem_size)
     ASSERT_EQ(aclshmem_n_pes(), n_ranks);
     ASSERT_EQ(aclshmem_my_pe(), rank_id);
 
-    int local_x_idx  = aclshmem_team_my_pe(team_x);
+    int local_x_idx = aclshmem_team_my_pe(team_x);
     int global_x_idx = aclshmem_team_translate_pe(team_x, local_x_idx, ACLSHMEM_TEAM_WORLD);
     ASSERT_EQ(global_x_idx, rank_id);
 
     int back_x_local = aclshmem_team_translate_pe(ACLSHMEM_TEAM_WORLD, rank_id, team_x);
     ASSERT_EQ(back_x_local, local_x_idx);
 
-    int local_y_idx  = aclshmem_team_my_pe(team_y);
+    int local_y_idx = aclshmem_team_my_pe(team_y);
     int global_y_idx = aclshmem_team_translate_pe(team_y, local_y_idx, ACLSHMEM_TEAM_WORLD);
     ASSERT_EQ(global_y_idx, rank_id);
 
@@ -132,7 +134,7 @@ void test_aclshmem_team(int rank_id, int n_ranks, uint64_t local_mem_size)
 
     // #################### device代码测试 ##############################
 
-    auto status = test_get_device_state(stream, (uint8_t *)g_state.heap_base, rank_id, n_ranks, team_odd, stride);
+    auto status = test_get_device_state(stream, (uint8_t*)g_state.heap_base, rank_id, n_ranks, team_odd, stride);
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
 
     // #################### 相关资源释放 ################################
@@ -157,16 +159,16 @@ void test_aclshmem_team_config(int rank_id, int n_ranks, uint64_t local_mem_size
     ASSERT_NE(stream, nullptr);
 
     aclshmem_team_t team_odd;
-    int start     = 0;
-    int stride    = 1;
+    int start = 0;
+    int stride = 1;
     int team_size = n_ranks;
-    int ret       = aclshmem_team_split_strided(ACLSHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
+    int ret = aclshmem_team_split_strided(ACLSHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
     EXPECT_EQ(ret, 0);
     EXPECT_TRUE(team_odd >= 0 && team_odd < ACLSHMEM_MAX_TEAMS);
 
     aclshmem_team_config_t config;
     config.num_contexts = 1;
-    ret                 = aclshmem_team_get_config(team_odd, &config);
+    ret = aclshmem_team_get_config(team_odd, &config);
     EXPECT_EQ(ret, 0);
     EXPECT_EQ(config.num_contexts, 0);
 
@@ -181,6 +183,39 @@ TEST(TestTeamApi, TestShmemTeamConfig)
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     test_mutil_task(test_aclshmem_team_config, local_mem_size, process_count);
+}
+
+void test_aclshmem_team_capacity(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream;
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
+    ASSERT_NE(stream, nullptr);
+
+    std::vector<aclshmem_team_t> teams;
+    for (int i = 0; i < 65; ++i) {
+        aclshmem_team_t team = ACLSHMEM_TEAM_INVALID;
+        int ret = aclshmem_team_split_strided(ACLSHMEM_TEAM_WORLD, 0, 1, n_ranks, &team);
+        EXPECT_EQ(ret, ACLSHMEM_SUCCESS);
+        if (ret != ACLSHMEM_SUCCESS || team == ACLSHMEM_TEAM_INVALID) {
+            break;
+        }
+        EXPECT_EQ(std::find(teams.begin(), teams.end(), team), teams.end());
+        teams.push_back(team);
+    }
+    EXPECT_EQ(teams.size(), 65U);
+
+    for (auto team : teams) {
+        aclshmem_team_destroy(team);
+    }
+    test_finalize(stream, device_id);
+}
+
+TEST(TestTeamApi, TestShmemTeamCapacity)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_aclshmem_team_capacity, local_mem_size, process_count);
 }
 
 TEST(TestTeamApi, TestShmemTeamSplitStrided_failConditions)
@@ -206,7 +241,7 @@ TEST(TestTeamApi, ShmemTeamSplit2d_failConditions)
 {
     aclshmem_team_t team_x;
     aclshmem_team_t team_y;
-    int x_range   = 2;
+    int x_range = 2;
     int errorCode = aclshmem_team_split_2d(ACLSHMEM_TEAM_WORLD, x_range, &team_x, nullptr);
     EXPECT_EQ(errorCode, ACLSHMEM_INVALID_PARAM);
 
