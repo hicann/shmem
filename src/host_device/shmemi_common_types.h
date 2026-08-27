@@ -10,4 +10,16 @@
 
 #ifndef SHMEMI_COMMON_TYPES
 #define SHMEMI_COMMON_TYPES
+
+#include <stdint.h>
+
+// This state is appended to the device extra context, after the public
+// aclshmem_device_host_state_t payload. It must not change that public ABI.
+// The per-rank mask contains non-MTE backends whose asynchronous operations
+// may require quiet completion. MTE is handled by PipeBarrier<PIPE_ALL>().
+// Typical values: MTE only = 0x00; MTE + UDMA = 0x08; MTE + SDMA + RoCE = 0x06.
+typedef struct {
+    uint8_t quiet_transport_mask;
+} aclshmemi_device_quiet_state_t;
+
 #endif

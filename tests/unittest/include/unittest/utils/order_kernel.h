@@ -10,7 +10,26 @@
 #ifndef ORDER_KERNEL_H
 #define ORDER_KERNEL_H
 
-void quiet_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
-void fence_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
+#include <stdint.h>
+
+constexpr uint64_t QUIET_COMPLETION_WORDS = 64;
+constexpr uint64_t QUIET_COMPLETION_REPEATS = 3;
+constexpr uint64_t QUIET_COMPLETION_ROUND_SHIFT = 48U;
+constexpr uint64_t QUIET_COMPLETION_PEER_SHIFT = 32U;
+
+#if defined(__CCE_AICORE__) || defined(__CCE_KT_TEST__)
+__aicore__
+#endif
+    inline constexpr uint64_t
+    quiet_completion_value(uint64_t round, uint64_t peer, uint64_t index)
+{
+    return (round << QUIET_COMPLETION_ROUND_SHIFT) | (peer << QUIET_COMPLETION_PEER_SHIFT) | index;
+}
+
+void quiet_order_do(void* stream, uint64_t config, uint8_t* addr, int32_t rank_id, int32_t n_ranks);
+void fence_order_do(void* stream, uint64_t config, uint8_t* addr, int32_t rank_id, int32_t n_ranks);
+void quiet_completion_do(void* stream, uint64_t config, uint8_t* addr, int32_t rank_id, int32_t n_ranks);
+void quiet_completion_mte_do(void* stream, uint64_t config, uint8_t* addr, int32_t rank_id, int32_t n_ranks);
+void quiet_completion_rdma_do(void* stream, uint64_t config, uint8_t* addr, int32_t rank_id, int32_t n_ranks);
 
 #endif // ORDER_KERNEL_H

@@ -15,6 +15,7 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include "shmemi_init_backend.h"
+#include "../../../host_device/shmemi_common_types.h"
 #include "transport_def.h"
 #include "shmemi_host_common.h"
 #include "host/shmem_host_def.h"
@@ -86,7 +87,8 @@ int aclshmemi_init_backend::bind_aclshmem_entity(
     entity_member* elem = new entity_member;
     elem->entity_attr = attr;
     elem->entity_host_state = state;
-    elem->entity_device_state = (aclshmem_device_host_state_t*)std::calloc(1, sizeof(aclshmem_device_host_state_t));
+    elem->entity_device_state = static_cast<aclshmem_device_host_state_t*>(
+        std::calloc(1, sizeof(aclshmem_device_host_state_t) + sizeof(aclshmemi_device_quiet_state_t)));
     if (elem->entity_device_state == nullptr) {
         SHM_LOG_ERROR("Failed to allocate memory for entity_device_state.");
         delete elem;
@@ -355,7 +357,7 @@ int aclshmemi_init_backend::update_device_state(void* host_ptr, size_t size)
     device_state->rdma_host_heap_base = backup_host_rdma;
     device_state->sdma_host_heap_base = backup_host_sdma;
 
-    auto ret = hybm_set_extra_context(hbm_entity, device_state, size);
+    auto ret = hybm_set_extra_context(hbm_entity, device_state, size + sizeof(aclshmemi_device_quiet_state_t));
     if (ret != ACLSHMEM_SUCCESS) {
         SHM_LOG_ERROR("hybm_set_extra_context failed, ret: " << ret);
         return ret;
@@ -465,6 +467,9 @@ int aclshmemi_init_backend::reach_info_init(void*& gva)
     }
 
     auto aligned = ALIGN_UP(host_state->heap_size, ACLSHMEM_HEAP_ALIGNMENT_SIZE);
+    auto quiet_state = reinterpret_cast<aclshmemi_device_quiet_state_t*>(
+        reinterpret_cast<uint8_t*>(elem->entity_device_state) + sizeof(aclshmem_device_host_state_t));
+    quiet_state->quiet_transport_mask = 0;
 
     for (int32_t i = 0; i < host_state->npes; i++) {
         hybm_data_op_type reaches_types;
@@ -486,6 +491,23 @@ int aclshmemi_init_backend::reach_info_init(void*& gva)
         }
         if (reaches_types & HYBM_DOP_TYPE_DEVICE_UDMA) {
             host_state->topo_list[i] |= ACLSHMEM_TRANSPORT_UDMA;
+        }
+
+        // SDMA completion drains the current core's queue, which may also contain
+        // self-targeted requests. Therefore, include the local PE in its mask.
+        if (reaches_types & HYBM_DOP_TYPE_DEVICE_SDMA) {
+            quiet_state->quiet_transport_mask |= ACLSHMEM_TRANSPORT_SDMA;
+        }
+
+        if (i != host_state->mype) {
+            // Record every remote backend that may submit asynchronous operations
+            // completed by quiet. MTE needs no per-PE completion action here.
+            if (reaches_types & HYBM_DOP_TYPE_DEVICE_UDMA) {
+                quiet_state->quiet_transport_mask |= ACLSHMEM_TRANSPORT_UDMA;
+            }
+            if (reaches_types & HYBM_DOP_TYPE_DEVICE_RDMA) {
+                quiet_state->quiet_transport_mask |= ACLSHMEM_TRANSPORT_ROCE;
+            }
         }
         host_state->sdma_device_heap_base[i] = nullptr;
     }
