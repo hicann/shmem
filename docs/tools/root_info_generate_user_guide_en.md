@@ -96,6 +96,15 @@ Length: 32 hexadecimal characters (16 bytes)
 - **File path query**: The path to a topology configuration file is provided.
 - **JSON output**: Topology information is displayed in a structured JSON format.
 
+### RoCE NIC Matching Constraints
+
+In v2 RDMA mode, when the topology file fails to be read and fallback rootinfo generation is triggered, NPUs are matched to RDMA NICs based on PIX (same PCIe switch) topology affinity:
+
+- **Hardware constraint**: Each PCIe switch has at most one RDMA HCA device. Multiple NPUs under the same switch share that HCA.
+- **Matching logic**: A round-robin PIX matching algorithm is used. If future hardware introduces multiple HCAs per switch, this logic will need to be revised to cache the HCA mapping by switch/prefix.
+
+> This constraint only affects the fallback path taken when the topology file fails to be read. This branch is not taken during normal operation.
+
 ## Prerequisites
 
 ### System Requirements
@@ -250,7 +259,7 @@ Common error causes:
 
 **Symptom**:
 ```bash
-error while loading shared libraries: libshmem_rootinfo.so: cannot open shared object file
+error while loading shared libraries: libshmem.so: cannot open shared object file
 ```
 
 **Solution**:
