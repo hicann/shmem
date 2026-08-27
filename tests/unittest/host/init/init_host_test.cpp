@@ -8,9 +8,15 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <cstdlib>
+#include <cstring>
+#include <csignal>
+#include <fcntl.h>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 #include <acl/acl.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -352,28 +358,26 @@ std::vector<std::string> split_env(const std::string& s, char delimiter)
     return tokens;
 }
 
+namespace {
+constexpr const char* cant_access_worker_rank_env = "ACLSHMEM_UT_CANT_ACCESS_WORKER_RANK";
+// Distinguishes a worker that ran the test from a filtered worker that exits with 0.
+constexpr int cant_access_worker_success_exit_code = 42;
+
+void terminate_cant_access_workers(const std::vector<pid_t>& pids)
+{
+    for (const pid_t pid : pids) {
+        kill(pid, SIGKILL);
+    }
+    for (const pid_t pid : pids) {
+        while (waitpid(pid, nullptr, 0) < 0 && errno == EINTR) {
+        }
+    }
+}
+} // namespace
+
+// The launcher exposes one physical device to each worker, which CANN maps to logical device 0 before main.
 void test_aclshmem_init_cant_access(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
-    const std::string env_name = "ASCEND_RT_VISIBLE_DEVICES";
-    std::string original_value;
-    bool is_original_empty = false;
-    const char* original_env_value = std::getenv(env_name.c_str());
-    std::string target_device;
-    if (original_env_value) {
-        original_value = original_env_value;
-        std::vector<std::string> devices = split_env(original_value, ',');
-        if (devices.size() >= n_ranks) {
-            target_device = devices[rank_id];
-        } else {
-            return;
-        }
-    } else {
-        target_device = std::to_string(rank_id);
-        is_original_empty = true;
-    }
-    setenv(env_name.c_str(), target_device.c_str(), 1);
-
-    uint32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     int status = ACLSHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(0), 0);
@@ -387,11 +391,6 @@ void test_aclshmem_init_cant_access(int rank_id, int n_ranks, uint64_t local_mem
     EXPECT_EQ(status, ACLSHMEM_SUCCESS);
     EXPECT_EQ(aclrtResetDevice(0), 0);
     EXPECT_EQ(aclFinalize(), 0);
-    if (is_original_empty) {
-        unsetenv(env_name.c_str());
-    } else {
-        setenv(env_name.c_str(), original_value.c_str(), 1);
-    }
 }
 
 // =============================== Multi-Instance UT ===============================
@@ -907,9 +906,110 @@ TEST(TestInitAPI, TestShmemInvalidIP)
 
 TEST(TestInitAPI, TestShmemCantAccess)
 {
-    const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    test_mutil_task(test_aclshmem_init_cant_access, local_mem_size, process_count);
+
+    const char* worker_rank = std::getenv(cant_access_worker_rank_env);
+    if (worker_rank != nullptr) {
+        if (dup2(STDERR_FILENO, STDOUT_FILENO) < 0) {
+            ADD_FAILURE() << "restore worker stdout failed: " << std::strerror(errno);
+        }
+        const int rank_id = std::atoi(worker_rank);
+        if (rank_id < 0 || rank_id >= test_global_ranks) {
+            ADD_FAILURE() << "invalid worker rank " << rank_id;
+        } else {
+            test_aclshmem_init_cant_access(rank_id, test_global_ranks, local_mem_size);
+        }
+        // The parent test process owns HBM leak checking, so the worker must not return to main.
+        const bool failed = ::testing::Test::HasFailure();
+        raise(failed ? SIGUSR2 : SIGUSR1);
+        _exit(failed ? EXIT_FAILURE : cant_access_worker_success_exit_code);
+    }
+
+    const int process_count = test_gnpu_num;
+    std::vector<std::string> visible_devices;
+    const char* original_visible_devices = std::getenv("ASCEND_RT_VISIBLE_DEVICES");
+    if (original_visible_devices != nullptr && original_visible_devices[0] != '\0') {
+        visible_devices = split_env(original_visible_devices, ',');
+        if (visible_devices.size() < static_cast<size_t>(process_count)) {
+            GTEST_SKIP() << "ASCEND_RT_VISIBLE_DEVICES contains " << visible_devices.size()
+                         << " devices, but the test requires " << process_count;
+        }
+        for (int i = 0; i < process_count; ++i) {
+            if (visible_devices[static_cast<size_t>(i)].empty()) {
+                GTEST_SKIP() << "ASCEND_RT_VISIBLE_DEVICES contains an empty device entry at index " << i;
+            }
+        }
+    }
+
+    const std::string global_ranks_arg = std::to_string(test_global_ranks);
+    // An empty card range prevents the worker's pre-test HBM check from sampling any device.
+    const std::string worker_gnpu_num_arg = "0";
+    const std::string first_rank_arg = std::to_string(test_first_rank);
+    const std::string first_npu_arg = std::to_string(test_first_npu);
+    std::vector<pid_t> pids;
+    pids.reserve(static_cast<size_t>(process_count));
+
+    for (int i = 0; i < process_count; ++i) {
+        const int rank_id = i + test_first_rank;
+        const std::string rank_arg = std::to_string(rank_id);
+        const std::string visible_device = visible_devices.empty() ?
+                                               std::to_string(rank_id % test_gnpu_num + test_first_npu) :
+                                               visible_devices[static_cast<size_t>(i)];
+
+        pid_t pid = -1;
+        {
+            ScopedEnv visible_device_env("ASCEND_RT_VISIBLE_DEVICES", visible_device.c_str());
+            ScopedEnv worker_rank_env(cant_access_worker_rank_env, rank_arg.c_str());
+            ScopedEnv gtest_output_env("GTEST_OUTPUT", "");
+            ScopedEnv gtest_shard_index_env("GTEST_SHARD_INDEX", "");
+            ScopedEnv gtest_total_shards_env("GTEST_TOTAL_SHARDS", "");
+            // Empty shard values are invalid integers, so remove them after ScopedEnv saves the originals.
+            unsetenv("GTEST_SHARD_INDEX");
+            unsetenv("GTEST_TOTAL_SHARDS");
+            pid = fork();
+            if (pid == 0) {
+                const int null_fd = open("/dev/null", O_WRONLY);
+                if (null_fd < 0 || dup2(null_fd, STDOUT_FILENO) < 0) {
+                    if (null_fd >= 0) {
+                        close(null_fd);
+                    }
+                    _exit(127);
+                }
+                close(null_fd);
+                execl(
+                    "/proc/self/exe", "/proc/self/exe", global_ranks_arg.c_str(), test_global_ipport,
+                    worker_gnpu_num_arg.c_str(), first_rank_arg.c_str(), first_npu_arg.c_str(),
+                    "--gtest_filter=TestInitAPI.TestShmemCantAccess", "--gtest_repeat=1", "--gtest_shuffle=0",
+                    "--gtest_brief=1", static_cast<char*>(nullptr));
+                _exit(127);
+            }
+        }
+
+        if (pid < 0) {
+            ADD_FAILURE() << "fork worker " << i << " failed: " << std::strerror(errno);
+            terminate_cant_access_workers(pids);
+            return;
+        }
+        pids.push_back(pid);
+    }
+
+    for (size_t i = 0; i < pids.size(); ++i) {
+        int status = 0;
+        pid_t wait_status;
+        do {
+            wait_status = waitpid(pids[i], &status, 0);
+        } while (wait_status < 0 && errno == EINTR);
+
+        if (wait_status < 0) {
+            ADD_FAILURE() << "waitpid worker " << i << " failed: " << std::strerror(errno);
+        } else if (WIFSIGNALED(status)) {
+            if (WTERMSIG(status) != SIGUSR1) {
+                ADD_FAILURE() << "worker " << i << " terminated by signal " << WTERMSIG(status);
+            }
+        } else if (!WIFEXITED(status) || WEXITSTATUS(status) != cant_access_worker_success_exit_code) {
+            ADD_FAILURE() << "worker " << i << " exited with status " << (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+        }
+    }
 }
 
 TEST(TestInitAPI, TestShmemMultiInstanceSingle)
