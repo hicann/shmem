@@ -18,6 +18,8 @@ void sync_increase_vec_do(void* stream, uint64_t config, uint8_t* addr, int rank
 void sync_increase_single_aiv_do(void* stream, uint64_t config, uint8_t* addr, int rank_id, int rank_size);
 void sync_v4_single_aiv_do(void* stream, uint64_t config, uint8_t* addr, int rank_id, int rank_size);
 void sync_stress_vec_do(void* stream, uint64_t config, uint8_t* addr, int rank_id, int rank_size);
+void sync_core_soft_mixed_stress_do(
+    uint32_t block_num, void* stream, uint64_t config, uint8_t* observed_aiv_count, uint8_t* completion, int rank_id);
 void sync_v4_stress_vec_do(
     uint32_t block_num, void* stream, uint64_t config, uint8_t* addr, int rank_id, int rank_size);
 void sync_singleton_team_do(void* stream, uint64_t config, uint8_t* addr, aclshmem_team_t team_id);

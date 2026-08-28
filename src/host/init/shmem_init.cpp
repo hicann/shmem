@@ -128,6 +128,49 @@ std::map<uint32_t, aclshmem_instance_ctx*> aclshmem_ctx_domain = {{0, g_instance
 std::map<uint32_t, aclshmem_context*> aclshmem_resource_domain = {{0, new aclshmem_context(0)}};
 
 namespace {
+int32_t query_vector_core_count(uint32_t& aiv_count)
+{
+    aiv_count = 0;
+    int32_t device_id = -1;
+    auto ret = aclrtGetDevice(&device_id);
+    if (ret != ACL_SUCCESS) {
+        SHM_LOG_ERROR("aclrtGetDevice failed when initializing the core sync pool, ret=" << ret);
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    int64_t vector_core_num = 0;
+    const auto device_info_ret = aclrtGetDeviceInfo(device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &vector_core_num);
+    if (device_info_ret != ACL_SUCCESS || vector_core_num <= 0) {
+        const int64_t device_info_value = vector_core_num;
+        int64_t capability_value = 0;
+        const auto capability_ret =
+            aclGetDeviceCapability(device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &capability_value);
+        if (capability_ret != ACL_SUCCESS || capability_value <= 0) {
+            SHM_LOG_ERROR(
+                "failed to query vector core count for core sync pool, device_id="
+                << device_id << ", aclrtGetDeviceInfo_ret=" << device_info_ret << ", aclrtGetDeviceInfo_value="
+                << device_info_value << ", aclGetDeviceCapability_ret=" << capability_ret
+                << ", aclGetDeviceCapability_value=" << capability_value);
+            return ACLSHMEM_INNER_ERROR;
+        }
+        SHM_LOG_WARN(
+            "aclrtGetDeviceInfo did not return a valid vector core count, device_id="
+            << device_id << ", ret=" << device_info_ret << ", value=" << device_info_value
+            << "; aclGetDeviceCapability succeeded, value=" << capability_value);
+        vector_core_num = capability_value;
+    }
+    if (vector_core_num > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
+        SHM_LOG_ERROR(
+            "invalid vector core count for core sync pool, device_id=" << device_id
+                                                                       << ", vector_core_num=" << vector_core_num);
+        return ACLSHMEM_INNER_ERROR;
+    }
+
+    aiv_count = static_cast<uint32_t>(vector_core_num);
+    SHM_LOG_INFO("initialize core sync pool for " << aiv_count << " AIVs");
+    return ACLSHMEM_SUCCESS;
+}
+
 bool aclshmemi_parse_port_strict(const std::string& port_str, uint16_t& port)
 {
     constexpr int max_port = 65535;
@@ -1026,8 +1069,11 @@ static int32_t aclshmemi_init_attr_impl(
         // only reserve dramp heap, skip setup_heap for host dram, setup heap when malloc on host
         ACLSHMEM_CHECK_RET(init_manager->reserve_heap(HOST_SIDE));
     }
+    uint32_t aiv_count = 0;
+    const int32_t core_sync_config_status = query_vector_core_count(aiv_count);
+    ACLSHMEM_CHECK_RET(aclshmemi_collective_status_gate(core_sync_config_status, g_state.npes, &g_boot_handle));
     ACLSHMEM_CHECK_RET(aclshmemi_signal_init());
-    ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes));
+    ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes, aiv_count));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
     g_state.is_aclshmem_initialized = true;
     ACLSHMEM_CHECK_RET(prof_util_init(&g_host_profs, &g_state));

@@ -22,6 +22,21 @@
 std::bitset<ACLSHMEM_MAX_TEAMS> g_team_mask;
 aclshmemx_team_t* g_aclshmem_team_pool = nullptr;
 
+namespace {
+
+constexpr uint32_t core_sync_stride_for_aiv_count(uint32_t aiv_count)
+{
+    uint32_t stride = 0;
+    uint64_t covered_aivs = 1;
+    while (covered_aivs < aiv_count) {
+        covered_aivs <<= 1;
+        ++stride;
+    }
+    return stride > 0 ? stride : 1;
+}
+
+} // namespace
+
 #define ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(func_name)                                                                 \
     do {                                                                                                               \
         if (g_instance_ctx->id != 0) {                                                                                 \
@@ -114,15 +129,21 @@ int32_t aclshmemi_team_init_sync_counter()
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t aclshmemi_team_init_core_sync_pool()
+int32_t aclshmemi_team_init_core_sync_pool(uint32_t aiv_count)
 {
-    auto ret = aclrtMalloc((void**)&(g_state.core_sync_pool), ACLSHMEM_CORE_SYNC_POOL_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+    if (aiv_count == 0) {
+        SHM_LOG_ERROR("invalid internal core sync config, aiv_count=" << aiv_count);
+        return ACLSHMEM_INNER_ERROR;
+    }
+    const uint32_t core_sync_stride = core_sync_stride_for_aiv_count(aiv_count);
+    size_t core_sync_pool_size = static_cast<size_t>(aiv_count) * core_sync_stride * ACLSHMEM_SYNCBIT_SIZE;
+    auto ret = aclrtMalloc((void**)&(g_state.core_sync_pool), core_sync_pool_size, ACL_MEM_MALLOC_HUGE_FIRST);
     if (ret != 0 || g_state.core_sync_pool == 0) {
         aclshmemi_team_finalize();
         SHM_LOG_ERROR("malloc core sync pool failed.");
         return ACLSHMEM_INNER_ERROR;
     }
-    ret = aclrtMemset((void*)g_state.core_sync_pool, ACLSHMEM_CORE_SYNC_POOL_SIZE, 0, ACLSHMEM_CORE_SYNC_POOL_SIZE);
+    ret = aclrtMemset((void*)g_state.core_sync_pool, core_sync_pool_size, 0, core_sync_pool_size);
     if (ret != 0) {
         aclshmemi_team_finalize();
         SHM_LOG_ERROR("memset core sync pool failed.");
@@ -137,20 +158,20 @@ int32_t aclshmemi_team_init_core_sync_counter()
         aclrtMalloc((void**)&(g_state.core_sync_counter), ACLSHMEM_CORE_SYNC_COUNTER_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
     if (ret != 0 || g_state.core_sync_counter == 0) {
         aclshmemi_team_finalize();
-        SHM_LOG_ERROR("malloc core sync counter failed.");
+        SHM_LOG_ERROR("malloc core sync counter failed, ret=" << ret);
         return ACLSHMEM_INNER_ERROR;
     }
     ret = aclrtMemset(
         (void*)g_state.core_sync_counter, ACLSHMEM_CORE_SYNC_COUNTER_SIZE, 0, ACLSHMEM_CORE_SYNC_COUNTER_SIZE);
     if (ret != 0) {
         aclshmemi_team_finalize();
-        SHM_LOG_ERROR("memset core sync counter failed.");
+        SHM_LOG_ERROR("memset core sync counter failed, ret=" << ret);
         return ACLSHMEM_INNER_ERROR;
     }
     return ACLSHMEM_SUCCESS;
 }
 
-int32_t aclshmemi_team_init(int32_t rank, int32_t size)
+int32_t aclshmemi_team_init(int32_t rank, int32_t size, uint32_t aiv_count)
 {
     /* Initialize ACLSHMEM_TEAM_WORLD */
     int team_size = g_instance_ctx->id == 0 ? ACLSHMEM_MAX_TEAMS : 1;
@@ -189,7 +210,7 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size)
         return ret;
     }
 
-    ret = aclshmemi_team_init_core_sync_pool();
+    ret = aclshmemi_team_init_core_sync_pool(aiv_count);
     if (ret != 0) {
         return ret;
     }
