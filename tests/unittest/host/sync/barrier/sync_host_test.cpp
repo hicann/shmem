@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <iostream>
+#include <limits>
 #include <string>
 #include <unistd.h>
 #include <gtest/gtest.h>
@@ -217,6 +218,81 @@ static void test_sync_edge_cases(int32_t rank_id, int32_t n_ranks, uint64_t loca
     alarm(0);
 }
 
+static void test_sync_core_soft_mixed(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
+{
+    const int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream;
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
+    ASSERT_NE(stream, nullptr);
+    alarm(ACLSHMEM_SYNC_TIMEOUT_SECONDS);
+
+    int32_t active_device_id = -1;
+    ASSERT_EQ(aclrtGetDevice(&active_device_id), ACL_SUCCESS);
+
+    int64_t physical_aiv_count = 0;
+    auto ret = aclrtGetDeviceInfo(active_device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &physical_aiv_count);
+    if (ret != ACL_SUCCESS || physical_aiv_count <= 0) {
+        ret = aclGetDeviceCapability(active_device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &physical_aiv_count);
+    }
+    ASSERT_EQ(ret, ACL_SUCCESS) << "failed to query vector core count for device " << active_device_id;
+    ASSERT_GT(physical_aiv_count, 0);
+    ASSERT_LE(physical_aiv_count, static_cast<int64_t>(std::numeric_limits<uint32_t>::max()));
+
+    int64_t physical_aic_count = 0;
+    ret = aclGetDeviceCapability(active_device_id, ACL_DEVICE_INFO_AI_CORE_NUM, &physical_aic_count);
+    ASSERT_EQ(ret, ACL_SUCCESS) << "failed to query AI Core count for device " << active_device_id;
+    ASSERT_GT(physical_aic_count, 0);
+    ASSERT_LE(physical_aic_count, static_cast<int64_t>(std::numeric_limits<uint32_t>::max()));
+
+    const uint32_t stress_aiv_count = static_cast<uint32_t>(physical_aiv_count);
+    const uint32_t mixed_block_count = static_cast<uint32_t>(physical_aic_count);
+    const size_t completion_size = static_cast<size_t>(stress_aiv_count) * ACLSHMEM_SYNCBIT_SIZE;
+
+    uint32_t* observed_aiv_count_dev = nullptr;
+    ASSERT_EQ(
+        aclrtMalloc(reinterpret_cast<void**>(&observed_aiv_count_dev), sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST),
+        ACL_SUCCESS);
+    ASSERT_EQ(aclrtMemset(observed_aiv_count_dev, sizeof(uint32_t), 0, sizeof(uint32_t)), ACL_SUCCESS);
+
+    uint8_t* completion_dev = nullptr;
+    ASSERT_EQ(
+        aclrtMalloc(reinterpret_cast<void**>(&completion_dev), completion_size, ACL_MEM_MALLOC_HUGE_FIRST),
+        ACL_SUCCESS);
+    ASSERT_EQ(aclrtMemset(completion_dev, completion_size, 0, completion_size), ACL_SUCCESS);
+    uint8_t* completion_host = nullptr;
+    ASSERT_EQ(aclrtMallocHost(reinterpret_cast<void**>(&completion_host), completion_size), ACL_SUCCESS);
+
+    sync_core_soft_mixed_stress_do(
+        mixed_block_count, stream, util_get_ffts_config(), reinterpret_cast<uint8_t*>(observed_aiv_count_dev),
+        completion_dev, rank_id);
+    ASSERT_EQ(aclrtSynchronizeStream(stream), ACL_SUCCESS);
+
+    uint32_t observed_aiv_count = 0;
+    ASSERT_EQ(
+        aclrtMemcpy(
+            &observed_aiv_count, sizeof(uint32_t), observed_aiv_count_dev, sizeof(uint32_t), ACL_MEMCPY_DEVICE_TO_HOST),
+        ACL_SUCCESS);
+    ASSERT_EQ(observed_aiv_count, stress_aiv_count)
+        << "mixed kernel GetBlockNum() * GetTaskRation() does not match the runtime AIV count";
+
+    ASSERT_EQ(
+        aclrtMemcpy(completion_host, completion_size, completion_dev, completion_size, ACL_MEMCPY_DEVICE_TO_HOST),
+        ACL_SUCCESS);
+    for (uint32_t aiv_id = 0; aiv_id < stress_aiv_count; ++aiv_id) {
+        const auto* completion_slot =
+            reinterpret_cast<const uint32_t*>(completion_host + static_cast<size_t>(aiv_id) * ACLSHMEM_SYNCBIT_SIZE);
+        ASSERT_EQ(*completion_slot, 1U) << "rank " << rank_id << " AIV " << aiv_id
+                                        << " did not finish aclshmemi_sync_core_soft";
+    }
+    ASSERT_EQ(aclshmemi_control_barrier_all(), ACLSHMEM_SUCCESS);
+
+    ASSERT_EQ(aclrtFreeHost(completion_host), ACL_SUCCESS);
+    ASSERT_EQ(aclrtFree(completion_dev), ACL_SUCCESS);
+    ASSERT_EQ(aclrtFree(observed_aiv_count_dev), ACL_SUCCESS);
+    test_finalize(stream, device_id);
+    alarm(0);
+}
+
 TEST(TEST_SYNC_API, test_sync_black_box)
 {
     const int32_t process_count = test_gnpu_num;
@@ -239,4 +315,11 @@ TEST(TEST_SYNC_API, test_sync_edge_cases)
     const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 16;
     test_mutil_task(test_sync_edge_cases, local_mem_size, process_count);
+}
+
+TEST(TEST_SYNC_API, test_sync_core_soft_mixed)
+{
+    const int32_t process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 16;
+    test_mutil_task(test_sync_core_soft_mixed, local_mem_size, process_count);
 }

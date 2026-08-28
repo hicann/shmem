@@ -103,6 +103,13 @@ ACLSHMEM_DEVICE void aclshmemi_sync_core_soft()
     int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
     auto sync_pool = aclshmemi_get_core_sync_pool();
     auto sync_counter = aclshmemi_get_core_sync_counter();
+    int32_t core_sync_stride = 0;
+    int32_t covered_aivs = 1;
+    while (covered_aivs < block_dim) {
+        covered_aivs <<= 1;
+        core_sync_stride++;
+    }
+    core_sync_stride = core_sync_stride > 0 ? core_sync_stride : 1;
     int32_t count = aclshmemi_load((__gm__ int32_t*)(sync_counter)) + 1;
 
     int32_t shift = 1;
@@ -110,9 +117,9 @@ ACLSHMEM_DEVICE void aclshmemi_sync_core_soft()
     while (shift < block_dim) {
         int32_t next = (cur_block_idx + shift) % block_dim;
 
-        aclshmemi_signal_set((__gm__ int32_t*)(sync_pool + next * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+        aclshmemi_signal_set((__gm__ int32_t*)(sync_pool + next * core_sync_stride + offset), count);
         aclshmemi_signal_wait_until_eq_for_barrier(
-            (__gm__ int32_t*)(sync_pool + cur_block_idx * ACLSHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+            (__gm__ int32_t*)(sync_pool + cur_block_idx * core_sync_stride + offset), count);
 
         shift *= SHIFT_MULTIPLIER;
         offset++;
