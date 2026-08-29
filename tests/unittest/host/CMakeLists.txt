@@ -119,6 +119,7 @@ if(SOC_TYPE STREQUAL "Ascend950" AND ACLSHMEM_RDMA_SUPPORT)
 endif()
 
 add_library(aclshmem_unittest_host OBJECT ${ACLSHMEM_HOST_FILES} ${TEST_HOST_FILES} ${CONFIG_STORE_FILES} ${TOPO_SOURCE_FILES} ${UNDER_API_FILES} ${MOCK_TOPO_FILES})
+target_compile_definitions(aclshmem_unittest_host PRIVATE ACLSHMEM_UNIT_TEST=1)
 
 if(SOC_TYPE STREQUAL "Ascend950")
     target_compile_definitions(aclshmem_unittest_host PRIVATE ACLSHMEM_UT_ASCEND950=1)

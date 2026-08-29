@@ -16,11 +16,29 @@ import shmem as _shmem
 # shmem._pyshmem.
 _shmem._ensure_native_libraries()
 
-from .init_final import *
-from .rma import *
-from .memory import *
+from . import config as _config
+from . import init_final as _init_final
+from . import memory as _memory
+from . import multi_instance as _multi_instance
+from . import profiling as _profiling
+from . import rma as _rma
+from . import sync as _sync
 
-import os
+from .config import *
+from .init_final import *
+from .memory import *
+from .multi_instance import *
+from .profiling import *
+from .rma import *
+from .sync import *
 
 # Define public exports
-__all__ = init_final.__all__ + rma.__all__ + memory.__all__
+__all__ = (
+    _init_final.__all__
+    + _rma.__all__
+    + _memory.__all__
+    + _sync.__all__
+    + _multi_instance.__all__
+    + _config.__all__
+    + _profiling.__all__
+)

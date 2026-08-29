@@ -28,16 +28,12 @@ def run_direct_test():
         raise ValueError("[ERROR] disable tls failed.")
 
     # 1. get unique id
-    uid_size = 512
-    tensor = torch.zeros(uid_size, dtype=torch.uint8)
-    if pe == 0:
-        unique_id = core.get_unique_id()
-        if unique_id is None:
-            raise ValueError('[ERROR] get unique id failed')
-        tensor = torch.tensor(list(unique_id), dtype=torch.uint8)
-    dist.broadcast(tensor, src=0)
-    if pe != 0:
-        unique_id = bytes(tensor.tolist())
+    unique_id = core.get_unique_id() if pe == 0 else None
+    if pe == 0 and unique_id is None:
+        raise ValueError('[ERROR] get unique id failed')
+    uid_list = [unique_id]
+    dist.broadcast_object_list(uid_list, src=0)
+    unique_id = uid_list[0]
 
     # 2. init with unique id
     core.init(rank=pe, nranks=world_size, mem_size=g_ash_size, uid=unique_id, initializer_method='uid')
@@ -51,6 +47,23 @@ def run_direct_test():
     my_pe, pe_count = core.direct.my_pe(), core.direct.n_pes()
     if not (my_pe == pe and pe_count == world_size):
         raise ValueError('[ERROR] pe/world failed')
+
+    # Invalid split parameters must raise instead of being confused with the
+    # valid ACLSHMEM_TEAM_INVALID result returned for a non-member PE.
+    try:
+        ash.team_split_strided(0, -1, 1, 1)
+    except RuntimeError:
+        pass
+    else:
+        raise ValueError('[ERROR] invalid team split did not raise RuntimeError')
+
+    non_member_team = ash.team_split_strided(0, 0, 1, 1)
+    if pe == 0:
+        if non_member_team < 0:
+            raise ValueError('[ERROR] member PE did not receive a valid team')
+        ash.team_destroy(non_member_team)
+    elif non_member_team != core.ACLSHMEM_TEAM_INVALID:
+        raise ValueError('[ERROR] non-member PE did not receive ACLSHMEM_TEAM_INVALID')
 
     # 5. create team
     team_id = ash.team_split_strided(0, pe, 1, 1)

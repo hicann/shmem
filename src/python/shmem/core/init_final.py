@@ -12,9 +12,16 @@
 #
 import logging
 import os
+from typing import Optional, Union
 
 import shmem._pyshmem as _pyshmem
-from shmem.core.utils import setup_aclshmem_logger, AclshmemError, AclshmemInvalid
+from shmem.core.utils import (
+    setup_aclshmem_logger,
+    AclshmemError,
+    AclshmemInvalid,
+    _instance_lock,
+    _validate_instance_id,
+)
 
 __all__ = ['get_unique_id', 'init', 'finalize', 'get_version', 'UniqueID']
 
@@ -35,7 +42,7 @@ def get_version() -> str:
     return res
 
 
-def get_unique_id(empty: bool=False) -> UniqueID:
+def get_unique_id(empty: bool=False) -> bytes:
     """
     Create a unique ID used for UID-based ACLSHMEM initialization.
 
@@ -46,8 +53,8 @@ def get_unique_id(empty: bool=False) -> UniqueID:
         empty: Reserved parameter. **Ignored** in ACLSHMEM. Always treated as ``False``.
 
     Returns:
-        UniqueID: A handle representing the generated unique ID (internally stored as bytes).
-                  This object is opaque but can be pickled and sent across processes.
+        bytes: The serialized native unique ID. This object can be pickled and
+               sent across processes.
 
     Raises:
         AclshmemError: If generation of a unique ID fails.
@@ -60,8 +67,8 @@ def get_unique_id(empty: bool=False) -> UniqueID:
     return u_id
 
 
-def init(device: int=None, uid: UniqueID=None, rank: int=None, nranks: int=None, mpi_comm=None,
-         initializer_method: str="", mem_size: int=None) -> None:
+def init(device: int=None, uid: Optional[Union[UniqueID, bytes]]=None, rank: int=None, nranks: int=None, mpi_comm=None,
+         initializer_method: str="", mem_size: int=None, instance_id: int=0) -> None:
     """
     Initialize the ACLSHMEM runtime with unique ID.
 
@@ -73,6 +80,7 @@ def init(device: int=None, uid: UniqueID=None, rank: int=None, nranks: int=None,
         mpi_comm: Reserved parameter. **Ignored** in ACLSHMEM. Always treated as ``None``.
         initializer_method (str): Specifies the initialization method. Must be "uid".
         mem_size (int, required): Memory size for each processing element in bytes.
+        instance_id (int): ACLSHMEM instance identifier. Defaults to 0.
 
     Raises:
         AclshmemInvalid: If the required arguments for the selected method are missing or incorrect.
@@ -92,12 +100,39 @@ def init(device: int=None, uid: UniqueID=None, rank: int=None, nranks: int=None,
     if any(arg is None for arg in (uid, rank, nranks, mem_size)):
         raise AclshmemInvalid("uid, rank and nranks must be specified.")
 
-    ret = _pyshmem.aclshmem_init_using_unique_id(rank, nranks, mem_size, uid)
-    if ret != 0:
-        raise AclshmemError("ACLSHMEM initialization fails.")
+    if not isinstance(rank, int) or isinstance(rank, bool):
+        raise AclshmemInvalid("rank must be an integer.")
+    if not isinstance(nranks, int) or isinstance(nranks, bool) or nranks <= 0:
+        raise AclshmemInvalid("nranks must be a positive integer.")
+    if rank < 0 or rank >= nranks:
+        raise AclshmemInvalid("rank must satisfy 0 <= rank < nranks.")
+    if not isinstance(mem_size, int) or isinstance(mem_size, bool) or mem_size <= 0:
+        raise AclshmemInvalid("mem_size must be a positive integer.")
+    _validate_instance_id(instance_id)
+
+    if isinstance(uid, UniqueID):
+        native_uid = uid
+    elif isinstance(uid, (bytes, bytearray, memoryview)):
+        try:
+            native_uid = UniqueID.from_bytes(bytes(uid))
+        except (TypeError, ValueError) as e:
+            raise AclshmemInvalid("uid has an invalid serialized representation.") from e
+    else:
+        raise AclshmemInvalid("uid must be a UniqueID or serialized bytes.")
+
+    with _instance_lock:
+        attr = _pyshmem.InitAttr()
+        attr.instance_id = instance_id
+        ret = _pyshmem.aclshmemx_set_attr_uniqueid_args(rank, nranks, mem_size, native_uid, attr)
+        if ret != 0:
+            raise AclshmemError(f"ACLSHMEM set unique-ID attributes failed, ret={ret}.")
+
+        ret = _pyshmem.aclshmemx_init_attr(_pyshmem.InitMode.UNIQUEID, attr)
+        if ret != 0:
+            raise AclshmemError(f"ACLSHMEM initialization fails, ret={ret}.")
 
 
-def finalize() -> None:
+def finalize(instance_id: int=None) -> None:
     """
     Finalize the ACLSHMEM runtime.
 
@@ -107,6 +142,13 @@ def finalize() -> None:
     Raises:
         AclshmemError: If the ACLSHMEM finalization fails.
     """
-    ret = _pyshmem.aclshmem_finalize()
-    if ret != 0:
-        raise AclshmemError("ACLSHMEM finalization fails.")
+    if instance_id is not None:
+        _validate_instance_id(instance_id)
+
+    with _instance_lock:
+        if instance_id is None:
+            ret = _pyshmem.aclshmem_finalize()
+        else:
+            ret = _pyshmem.aclshmemx_finalize(instance_id)
+        if ret != 0:
+            raise AclshmemError(f"ACLSHMEM finalization fails, ret={ret}.")

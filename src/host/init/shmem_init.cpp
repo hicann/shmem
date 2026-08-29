@@ -86,7 +86,6 @@ static_assert(
 
 aclshmem_device_host_state_t g_state = ACLSHMEM_DEVICE_HOST_STATE_INITIALIZER;
 aclshmem_host_state_t g_state_host = {nullptr, DEFAULT_TEVENT, DEFAULT_BLOCK_NUM, 0};
-aclshmem_prof_pe_t g_host_profs;
 
 // bootstrap plugin_hdl
 void* plugin_hdl = nullptr;
@@ -117,6 +116,7 @@ struct aclshmem_context {
     std::shared_ptr<memory_manager> dev_mem_manager = nullptr;
     std::shared_ptr<memory_manager> host_mem_manager = nullptr;
     aclshmemi_exception_report_context_t exception_report_context{};
+    aclshmem_prof_pe_t host_profs{};
 
     explicit aclshmem_context(uint64_t id) : instance_id(id) {}
 };
@@ -1076,7 +1076,11 @@ static int32_t aclshmemi_init_attr_impl(
     ACLSHMEM_CHECK_RET(aclshmemi_team_init(g_state.mype, g_state.npes, aiv_count));
     ACLSHMEM_CHECK_RET(aclshmemi_sync_init());
     g_state.is_aclshmem_initialized = true;
-    ACLSHMEM_CHECK_RET(prof_util_init(&g_host_profs, &g_state));
+    auto current_context = aclshmem_resource_domain.find(g_instance_ctx->id);
+    ACLSHMEM_CHECK_RET(
+        current_context == aclshmem_resource_domain.end() || current_context->second == nullptr,
+        "Current instance profiling context does not exist.", ACLSHMEM_INNER_ERROR);
+    ACLSHMEM_CHECK_RET(prof_util_init(&current_context->second->host_profs, &g_state));
     ACLSHMEM_CHECK_RET(update_device_state());
     ACLSHMEM_CHECK_RET(aclshmemi_control_barrier_all());
     SHM_LOG_INFO("The ACLSHMEM pe: " << aclshmem_my_pe() << " init success.");
@@ -1324,13 +1328,31 @@ void aclshmem_global_exit(int status)
     SHM_LOG_WARN("Bootstrap not initialized. Global_exit Do nothing. ");
 }
 
-void aclshmemx_show_prof() { prof_data_print(&g_host_profs, &g_state, nullptr, true); }
+void aclshmemx_show_prof()
+{
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    auto current_context = aclshmem_resource_domain.find(g_instance_ctx->id);
+    if (current_context == aclshmem_resource_domain.end()) {
+        SHM_LOG_ERROR("Current instance profiling context does not exist.");
+        return;
+    }
+    prof_data_print(&current_context->second->host_profs, &g_state, nullptr, true);
+}
 
 void aclshmemx_get_prof(aclshmem_prof_pe_t** out_profs, bool verbose)
 {
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    if (out_profs != nullptr) {
+        *out_profs = nullptr;
+    }
     // 如果 verbose 为 false 且 out_profs 为 nullptr，直接返回
     if (!verbose && out_profs == nullptr) {
         return;
     }
-    prof_data_print(&g_host_profs, &g_state, out_profs, verbose);
+    auto current_context = aclshmem_resource_domain.find(g_instance_ctx->id);
+    if (current_context == aclshmem_resource_domain.end()) {
+        SHM_LOG_ERROR("Current instance profiling context does not exist.");
+        return;
+    }
+    prof_data_print(&current_context->second->host_profs, &g_state, out_profs, verbose);
 }

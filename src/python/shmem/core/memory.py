@@ -13,14 +13,36 @@
 import logging
 
 import shmem._pyshmem as _pyshmem
-from shmem.core.utils import Buffer, AclshmemError
+from shmem.core.utils import (
+    Buffer,
+    MemType,
+    AclshmemError,
+    AclshmemInvalid,
+    _SIZE_T_MAX,
+    _current_instance_id,
+    _instance_lock,
+    _validate_buffer_instance,
+)
 
-__all__ = ['buffer', 'free', 'get_peer_buffer']
+__all__ = ['buffer', 'calloc', 'align', 'free', 'get_peer_buffer', 'Buffer', 'MemType']
 
 logger = logging.getLogger("aclshmem")
 
+def _validate_size(value: int, name: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise AclshmemInvalid(f"{name} must be an integer.")
+    if value <= 0:
+        raise AclshmemInvalid(f"{name} must be greater than zero.")
+    if value > _SIZE_T_MAX:
+        raise AclshmemInvalid(f"{name} exceeds the native size_t range.")
 
-def buffer(size, release=False, except_on_del=True) -> Buffer:
+
+def _validate_mem_type(mem_type: MemType) -> None:
+    if not isinstance(mem_type, MemType):
+        raise AclshmemInvalid("mem_type must be MemType.HOST_SIDE or MemType.DEVICE_SIDE.")
+
+
+def buffer(size, release=False, except_on_del=True, mem_type: MemType=MemType.DEVICE_SIDE) -> Buffer:
     """
     Allocates an ACLSHMEM-backed npu buffer.
 
@@ -28,6 +50,7 @@ def buffer(size, release=False, except_on_del=True) -> Buffer:
         size (int): The size in bytes of the buffer to allocate.
         release: Reserved parameter. **Ignored** in ACLSHMEM. Always treated as ``False``.
         except_on_del: Reserved parameter. **Ignored** in ACLSHMEM. Always treated as ``True``.
+        mem_type (MemType): Symmetric heap to allocate from. Defaults to ``MemType.DEVICE_SIDE``.
 
     Returns:
         Buffer: A raw memory buffer via its address and byte length.
@@ -35,24 +58,73 @@ def buffer(size, release=False, except_on_del=True) -> Buffer:
     Raises:
         AclshmemError: If the buffer could not be allocated properly.
     """
-    try:
-        dev_ptr = _pyshmem.aclshmem_malloc(size)
-    except:
-        raise AclshmemError("Allocate buffer failed.")
+    _validate_size(size, "size")
+    _validate_mem_type(mem_type)
 
-    buf = Buffer(dev_ptr, size)
-    return buf
+    with _instance_lock:
+        instance_id = _current_instance_id()
+        ptr = _pyshmem.aclshmemx_malloc(size, mem_type)
+        if ptr == 0:
+            raise AclshmemError("Allocate buffer failed.")
+        return Buffer._owning(ptr, size, mem_type, instance_id)
+
+
+def calloc(count: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> Buffer:
+    """Allocate and zero ``count * size`` bytes from a symmetric heap."""
+    _validate_size(count, "count")
+    _validate_size(size, "size")
+    _validate_mem_type(mem_type)
+    if count > _SIZE_T_MAX // size:
+        raise AclshmemInvalid("count * size exceeds the native size_t range.")
+
+    with _instance_lock:
+        instance_id = _current_instance_id()
+        ptr = _pyshmem.aclshmemx_calloc(count, size, mem_type)
+        if ptr == 0:
+            raise AclshmemError("Allocate zero-initialized buffer failed.")
+        return Buffer._owning(ptr, count * size, mem_type, instance_id)
+
+
+def align(alignment: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> Buffer:
+    """Allocate an aligned buffer from a symmetric heap."""
+    _validate_size(alignment, "alignment")
+    _validate_size(size, "size")
+    _validate_mem_type(mem_type)
+    if alignment & (alignment - 1):
+        raise AclshmemInvalid("alignment must be a power of two.")
+
+    with _instance_lock:
+        instance_id = _current_instance_id()
+        ptr = _pyshmem.aclshmemx_align(alignment, size, mem_type)
+        if ptr == 0:
+            raise AclshmemError("Allocate aligned buffer failed.")
+        return Buffer._owning(ptr, size, mem_type, instance_id)
 
 
 def free(buf: Buffer) -> None:
     """
-    Free an ACLSHMEM buffer previously allocated with ``alloc``.
+    Initiate one native free call for an owning ACLSHMEM Buffer.
 
     Args:
         buf (Buffer): The buffer to be freed.
     """
 
-    _pyshmem.aclshmem_free(buf.addr)
+    with _instance_lock:
+        if not isinstance(buf, Buffer):
+            raise AclshmemInvalid("buf must be a Buffer.")
+        if not buf.owned:
+            raise AclshmemInvalid("Cannot free a non-owning Buffer.")
+        if buf.release_called:
+            raise AclshmemInvalid("Native free has already been called for this Buffer.")
+
+        _validate_buffer_instance(buf, "buf")
+
+        # Claim the one allowed free attempt while the GIL is still held.  The
+        # native binding releases the GIL, so setting this afterward would allow a
+        # second Python thread to pass the checks and free the same address again.
+        # Do not roll this state back: native free returns void and only logs errors.
+        buf._release_called = True
+        _pyshmem.aclshmemx_free(buf.addr, buf.mem_type)
 
 
 def get_peer_buffer(buf: Buffer, pe: int) -> Buffer:
@@ -69,9 +141,16 @@ def get_peer_buffer(buf: Buffer, pe: int) -> Buffer:
     Raises:
         AclshmemError:  If the input address is illegal.
     """
-    peer_addr = _pyshmem.aclshmem_ptr(buf.addr, pe)
-    if peer_addr == 0:
-        raise AclshmemError("Get the symmetric address on a specified PE failed.")
+    with _instance_lock:
+        if not isinstance(buf, Buffer):
+            raise AclshmemInvalid("buf must be a Buffer.")
+        buf._ensure_usable()
+        _validate_buffer_instance(buf, "buf")
+        if not isinstance(pe, int) or isinstance(pe, bool) or pe < 0:
+            raise AclshmemInvalid("pe must be a non-negative integer.")
 
-    peer_buffer = Buffer(peer_addr, buf.length)
-    return peer_buffer
+        peer_addr = _pyshmem.aclshmem_ptr(buf.addr, pe)
+        if peer_addr == 0:
+            raise AclshmemError("Get the symmetric address on a specified PE failed.")
+
+        return Buffer._borrowed(peer_addr, buf.length, buf.mem_type, buf)

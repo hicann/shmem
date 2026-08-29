@@ -15,12 +15,24 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <mutex>
 
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
 #include "gm2gm/shmemi_device_cc_kernel.h"
 std::bitset<ACLSHMEM_MAX_TEAMS> g_team_mask;
 aclshmemx_team_t* g_aclshmem_team_pool = nullptr;
+std::recursive_mutex g_team_mutex;
+
+#ifdef ACLSHMEM_UNIT_TEST
+bool g_fail_next_device_team_update = false;
+
+void aclshmemi_team_fail_next_device_update_for_test()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+    g_fail_next_device_team_update = true;
+}
+#endif
 
 namespace {
 
@@ -61,13 +73,28 @@ inline std::string team_config2string(aclshmemx_team_t* config)
 
 inline bool is_valid_team(aclshmem_team_t& team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+    bool is_allocated =
+        team == ACLSHMEM_TEAM_WORLD || (team >= 0 && team < ACLSHMEM_MAX_TEAMS && g_team_mask.test(team));
     return (
         g_state.is_aclshmem_initialized && g_aclshmem_team_pool != nullptr && team >= 0 && team < ACLSHMEM_MAX_TEAMS &&
-        g_team_mask.test(static_cast<size_t>(team)));
+        is_allocated && g_state.team_pools[team] != nullptr);
+}
+
+inline void release_team_idx(aclshmem_team_t team)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+    if (team > ACLSHMEM_TEAM_WORLD && team < ACLSHMEM_MAX_TEAMS) {
+        g_team_mask.reset(team);
+        if (g_aclshmem_team_pool != nullptr) {
+            g_aclshmem_team_pool[team] = {};
+        }
+    }
 }
 
 inline void device_team_destroy(int32_t team_idx)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // device_ptr Free
     aclshmemx_team_t* device_team_ptr = g_state.team_pools[team_idx];
     if (device_team_ptr != nullptr) {
@@ -80,6 +107,13 @@ inline void device_team_destroy(int32_t team_idx)
 
 inline int32_t device_team_update(int team_idx, aclshmemx_team_t* host_team_ptr)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+#ifdef ACLSHMEM_UNIT_TEST
+    if (g_fail_next_device_team_update) {
+        g_fail_next_device_team_update = false;
+        return ACLSHMEM_INNER_ERROR;
+    }
+#endif
     // device_ptr Malloc
     void* team_ptr = nullptr;
     ACLSHMEM_CHECK_RET(aclrtMalloc(&team_ptr, sizeof(aclshmemx_team_t), ACL_MEM_MALLOC_NORMAL_ONLY));
@@ -93,6 +127,13 @@ inline int32_t device_team_update(int team_idx, aclshmemx_team_t* host_team_ptr)
     }
     g_state.team_pools[team_idx] = (aclshmemx_team_t*)team_ptr;
     return ACLSHMEM_SUCCESS;
+}
+
+inline void rollback_team_creation(aclshmem_team_t team)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+    device_team_destroy(team);
+    release_team_idx(team);
 }
 
 int32_t aclshmemi_team_init_sync_pool()
@@ -173,7 +214,11 @@ int32_t aclshmemi_team_init_core_sync_counter()
 
 int32_t aclshmemi_team_init(int32_t rank, int32_t size, uint32_t aiv_count)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     /* Initialize ACLSHMEM_TEAM_WORLD */
+    if (g_instance_ctx->id == 0) {
+        g_team_mask.reset();
+    }
     int team_size = g_instance_ctx->id == 0 ? ACLSHMEM_MAX_TEAMS : 1;
     g_aclshmem_team_pool = (aclshmemx_team_t*)calloc(team_size, sizeof(aclshmemx_team_t));
     if (g_aclshmem_team_pool == nullptr) {
@@ -190,8 +235,6 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size, uint32_t aiv_count)
     aclshmem_team_world.stride = 1;
     aclshmem_team_world.size = size;
     aclshmem_team_world.mype = rank;
-    g_team_mask.set(ACLSHMEM_TEAM_WORLD);
-
     aclshmemi_team_populate_pe_mappings_from_constant_stride(&aclshmem_team_world);
     int ret = device_team_update(ACLSHMEM_TEAM_WORLD, &aclshmem_team_world);
     if (ret != 0) {
@@ -220,10 +263,10 @@ int32_t aclshmemi_team_init(int32_t rank, int32_t size, uint32_t aiv_count)
 
 int32_t first_free_idx_fetch()
 {
-    int32_t aclshmem_max_teams = ACLSHMEM_MAX_TEAMS;
-    for (int32_t i = 0; i < aclshmem_max_teams; i++) {
-        if (!g_team_mask.test(static_cast<size_t>(i))) {
-            g_team_mask.set(static_cast<size_t>(i));
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
+    for (int32_t i = ACLSHMEM_TEAM_WORLD + 1; i < ACLSHMEM_MAX_TEAMS; i++) {
+        if (!g_team_mask.test(i)) {
+            g_team_mask.set(i);
             return i;
         }
     }
@@ -232,6 +275,7 @@ int32_t first_free_idx_fetch()
 
 int32_t aclshmemi_team_finalize()
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     /* Destroy all undestroyed teams */
     int team_size = g_instance_ctx->id == 0 ? ACLSHMEM_MAX_TEAMS : 1;
     for (int32_t i = 0; i < team_size; i++) {
@@ -261,6 +305,9 @@ int32_t aclshmemi_team_finalize()
         free(g_aclshmem_team_pool);
         g_aclshmem_team_pool = nullptr;
     }
+    if (g_instance_ctx->id == 0) {
+        g_team_mask.reset();
+    }
     return 0;
 }
 void aclshmemi_team_populate_from_world_pe_mapping(aclshmemx_team_t* team)
@@ -282,6 +329,7 @@ void aclshmemi_team_populate_pe_mappings_from_constant_stride(aclshmemx_team_t* 
 
 int32_t aclshmemi_team_pe_mapping(aclshmem_team_t team, int pe)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     if (!is_valid_team(team)) {
         SHM_LOG_ERROR("input team is invalid!, team: " << team);
         return ACLSHMEM_INVALID_PARAM;
@@ -292,6 +340,7 @@ int32_t aclshmemi_team_pe_mapping(aclshmem_team_t team, int pe)
 int32_t aclshmem_team_split_strided_precheck(
     aclshmem_team_t parent_team, int32_t pe_start, int32_t pe_stride, int32_t pe_size, aclshmem_team_t* new_team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     if (new_team == nullptr) {
         SHM_LOG_ERROR("output team is null.");
         return ACLSHMEM_INVALID_PARAM;
@@ -317,6 +366,7 @@ int32_t aclshmem_team_split_strided_precheck(
 int32_t aclshmem_team_split_strided(
     aclshmem_team_t parent_team, int32_t pe_start, int32_t pe_stride, int32_t pe_size, aclshmem_team_t* new_team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 
@@ -372,12 +422,15 @@ int32_t aclshmem_team_split_strided(
 
     g_aclshmem_team_pool[my_team.team_idx] = my_team;
     if (device_team_update(my_team.team_idx, &g_aclshmem_team_pool[my_team.team_idx]) != 0) {
-        aclshmem_team_destroy(my_team.team_idx);
+        rollback_team_creation(my_team.team_idx);
         SHM_LOG_ERROR("create team failed, malloc device state failed!");
         return ACLSHMEM_INNER_ERROR;
     }
     if (update_device_state() != 0) {
-        aclshmem_team_destroy(my_team.team_idx);
+        rollback_team_creation(my_team.team_idx);
+        if (update_device_state() != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR("restore device state failed after team creation rollback!");
+        }
         SHM_LOG_ERROR("create team failed, update state failed!");
         return ACLSHMEM_INNER_ERROR;
     }
@@ -389,6 +442,7 @@ int32_t aclshmem_team_split_strided(
 int aclshmemi_team_split_2d_precheck(
     aclshmem_team_t p_team, int x_range, aclshmem_team_t* x_team, aclshmem_team_t* y_team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     if (x_team == nullptr || y_team == nullptr) {
         SHM_LOG_ERROR("output team is null.");
         return ACLSHMEM_INVALID_PARAM;
@@ -469,6 +523,7 @@ int aclshmemi_team_split_2d_y(
 
 int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_team_t* x_team, aclshmem_team_t* y_team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 
@@ -497,6 +552,7 @@ int aclshmem_team_split_2d(aclshmem_team_t parent_team, int x_range, aclshmem_te
 
 int32_t aclshmem_team_translate_pe(aclshmem_team_t src_team, int32_t src_pe, aclshmem_team_t dest_team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 
@@ -513,13 +569,14 @@ int32_t aclshmem_team_translate_pe(aclshmem_team_t src_team, int32_t src_pe, acl
 
 void aclshmem_team_destroy(aclshmem_team_t team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     if (!is_valid_team(team)) {
         SHM_LOG_INFO("input team is invalid!, team: " << team);
         return;
     }
 
     device_team_destroy(team);
-    g_team_mask.reset(static_cast<size_t>(team));
+    release_team_idx(team);
     if (update_device_state() != ACLSHMEM_SUCCESS) {
         SHM_LOG_INFO("update state failed when destroy team!");
     }
@@ -531,6 +588,7 @@ int32_t aclshmem_n_pes(void) { return g_state.npes; }
 
 int32_t aclshmem_team_my_pe(aclshmem_team_t team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 
@@ -543,6 +601,7 @@ int32_t aclshmem_team_my_pe(aclshmem_team_t team)
 
 int32_t aclshmem_team_n_pes(aclshmem_team_t team)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 
@@ -555,6 +614,7 @@ int32_t aclshmem_team_n_pes(aclshmem_team_t team)
 
 int aclshmem_team_get_config(aclshmem_team_t team, aclshmem_team_config_t* config)
 {
+    std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     // Not Single Instance Mode
     ACLSHMEM_TEAM_CHECK_SINGLE_INSTANCE(__func__);
 

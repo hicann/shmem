@@ -17,7 +17,6 @@
 
 extern aclshmem_device_host_state_t g_state;
 extern aclshmem_host_state_t g_state_host;
-extern aclshmem_prof_pe_t g_host_profs;
 
 // bootstrap plugin_hdl
 extern void* plugin_hdl;

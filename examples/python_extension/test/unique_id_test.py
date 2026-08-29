@@ -28,16 +28,12 @@ def run_init_with_unique_id_tests():
         raise ValueError("[ERROR] disable tls failed.")
 
     # 1. get unique id
-    uid_size = 512
-    tensor = torch.zeros(uid_size, dtype=torch.uint8)
-    if pe == 0:
-        unique_id = ash.aclshmem_get_unique_id()
-        if unique_id is None:
-            raise ValueError('[ERROR] get unique id failed')
-        tensor = torch.tensor(list(unique_id), dtype=torch.uint8)
-    dist.broadcast(tensor, src=0)
-    if pe != 0:
-        unique_id = bytes(tensor.tolist())
+    unique_id = ash.aclshmem_get_unique_id() if pe == 0 else None
+    if pe == 0 and unique_id is None:
+        raise ValueError('[ERROR] get unique id failed')
+    uid_list = [unique_id]
+    dist.broadcast_object_list(uid_list, src=0)
+    unique_id = uid_list[0]
     # 2. init with unique id
     ret = ash.aclshmem_init_using_unique_id(pe, world_size, g_ash_size, unique_id)
     if ret != 0:

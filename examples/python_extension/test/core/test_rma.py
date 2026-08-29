@@ -14,6 +14,7 @@ import torch.distributed as dist
 import acl
 import shmem as ash
 import shmem.core as core
+from shmem.core.utils import AclshmemInvalid
 
 
 g_ash_size = 1024 * 1024 * 1024
@@ -39,6 +40,19 @@ def _read_int32_from_device(addr):
     return host_val.value
 
 
+def _expect_invalid(call, case_name):
+    try:
+        call()
+    except AclshmemInvalid:
+        return
+    raise AssertionError(f"[FAIL] {case_name}: expected AclshmemInvalid")
+
+
+def check_acl(ret, operation):
+    if ret != 0:
+        raise RuntimeError(f"[ERROR] {operation} failed, ret={ret}")
+
+
 def run_put_signal_test():
     pe = dist.get_rank()
     world_size = dist.get_world_size()
@@ -51,16 +65,12 @@ def run_put_signal_test():
         raise ValueError("[ERROR] disable tls failed.")
 
     # 1. get unique id
-    uid_size = 512
-    tensor = torch.zeros(uid_size, dtype=torch.uint8)
-    if pe == 0:
-        unique_id = core.get_unique_id()
-        if unique_id is None:
-            raise ValueError('[ERROR] get unique id failed')
-        tensor = torch.tensor(list(unique_id), dtype=torch.uint8)
-    dist.broadcast(tensor, src=0)
-    if pe != 0:
-        unique_id = bytes(tensor.tolist())
+    unique_id = core.get_unique_id() if pe == 0 else None
+    if pe == 0 and unique_id is None:
+        raise ValueError('[ERROR] get unique id failed')
+    uid_list = [unique_id]
+    dist.broadcast_object_list(uid_list, src=0)
+    unique_id = uid_list[0]
 
     # 2. init with unique id
     core.init(rank=pe, nranks=world_size, mem_size=g_ash_size, uid=unique_id, initializer_method='uid')
@@ -69,27 +79,206 @@ def run_put_signal_test():
     send_aclshmem_buffer = core.buffer(g_malloc_size)
     if (send_aclshmem_buffer.addr is None) or (send_aclshmem_buffer.length != g_malloc_size):
         raise ValueError('[ERROR] create send buffer failed')
-    acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    check_acl(
+        acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "initialize send buffer",
+    )
 
     recv_aclshmem_buffer = core.buffer(g_malloc_size)
     if (recv_aclshmem_buffer.addr is None) or (recv_aclshmem_buffer.length != g_malloc_size):
         raise ValueError('[ERROR] create recv buffer failed')
-    acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    check_acl(
+        acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "initialize receive buffer",
+    )
 
     signal_aclshmem_buffer = core.buffer(g_signal_size)
     if (signal_aclshmem_buffer.addr is None) or (signal_aclshmem_buffer.length != g_signal_size):
         raise ValueError('[ERROR] create signal buffer failed')
-    acl.rt.memset(signal_aclshmem_buffer.addr, g_signal_size, 0, g_signal_size)
+    check_acl(
+        acl.rt.memset(signal_aclshmem_buffer.addr, g_signal_size, 0, g_signal_size),
+        "initialize signal buffer",
+    )
 
-    # 4. write known value to local send buffer (scalar put to own PE)
+    # 4. Invalid RMA arguments must be rejected before entering native code.
+    small_dst = core.Buffer._borrowed(
+        recv_aclshmem_buffer.addr,
+        send_aclshmem_buffer.length - 1,
+        recv_aclshmem_buffer.mem_type,
+        recv_aclshmem_buffer,
+    )
+    short_signal = core.Buffer._borrowed(
+        signal_aclshmem_buffer.addr,
+        g_signal_size - 1,
+        signal_aclshmem_buffer.mem_type,
+        signal_aclshmem_buffer,
+    )
+    misaligned_signal = core.Buffer._borrowed(
+        recv_aclshmem_buffer.addr + 1,
+        g_signal_size,
+        recv_aclshmem_buffer.mem_type,
+        recv_aclshmem_buffer,
+    )
+
+    _expect_invalid(
+        lambda: core.put_signal(
+            small_dst,
+            send_aclshmem_buffer,
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            next_pe,
+        ),
+        "put_signal destination capacity",
+    )
+    _expect_invalid(
+        lambda: core.put(small_dst, send_aclshmem_buffer, next_pe, stream=0),
+        "put destination capacity",
+    )
+    _expect_invalid(
+        lambda: core.get(small_dst, send_aclshmem_buffer, next_pe, stream=0),
+        "get destination capacity",
+    )
+    _expect_invalid(
+        lambda: core.put_signal(
+            recv_aclshmem_buffer,
+            send_aclshmem_buffer,
+            short_signal,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            next_pe,
+        ),
+        "put_signal signal word length",
+    )
+    _expect_invalid(
+        lambda: core.signal_op(
+            misaligned_signal,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            pe,
+            stream=0,
+        ),
+        "signal_op signal word alignment",
+    )
+    _expect_invalid(
+        lambda: core.signal_wait(
+            short_signal,
+            g_sig_value,
+            core.direct.ComparisonType.CMP_EQ,
+            stream=0,
+        ),
+        "signal_wait signal word length",
+    )
+    _expect_invalid(
+        lambda: core.put_signal(
+            recv_aclshmem_buffer,
+            send_aclshmem_buffer,
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            -1,
+        ),
+        "put_signal negative remote_pe",
+    )
+    _expect_invalid(
+        lambda: core.put(recv_aclshmem_buffer, send_aclshmem_buffer, True, stream=0),
+        "put bool remote_pe",
+    )
+    _expect_invalid(
+        lambda: core.get(recv_aclshmem_buffer, send_aclshmem_buffer, world_size, stream=0),
+        "get out-of-range remote_pe",
+    )
+    _expect_invalid(
+        lambda: core.signal_op(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            -1,
+            stream=0,
+        ),
+        "signal_op negative remote_pe",
+    )
+    _expect_invalid(
+        lambda: core.put(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream=True),
+        "put bool stream",
+    )
+    _expect_invalid(
+        lambda: core.get(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream=-1),
+        "get negative stream",
+    )
+    _expect_invalid(
+        lambda: core.signal_op(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            pe,
+            stream="invalid",
+        ),
+        "signal_op invalid stream handle",
+    )
+    _expect_invalid(
+        lambda: core.signal_wait(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.ComparisonType.CMP_EQ,
+            stream=True,
+        ),
+        "signal_wait bool stream",
+    )
+    _expect_invalid(lambda: core.quiet(stream=-1), "quiet negative stream")
+    _expect_invalid(
+        lambda: core.put_signal(
+            recv_aclshmem_buffer,
+            send_aclshmem_buffer,
+            signal_aclshmem_buffer,
+            g_sig_value,
+            999,
+            next_pe,
+        ),
+        "put_signal integer signal operation",
+    )
+    _expect_invalid(
+        lambda: core.signal_op(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.ComparisonType.CMP_EQ,
+            pe,
+            stream=0,
+        ),
+        "signal_op wrong enum type",
+    )
+    _expect_invalid(
+        lambda: core.signal_wait(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            999,
+            stream=0,
+        ),
+        "signal_wait integer comparison operation",
+    )
+    _expect_invalid(
+        lambda: core.signal_wait(
+            signal_aclshmem_buffer,
+            g_sig_value,
+            core.direct.SignalOp.SIGNAL_SET,
+            stream=0,
+        ),
+        "signal_wait wrong enum type",
+    )
+
+    # 5. write known value to local send buffer (scalar put to own PE)
     ash._pyshmem.aclshmem_int32_p(send_aclshmem_buffer.addr, g_value * pe, pe)
     core.quiet(stream=0)
     torch.npu.synchronize()
     send_val = _read_int32_from_device(send_aclshmem_buffer.addr)
     assert send_val == g_value * pe, \
-        f"[FAIL] step 4: expected send buffer {g_value * pe}, got {send_val}"
+        f"[FAIL] step 5: expected send buffer {g_value * pe}, got {send_val}"
+    # All target buffers must be initialized before any PE starts a remote
+    # write.  Without this barrier a slower PE can clear its receive buffer
+    # after a faster peer has already written to it.
+    dist.barrier()
 
-    # 5. put_signal: copy local send buffer to next PE's recv buffer, set signal on next PE
+    # 6. put_signal: copy local send buffer to next PE's recv buffer, set signal on next PE
     core.put_signal(recv_aclshmem_buffer, send_aclshmem_buffer, signal_aclshmem_buffer, g_sig_value,
                     core.direct.SignalOp.SIGNAL_SET, next_pe)
     core.quiet(stream=0)
@@ -97,81 +286,117 @@ def run_put_signal_test():
     dist.barrier()
     signal_val = _read_int32_from_device(signal_aclshmem_buffer.addr)
     assert signal_val == g_sig_value, \
-        f"[FAIL] step 5: expected signal {g_sig_value}, got {signal_val} on {pe=}"
+        f"[FAIL] step 6: expected signal {g_sig_value}, got {signal_val} on {pe=}"
     recv_val = _read_int32_from_device(recv_aclshmem_buffer.addr)
     assert recv_val == g_value * prev_pe, \
-        f"[FAIL] step 5: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
+        f"[FAIL] step 6: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
 
-    # 6. signal_op + signal_wait: atomic signal op on own PE, then wait for it
-    stream, _ = acl.rt.create_stream()
-    acl.rt.memset(signal_aclshmem_buffer.addr, g_signal_size, 0, g_signal_size)
+    # 7. signal_op + signal_wait: atomic signal op on own PE, then wait for it
+    stream, ret = acl.rt.create_stream()
+    check_acl(ret, "step 7 acl.rt.create_stream")
+    check_acl(
+        acl.rt.memset(signal_aclshmem_buffer.addr, g_signal_size, 0, g_signal_size),
+        "step 7 initialize signal buffer",
+    )
     core.signal_op(signal_aclshmem_buffer, g_sig_value, core.direct.SignalOp.SIGNAL_SET, pe, stream=stream)
     core.signal_wait(signal_aclshmem_buffer, g_sig_value, core.direct.ComparisonType.CMP_EQ, stream=stream)
-    acl.rt.synchronize_stream(stream)
+    check_acl(acl.rt.synchronize_stream(stream), "step 7 acl.rt.synchronize_stream")
     signal_val = _read_int32_from_device(signal_aclshmem_buffer.addr)
     assert signal_val == g_sig_value, \
-        f"[FAIL] step 6: expected signal {g_sig_value} after signal_op, got {signal_val}"
-    acl.rt.destroy_stream(stream)
+        f"[FAIL] step 7: expected signal {g_sig_value} after signal_op, got {signal_val}"
+    check_acl(acl.rt.destroy_stream(stream), "step 7 acl.rt.destroy_stream")
 
-    # 7. put: non-blocking put to next PE on a stream
-    stream, _ = acl.rt.create_stream()
-    acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
-    acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    # 8. put: non-blocking put to next PE on a stream
+    stream, ret = acl.rt.create_stream()
+    check_acl(ret, "step 8 acl.rt.create_stream")
+    check_acl(
+        acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 8 initialize send buffer",
+    )
+    check_acl(
+        acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 8 initialize receive buffer",
+    )
     ash._pyshmem.aclshmem_int32_p(send_aclshmem_buffer.addr, g_value * pe, pe)
     core.quiet(stream=0)
     torch.npu.synchronize()
+    dist.barrier()
     core.put(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream)
-    acl.rt.synchronize_stream(stream)
-    acl.rt.destroy_stream(stream)
+    check_acl(acl.rt.synchronize_stream(stream), "step 8 acl.rt.synchronize_stream")
+    check_acl(acl.rt.destroy_stream(stream), "step 8 acl.rt.destroy_stream")
     dist.barrier()
     recv_val = _read_int32_from_device(recv_aclshmem_buffer.addr)
     assert recv_val == g_value * prev_pe, \
-        f"[FAIL] step 7: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
+        f"[FAIL] step 8: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
 
-    # 8. get: non-blocking get from next PE on a stream
-    stream, _ = acl.rt.create_stream()
-    acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
-    acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    # 9. get: non-blocking get from next PE on a stream
+    stream, ret = acl.rt.create_stream()
+    check_acl(ret, "step 9 acl.rt.create_stream")
+    check_acl(
+        acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 9 initialize send buffer",
+    )
+    check_acl(
+        acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 9 initialize receive buffer",
+    )
+    dist.barrier()
     ash._pyshmem.aclshmem_int32_p(send_aclshmem_buffer.addr, g_value * next_pe, next_pe)
     core.quiet(stream=0)
     torch.npu.synchronize()
+    dist.barrier()
     core.get(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream)
-    acl.rt.synchronize_stream(stream)
-    acl.rt.destroy_stream(stream)
+    check_acl(acl.rt.synchronize_stream(stream), "step 9 acl.rt.synchronize_stream")
+    check_acl(acl.rt.destroy_stream(stream), "step 9 acl.rt.destroy_stream")
     recv_val = _read_int32_from_device(recv_aclshmem_buffer.addr)
     assert recv_val == g_value * next_pe, \
-        f"[FAIL] step 8: expected recv buffer {g_value * next_pe} from PE {next_pe}, got {recv_val}"
+        f"[FAIL] step 9: expected recv buffer {g_value * next_pe} from PE {next_pe}, got {recv_val}"
 
-    # 9. quiet: ensure all outstanding RMA operations complete before verifying
-    acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
-    acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    # 10. quiet: ensure all outstanding RMA operations complete before verifying
+    check_acl(
+        acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 10 initialize send buffer",
+    )
+    check_acl(
+        acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 10 initialize receive buffer",
+    )
     ash._pyshmem.aclshmem_int32_p(send_aclshmem_buffer.addr, g_value * pe, pe)
     core.quiet(stream=0)
     torch.npu.synchronize()
+    dist.barrier()
     core.put(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream=0)
     core.quiet(stream=0)
     torch.npu.synchronize()
     dist.barrier()
     recv_val = _read_int32_from_device(recv_aclshmem_buffer.addr)
     assert recv_val == g_value * prev_pe, \
-        f"[FAIL] step 9: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
+        f"[FAIL] step 10: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
 
-    # 10. quiet_on_stream: explicit stream put + quiet_on_stream + synchronize
-    stream, _ = acl.rt.create_stream()
-    acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
-    acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size)
+    # 11. quiet_on_stream: explicit stream put + quiet_on_stream + synchronize
+    stream, ret = acl.rt.create_stream()
+    check_acl(ret, "step 11 acl.rt.create_stream")
+    check_acl(
+        acl.rt.memset(send_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 11 initialize send buffer",
+    )
+    check_acl(
+        acl.rt.memset(recv_aclshmem_buffer.addr, g_malloc_size, 0, g_malloc_size),
+        "step 11 initialize receive buffer",
+    )
     ash._pyshmem.aclshmem_int32_p(send_aclshmem_buffer.addr, g_value * pe, pe)
     torch.npu.synchronize()
+    dist.barrier()
     core.put(recv_aclshmem_buffer, send_aclshmem_buffer, next_pe, stream)
     core.quiet(stream)
-    acl.rt.synchronize_stream(stream)
-    acl.rt.destroy_stream(stream)
+    check_acl(acl.rt.synchronize_stream(stream), "step 11 acl.rt.synchronize_stream")
+    check_acl(acl.rt.destroy_stream(stream), "step 11 acl.rt.destroy_stream")
     dist.barrier()
     recv_val = _read_int32_from_device(recv_aclshmem_buffer.addr)
     assert recv_val == g_value * prev_pe, \
-        f"[FAIL] step 10: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
+        f"[FAIL] step 11: expected recv buffer {g_value * prev_pe} from PE {prev_pe}, got {recv_val}"
 
-    # 11. free and finialize
+    # 12. free and finialize
     core.free(send_aclshmem_buffer)
     core.free(recv_aclshmem_buffer)
     core.free(signal_aclshmem_buffer)

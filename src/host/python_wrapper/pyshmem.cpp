@@ -12,8 +12,10 @@
 #include <pybind11/stl.h>
 
 #include <cstdint>
-#include <vector>
 #include <iostream>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 #include "shmem.h"
 #include "host_device/shmem_common_types.h"
@@ -21,16 +23,109 @@
 namespace py = pybind11;
 
 namespace shm {
+
+struct InstanceContextSnapshot {
+    uint64_t id;
+};
+
+struct ProfData {
+    explicit ProfData(int32_t pe)
+        : pe_id(pe),
+          ccount(ACLSHMEM_CYCLE_PROF_MAX_BLOCK, std::vector<int64_t>(ACLSHMEM_CYCLE_PROF_FRAME_CNT)),
+          cycles(ACLSHMEM_CYCLE_PROF_MAX_BLOCK, std::vector<int64_t>(ACLSHMEM_CYCLE_PROF_FRAME_CNT))
+    {}
+
+    int32_t pe_id;
+    std::vector<std::vector<int64_t>> ccount;
+    std::vector<std::vector<int64_t>> cycles;
+};
+
+class InitAttrWrapper {
+public:
+    aclshmemx_init_attr_t& native() { return attr_; }
+
+    const aclshmemx_init_attr_t& native() const { return attr_; }
+
+    void replace_uid_owner(py::object owner) { uid_owner_ = std::move(owner); }
+
+private:
+    aclshmemx_init_attr_t attr_{};
+    py::object uid_owner_;
+};
+
 namespace {
 
 static py::function g_py_decrypt_func;
 static py::function g_py_logger_func;
+static std::mutex g_prof_mutex;
 static constexpr size_t MAX_CIPHER_LEN(10 * 1024 * 1024);
+static constexpr uint64_t MAX_INSTANCE_COUNT(255);
+static constexpr int64_t MAX_TEAM_COUNT(ACLSHMEM_MAX_TEAMS);
 
-int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
+uint64_t ValidateInstanceId(const py::handle& value)
+{
+    if (!PyLong_Check(value.ptr()) || PyBool_Check(value.ptr())) {
+        throw py::value_error("instance_id must be an integer in range [0, 254].");
+    }
+
+    uint64_t instance_id = 0;
+    try {
+        instance_id = py::reinterpret_borrow<py::object>(value).cast<uint64_t>();
+    } catch (const py::cast_error&) {
+        throw py::value_error("instance_id must be an integer in range [0, 254].");
+    }
+    if (instance_id >= MAX_INSTANCE_COUNT) {
+        throw py::value_error("instance_id must be an integer in range [0, 254].");
+    }
+    return instance_id;
+}
+
+aclshmem_team_t ParseTeamId(const py::handle& value)
+{
+    if (!PyLong_Check(value.ptr()) || PyBool_Check(value.ptr())) {
+        throw py::value_error("team_id must be an integer in range [0, 2047].");
+    }
+
+    int64_t team_id = 0;
+    try {
+        team_id = py::reinterpret_borrow<py::object>(value).cast<int64_t>();
+    } catch (const py::cast_error&) {
+        throw py::value_error("team_id must be an integer in range [0, 2047].");
+    }
+    if (team_id < 0 || team_id >= MAX_TEAM_COUNT) {
+        throw py::value_error("team_id must be an integer in range [0, 2047].");
+    }
+    return static_cast<aclshmem_team_t>(team_id);
+}
+
+bool IsLiveTeam(aclshmem_team_t team_id)
+{
+    if (aclshmemx_init_status() != ACLSHMEM_STATUS_IS_INITIALIZED) {
+        return false;
+    }
+    aclshmem_instance_ctx* ctx = aclshmemx_instance_ctx_get();
+    if (ctx == nullptr) {
+        return false;
+    }
+    if (ctx->id != 0) {
+        return team_id == ACLSHMEM_TEAM_WORLD;
+    }
+    return aclshmem_team_n_pes(team_id) > 0;
+}
+
+aclshmem_team_t ValidateLiveTeamId(const py::handle& value)
+{
+    aclshmem_team_t team_id = ParseTeamId(value);
+    if (!IsLiveTeam(team_id)) {
+        throw py::value_error("team_id must refer to a currently active team.");
+    }
+    return team_id;
+}
+
+int aclshmem_initialize(InitAttrWrapper& attributes)
 {
     aclshmemx_bootstrap_t bootstrap_flags = ACLSHMEMX_INIT_WITH_DEFAULT;
-    auto ret = aclshmemx_init_attr(bootstrap_flags, &attributes);
+    auto ret = aclshmemx_init_attr(bootstrap_flags, &attributes.native());
     if (ret != 0) {
         std::cerr << "initialize shmem failed, ret: " << ret << std::endl;
         return ret;
@@ -41,20 +136,23 @@ int aclshmem_initialize(aclshmemx_init_attr_t &attributes)
 
 py::bytes aclshmem_get_unique_id()
 {
-    aclshmemx_uniqueid_t uid;
-    auto ret = aclshmemx_get_uniqueid(&uid);
+    aclshmemx_uniqueid_t uid{};
+    int32_t ret;
+    {
+        py::gil_scoped_release release;
+        ret = aclshmemx_get_uniqueid(&uid);
+    }
     if (ret != 0) {
         throw std::runtime_error("get unique id failed");
     }
     return py::bytes(reinterpret_cast<const char*>(&uid), sizeof(uid));
 }
 
-int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, const std::string &bytes)
+int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, const std::string& bytes)
 {
     if (bytes.size() < sizeof(aclshmemx_uniqueid_t)) {
-        std::cerr << "Error: Input bytes size (" << bytes.size()
-                  << ") is smaller than required size (" << sizeof(aclshmemx_uniqueid_t)
-                  << ")." << std::endl;
+        std::cerr << "Error: Input bytes size (" << bytes.size() << ") is smaller than required size ("
+                  << sizeof(aclshmemx_uniqueid_t) << ")." << std::endl;
         return -1;
     }
     aclshmemx_uniqueid_t uid;
@@ -69,9 +167,10 @@ int aclshmem_initialize_unique_id(int rank, int world_size, int64_t mem_size, co
     return aclshmemx_init_attr(bootstrap_flags, &attr);
 }
 
-static int py_decrypt_handler_wrapper(const char *cipherText, size_t cipherTextLen, char *plainText,
-                                      size_t &plainTextLen)
+static int py_decrypt_handler_wrapper(
+    const char* cipherText, size_t cipherTextLen, char* plainText, size_t& plainTextLen)
 {
+    py::gil_scoped_acquire acquire;
     if (cipherTextLen > MAX_CIPHER_LEN || !g_py_decrypt_func || g_py_decrypt_func.is_none()) {
         std::cerr << "input cipher len is too long or decrypt func invalid." << std::endl;
         return -1;
@@ -91,28 +190,28 @@ static int py_decrypt_handler_wrapper(const char *cipherText, size_t cipherTextL
         plainTextLen = plain.size();
         std::fill(plain.begin(), plain.end(), 0);
         return 0;
-    } catch (const py::error_already_set &e) {
+    } catch (const py::error_already_set& e) {
         return -1;
     }
 }
 
-int32_t aclshmem_set_conf_store_tls_key_with_decrypt(std::string &tls_pk, std::string &tls_pk_pw,
-    std::optional<py::function> py_decrypt_func = std::nullopt)
+int32_t aclshmem_set_conf_store_tls_key_with_decrypt(
+    std::string& tls_pk, std::string& tls_pk_pw, std::optional<py::function> py_decrypt_func = std::nullopt)
 {
     if (!py_decrypt_func || !py_decrypt_func.has_value()) {
-        return aclshmemx_set_config_store_tls_key(tls_pk.c_str(), tls_pk.size(), tls_pk_pw.c_str(),
-            tls_pk_pw.size(), nullptr);
+        return aclshmemx_set_config_store_tls_key(
+            tls_pk.c_str(), tls_pk.size(), tls_pk_pw.c_str(), tls_pk_pw.size(), nullptr);
     }
 
     g_py_decrypt_func = *py_decrypt_func;
-    return aclshmemx_set_config_store_tls_key(tls_pk.c_str(), tls_pk.size(), tls_pk_pw.c_str(),
-        tls_pk_pw.size(), py_decrypt_handler_wrapper);
+    return aclshmemx_set_config_store_tls_key(
+        tls_pk.c_str(), tls_pk.size(), tls_pk_pw.c_str(), tls_pk_pw.size(), py_decrypt_handler_wrapper);
 }
 
-static void bridge_logger(int level, const char *msg)
+static void bridge_logger(int level, const char* msg)
 {
+    py::gil_scoped_acquire acquire;
     if (g_py_logger_func) {
-        py::gil_scoped_acquire acquire;
         g_py_logger_func(level, msg);
     }
 }
@@ -123,15 +222,20 @@ int32_t aclshmem_set_extern_logger_py(py::function pyfunc)
     return aclshmemx_set_extern_logger(&bridge_logger);
 }
 
-int32_t aclshmem_set_conf_store_tls_info(bool enable, std::string &tls_info)
+int32_t aclshmem_set_conf_store_tls_info(bool enable, std::string& tls_info)
 {
     return aclshmemx_set_conf_store_tls(enable, tls_info.c_str(), tls_info.size());
 }
-}  // namespace
-}  // namespace shm
+} // namespace
+} // namespace shm
 
-void DefineShmemAttr(py::module_ &m)
+void DefineShmemAttr(py::module_& m)
 {
+    py::enum_<aclshmemx_bootstrap_t>(m, "InitMode")
+        .value("DEFAULT", ACLSHMEMX_INIT_WITH_DEFAULT)
+        .value("MPI", ACLSHMEMX_INIT_WITH_MPI)
+        .value("UNIQUEID", ACLSHMEMX_INIT_WITH_UNIQUEID);
+
     py::enum_<data_op_engine_type_t>(m, "OpEngineType")
         .value("MTE", ACLSHMEM_DATA_OP_MTE)
         .value("SDMA", ACLSHMEM_DATA_OP_SDMA)
@@ -154,24 +258,41 @@ void DefineShmemAttr(py::module_ &m)
         .def_readwrite("control_operation_timeout", &aclshmem_init_optional_attr_t::control_operation_timeout)
         .def_readwrite("sockFd", &aclshmem_init_optional_attr_t::sockFd);
 
-    py::class_<aclshmemx_init_attr_t>(m, "InitAttr")
-        .def(py::init([]() {
-            auto init_attr = new (std::nothrow) aclshmemx_init_attr_t;
-            return init_attr;
-        }))
-        .def_readwrite("my_rank", &aclshmemx_init_attr_t::my_pe)
-        .def_readwrite("n_ranks", &aclshmemx_init_attr_t::n_pes)
-        .def_property("ip_port",
-                      [](const aclshmemx_init_attr_t &self) {
-                            return std::string(self.ip_port[0] != '\0' ? self.ip_port : "");
-                        },
-                      [](aclshmemx_init_attr_t &self, const std::string &value) {
-                            size_t copy_len = std::min(value.size(), sizeof(self.ip_port) - 1);
-                            std::copy_n(value.c_str(), copy_len, self.ip_port);
-                            self.ip_port[copy_len] = '\0';
-                        })
-        .def_readwrite("local_mem_size", &aclshmemx_init_attr_t::local_mem_size)
-        .def_readwrite("option_attr", &aclshmemx_init_attr_t::option_attr);
+    py::class_<shm::InitAttrWrapper>(m, "InitAttr")
+        .def(py::init<>())
+        .def_property(
+            "my_rank", [](const shm::InitAttrWrapper& self) { return self.native().my_pe; },
+            [](shm::InitAttrWrapper& self, int value) { self.native().my_pe = value; })
+        .def_property(
+            "n_ranks", [](const shm::InitAttrWrapper& self) { return self.native().n_pes; },
+            [](shm::InitAttrWrapper& self, int value) { self.native().n_pes = value; })
+        .def_property(
+            "ip_port",
+            [](const shm::InitAttrWrapper& self) {
+                const auto& attr = self.native();
+                return std::string(attr.ip_port[0] != '\0' ? attr.ip_port : "");
+            },
+            [](shm::InitAttrWrapper& self, const std::string& value) {
+                auto& attr = self.native();
+                size_t copy_len = std::min(value.size(), sizeof(attr.ip_port) - 1);
+                std::copy_n(value.c_str(), copy_len, attr.ip_port);
+                attr.ip_port[copy_len] = '\0';
+            })
+        .def_property(
+            "local_mem_size", [](const shm::InitAttrWrapper& self) { return self.native().local_mem_size; },
+            [](shm::InitAttrWrapper& self, uint64_t value) { self.native().local_mem_size = value; })
+        .def_property(
+            "option_attr",
+            [](shm::InitAttrWrapper& self) -> aclshmem_init_optional_attr_t& { return self.native().option_attr; },
+            [](shm::InitAttrWrapper& self, const aclshmem_init_optional_attr_t& value) {
+                self.native().option_attr = value;
+            },
+            py::return_value_policy::reference_internal)
+        .def_property(
+            "instance_id", [](const shm::InitAttrWrapper& self) { return self.native().instance_id; },
+            [](shm::InitAttrWrapper& self, const py::object& value) {
+                self.native().instance_id = shm::ValidateInstanceId(value);
+            });
 
     py::class_<aclshmem_team_config_t>(m, "TeamConfig")
         .def(py::init<>())
@@ -179,7 +300,7 @@ void DefineShmemAttr(py::module_ &m)
         .def_readwrite("num_contexts", &aclshmem_team_config_t::num_contexts);
 }
 
-void DefineShmemInitStatus(py::module_ &m)
+void DefineShmemInitStatus(py::module_& m)
 {
     py::enum_<aclshmemx_init_status_t>(m, "InitStatus")
         .value("NOT_INITIALIZED", ACLSHMEM_STATUS_NOT_INITIALIZED)
@@ -188,7 +309,7 @@ void DefineShmemInitStatus(py::module_ &m)
         .value("INVALID", ACLSHMEM_STATUS_INVALID);
 }
 
-void DefineShmemUniqueId(py::module_ &m)
+void DefineShmemUniqueId(py::module_& m)
 {
     constexpr int32_t MAGIC = (1 << 16) + sizeof(aclshmemx_uniqueid_t);
 
@@ -199,19 +320,17 @@ void DefineShmemUniqueId(py::module_ &m)
             return obj;
         }))
         .def_readwrite("version", &aclshmemx_uniqueid_t::version)
-        .def_readwrite("my_pe",   &aclshmemx_uniqueid_t::my_pe)
-        .def_readwrite("n_pes",   &aclshmemx_uniqueid_t::n_pes)
-        .def_property("internal",
+        .def_readwrite("my_pe", &aclshmemx_uniqueid_t::my_pe)
+        .def_readwrite("n_pes", &aclshmemx_uniqueid_t::n_pes)
+        .def_property(
+            "internal",
             // getter: return bytes
-            [](const aclshmemx_uniqueid_t& self) {
-                return py::bytes(self.internal, ACLSHMEM_UNIQUE_ID_INNER_LEN);
-            },
+            [](const aclshmemx_uniqueid_t& self) { return py::bytes(self.internal, ACLSHMEM_UNIQUE_ID_INNER_LEN); },
             // setter: accept bytes or bytearray
             [MAGIC](aclshmemx_uniqueid_t& self, const py::bytes& value) {
                 if (self.version != MAGIC) {
                     throw std::invalid_argument(
-                        "Cannot set 'internal': UniqueId is not initialized or has invalid magic number. "
-                    );
+                        "Cannot set 'internal': UniqueId is not initialized or has invalid magic number. ");
                 }
                 auto buffer = value;
                 char* ptr = nullptr;
@@ -224,17 +343,37 @@ void DefineShmemUniqueId(py::module_ &m)
                         "internal must be exactly " + std::to_string(ACLSHMEM_UNIQUE_ID_INNER_LEN) + " bytes");
                 }
                 std::memcpy(self.internal, ptr, ACLSHMEM_UNIQUE_ID_INNER_LEN);
-            });
+            })
+        .def_static(
+            "from_bytes",
+            [](const py::bytes& value) {
+                char* ptr = nullptr;
+                py::ssize_t size = 0;
+                if (PYBIND11_BYTES_AS_STRING_AND_SIZE(value.ptr(), &ptr, &size)) {
+                    throw std::runtime_error("Failed to extract UniqueId bytes");
+                }
+                if (size != static_cast<py::ssize_t>(sizeof(aclshmemx_uniqueid_t))) {
+                    throw std::invalid_argument(
+                        "UniqueId data must be exactly " + std::to_string(sizeof(aclshmemx_uniqueid_t)) + " bytes");
+                }
+                aclshmemx_uniqueid_t uid{};
+                std::memcpy(&uid, ptr, sizeof(uid));
+                return uid;
+            },
+            py::arg("data"))
+        .def("to_bytes", [](const aclshmemx_uniqueid_t& self) {
+            return py::bytes(reinterpret_cast<const char*>(&self), sizeof(self));
+        });
 }
 
-void DefineShmemSignalOp(py::module_ &m)
+void DefineShmemSignalOp(py::module_& m)
 {
     py::enum_<aclshmem_signal_op_type_t>(m, "SignalOp")
         .value("SIGNAL_SET", ACLSHMEM_SIGNAL_SET)
         .value("SIGNAL_ADD", ACLSHMEM_SIGNAL_ADD);
 }
 
-void DefineShmemCmpOp(py::module_ &m)
+void DefineShmemCmpOp(py::module_& m)
 {
     py::enum_<aclshmem_cmp_op_type_t>(m, "CmpOp")
         .value("CMP_EQ", ACLSHMEM_CMP_EQ)
@@ -245,11 +384,41 @@ void DefineShmemCmpOp(py::module_ &m)
         .value("CMP_LE", ACLSHMEM_CMP_LE);
 }
 
-void DefineShmemMemType(py::module_ &m)
+void DefineShmemMemType(py::module_& m)
 {
-    py::enum_<aclshmem_mem_type_t>(m, "MemType")
-        .value("HOST_SIDE", HOST_SIDE)
-        .value("DEVICE_SIDE", DEVICE_SIDE);
+    py::enum_<aclshmem_mem_type_t>(m, "MemType").value("HOST_SIDE", HOST_SIDE).value("DEVICE_SIDE", DEVICE_SIDE);
+}
+
+void DefineShmemTaskTypes(py::module_& m)
+{
+    py::class_<shm::InstanceContextSnapshot>(m, "InstanceContext")
+        .def_property_readonly("id", [](const shm::InstanceContextSnapshot& self) { return self.id; })
+        .def("__repr__", [](const shm::InstanceContextSnapshot& self) {
+            return "InstanceContext(id=" + std::to_string(self.id) + ")";
+        });
+
+    py::class_<aclshmem_handle_t>(m, "Handle")
+        .def(
+            py::init([](const py::object& team_id) { return aclshmem_handle_t{shm::ValidateLiveTeamId(team_id)}; }),
+            py::arg("team_id") = py::int_(static_cast<int>(ACLSHMEM_TEAM_WORLD)))
+        .def_property(
+            "team_id", [](const aclshmem_handle_t& self) { return self.team_id; },
+            [](aclshmem_handle_t& self, const py::object& value) { self.team_id = shm::ValidateLiveTeamId(value); });
+
+    py::class_<shm::ProfData>(m, "ProfData")
+        .def_readonly("pe_id", &shm::ProfData::pe_id)
+        .def_readonly("ccount", &shm::ProfData::ccount)
+        .def_readonly("cycles", &shm::ProfData::cycles);
+
+    m.attr("ACLSHMEM_TEAM_WORLD") = py::int_(static_cast<int>(ACLSHMEM_TEAM_WORLD));
+    m.attr("ACLSHMEM_TEAM_INVALID") = py::int_(static_cast<int>(ACLSHMEM_TEAM_INVALID));
+    m.attr("ACLSHMEM_MAX_TEAMS") = py::int_(static_cast<int>(ACLSHMEM_MAX_TEAMS));
+    m.def("_is_valid_team", [](int64_t team_id) {
+        if (team_id < 0 || team_id >= shm::MAX_TEAM_COUNT) {
+            return false;
+        }
+        return shm::IsLiveTeam(static_cast<aclshmem_team_t>(team_id));
+    });
 }
 
 PYBIND11_MODULE(_pyshmem, m)
@@ -260,8 +429,11 @@ PYBIND11_MODULE(_pyshmem, m)
     DefineShmemSignalOp(m);
     DefineShmemCmpOp(m);
     DefineShmemMemType(m);
+    DefineShmemTaskTypes(m);
 
-    m.def("aclshmem_init", &shm::aclshmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("attributes"), R"(
+    m.def(
+        "aclshmem_init", &shm::aclshmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("attributes"),
+        R"(
 Initialize share memory module.
 
 Arguments:
@@ -270,27 +442,33 @@ Returns:
     returns zero on success. On error, -1 is returned.
     )");
 
-    m.def("aclshmem_finalize", &aclshmem_finalize, py::call_guard<py::gil_scoped_release>(),
-          R"(
+    m.def(
+        "aclshmem_finalize", &aclshmem_finalize, py::call_guard<py::gil_scoped_release>(),
+        R"(
 Finalize the CURRENT instance of share memory module.
 
 For single-instance mode this finalizes instance 0 (legacy behavior).
 In multi-instance mode this finalizes the currently active instance.
     )");
 
-    m.def("aclshmemx_finalize", &aclshmemx_finalize, py::call_guard<py::gil_scoped_release>(),
-          py::arg("instance_id"),
-          R"(
+    m.def(
+        "aclshmemx_finalize",
+        [](const py::object& value) {
+            const uint64_t instance_id = shm::ValidateInstanceId(value);
+            py::gil_scoped_release release;
+            return aclshmemx_finalize(instance_id);
+        },
+        py::arg("instance_id"),
+        R"(
 Finalize a SPECIFIC instance of share memory module (multi-instance extension).
 
 Arguments:
-    instance_id(uint64_t): Instance ID to finalize.
+    instance_id(int): Instance ID to finalize. Must be in range [0, 254].
     )");
 
-
-    m.def("aclshmem_init_using_unique_id", &shm::aclshmem_initialize_unique_id,
-          py::call_guard<py::gil_scoped_release>(), py::arg("mype"),
-          py::arg("npes"), py::arg("mem_size"), py::arg("uid"), R"(
+    m.def(
+        "aclshmem_init_using_unique_id", &shm::aclshmem_initialize_unique_id, py::call_guard<py::gil_scoped_release>(),
+        py::arg("mype"), py::arg("npes"), py::arg("mem_size"), py::arg("uid"), R"(
 Initialize share memory module using unique id. This function need run with PTA.
 
 Arguments:
@@ -302,11 +480,73 @@ Returns:
     returns zero on success. On error, -1 is returned.
     )");
 
-    m.def("aclshmem_get_unique_id", &shm::aclshmem_get_unique_id, py::call_guard<py::gil_scoped_release>(), R"(
+    m.def("aclshmem_get_unique_id", &shm::aclshmem_get_unique_id, R"(
 Get the unique id. This function need run with PTA.
 
 Returns:
     returns unique id on success. On error, raise error.
+    )");
+
+    m.def(
+        "aclshmemx_set_attr_uniqueid_args",
+        [](int my_pe, int n_pes, int64_t local_mem_size, py::object uid_obj, shm::InitAttrWrapper& attr) {
+            auto& uid = uid_obj.cast<aclshmemx_uniqueid_t&>();
+            py::object new_uid_owner = uid_obj;
+            const aclshmemx_init_attr_t previous_attr = attr.native();
+            int ret = 0;
+            {
+                py::gil_scoped_release release;
+                ret = aclshmemx_set_attr_uniqueid_args(my_pe, n_pes, local_mem_size, &uid, &attr.native());
+            }
+            if (ret == 0) {
+                attr.replace_uid_owner(std::move(new_uid_owner));
+            } else {
+                attr.native() = previous_attr;
+            }
+            return ret;
+        },
+        py::arg("my_pe"), py::arg("n_pes"), py::arg("local_mem_size"), py::arg("uid"), py::arg("attr"),
+        R"(
+Populate an InitAttr object for unique-ID initialization.
+
+After a successful call, the populated InitAttr remains usable even if the original UniqueId
+variable is deleted.
+    )");
+
+    m.def(
+        "aclshmemx_init_attr",
+        [](aclshmemx_bootstrap_t bootstrap_flags, shm::InitAttrWrapper& attributes) {
+            return aclshmemx_init_attr(bootstrap_flags, &attributes.native());
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("bootstrap_flags"), py::arg("attributes"),
+        R"(
+Initialize ACLSHMEM from an InitAttr object using the selected bootstrap mode.
+    )");
+
+    m.def(
+        "aclshmemx_instance_ctx_get",
+        []() -> py::object {
+            aclshmem_instance_ctx* ctx = aclshmemx_instance_ctx_get();
+            if (ctx == nullptr) {
+                return py::none();
+            }
+            const uint64_t instance_id = ctx->id;
+            return py::cast(shm::InstanceContextSnapshot{instance_id});
+        },
+        R"(
+Return a value snapshot of the current instance context, or None when unavailable.
+    )");
+
+    m.def(
+        "aclshmemx_instance_ctx_set",
+        [](const py::object& value) {
+            const uint64_t instance_id = shm::ValidateInstanceId(value);
+            py::gil_scoped_release release;
+            return aclshmemx_instance_ctx_set(instance_id);
+        },
+        py::arg("instance_id"),
+        R"(
+Switch the current process to an ACLSHMEM instance in range [0, 254].
     )");
 
     m.def(
@@ -323,9 +563,9 @@ Returns:
     All return types can be found in aclshmemx_init_status_t.
     )");
 
-    m.def("set_conf_store_tls_key", &shm::aclshmem_set_conf_store_tls_key_with_decrypt,
-          py::call_guard<py::gil_scoped_release>(), py::arg("tls_pk"), py::arg("tls_pk_pw"),
-          py::arg("py_decrypt_func").none(), R"(
+    m.def(
+        "set_conf_store_tls_key", &shm::aclshmem_set_conf_store_tls_key_with_decrypt, py::arg("tls_pk"),
+        py::arg("tls_pk_pw"), py::arg("py_decrypt_func").none(), R"(
 Set the TLS private key and password, and register a decrypt key password handler.
 Parameters:
     tls_pk (string): the content of tls private key string
@@ -337,8 +577,9 @@ Returns:
     returns zero on success. On error, none-zero is returned.
 )");
 
-    m.def("set_conf_store_tls", &shm::aclshmem_set_conf_store_tls_info, py::call_guard<py::gil_scoped_release>(),
-          py::arg("enable"), py::arg("tls_info"), R"(
+    m.def(
+        "set_conf_store_tls", &shm::aclshmem_set_conf_store_tls_info, py::call_guard<py::gil_scoped_release>(),
+        py::arg("enable"), py::arg("tls_info"), R"(
 Set the config store tls info.
 Parameters:
     enable (boolean): whether to enabel config store tls
@@ -407,7 +648,7 @@ Returns:
     m.def(
         "aclshmem_free",
         [](intptr_t ptr) {
-            auto mem = (void *)ptr;
+            auto mem = (void*)ptr;
             aclshmem_free(mem);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("ptr"),
@@ -416,7 +657,52 @@ Frees the memory space pointed to by ptr, which must have been returned by a pre
     )");
 
     m.def(
-        "aclshmem_ptr", [](intptr_t ptr, int pe) { return (intptr_t)aclshmem_ptr((void *)ptr, pe); },
+        "aclshmemx_malloc",
+        [](size_t size, aclshmem_mem_type_t mem_type) {
+            return reinterpret_cast<intptr_t>(aclshmemx_malloc(size, mem_type));
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("size"), py::arg("mem_type") = DEVICE_SIDE,
+        R"(
+Allocate symmetric memory from the selected Host or Device heap.
+
+Returns the address as an integer, or 0 when allocation fails.
+    )");
+
+    m.def(
+        "aclshmemx_calloc",
+        [](size_t count, size_t size, aclshmem_mem_type_t mem_type) {
+            return reinterpret_cast<intptr_t>(aclshmemx_calloc(count, size, mem_type));
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("count"), py::arg("size"), py::arg("mem_type") = DEVICE_SIDE,
+        R"(
+Allocate zero-initialized symmetric memory from the selected Host or Device heap.
+
+Returns the address as an integer, or 0 when allocation fails.
+    )");
+
+    m.def(
+        "aclshmemx_align",
+        [](size_t alignment, size_t size, aclshmem_mem_type_t mem_type) {
+            return reinterpret_cast<intptr_t>(aclshmemx_align(alignment, size, mem_type));
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("alignment"), py::arg("size"),
+        py::arg("mem_type") = DEVICE_SIDE,
+        R"(
+Allocate aligned symmetric memory from the selected Host or Device heap.
+
+Returns the address as an integer, or 0 when allocation fails.
+    )");
+
+    m.def(
+        "aclshmemx_free",
+        [](intptr_t ptr, aclshmem_mem_type_t mem_type) { aclshmemx_free(reinterpret_cast<void*>(ptr), mem_type); },
+        py::call_guard<py::gil_scoped_release>(), py::arg("ptr"), py::arg("mem_type") = DEVICE_SIDE,
+        R"(
+Free symmetric memory from the same heap type used for allocation.
+    )");
+
+    m.def(
+        "aclshmem_ptr", [](intptr_t ptr, int pe) { return (intptr_t)aclshmem_ptr((void*)ptr, pe); },
         py::call_guard<py::gil_scoped_release>(), py::arg("ptr"), py::arg("peer"), R"(
 Get address that may be used to directly reference dest on the specified PE.
 
@@ -441,11 +727,135 @@ Returns:
     Pointer to the start address of the symmetric memory heap, or 0 if not initialized.
     )");
 
+    m.def(
+        "aclshmemx_set_mte_config", &aclshmemx_set_mte_config, py::call_guard<py::gil_scoped_release>(),
+        py::arg("offset"), py::arg("ub_size"), py::arg("sync_id"),
+        R"(Configure the MTE UB workspace and synchronization ID.)");
+
+    m.def(
+        "aclshmemx_set_sdma_config", &aclshmemx_set_sdma_config, py::call_guard<py::gil_scoped_release>(),
+        py::arg("offset"), py::arg("ub_size"), py::arg("sync_id"),
+        R"(Configure the SDMA UB workspace and synchronization ID.)");
+
+    m.def(
+        "aclshmemx_set_rdma_config", &aclshmemx_set_rdma_config, py::call_guard<py::gil_scoped_release>(),
+        py::arg("offset"), py::arg("ub_size"), py::arg("sync_id"),
+        R"(Configure the RDMA UB workspace and synchronization ID.)");
+
+    m.def(
+        "aclshmemx_set_udma_config", &aclshmemx_set_udma_config, py::call_guard<py::gil_scoped_release>(),
+        py::arg("offset"), py::arg("ub_size"), py::arg("sync_id"),
+        R"(Configure the UDMA UB workspace and synchronization ID.)");
+
+    m.def(
+        "aclshmem_barrier",
+        [](const py::object& team) {
+            aclshmem_team_t team_id = shm::ValidateLiveTeamId(team);
+            py::gil_scoped_release release;
+            aclshmem_barrier(team_id);
+        },
+        py::arg("team"), R"(Block until all PEs in the specified team reach the barrier.)");
+
+    m.def(
+        "aclshmem_barrier_all", &aclshmem_barrier_all, py::call_guard<py::gil_scoped_release>(),
+        R"(Block until all PEs in the world team reach the barrier.)");
+
+    m.def(
+        "aclshmem_sync",
+        [](const py::object& team) {
+            aclshmem_team_t team_id = shm::ValidateLiveTeamId(team);
+            py::gil_scoped_release release;
+            aclshmem_sync(team_id);
+        },
+        py::arg("team"), R"(Synchronize all PEs in the specified team.)");
+
+    m.def(
+        "aclshmem_sync_all", &aclshmem_sync_all, py::call_guard<py::gil_scoped_release>(),
+        R"(Synchronize all PEs in the world team.)");
+
+    m.def(
+        "aclshmemx_barrier_on_stream",
+        [](const py::object& team, intptr_t stream) {
+            aclshmem_team_t team_id = shm::ValidateLiveTeamId(team);
+            aclrtStream acl_stream = stream == 0 ? nullptr : reinterpret_cast<aclrtStream>(stream);
+            py::gil_scoped_release release;
+            aclshmemx_barrier_on_stream(team_id, acl_stream);
+        },
+        py::arg("team"), py::arg("stream"), R"(Enqueue a team barrier on the specified ACL stream.)");
+
+    m.def(
+        "aclshmemx_barrier_all_on_stream",
+        [](intptr_t stream) {
+            aclrtStream acl_stream = stream == 0 ? nullptr : reinterpret_cast<aclrtStream>(stream);
+            aclshmemx_barrier_all_on_stream(acl_stream);
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("stream"),
+        R"(Enqueue a world-team barrier on the specified ACL stream.)");
+
+    m.def(
+        "aclshmemx_handle_wait",
+        [](aclshmem_handle_t handle, intptr_t stream) {
+            if (!shm::IsLiveTeam(handle.team_id)) {
+                throw py::value_error("handle.team_id must refer to a currently active team.");
+            }
+            aclrtStream acl_stream = stream == 0 ? nullptr : reinterpret_cast<aclrtStream>(stream);
+            py::gil_scoped_release release;
+            aclshmemx_handle_wait(handle, acl_stream);
+        },
+        py::arg("handle"), py::arg("stream"),
+        R"(Enqueue a team-scoped completion wait and rendezvous on an ACL stream.
+
+Every PE in the Handle's team must call this function in matching order after issuing the
+asynchronous operations to be covered. A world-team Handle requires participation from every PE.
+The host call only enqueues the operation; synchronize the stream before observing completion.)");
+
+    m.def(
+        "aclshmemx_get_prof",
+        [](bool verbose) -> py::object {
+            shm::ProfData result(-1);
+            aclshmem_prof_pe_t* out_profs = nullptr;
+            {
+                py::gil_scoped_release release;
+                std::lock_guard<std::mutex> lock(shm::g_prof_mutex);
+                aclshmemx_get_prof(&out_profs, verbose);
+                if (out_profs != nullptr) {
+                    result.pe_id = out_profs->pe_id;
+                    for (size_t block = 0; block < ACLSHMEM_CYCLE_PROF_MAX_BLOCK; ++block) {
+                        for (size_t frame = 0; frame < ACLSHMEM_CYCLE_PROF_FRAME_CNT; ++frame) {
+                            result.ccount[block][frame] = out_profs->block_prof[block].ccount[frame];
+                            result.cycles[block][frame] = out_profs->block_prof[block].cycles[frame];
+                        }
+                    }
+                }
+            }
+            if (out_profs == nullptr) {
+                return py::none();
+            }
+            return py::cast(std::move(result));
+        },
+        py::arg("verbose") = false,
+        R"(
+Return a deep-copied profiling snapshot for the current PE, or None when profiling is not collected.
+    )");
+
+    m.def(
+        "aclshmemx_show_prof",
+        []() {
+            py::gil_scoped_release release;
+            std::lock_guard<std::mutex> lock(shm::g_prof_mutex);
+            aclshmemx_show_prof();
+        },
+        R"(
+Print profiling data for the current PE.
+
+Deprecated: use aclshmemx_get_prof(verbose=True) for new code.
+    )");
+
     m.def("my_pe", &aclshmem_my_pe, py::call_guard<py::gil_scoped_release>(), R"(Get my PE number.)");
 
     m.def(
-        "team_my_pe", [](int team_id) { return aclshmem_team_my_pe(team_id); }, py::call_guard<py::gil_scoped_release>(),
-        py::arg("team_id"),
+        "team_my_pe", [](int team_id) { return aclshmem_team_my_pe(team_id); },
+        py::call_guard<py::gil_scoped_release>(), py::arg("team_id"),
         R"(
 Get my PE number in specific team.
     )");
@@ -453,8 +863,8 @@ Get my PE number in specific team.
     m.def("pe_count", &aclshmem_n_pes, py::call_guard<py::gil_scoped_release>(), R"(Get number of PEs.)");
 
     m.def(
-        "team_n_pes", [](int team_id) { return aclshmem_team_n_pes(team_id); }, py::call_guard<py::gil_scoped_release>(),
-        py::arg("team_id"),
+        "team_n_pes", [](int team_id) { return aclshmem_team_n_pes(team_id); },
+        py::call_guard<py::gil_scoped_release>(), py::arg("team_id"),
         R"(
 Get number of PEs in specific team.
     )");
@@ -465,8 +875,8 @@ Get number of PEs in specific team.
             aclshmem_team_t new_team;
             auto ret = aclshmem_team_split_strided(parent, start, stride, size, &new_team);
             if (ret != 0) {
-                std::cerr << "split parent team(" << parent << ") failed: " << ret << std::endl;
-                return ret;
+                throw std::runtime_error(
+                    "split parent team(" + std::to_string(parent) + ") failed, ret=" + std::to_string(ret));
             }
             return new_team;
         },
@@ -480,7 +890,8 @@ Arguments:
     stride(int): the stride between team PE numbers in the parent team
     size(int): the number of PEs from the parent team
 Returns:
-    On success, returns new team id. On error, -1 is returned.
+    On success, returns the new team id, or ACLSHMEM_TEAM_INVALID when this PE is not a member.
+    On error, raises RuntimeError.
     )");
 
     m.def(
@@ -526,8 +937,8 @@ Returns:
     m.def(
         "aclshmem_putmem",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclshmem_putmem(dst_addr, src_addr, elem_size, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
@@ -541,18 +952,19 @@ Arguments:
     pe                 [in] PE number of the remote PE.
     )");
 
-#define PYBIND_ACLSHMEM_TYPE_IPUT(NAME, TYPE)                                                                               \
-    {                                                                                                                       \
-        std::string funcName = "aclshmem_" #NAME "_iput";                                                                   \
-        m.def(                                                                                                              \
-            funcName.c_str(),                                                                                               \
-            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
-                auto dst_addr = (TYPE *)dest;                                                                               \
-                auto src_addr = (TYPE *)source;                                                                             \
-                aclshmem_##NAME##_iput(dst_addr, src_addr, dst, sst, nelems, pe);                                           \
-            },                                                                                                              \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
-            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+#define PYBIND_ACLSHMEM_TYPE_IPUT(NAME, TYPE)                                                             \
+    {                                                                                                     \
+        std::string funcName = "aclshmem_" #NAME "_iput";                                                 \
+        m.def(                                                                                            \
+            funcName.c_str(),                                                                             \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {     \
+                auto dst_addr = (TYPE*)dest;                                                              \
+                auto src_addr = (TYPE*)source;                                                            \
+                aclshmem_##NAME##_iput(dst_addr, src_addr, dst, sst, nelems, pe);                         \
+            },                                                                                            \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), \
+            py::arg("sst"), py::arg("nelems"), py::arg("pe"),                                             \
+            R"(                                                                           \
         Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
         local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
         Arguments:                                                                                                          \
@@ -562,23 +974,24 @@ Arguments:
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                            \
+            )");                                                                                          \
     }
 
-ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IPUT)
+    ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IPUT)
 #undef PYBIND_ACLSHMEM_TYPE_IPUT
 
-#define PYBIND_ACLSHMEM_PUT_SIZE(BITS)                                                                         		  		\
-    {                                                                                                                 		\
-        std::string funcName = "aclshmem_put" #BITS "";                                                        		  		\
-        m.def(                                                                                                        		\
-            funcName.c_str(),                                                                                         		\
-            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
-                auto dst_addr = (void *)dst;                                                                          		\
-                auto src_addr = (void *)src;                                                                          		\
-                aclshmem_put##BITS(dst_addr, src_addr, elem_size, pe);                								  		\
-            },                                                                                                        		\
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+#define PYBIND_ACLSHMEM_PUT_SIZE(BITS)                                                                      \
+    {                                                                                                       \
+        std::string funcName = "aclshmem_put" #BITS "";                                                     \
+        m.def(                                                                                              \
+            funcName.c_str(),                                                                               \
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {                                      \
+                auto dst_addr = (void*)dst;                                                                 \
+                auto src_addr = (void*)src;                                                                 \
+                aclshmem_put##BITS(dst_addr, src_addr, elem_size, pe);                                      \
+            },                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), \
+            py::arg("pe"),                                                                                  \
             R"(                                  																		    \
         Synchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
                                                                                                                             \
@@ -587,24 +1000,25 @@ ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IPUT)
             src                [in] Pointer on local memory of the source data.
             elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                      		\
+            )");                                                                                            \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
 #undef PYBIND_ACLSHMEM_PUT_SIZE
 
-#define PYBIND_ACLSHMEM_IPUT_SIZE(BITS)                                                                                     \
-    {                                                                                                                       \
-        std::string funcName = "aclshmem_iput" #BITS "";                                                                    \
-        m.def(                                                                                                              \
-            funcName.c_str(),                                                                                               \
-            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
-                auto dst_addr = (void *)dest;                                                                               \
-                auto src_addr = (void *)source;                                                                             \
-                aclshmem_iput##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                                              \
-            },                                                                                                              \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
-            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+#define PYBIND_ACLSHMEM_IPUT_SIZE(BITS)                                                                   \
+    {                                                                                                     \
+        std::string funcName = "aclshmem_iput" #BITS "";                                                  \
+        m.def(                                                                                            \
+            funcName.c_str(),                                                                             \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {     \
+                auto dst_addr = (void*)dest;                                                              \
+                auto src_addr = (void*)source;                                                            \
+                aclshmem_iput##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                            \
+            },                                                                                            \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), \
+            py::arg("sst"), py::arg("nelems"), py::arg("pe"),                                             \
+            R"(                                                                           \
         Synchronous interface. Copy strided data elements (specified by sst) of an array from a source array on the         \
         local PE to locations specified by stride dst on a dest array on specified remote PE.                               \
         Arguments:                                                                                                          \
@@ -614,17 +1028,17 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE)
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                            \
+            )");                                                                                          \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IPUT_SIZE)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IPUT_SIZE)
 #undef PYBIND_ACLSHMEM_IPUT_SIZE
 
     m.def(
         "aclshmem_getmem",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclshmem_getmem(dst_addr, src_addr, elem_size, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
@@ -638,18 +1052,19 @@ Arguments:
     pe                 [in] PE number of the remote PE.
     )");
 
-#define PYBIND_ACLSHMEM_TYPE_IGET(NAME, TYPE)                                                                               \
-    {                                                                                                                       \
-        std::string funcName = "aclshmem_" #NAME "_iget";                                                                   \
-        m.def(                                                                                                              \
-            funcName.c_str(),                                                                                               \
-            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
-                auto dst_addr = (TYPE *)dest;                                                                               \
-                auto src_addr = (TYPE *)source;                                                                             \
-                aclshmem_##NAME##_iget(dst_addr, src_addr, dst, sst, nelems, pe);                                           \
-            },                                                                                                              \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
-            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+#define PYBIND_ACLSHMEM_TYPE_IGET(NAME, TYPE)                                                             \
+    {                                                                                                     \
+        std::string funcName = "aclshmem_" #NAME "_iget";                                                 \
+        m.def(                                                                                            \
+            funcName.c_str(),                                                                             \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {     \
+                auto dst_addr = (TYPE*)dest;                                                              \
+                auto src_addr = (TYPE*)source;                                                            \
+                aclshmem_##NAME##_iget(dst_addr, src_addr, dst, sst, nelems, pe);                         \
+            },                                                                                            \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), \
+            py::arg("sst"), py::arg("nelems"), py::arg("pe"),                                             \
+            R"(                                                                           \
         Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
         strided locations on a local array.                                                                                 \
         Arguments:                                                                                                          \
@@ -659,23 +1074,24 @@ Arguments:
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                            \
+            )");                                                                                          \
     }
 
-ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IGET)
+    ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IGET)
 #undef PYBIND_ACLSHMEM_TYPE_IGET
 
-#define PYBIND_ACLSHMEM_GET_SIZE(BITS)                                                                         		  		\
-    {                                                                                                                 		\
-        std::string funcName = "aclshmem_get" #BITS "";                                                        		  		\
-        m.def(                                                                                                        		\
-            funcName.c_str(),                                                                                         		\
-            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
-                auto dst_addr = (void *)dst;                                                                          		\
-                auto src_addr = (void *)src;                                                                          		\
-                aclshmem_get##BITS(dst_addr, src_addr, elem_size, pe);                								  		\
-            },                                                                                                        		\
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+#define PYBIND_ACLSHMEM_GET_SIZE(BITS)                                                                      \
+    {                                                                                                       \
+        std::string funcName = "aclshmem_get" #BITS "";                                                     \
+        m.def(                                                                                              \
+            funcName.c_str(),                                                                               \
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {                                      \
+                auto dst_addr = (void*)dst;                                                                 \
+                auto src_addr = (void*)src;                                                                 \
+                aclshmem_get##BITS(dst_addr, src_addr, elem_size, pe);                                      \
+            },                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), \
+            py::arg("pe"),                                                                                  \
             R"(                                  																		    \
         Synchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
 																															\
@@ -684,24 +1100,25 @@ ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPE_IGET)
 			src                [in] Pointer on symmetric address of the source data.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                      		\
+            )");                                                                                            \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
 #undef PYBIND_ACLSHMEM_GET_SIZE
 
-#define PYBIND_ACLSHMEM_IGET_SIZE(BITS)                                                                                     \
-    {                                                                                                                       \
-        std::string funcName = "aclshmem_iget" #BITS "";                                                                    \
-        m.def(                                                                                                              \
-            funcName.c_str(),                                                                                               \
-            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {                       \
-                auto dst_addr = (void *)dest;                                                                               \
-                auto src_addr = (void *)source;                                                                             \
-                aclshmem_iget##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                                              \
-            },                                                                                                              \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), py::arg("sst"),   \
-            py::arg("nelems"), py::arg("pe"), R"(                                                                           \
+#define PYBIND_ACLSHMEM_IGET_SIZE(BITS)                                                                   \
+    {                                                                                                     \
+        std::string funcName = "aclshmem_iget" #BITS "";                                                  \
+        m.def(                                                                                            \
+            funcName.c_str(),                                                                             \
+            [](intptr_t dest, intptr_t source, ptrdiff_t dst, ptrdiff_t sst, size_t nelems, int pe) {     \
+                auto dst_addr = (void*)dest;                                                              \
+                auto src_addr = (void*)source;                                                            \
+                aclshmem_iget##BITS(dst_addr, src_addr, dst, sst, nelems, pe);                            \
+            },                                                                                            \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dest"), py::arg("source"), py::arg("dst"), \
+            py::arg("sst"), py::arg("nelems"), py::arg("pe"),                                             \
+            R"(                                                                           \
         Synchronous interface. Copy strided data elements from a symmetric array from a specified remote PE to              \
         strided locations on a local array.                                                                                 \
         Arguments:                                                                                                          \
@@ -711,10 +1128,10 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE)
             sst                [in] The stride between consecutive elements of the source array.
             nelems             [in] Number of elements in the destination and source arrays.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                            \
+            )");                                                                                          \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IGET_SIZE)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_IGET_SIZE)
 #undef PYBIND_ACLSHMEM_IGET_SIZE
 
     m.def(
@@ -738,7 +1155,7 @@ Returns:
     m.def(
         "aclshmem_info_get_name",
         []() {
-            char name[ACLSHMEM_MAX_NAME_LEN];
+            char name[ACLSHMEM_MAX_NAME_LEN] = {};
             aclshmem_info_get_name(name);
             std::string ret_name(name);
             return ret_name;
@@ -758,7 +1175,7 @@ Returns:
         m.def(                                                                                         \
             funcName.c_str(),                                                                          \
             [](intptr_t dst, const TYPE value, int pe) {                                               \
-                auto dst_addr = (TYPE *)dst;                                                           \
+                auto dst_addr = (TYPE*)dst;                                                            \
                 aclshmem_##NAME##_p(dst_addr, value, pe);                                              \
             },                                                                                         \
             py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("value"), py::arg("pe"), \
@@ -781,7 +1198,7 @@ Returns:
         m.def(                                                                       \
             funcName.c_str(),                                                        \
             [](intptr_t src, int pe) {                                               \
-                auto src_addr = (TYPE *)src;                                         \
+                auto src_addr = (TYPE*)src;                                          \
                 return aclshmem_##NAME##_g(src_addr, pe);                            \
             },                                                                       \
             py::call_guard<py::gil_scoped_release>(), py::arg("src"), py::arg("pe"), \
@@ -798,8 +1215,9 @@ Returns:
     ACLSHMEM_TYPE_FUNC(PYBIND_ACLSHMEM_TYPENAME_G)
 #undef PYBIND_ACLSHMEM_TYPENAME_G
 
-    m.def("team_translate_pe", &aclshmem_team_translate_pe, py::call_guard<py::gil_scoped_release>(), py::arg("src_team"),
-          py::arg("src_pe"), py::arg("dest_team"), R"(
+    m.def(
+        "team_translate_pe", &aclshmem_team_translate_pe, py::call_guard<py::gil_scoped_release>(), py::arg("src_team"),
+        py::arg("src_pe"), py::arg("dest_team"), R"(
 Translate a given PE number in one team into the corresponding PE number in another team
 
 Arguments:
@@ -824,8 +1242,8 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
     m.def(
         "aclshmem_putmem_nbi",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclshmem_putmem_nbi(dst_addr, src_addr, elem_size, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
@@ -839,17 +1257,18 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
         pe                 [in] PE number of the remote PE.
         )");
 
-#define PYBIND_ACLSHMEM_PUT_SIZE_NBI(BITS)                                                                         		    \
-    {                                                                                                                 		\
-        std::string funcName = "aclshmem_put" #BITS "_nbi";                                                        		    \
-        m.def(                                                                                                        		\
-            funcName.c_str(),                                                                                         		\
-            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
-                auto dst_addr = (void *)dst;                                                                          		\
-                auto src_addr = (void *)src;                                                                          		\
-                aclshmem_put##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                								\
-            },                                                                                                        		\
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+#define PYBIND_ACLSHMEM_PUT_SIZE_NBI(BITS)                                                                  \
+    {                                                                                                       \
+        std::string funcName = "aclshmem_put" #BITS "_nbi";                                                 \
+        m.def(                                                                                              \
+            funcName.c_str(),                                                                               \
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {                                      \
+                auto dst_addr = (void*)dst;                                                                 \
+                auto src_addr = (void*)src;                                                                 \
+                aclshmem_put##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                                \
+            },                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), \
+            py::arg("pe"),                                                                                  \
             R"(                                  																		    \
         Asynchronous interface. Copy contiguous data on symmetric memory from local PE to address on the specified PE.
 																															\
@@ -858,17 +1277,17 @@ Get runtime ffts config. This config should be passed to MIX Kernel and set by M
 			src                [in] Pointer on local memory of the source data.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                      		\
+            )");                                                                                            \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
 #undef PYBIND_ACLSHMEM_PUT_SIZE_NBI
 
     m.def(
         "aclshmem_getmem_nbi",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclshmem_getmem_nbi(dst_addr, src_addr, elem_size, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),
@@ -882,17 +1301,18 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
         pe                 [in] PE number of the remote PE.
         )");
 
-#define PYBIND_ACLSHMEM_GET_SIZE_NBI(BITS)                                                                         		    \
-    {                                                                                                                 		\
-        std::string funcName = "aclshmem_get" #BITS "_nbi";                                                        		    \
-        m.def(                                                                                                        		\
-            funcName.c_str(),                                                                                         		\
-            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {         										  		\
-                auto dst_addr = (void *)dst;                                                                          		\
-                auto src_addr = (void *)src;                                                                          		\
-                aclshmem_get##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                								\
-            },                                                                                                        		\
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("pe"),  \
+#define PYBIND_ACLSHMEM_GET_SIZE_NBI(BITS)                                                                  \
+    {                                                                                                       \
+        std::string funcName = "aclshmem_get" #BITS "_nbi";                                                 \
+        m.def(                                                                                              \
+            funcName.c_str(),                                                                               \
+            [](intptr_t dst, intptr_t src, size_t elem_size, int pe) {                                      \
+                auto dst_addr = (void*)dst;                                                                 \
+                auto src_addr = (void*)src;                                                                 \
+                aclshmem_get##BITS##_nbi(dst_addr, src_addr, elem_size, pe);                                \
+            },                                                                                              \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), \
+            py::arg("pe"),                                                                                  \
             R"(                                  																		    \
         Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
 																															\
@@ -901,18 +1321,18 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_NBI)
 			src                [in] Pointer on symmetric address of the source data on remote PE.
 			elem_size          [in] size of elements in the destination and source addr.
             pe                 [in] PE number of the remote PE.
-            )");                                                                                                      		\
+            )");                                                                                            \
     }
 
-ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
+    ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
 #undef PYBIND_ACLSHMEM_GET_SIZE_NBI
 
     m.def(
         "aclshmemx_putmem_signal_nbi",
         [](intptr_t dst, intptr_t src, size_t elem_size, intptr_t sig, int32_t signal, int sig_op, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
-            auto sig_addr = (void *)sig;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
+            auto sig_addr = (void*)sig;
             aclshmemx_putmem_signal_nbi(dst_addr, src_addr, elem_size, sig_addr, signal, sig_op, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("sig"),
@@ -933,9 +1353,9 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     m.def(
         "aclshmemx_putmem_signal",
         [](intptr_t dst, intptr_t src, size_t elem_size, intptr_t sig, int32_t signal, int sig_op, int pe) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
-            auto sig_addr = (void *)sig;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
+            auto sig_addr = (void*)sig;
             aclshmemx_putmem_signal(dst_addr, src_addr, elem_size, sig_addr, signal, sig_op, pe);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("elem_size"), py::arg("sig"),
@@ -956,8 +1376,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     m.def(
         "aclshmemx_putmem_on_stream",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe, intptr_t stream) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclrtStream acl_stream = nullptr;
             if (stream != 0) {
                 acl_stream = reinterpret_cast<aclrtStream>(stream);
@@ -979,8 +1399,8 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     m.def(
         "aclshmemx_getmem_on_stream",
         [](intptr_t dst, intptr_t src, size_t elem_size, int pe, intptr_t stream) {
-            auto dst_addr = (void *)dst;
-            auto src_addr = (void *)src;
+            auto dst_addr = (void*)dst;
+            auto src_addr = (void*)src;
             aclrtStream acl_stream = nullptr;
             if (stream != 0) {
                 acl_stream = reinterpret_cast<aclrtStream>(stream);
@@ -1002,7 +1422,7 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     m.def(
         "aclshmemx_signal_op_on_stream",
         [](intptr_t sig, int32_t signal, int sig_op, int pe, intptr_t stream) {
-            auto sig_addr = (int32_t *)sig;
+            auto sig_addr = (int32_t*)sig;
             aclrtStream acl_stream = nullptr;
             if (stream != 0) {
                 acl_stream = reinterpret_cast<aclrtStream>(stream);
@@ -1025,7 +1445,7 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
     m.def(
         "aclshmemx_signal_wait_until_on_stream",
         [](intptr_t sig, int cmp, int32_t cmp_val, intptr_t stream) {
-            auto sig_addr = (int32_t *)sig;
+            auto sig_addr = (int32_t*)sig;
             aclrtStream acl_stream = nullptr;
             if (stream != 0) {
                 acl_stream = reinterpret_cast<aclrtStream>(stream);
@@ -1047,19 +1467,20 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
         stream               [in] ACL stream used for execution ordering. Use default stream if stream == NULL.
         )");
 
-#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL(BITS)                                                                         \
-    {                                                                                                                 \
-        std::string funcName = "aclshmemx_put" #BITS "_signal";                                                       \
-        m.def(                                                                                                        \
-            funcName.c_str(),                                                                                         \
-            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) {         \
-                auto dst_addr = (void *)dst;                                                                          \
-                auto src_addr = (void *)src;                                                                          \
-                auto sig_addr = (int32_t *)sig;                                                                       \
-                aclshmem_put##BITS##_signal(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);                \
-            },                                                                                                        \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),              \
-            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"), R"(                                  \
+#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL(BITS)                                                                 \
+    {                                                                                                         \
+        std::string funcName = "aclshmemx_put" #BITS "_signal";                                               \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) { \
+                auto dst_addr = (void*)dst;                                                                   \
+                auto src_addr = (void*)src;                                                                   \
+                auto sig_addr = (int32_t*)sig;                                                                \
+                aclshmem_put##BITS##_signal(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);        \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),      \
+            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"),                              \
+            R"(                                  \
         Synchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
         updating a remote signal flag on completion.
                                                                                                                       \
@@ -1072,25 +1493,26 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
             sig_op            [in] Operation used to update sig_addr with signal.
                                    Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
             pe                [in] PE number of the remote PE.
-            )");                                                                                                      \
+            )");                                                                                              \
     }
 
     ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL)
 #undef PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL
 
-#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI(BITS)                                                                     \
-    {                                                                                                                 \
-        std::string funcName = "aclshmemx_put" #BITS "_signal_nbi";                                                   \
-        m.def(                                                                                                        \
-            funcName.c_str(),                                                                                         \
-            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) {         \
-                auto dst_addr = (void *)dst;                                                                          \
-                auto src_addr = (void *)src;                                                                          \
-                auto sig_addr = (int32_t *)sig;                                                                       \
-                aclshmem_put##BITS##_signal_nbi(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);            \
-            },                                                                                                        \
-            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),              \
-            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"), R"(                                  \
+#define PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI(BITS)                                                             \
+    {                                                                                                         \
+        std::string funcName = "aclshmemx_put" #BITS "_signal_nbi";                                           \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t dst, intptr_t src, size_t nelems, intptr_t sig, int32_t signal, int sig_op, int pe) { \
+                auto dst_addr = (void*)dst;                                                                   \
+                auto src_addr = (void*)src;                                                                   \
+                auto sig_addr = (int32_t*)sig;                                                                \
+                aclshmem_put##BITS##_signal_nbi(dst_addr, src_addr, nelems, sig_addr, signal, sig_op, pe);    \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("dst"), py::arg("src"), py::arg("nelems"),      \
+            py::arg("sig"), py::arg("signal"), py::arg("sig_op"), py::arg("pe"),                              \
+            R"(                                  \
         Asynchronous interface. Copy a contiguous data from local to symmetric address on the specified PE and
         updating a remote signal flag on completion.
                                                                                                                       \
@@ -1103,20 +1525,22 @@ ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_GET_SIZE_NBI)
             sig_op            [in] Operation used to update sig_addr with signal.
                                    Supported operations: ACLSHMEM_SIGNAL_SET/ACLSHMEM_SIGNAL_ADD
             pe                [in] PE number of the remote PE.
-            )");                                                                                                      \
+            )");                                                                                              \
     }
 
     ACLSHMEM_SIZE_FUNC(PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI)
 #undef PYBIND_ACLSHMEM_PUT_SIZE_SIGNAL_NBI
 
-    m.def("aclshmem_global_exit", &aclshmem_global_exit, py::call_guard<py::gil_scoped_release>(), py::arg("status"), R"(
+    m.def(
+        "aclshmem_global_exit", &aclshmem_global_exit, py::call_guard<py::gil_scoped_release>(), py::arg("status"), R"(
 Exit all ranks process by broadcast all ranks to exit();
 
 Arguments:
     status(int): the status which is provided to exit();
     )");
 
-    m.def("aclshmemx_quiet_on_stream",
+    m.def(
+        "aclshmemx_quiet_on_stream",
         [](intptr_t stream) {
             aclrtStream acl_stream = nullptr;
             if (stream != 0) {
@@ -1158,27 +1582,24 @@ Arguments:
     level(int): the status which is provided to exit();
     )");
 
-    m.def("set_extern_logger", &shm::aclshmem_set_extern_logger_py, py::call_guard<py::gil_scoped_release>(),
-          py::arg("func"), R"(
+    m.def("set_extern_logger", &shm::aclshmem_set_extern_logger_py, py::arg("func"), R"(
 set log function of all module;
 
 Arguments:
     func(void (*func)(int level, const char *msg)): function of log;
     )");
 
-m.def("aclshmem_signal_wait_until",
-    [](intptr_t sig_addr, int cmp, int cmp_val) {
-        auto *ptr = reinterpret_cast<int32_t*>(sig_addr);
-        if (ptr == nullptr) {
-            throw std::invalid_argument("sig_addr must not be null");
-        }
-        aclshmem_signal_wait_until(ptr, cmp, static_cast<int32_t>(cmp_val));
-    },
-    py::call_guard<py::gil_scoped_release>(),
-    py::arg("sig_addr"),
-    py::arg("cmp"),
-    py::arg("cmp_val"),
-    R"(
+    m.def(
+        "aclshmem_signal_wait_until",
+        [](intptr_t sig_addr, int cmp, int cmp_val) {
+            auto* ptr = reinterpret_cast<int32_t*>(sig_addr);
+            if (ptr == nullptr) {
+                throw std::invalid_argument("sig_addr must not be null");
+            }
+            aclshmem_signal_wait_until(ptr, cmp, static_cast<int32_t>(cmp_val));
+        },
+        py::call_guard<py::gil_scoped_release>(), py::arg("sig_addr"), py::arg("cmp"), py::arg("cmp_val"),
+        R"(
 Wait until the value at signal address satisfies a comparison condition.
 
 This function blocks the calling thread until:
@@ -1193,16 +1614,16 @@ Returns:
     The value of sig_addr when condition is met.
     )");
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                                         \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until";                                                        \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivar, int cmp, TYPE cmp_value) {                                                               \
-                auto ivar_addr = (TYPE *)ivar;                                                                         \
-                aclshmem_##NAME##_wait_until(ivar_addr, cmp, cmp_value);                                               \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp"), py::arg("cmp_value"),           \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL(NAME, TYPE)                                                               \
+    {                                                                                                        \
+        std::string funcName = "aclshmem_" #NAME "_wait_until";                                              \
+        m.def(                                                                                               \
+            funcName.c_str(),                                                                                \
+            [](intptr_t ivar, int cmp, TYPE cmp_value) {                                                     \
+                auto ivar_addr = (TYPE*)ivar;                                                                \
+                aclshmem_##NAME##_wait_until(ivar_addr, cmp, cmp_value);                                     \
+            },                                                                                               \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp"), py::arg("cmp_value"), \
             R"(                                                                                                        \
     Wait until the element at the symmetric address satisfies a comparison condition.                                  \
                                                                                                                        \
@@ -1210,50 +1631,46 @@ Returns:
         ivar            [in] Symmetric address of a remotely accessible data object.
         cmp             [in] Comparison op.
         cmp_value       [in] Value to compare against.
-        )");                                                                                                           \
+        )");                                                                                                 \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL
 
-#define PYBIND_ACLSHMEM_WAIT(NAME, TYPE)                                                                               \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait";                                                              \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivar, TYPE cmp_value) {                                                                        \
-                auto ivar_addr = (TYPE *)ivar;                                                                         \
-                aclshmem_##NAME##_wait(ivar_addr, cmp_value);                                                          \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp_value"),                           \
+#define PYBIND_ACLSHMEM_WAIT(NAME, TYPE)                                                     \
+    {                                                                                        \
+        std::string funcName = "aclshmem_" #NAME "_wait";                                    \
+        m.def(                                                                               \
+            funcName.c_str(),                                                                \
+            [](intptr_t ivar, TYPE cmp_value) {                                              \
+                auto ivar_addr = (TYPE*)ivar;                                                \
+                aclshmem_##NAME##_wait(ivar_addr, cmp_value);                                \
+            },                                                                               \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp_value"), \
             R"(                                                                                                        \
     Wait until the element at the symmetric address is not equal to cmp_value.                                         \
                                                                                                                        \
     Arguments:                                                                                                         \
         ivar            [in] Symmetric address of a remotely accessible data object.
         cmp_value       [in] Value to compare against.
-        )");                                                                                                           \
+        )");                                                                                 \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT);
 #undef PYBIND_ACLSHMEM_WAIT
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                                     \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_all";                                                    \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value) {                      \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                aclshmem_##NAME##_wait_until_all(ivar_addrs, nelems, status, cmp, cmp_value);                          \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL(NAME, TYPE)                                                            \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_all";                                           \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value) {             \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                           \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                aclshmem_##NAME##_wait_until_all(ivar_addrs, nelems, status, cmp, cmp_value);                 \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_value"),                                                             \
             R"(                                                                                                        \
     Wait until all elements in the symmetric array satisfy the condition.                                              \
                                                                                                                        \
@@ -1264,33 +1681,29 @@ Returns:
                              elements in ivars are excluded from the wait set.
         cmp             [in] Comparison op.
         cmp_value       [in] Value to compare against.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ALL);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_ALL
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                                     \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_any";                                                    \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {\
-                if (ivars_ptr == 0 || res_out_ptr == 0) {                                                            \
-                    throw py::value_error("ivars and res_out must be non-null");                                    \
-                }                                                                                                    \
-                auto ivar_addrs = reinterpret_cast<TYPE *>(ivars_ptr);                                               \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                               \
-                aclshmem_##NAME##_wait_until_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);                 \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY(NAME, TYPE)                                                            \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_any";                                           \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value,               \
+               intptr_t res_out_ptr) {                                                                        \
+                if (ivars_ptr == 0 || res_out_ptr == 0) {                                                     \
+                    throw py::value_error("ivars and res_out must be non-null");                              \
+                }                                                                                             \
+                auto ivar_addrs = reinterpret_cast<TYPE*>(ivars_ptr);                                         \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                        \
+                aclshmem_##NAME##_wait_until_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);        \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_value"), py::arg("res_out"),                                         \
             R"(                                                                                                        \
     Wait until at least one element in the symmetric array satisfy the condition.                                      \
                                                                                                                        \
@@ -1304,33 +1717,27 @@ Returns:
         res_out         [out] Return value.
     Returns:
         The index of an element in the ivars array that satisfies the wait condition.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ANY);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_ANY
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                    \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_some";                                                   \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value,  \
-                intptr_t res_out_ptr) {                                                                                \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_wait_until_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);       \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("indices"),                                                                                        \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME(NAME, TYPE)                                                                   \
+    {                                                                                                                 \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_some";                                                  \
+        m.def(                                                                                                        \
+            funcName.c_str(),                                                                                         \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value, \
+               intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);                 \
+                auto indices = reinterpret_cast<size_t*>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                                \
+                aclshmem_##NAME##_wait_until_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);      \
+            },                                                                                                        \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("indices"),        \
+            py::arg("status"), py::arg("cmp"), py::arg("cmp_value"), py::arg("res_out"),                              \
             R"(                                                                                                        \
     Wait until at least one element in the symmetric array satisfy the condition.                                      \
                                                                                                                        \
@@ -1346,29 +1753,25 @@ Returns:
         res_out         [out] Return value.
     Returns:
         The number of indices returned in the indices array.
-        )");                                                                                                           \
+        )");                                                                                                          \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_SOME);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_SOME
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                              \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_all_vector";                                             \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr) {             \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                aclshmem_##NAME##_wait_until_all_vector(ivar_addrs, nelems, status, cmp, cmp_values);                  \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR(NAME, TYPE)                                                     \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_all_vector";                                    \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr) {    \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                           \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                      \
+                aclshmem_##NAME##_wait_until_all_vector(ivar_addrs, nelems, status, cmp, cmp_values);         \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_values"),                                                            \
             R"(                                                                                                        \
     Wait until all elements in the symmetric array satisfy the condition.                                              \
                                                                                                                        \
@@ -1379,32 +1782,27 @@ Returns:
                              elements in ivars are excluded from the wait set.
         cmp             [in] Comparison op.
         cmp_values       [in] Value to compare against which is an array.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_ALL_VECTOR
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                              \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_any_vector";                                             \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
-                intptr_t res_out_ptr) {                                                                                \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_wait_until_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);         \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR(NAME, TYPE)                                                      \
+    {                                                                                                          \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_any_vector";                                     \
+        m.def(                                                                                                 \
+            funcName.c_str(),                                                                                  \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,       \
+               intptr_t res_out_ptr) {                                                                         \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                            \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);          \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                       \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                         \
+                aclshmem_##NAME##_wait_until_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out); \
+            },                                                                                                 \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"),  \
+            py::arg("cmp"), py::arg("cmp_values"), py::arg("res_out"),                                         \
             R"(                                                                                                        \
     Wait until at least one element in the symmetric array satisfy the condition.                                      \
                                                                                                                        \
@@ -1418,36 +1816,29 @@ Returns:
         res_out         [out] Return value.
     Returns:
         The index of an element in the ivars array that satisfies the wait condition.
-        )");                                                                                                           \
+        )");                                                                                                   \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_ANY_VECTOR
 
-#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                             \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_wait_until_some_vector";                                            \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,                  \
-                intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                       \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_wait_until_some_vector(                                                              \
-                    ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out                                      \
-                );                                                                                                     \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("indices"),                                                                                        \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR(NAME, TYPE)                                                     \
+    {                                                                                                          \
+        std::string funcName = "aclshmem_" #NAME "_wait_until_some_vector";                                    \
+        m.def(                                                                                                 \
+            funcName.c_str(),                                                                                  \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,          \
+               intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                            \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);          \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                       \
+                auto indices = reinterpret_cast<size_t*>(indices_ptr);                                         \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                         \
+                aclshmem_##NAME##_wait_until_some_vector(                                                      \
+                    ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out);                            \
+            },                                                                                                 \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("indices"), \
+            py::arg("status"), py::arg("cmp"), py::arg("cmp_values"), py::arg("res_out"),                      \
             R"(                                                                                                        \
     Wait until at least one element in the symmetric array satisfy the condition.                                      \
                                                                                                                        \
@@ -1463,27 +1854,24 @@ Returns:
         res_out         [out] Return value.
     Returns:
         The number of indices returned in the indices array.
-        )");                                                                                                           \
+        )");                                                                                                   \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR);
 #undef PYBIND_ACLSHMEM_WAIT_UNTIL_SOME_VECTOR
 
-#define PYBIND_ACLSHMEM_TEST(NAME, TYPE)                                                                               \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test";                                                              \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivar, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {                                         \
-                auto ivar_addr = (TYPE *)ivar;                                                                         \
-                auto res_out = reinterpret_cast<int *>(res_out_ptr);                                                   \
-                aclshmem_##NAME##_test(ivar_addr, cmp, cmp_value, res_out);                                            \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivar"),                                                                                           \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST(NAME, TYPE)                                                                     \
+    {                                                                                                        \
+        std::string funcName = "aclshmem_" #NAME "_test";                                                    \
+        m.def(                                                                                               \
+            funcName.c_str(),                                                                                \
+            [](intptr_t ivar, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {                               \
+                auto ivar_addr = (TYPE*)ivar;                                                                \
+                auto res_out = reinterpret_cast<int*>(res_out_ptr);                                          \
+                aclshmem_##NAME##_test(ivar_addr, cmp, cmp_value, res_out);                                  \
+            },                                                                                               \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivar"), py::arg("cmp"), py::arg("cmp_value"), \
+            py::arg("res_out"),                                                                              \
             R"(                                                                                                        \
     Check whether the element at the symmetric address satisfies a comparison condition.                               \
                                                                                                                        \
@@ -1495,30 +1883,26 @@ Returns:
     Returns:
         Returns 1 when the comparison of the symmetric object pointed to by ivar with the value cmp_value according to
         the comparison op cmp; otherwise, it returns 0.
-        )");                                                                                                           \
+        )");                                                                                                 \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST);
 #undef PYBIND_ACLSHMEM_TEST
 
-#define PYBIND_ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                           \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test_any";                                                          \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value, intptr_t res_out_ptr) {\
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_test_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);                       \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST_ANY(NAME, TYPE)                                                                  \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_test_any";                                                 \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, TYPE cmp_value,               \
+               intptr_t res_out_ptr) {                                                                        \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                           \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                        \
+                aclshmem_##NAME##_test_any(ivar_addrs, nelems, status, cmp, cmp_value, res_out);              \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_value"), py::arg("res_out"),                                         \
             R"(                                                                                                        \
     Check whether at least one element in the symmetric array satisfy the condition.                                   \
                                                                                                                        \
@@ -1533,33 +1917,27 @@ Returns:
     Returns:
         Returns the index of an element in the ivars array that satisfies the test condition.
         If the test set is empty or no conditions in the test set are satisfied, it returns SIZE_MAX.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ANY);
 #undef PYBIND_ACLSHMEM_TEST_ANY
 
-#define PYBIND_ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                          \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test_some";                                                         \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value,  \
-                intptr_t res_out_ptr) {                                                                                \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_test_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);             \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("indices"),                                                                                        \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_value"),                                                                                      \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST_SOME(NAME, TYPE)                                                                         \
+    {                                                                                                                 \
+        std::string funcName = "aclshmem_" #NAME "_test_some";                                                        \
+        m.def(                                                                                                        \
+            funcName.c_str(),                                                                                         \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp, TYPE cmp_value, \
+               intptr_t res_out_ptr) {                                                                                \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                                   \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);                 \
+                auto indices = reinterpret_cast<size_t*>(indices_ptr);                                                \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                                \
+                aclshmem_##NAME##_test_some(ivar_addrs, nelems, indices, status, cmp, cmp_value, res_out);            \
+            },                                                                                                        \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("indices"),        \
+            py::arg("status"), py::arg("cmp"), py::arg("cmp_value"), py::arg("res_out"),                              \
             R"(                                                                                                        \
     Check whether at least one element in the symmetric array satisfy the condition.                                   \
                                                                                                                        \
@@ -1575,32 +1953,27 @@ Returns:
         res_out         [out] Return value.
     Returns:
         Returns the number of indices returned in the indices array. If the test set is empty, it returns 0.
-        )");                                                                                                           \
+        )");                                                                                                          \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_SOME);
 #undef PYBIND_ACLSHMEM_TEST_SOME
 
-#define PYBIND_ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                                    \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test_all_vector";                                                   \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
-                intptr_t res_out_ptr) {                                                                                \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                auto res_out = reinterpret_cast<int *>(res_out_ptr);                                                   \
-                aclshmem_##NAME##_test_all_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);               \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST_ALL_VECTOR(NAME, TYPE)                                                           \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_test_all_vector";                                          \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,      \
+               intptr_t res_out_ptr) {                                                                        \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                           \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                      \
+                auto res_out = reinterpret_cast<int*>(res_out_ptr);                                           \
+                aclshmem_##NAME##_test_all_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);      \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_values"), py::arg("res_out"),                                        \
             R"(                                                                                                        \
     Check whether all elements in the symmetric array satisfy the condition.                                           \
                                                                                                                        \
@@ -1614,32 +1987,27 @@ Returns:
         res_out         [out] Return value.
     Returns:
         Returns 1 when all variables in ivars satisfy the test conditions or nelems is 0, otherwise it returns 0.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ALL_VECTOR);
 #undef PYBIND_ACLSHMEM_TEST_ALL_VECTOR
 
-#define PYBIND_ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                                    \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test_any_vector";                                                   \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,               \
-                intptr_t res_out_ptr) {                                                                                \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_test_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);               \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST_ANY_VECTOR(NAME, TYPE)                                                           \
+    {                                                                                                         \
+        std::string funcName = "aclshmem_" #NAME "_test_any_vector";                                          \
+        m.def(                                                                                                \
+            funcName.c_str(),                                                                                 \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t status_ptr, int cmp, intptr_t cmp_values_ptr,      \
+               intptr_t res_out_ptr) {                                                                        \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                           \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);         \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                      \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                        \
+                aclshmem_##NAME##_test_any_vector(ivar_addrs, nelems, status, cmp, cmp_values, res_out);      \
+            },                                                                                                \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("status"), \
+            py::arg("cmp"), py::arg("cmp_values"), py::arg("res_out"),                                        \
             R"(                                                                                                        \
     Check whether at least one element in the symmetric array satisfy the condition.                                   \
                                                                                                                        \
@@ -1654,34 +2022,28 @@ Returns:
     Returns:
         Returns the index of an element in the ivars array that satisfies the test condition.
         If the test set is empty or no conditions in the test set are satisfied, it returns SIZE_MAX.
-        )");                                                                                                           \
+        )");                                                                                                  \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_ANY_VECTOR);
 #undef PYBIND_ACLSHMEM_TEST_ANY_VECTOR
 
-#define PYBIND_ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                                   \
-    {                                                                                                                  \
-        std::string funcName = "aclshmem_" #NAME "_test_some_vector";                                                  \
-        m.def(                                                                                                         \
-            funcName.c_str(),                                                                                          \
-            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,                  \
-                intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                       \
-                auto ivar_addrs = (TYPE *)ivars_ptr;                                                                   \
-                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int *>(status_ptr);                 \
-                auto cmp_values = (TYPE *)cmp_values_ptr;                                                              \
-                auto indices = reinterpret_cast<size_t *>(indices_ptr);                                                \
-                auto res_out = reinterpret_cast<size_t *>(res_out_ptr);                                                \
-                aclshmem_##NAME##_test_some_vector(ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out);     \
-            },                                                                                                         \
-            py::call_guard<py::gil_scoped_release>(),                                                                  \
-            py::arg("ivars"),                                                                                          \
-            py::arg("nelems"),                                                                                         \
-            py::arg("indices"),                                                                                        \
-            py::arg("status"),                                                                                         \
-            py::arg("cmp"),                                                                                            \
-            py::arg("cmp_values"),                                                                                     \
-            py::arg("res_out"),                                                                                        \
+#define PYBIND_ACLSHMEM_TEST_SOME_VECTOR(NAME, TYPE)                                                               \
+    {                                                                                                              \
+        std::string funcName = "aclshmem_" #NAME "_test_some_vector";                                              \
+        m.def(                                                                                                     \
+            funcName.c_str(),                                                                                      \
+            [](intptr_t ivars_ptr, size_t nelems, intptr_t indices_ptr, intptr_t status_ptr, int cmp,              \
+               intptr_t cmp_values_ptr, intptr_t res_out_ptr) {                                                    \
+                auto ivar_addrs = (TYPE*)ivars_ptr;                                                                \
+                auto status = (status_ptr == 0) ? nullptr : reinterpret_cast<const int*>(status_ptr);              \
+                auto cmp_values = (TYPE*)cmp_values_ptr;                                                           \
+                auto indices = reinterpret_cast<size_t*>(indices_ptr);                                             \
+                auto res_out = reinterpret_cast<size_t*>(res_out_ptr);                                             \
+                aclshmem_##NAME##_test_some_vector(ivar_addrs, nelems, indices, status, cmp, cmp_values, res_out); \
+            },                                                                                                     \
+            py::call_guard<py::gil_scoped_release>(), py::arg("ivars"), py::arg("nelems"), py::arg("indices"),     \
+            py::arg("status"), py::arg("cmp"), py::arg("cmp_values"), py::arg("res_out"),                          \
             R"(                                                                                                        \
     Check whether at least one element in the symmetric array satisfy the condition.                                   \
                                                                                                                        \
@@ -1697,10 +2059,9 @@ Returns:
         res_out         [out] Return value.
     Returns:
         Returns the number of indices returned in the indices array. If the test set is empty, it returns 0.
-        )");                                                                                                           \
+        )");                                                                                                       \
     }
 
     ACLSHMEM_P2P_SYNC_TYPE_FUNC(PYBIND_ACLSHMEM_TEST_SOME_VECTOR);
 #undef PYBIND_ACLSHMEM_TEST_SOME_VECTOR
-
 }
