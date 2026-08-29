@@ -467,6 +467,14 @@ Arguments:
     )");
 
     m.def(
+        "aclshmemx_set_qp_num", &aclshmemx_set_qp_num, py::call_guard<py::gil_scoped_release>(), py::arg("engine"),
+        py::arg("qp_num"), R"(
+Configure the number of QPs created per peer for a data operation engine.
+
+This process-wide configuration must be set before ACLSHMEM initialization and must be identical on every PE.
+    )");
+
+    m.def(
         "aclshmem_init_using_unique_id", &shm::aclshmem_initialize_unique_id, py::call_guard<py::gil_scoped_release>(),
         py::arg("mype"), py::arg("npes"), py::arg("mem_size"), py::arg("uid"), R"(
 Initialize share memory module using unique id. This function need run with PTA.

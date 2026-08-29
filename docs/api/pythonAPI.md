@@ -1497,7 +1497,21 @@
     |instance_id|[in]|实例 ID；仅接受 0 到 254 范围内的非 bool 整数|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-66. **aclshmemx_set_attr_uniqueid_args** — 使用唯一 ID 参数填充 ``InitAttr``。
+66. **aclshmemx_set_qp_num** — 配置每个对端连接创建的 QP 数量。该配置为进程级配置，必须在 ACLSHMEM 初始化前调用，并且所有 PE 必须使用相同的参数。
+
+    ```python
+    def aclshmemx_set_qp_num(engine: OpEngineType, qp_num: int) -> int
+    ```
+
+    |参数/返回值|方向|含义|
+    |-|-|-|
+    |engine|[in]|数据操作引擎。该接口仅支持 Ascend950；``OpEngineType.UDMA`` 在 Ascend950 上可用，``OpEngineType.ROCE`` 要求 XSCALE 或 HNS_1825 后端|
+    |qp_num|[in]|每个对端连接的 QP 数量，取值范围为 ``[1, ACLSHMEM_MAX_QP_NUM]``（当前最大值为 32）|
+    |返回值|[out]|成功返回 ``0``；参数非法返回 ``ACLSHMEM_INVALID_VALUE``；引擎或当前配置不支持时返回 ``ACLSHMEM_NOT_SUPPORTED``|
+
+    配置在任一 ACLSHMEM 实例初始化后被冻结；最后一个实例 ``aclshmem_finalize`` 后，QP 数量重置为 1。启用 UDMA relay（``ACLSHMEM_RELAY_SUPPORT=ON``）时仅支持 ``qp_num == 1``，多 QP 配置会在初始化阶段返回 ``ACLSHMEM_NOT_SUPPORTED``。
+
+67. **aclshmemx_set_attr_uniqueid_args** — 使用唯一 ID 参数填充 ``InitAttr``。
 
     ```python
     def aclshmemx_set_attr_uniqueid_args(my_pe: int, n_pes: int, local_mem_size: int, uid: UniqueId, attr: InitAttr) -> int
@@ -1512,7 +1526,7 @@
     |attr|[in/out]|待填充的 ``InitAttr`` 对象|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-67. **aclshmemx_init_attr** — 使用初始化模式和 ``InitAttr`` 初始化 SHMEM 实例。这是一个集合（collective）操作。
+68. **aclshmemx_init_attr** — 使用初始化模式和 ``InitAttr`` 初始化 SHMEM 实例。这是一个集合（collective）操作。
 
     ```python
     def aclshmemx_init_attr(bootstrap_flags: InitMode, attributes: InitAttr) -> int
@@ -1524,7 +1538,7 @@
     |attributes|[in]|包含 PE、内存、实例 ID 和引擎选项的初始化属性|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-68. **aclshmemx_instance_ctx_get** — 获取当前实例上下文的值快照。
+69. **aclshmemx_instance_ctx_get** — 获取当前实例上下文的值快照。
 
     ```python
     def aclshmemx_instance_ctx_get() -> Optional[InstanceContext]
@@ -1534,7 +1548,7 @@
     |-|-|-|
     |返回值|[out]|返回包含当前实例 ID 的 ``InstanceContext`` 快照；无上下文时返回 ``None``|
 
-69. **aclshmemx_instance_ctx_set** — 将当前运行时上下文切换到指定实例。
+70. **aclshmemx_instance_ctx_set** — 将当前运行时上下文切换到指定实例。
 
     ```python
     def aclshmemx_instance_ctx_set(instance_id: int) -> int
@@ -1545,7 +1559,7 @@
     |instance_id|[in]|目标实例 ID；仅接受 0 到 254 范围内的非 bool 整数|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-70. **aclshmemx_malloc** — 从指定类型的对称堆分配内存。这是一个集合（collective）操作。
+71. **aclshmemx_malloc** — 从指定类型的对称堆分配内存。这是一个集合（collective）操作。
 
     ```python
     def aclshmemx_malloc(size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1557,7 +1571,7 @@
     |mem_type|[in]|对称堆类型，默认 ``MemType.DEVICE_SIDE``|
     |返回值|[out]|成功返回整数地址，失败返回 0|
 
-71. **aclshmemx_calloc** — 从指定类型的对称堆分配并清零内存。这是一个集合（collective）操作。
+72. **aclshmemx_calloc** — 从指定类型的对称堆分配并清零内存。这是一个集合（collective）操作。
 
     ```python
     def aclshmemx_calloc(count: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1570,7 +1584,7 @@
     |mem_type|[in]|对称堆类型，默认 ``MemType.DEVICE_SIDE``|
     |返回值|[out]|成功返回已清零内存的整数地址，失败返回 0|
 
-72. **aclshmemx_align** — 从指定类型的对称堆对齐分配内存。这是一个集合（collective）操作。
+73. **aclshmemx_align** — 从指定类型的对称堆对齐分配内存。这是一个集合（collective）操作。
 
     ```python
     def aclshmemx_align(alignment: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1583,7 +1597,7 @@
     |mem_type|[in]|对称堆类型，默认 ``MemType.DEVICE_SIDE``|
     |返回值|[out]|成功返回满足对齐要求的整数地址，失败返回 0|
 
-73. **aclshmemx_free** — 释放指定对称堆中的内存。这是一个集合（collective）操作。
+74. **aclshmemx_free** — 释放指定对称堆中的内存。这是一个集合（collective）操作。
 
     ```python
     def aclshmemx_free(ptr: int, mem_type: MemType=MemType.DEVICE_SIDE) -> None
@@ -1595,7 +1609,7 @@
     |mem_type|[in]|必须与分配时使用的对称堆类型一致|
     |返回值|-|无返回值|
 
-74. **aclshmemx_set_mte_config** — 设置 MTE 引擎的 UB workspace 与同步 ID。
+75. **aclshmemx_set_mte_config** — 设置 MTE 引擎的 UB workspace 与同步 ID。
 
     ```python
     def aclshmemx_set_mte_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1608,7 +1622,7 @@
     |sync_id|[in]|同步 ID|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-75. **aclshmemx_set_sdma_config** — 设置 SDMA 引擎的 UB workspace 与同步 ID。
+76. **aclshmemx_set_sdma_config** — 设置 SDMA 引擎的 UB workspace 与同步 ID。
 
     ```python
     def aclshmemx_set_sdma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1621,7 +1635,7 @@
     |sync_id|[in]|同步 ID|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-76. **aclshmemx_set_rdma_config** — 设置 RDMA 引擎的 UB workspace 与同步 ID。
+77. **aclshmemx_set_rdma_config** — 设置 RDMA 引擎的 UB workspace 与同步 ID。
 
     ```python
     def aclshmemx_set_rdma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1634,7 +1648,7 @@
     |sync_id|[in]|同步 ID|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-77. **aclshmemx_set_udma_config** — 设置 UDMA 引擎的 UB workspace 与同步 ID。
+78. **aclshmemx_set_udma_config** — 设置 UDMA 引擎的 UB workspace 与同步 ID。
 
     ```python
     def aclshmemx_set_udma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1647,7 +1661,7 @@
     |sync_id|[in]|同步 ID|
     |返回值|[out]|成功返回 ``ACLSHMEM_SUCCESS``，失败返回底层错误码|
 
-78. **aclshmem_barrier** — 阻塞 Host，直到指定 team 中所有 PE 到达 barrier。这是一个集合（collective）操作。
+79. **aclshmem_barrier** — 阻塞 Host，直到指定 team 中所有 PE 到达 barrier。这是一个集合（collective）操作。
 
     ```python
     def aclshmem_barrier(team: int) -> None
@@ -1658,7 +1672,7 @@
     |team|[in]|0 到 2047 范围内且当前仍存活的 team ID|
     |返回值|-|无返回值；非法或失效 team 引发 ``ValueError``|
 
-79. **aclshmem_barrier_all** — 阻塞 Host，直到 world team 中所有 PE 到达 barrier。这是一个集合（collective）操作。
+80. **aclshmem_barrier_all** — 阻塞 Host，直到 world team 中所有 PE 到达 barrier。这是一个集合（collective）操作。
 
     ```python
     def aclshmem_barrier_all() -> None
@@ -1668,7 +1682,7 @@
     |-|-|-|
     |返回值|-|无返回值|
 
-80. **aclshmem_sync** — 同步指定 team 中的所有 PE。这是一个集合（collective）操作。
+81. **aclshmem_sync** — 同步指定 team 中的所有 PE。这是一个集合（collective）操作。
 
     ```python
     def aclshmem_sync(team: int) -> None
@@ -1679,7 +1693,7 @@
     |team|[in]|0 到 2047 范围内且当前仍存活的 team ID|
     |返回值|-|无返回值；非法或失效 team 引发 ``ValueError``|
 
-81. **aclshmem_sync_all** — 同步 world team 中的所有 PE。这是一个集合（collective）操作。
+82. **aclshmem_sync_all** — 同步 world team 中的所有 PE。这是一个集合（collective）操作。
 
     ```python
     def aclshmem_sync_all() -> None
@@ -1689,7 +1703,7 @@
     |-|-|-|
     |返回值|-|无返回值|
 
-82. **aclshmemx_barrier_on_stream** — 将指定 team 的 barrier 排入 ACL Stream。
+83. **aclshmemx_barrier_on_stream** — 将指定 team 的 barrier 排入 ACL Stream。
 
     ```python
     def aclshmemx_barrier_on_stream(team: int, stream: int) -> None
@@ -1701,7 +1715,7 @@
     |stream|[in]|``aclrtStream`` 的整数地址；``0`` 表示默认流|
     |返回值|-|无返回值；非法或失效 team 引发 ``ValueError``|
 
-83. **aclshmemx_barrier_all_on_stream** — 将 world team 的 barrier 排入 ACL Stream。
+84. **aclshmemx_barrier_all_on_stream** — 将 world team 的 barrier 排入 ACL Stream。
 
     ```python
     def aclshmemx_barrier_all_on_stream(stream: int) -> None
@@ -1712,7 +1726,7 @@
     |stream|[in]|``aclrtStream`` 的整数地址；``0`` 表示默认流|
     |返回值|-|无返回值|
 
-84. **aclshmemx_handle_wait** — 将 Handle 绑定 team 的操作完成等待和成员会合排入指定流。team 中所有 PE 必须在发出需要覆盖的异步操作后，以匹配顺序参与调用；仅 world-team Handle 要求所有 PE 参与。Host 调用只负责入流，调用者须同步该流后才能观测完成。
+85. **aclshmemx_handle_wait** — 将 Handle 绑定 team 的操作完成等待和成员会合排入指定流。team 中所有 PE 必须在发出需要覆盖的异步操作后，以匹配顺序参与调用；仅 world-team Handle 要求所有 PE 参与。Host 调用只负责入流，调用者须同步该流后才能观测完成。
 
     ```python
     def aclshmemx_handle_wait(handle: Handle, stream: int) -> None
@@ -1724,7 +1738,7 @@
     |stream|[in]|``aclrtStream`` 的整数地址；``0`` 表示默认流|
     |返回值|-|无返回值；Handle 中的 team 已失效时引发 ``ValueError``。参与成员或调用顺序不匹配可能导致永久等待|
 
-85. **aclshmemx_get_prof** — 获取当前实例、当前 PE 的 profiling 数据深拷贝。
+86. **aclshmemx_get_prof** — 获取当前实例、当前 PE 的 profiling 数据深拷贝。
 
     ```python
     def aclshmemx_get_prof(verbose: bool=False) -> Optional[ProfData]
@@ -1735,7 +1749,7 @@
     |verbose|[in]|是否同时打印 profiling 数据，默认 ``False``|
     |返回值|[out]|目标 PE 返回 ``ProfData``，无可用数据时返回 ``None``；数据按实例隔离|
 
-86. **aclshmemx_show_prof** — 打印当前实例的 profiling 数据。
+87. **aclshmemx_show_prof** — 打印当前实例的 profiling 数据。
 
     ```python
     def aclshmemx_show_prof() -> None

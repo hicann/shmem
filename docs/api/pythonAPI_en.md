@@ -1428,7 +1428,15 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |instance_id|[in]|Instance ID; accepts only non-bool integers from 0 to 254|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-66. **aclshmemx_set_attr_uniqueid_args** — Populate an `InitAttr` object from unique-ID initialization arguments.
+66. **aclshmemx_set_qp_num** — Configure the number of QPs created per peer connection before initialization.
+
+    ```python
+    def aclshmemx_set_qp_num(engine: OpEngineType, qp_num: int) -> int
+    ```
+
+    The process-wide setting must be identical on every PE. `qp_num` must be in the range `[1, ACLSHMEM_MAX_QP_NUM]`; unsupported engines or backends return `ACLSHMEM_NOT_SUPPORTED`.
+
+67. **aclshmemx_set_attr_uniqueid_args** — Populate an `InitAttr` object from unique-ID initialization arguments.
 
     ```python
     def aclshmemx_set_attr_uniqueid_args(my_pe: int, n_pes: int, local_mem_size: int, uid: UniqueId, attr: InitAttr) -> int
@@ -1443,7 +1451,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |attr|[in/out]|`InitAttr` object to populate|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-67. **aclshmemx_init_attr** — Initialize a SHMEM instance from an initialization mode and `InitAttr`. This is a collective operation.
+68. **aclshmemx_init_attr** — Initialize a SHMEM instance from an initialization mode and `InitAttr`. This is a collective operation.
 
     ```python
     def aclshmemx_init_attr(bootstrap_flags: InitMode, attributes: InitAttr) -> int
@@ -1455,7 +1463,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |attributes|[in]|Initialization attributes containing PE, memory, instance-ID, and engine options|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-68. **aclshmemx_instance_ctx_get** — Obtain a value snapshot of the active instance context.
+69. **aclshmemx_instance_ctx_get** — Obtain a value snapshot of the active instance context.
 
     ```python
     def aclshmemx_instance_ctx_get() -> Optional[InstanceContext]
@@ -1465,7 +1473,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |-|-|-|
     |Return Value|[out]|`InstanceContext` snapshot containing the current instance ID, or `None` if unavailable|
 
-69. **aclshmemx_instance_ctx_set** — Switch the active runtime context to a specified instance.
+70. **aclshmemx_instance_ctx_set** — Switch the active runtime context to a specified instance.
 
     ```python
     def aclshmemx_instance_ctx_set(instance_id: int) -> int
@@ -1476,7 +1484,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |instance_id|[in]|Target instance ID; accepts only non-bool integers from 0 to 254|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-70. **aclshmemx_malloc** — Allocate memory from a selected symmetric heap. This is a collective operation.
+71. **aclshmemx_malloc** — Allocate memory from a selected symmetric heap. This is a collective operation.
 
     ```python
     def aclshmemx_malloc(size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1488,7 +1496,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |mem_type|[in]|Symmetric heap type; default is `MemType.DEVICE_SIDE`|
     |Return Value|[out]|Integer address on success or 0 on failure|
 
-71. **aclshmemx_calloc** — Allocate and zero memory from a selected symmetric heap. This is a collective operation.
+72. **aclshmemx_calloc** — Allocate and zero memory from a selected symmetric heap. This is a collective operation.
 
     ```python
     def aclshmemx_calloc(count: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1501,7 +1509,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |mem_type|[in]|Symmetric heap type; default is `MemType.DEVICE_SIDE`|
     |Return Value|[out]|Integer address of zero-initialized memory on success or 0 on failure|
 
-72. **aclshmemx_align** — Allocate aligned memory from a selected symmetric heap. This is a collective operation.
+73. **aclshmemx_align** — Allocate aligned memory from a selected symmetric heap. This is a collective operation.
 
     ```python
     def aclshmemx_align(alignment: int, size: int, mem_type: MemType=MemType.DEVICE_SIDE) -> int
@@ -1514,7 +1522,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |mem_type|[in]|Symmetric heap type; default is `MemType.DEVICE_SIDE`|
     |Return Value|[out]|Aligned integer address on success or 0 on failure|
 
-73. **aclshmemx_free** — Free memory from a selected symmetric heap. This is a collective operation.
+74. **aclshmemx_free** — Free memory from a selected symmetric heap. This is a collective operation.
 
     ```python
     def aclshmemx_free(ptr: int, mem_type: MemType=MemType.DEVICE_SIDE) -> None
@@ -1526,7 +1534,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |mem_type|[in]|Symmetric heap type, which must match the allocation|
     |Return Value|-|No return value|
 
-74. **aclshmemx_set_mte_config** — Configure the MTE UB workspace and synchronization ID.
+75. **aclshmemx_set_mte_config** — Configure the MTE UB workspace and synchronization ID.
 
     ```python
     def aclshmemx_set_mte_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1539,7 +1547,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |sync_id|[in]|Synchronization ID|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-75. **aclshmemx_set_sdma_config** — Configure the SDMA UB workspace and synchronization ID.
+76. **aclshmemx_set_sdma_config** — Configure the SDMA UB workspace and synchronization ID.
 
     ```python
     def aclshmemx_set_sdma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1552,7 +1560,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |sync_id|[in]|Synchronization ID|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-76. **aclshmemx_set_rdma_config** — Configure the RDMA UB workspace and synchronization ID.
+77. **aclshmemx_set_rdma_config** — Configure the RDMA UB workspace and synchronization ID.
 
     ```python
     def aclshmemx_set_rdma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1565,7 +1573,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |sync_id|[in]|Synchronization ID|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-77. **aclshmemx_set_udma_config** — Configure the UDMA UB workspace and synchronization ID.
+78. **aclshmemx_set_udma_config** — Configure the UDMA UB workspace and synchronization ID.
 
     ```python
     def aclshmemx_set_udma_config(offset: int, ub_size: int, sync_id: int) -> int
@@ -1578,7 +1586,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |sync_id|[in]|Synchronization ID|
     |Return Value|[out]|Returns `ACLSHMEM_SUCCESS` on success or a native error code on failure|
 
-78. **aclshmem_barrier** — Block the host until all PEs in a specified team reach the barrier. This is a collective operation.
+79. **aclshmem_barrier** — Block the host until all PEs in a specified team reach the barrier. This is a collective operation.
 
     ```python
     def aclshmem_barrier(team: int) -> None
@@ -1589,7 +1597,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |team|[in]|Currently live team ID in the range 0 to 2047|
     |Return Value|-|No return value; an invalid or stale team raises `ValueError`|
 
-79. **aclshmem_barrier_all** — Block the host until all PEs in the world team reach the barrier. This is a collective operation.
+80. **aclshmem_barrier_all** — Block the host until all PEs in the world team reach the barrier. This is a collective operation.
 
     ```python
     def aclshmem_barrier_all() -> None
@@ -1599,7 +1607,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |-|-|-|
     |Return Value|-|No return value|
 
-80. **aclshmem_sync** — Synchronize all PEs in a specified team. This is a collective operation.
+81. **aclshmem_sync** — Synchronize all PEs in a specified team. This is a collective operation.
 
     ```python
     def aclshmem_sync(team: int) -> None
@@ -1610,7 +1618,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |team|[in]|Currently live team ID in the range 0 to 2047|
     |Return Value|-|No return value; an invalid or stale team raises `ValueError`|
 
-81. **aclshmem_sync_all** — Synchronize all PEs in the world team. This is a collective operation.
+82. **aclshmem_sync_all** — Synchronize all PEs in the world team. This is a collective operation.
 
     ```python
     def aclshmem_sync_all() -> None
@@ -1620,7 +1628,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |-|-|-|
     |Return Value|-|No return value|
 
-82. **aclshmemx_barrier_on_stream** — Enqueue a barrier for a specified team on an ACL stream.
+83. **aclshmemx_barrier_on_stream** — Enqueue a barrier for a specified team on an ACL stream.
 
     ```python
     def aclshmemx_barrier_on_stream(team: int, stream: int) -> None
@@ -1632,7 +1640,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |stream|[in]|Integer `aclrtStream` address; `0` selects the default stream|
     |Return Value|-|No return value; an invalid or stale team raises `ValueError`|
 
-83. **aclshmemx_barrier_all_on_stream** — Enqueue a world-team barrier on an ACL stream.
+84. **aclshmemx_barrier_all_on_stream** — Enqueue a world-team barrier on an ACL stream.
 
     ```python
     def aclshmemx_barrier_all_on_stream(stream: int) -> None
@@ -1643,7 +1651,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |stream|[in]|Integer `aclrtStream` address; `0` selects the default stream|
     |Return Value|-|No return value|
 
-84. **aclshmemx_handle_wait** — Enqueue a completion wait and member rendezvous for the Handle's team on the supplied stream. Every PE in that team must participate in matching order after issuing the asynchronous operations to be covered; only a world-team Handle requires every PE. The host call only enqueues the operation, so synchronize the stream before observing completion.
+85. **aclshmemx_handle_wait** — Enqueue a completion wait and member rendezvous for the Handle's team on the supplied stream. Every PE in that team must participate in matching order after issuing the asynchronous operations to be covered; only a world-team Handle requires every PE. The host call only enqueues the operation, so synchronize the stream before observing completion.
 
     ```python
     def aclshmemx_handle_wait(handle: Handle, stream: int) -> None
@@ -1655,7 +1663,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |stream|[in]|Integer `aclrtStream` address; `0` selects the default stream|
     |Return Value|-|No return value; a stale team in the Handle raises `ValueError`. Mismatched participation or call order can wait indefinitely|
 
-85. **aclshmemx_get_prof** — Obtain a deep copy of profiling data for the current instance and PE.
+86. **aclshmemx_get_prof** — Obtain a deep copy of profiling data for the current instance and PE.
 
     ```python
     def aclshmemx_get_prof(verbose: bool=False) -> Optional[ProfData]
@@ -1666,7 +1674,7 @@ The following APIs expose the same operations as their Host counterparts. Addres
     |verbose|[in]|Whether to also print profiling data; default is `False`|
     |Return Value|[out]|Returns `ProfData` on the selected PE or `None` when unavailable; data is isolated per instance|
 
-86. **aclshmemx_show_prof** — Print profiling data for the current instance.
+87. **aclshmemx_show_prof** — Print profiling data for the current instance.
 
     ```python
     def aclshmemx_show_prof() -> None

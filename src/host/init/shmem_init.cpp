@@ -658,6 +658,14 @@ int aclshmemx_set_attr_uniqueid_args(
 int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    // Legacy ROCE does not consume the process-wide QP configuration.
+    // Reject it before mutating the configuration unless RDMA v2 is compiled in.
+    if (engine == ACLSHMEM_DATA_OP_ROCE) {
+#if !defined(ACLSHMEM_RDMA_V2_SUPPORT)
+        SHM_LOG_WARN("ROCE QP configuration requires the Ascend950 RDMA v2 backend");
+        return ACLSHMEM_NOT_SUPPORTED;
+#endif
+    }
     if (!is_valid_rdma_qp_num(qp_num)) {
         SHM_LOG_ERROR("invalid qp num: " << qp_num);
         return ACLSHMEM_INVALID_VALUE;

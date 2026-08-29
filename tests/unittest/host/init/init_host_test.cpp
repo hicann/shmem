@@ -572,6 +572,7 @@ void test_aclshmem_multi_instance_invalid_id(int rank_id, int n_ranks, uint64_t 
 
 TEST(TestInitAPI, TestSetRdmaQpNumBeforeInit)
 {
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
     for (uint32_t configured_qp_num : {1U, 2U, 4U, 8U, ACLSHMEM_MAX_QP_NUM}) {
         EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, configured_qp_num), ACLSHMEM_SUCCESS);
     }
@@ -579,6 +580,11 @@ TEST(TestInitAPI, TestSetRdmaQpNumBeforeInit)
     EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 0), ACLSHMEM_INVALID_VALUE);
     EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, ACLSHMEM_MAX_QP_NUM + 1), ACLSHMEM_INVALID_VALUE);
     EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+#else
+    for (uint32_t configured_qp_num : {0U, 1U, 2U, 4U, 8U, ACLSHMEM_MAX_QP_NUM, ACLSHMEM_MAX_QP_NUM + 1}) {
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, configured_qp_num), ACLSHMEM_NOT_SUPPORTED);
+    }
+#endif
 }
 
 TEST(TestInitAPI, TestSetUdmaQpNumBeforeInit)
@@ -1055,10 +1061,10 @@ void test_aclshmemx_finalize_active(int rank_id, int n_ranks, uint64_t local_mem
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(aclrtSetDevice(device_id), 0);
     aclshmemx_set_conf_store_tls(false, nullptr, 0);
-#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
     EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 4), ACLSHMEM_SUCCESS);
 #else
-    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+    EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_NOT_SUPPORTED);
 #endif
     EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 4), ACLSHMEM_SUCCESS);
 
@@ -1079,10 +1085,10 @@ void test_aclshmemx_finalize_active(int rank_id, int n_ranks, uint64_t local_mem
         EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_NOT_SUPPORTED);
 
         EXPECT_EQ(aclshmemx_finalize(INSTANCE_ID), ACLSHMEM_SUCCESS);
-#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
         EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 2), ACLSHMEM_SUCCESS);
 #else
-        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_SUCCESS);
+        EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, 1), ACLSHMEM_NOT_SUPPORTED);
 #endif
         EXPECT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_UDMA, 2), ACLSHMEM_SUCCESS);
     }
