@@ -13,6 +13,10 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
+#include <random>
 #include <unistd.h>
 #include <vector>
 #include "acl/acl.h"
@@ -250,6 +254,31 @@ void test_multi_instance_finalize(aclrtStream stream, int device_id, int inst_co
     EXPECT_EQ(aclFinalize(), 0);
 }
 
+const std::string& get_multi_instance_port_range()
+{
+    // Generate once in the launcher process. ScopedEnv sets it before fork, so
+    // every rank in this UT run inherits the same range while concurrent runs
+    // are unlikely to select the same instance ports.
+    static const std::string port_range = []() {
+        constexpr uint32_t first_port = 20000;
+        constexpr uint32_t last_port = 65535;
+        constexpr uint32_t max_instance_id = 1023;
+        constexpr uint32_t start_port_count = last_port - first_port - max_instance_id + 1;
+        const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+        const uint64_t seed = static_cast<uint64_t>(now) ^ (static_cast<uint64_t>(getpid()) << 32);
+        std::mt19937_64 generator(seed);
+        const char* port_separator = std::strrchr(test_global_ipport, ':');
+        const uint32_t bootstrap_port =
+            port_separator == nullptr ? 0 : static_cast<uint32_t>(std::strtoul(port_separator + 1, nullptr, 10));
+        uint32_t start_port;
+        do {
+            start_port = first_port + generator() % start_port_count;
+        } while (bootstrap_port >= start_port && bootstrap_port <= start_port + max_instance_id);
+        return std::to_string(start_port) + ":" + std::to_string(start_port + max_instance_id);
+    }();
+    return port_range;
+}
+
 void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count)
 {
     pid_t pids[process_count];
@@ -367,7 +396,7 @@ void test_mutil_task_with_uid(
 
             aclshmemx_uniqueid_t uid{};
             if (i == 0) {
-                setenv("SHMEM_UID_SESSION_ID", "127.0.0.1:8666", 1);
+                // Inherit the per-run session endpoint configured by the launcher.
                 int ret = aclshmemx_get_uniqueid(&uid);
                 if (ret != ACLSHMEM_SUCCESS || uid.version != ACLSHMEM_UNIQUEID_VERSION) {
                     ret = (ret != ACLSHMEM_SUCCESS) ? ret : ACLSHMEM_INVALID_VALUE;
@@ -476,8 +505,6 @@ void test_mutil_task_uid_loop(
         return;
     }
 
-    const char* session_id = "127.0.0.1:8666";
-
     pid_t pids[process_count];
     int status[process_count];
 
@@ -507,7 +534,7 @@ void test_mutil_task_uid_loop(
         if (pids[i] == 0) {
             // --- child ---
             if (i == 0) {
-                setenv("SHMEM_UID_SESSION_ID", session_id, 1);
+                // Inherit the per-run session endpoint configured by the launcher.
                 for (int j = 1; j < process_count; ++j) {
                     close(uid_to_rank[j][0]);
                 }

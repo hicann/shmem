@@ -1015,8 +1015,7 @@ TEST(TestInitAPI, TestShmemCantAccess)
 TEST(TestInitAPI, TestShmemMultiInstanceSingle)
 {
     // 多实例默认模式所需环境变量，作用域结束自动还原
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1025,8 +1024,7 @@ TEST(TestInitAPI, TestShmemMultiInstanceSingle)
 
 TEST(TestInitAPI, TestShmemMultiInstanceMalloc)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1035,8 +1033,7 @@ TEST(TestInitAPI, TestShmemMultiInstanceMalloc)
 
 TEST(TestInitAPI, TestShmemMultiInstanceOverlap)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1045,8 +1042,7 @@ TEST(TestInitAPI, TestShmemMultiInstanceOverlap)
 
 TEST(TestInitAPI, TestShmemMultiInstanceInvalidId)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1198,8 +1194,7 @@ void test_aclshmemx_finalize_nonexist(int rank_id, int n_ranks, uint64_t local_m
 
 TEST(TestInitAPI, TestShmemxFinalizeActive)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1208,8 +1203,7 @@ TEST(TestInitAPI, TestShmemxFinalizeActive)
 
 TEST(TestInitAPI, TestShmemxFinalizeNonactive)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
@@ -1218,8 +1212,7 @@ TEST(TestInitAPI, TestShmemxFinalizeNonactive)
 
 TEST(TestInitAPI, TestShmemxFinalizeNonexist)
 {
-    const char* fix_port_range = "20000:21023";
-    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", fix_port_range);
+    ScopedEnv env_port("SHMEM_INSTANCE_PORT_RANGE", get_multi_instance_port_range().c_str());
 
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;

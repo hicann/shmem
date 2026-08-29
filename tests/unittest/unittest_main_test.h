@@ -10,6 +10,8 @@
 #ifndef UNITTEST_H
 #define UNITTEST_H
 
+#include <string>
+
 extern int test_global_ranks;
 extern int test_gnpu_num;
 extern char test_global_ipport[ACLSHMEM_MAX_IP_PORT_LEN];
@@ -26,6 +28,7 @@ void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream*
 void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream* st, int inst_count);
 void test_finalize(aclrtStream stream, int device_id);
 void test_multi_instance_finalize(aclrtStream stream, int device_id, int inst_count);
+const std::string& get_multi_instance_port_range();
 void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
 void test_mutil_task_with_uid(
     std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func, uint64_t local_mem_size, int process_count);

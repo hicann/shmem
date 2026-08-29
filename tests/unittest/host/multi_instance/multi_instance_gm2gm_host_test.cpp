@@ -9,11 +9,8 @@
  */
 #include <cstdint>
 #include <iostream>
-#include <chrono>
-#include <random>
 #include <string>
 #include <vector>
-#include <unistd.h>
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
@@ -27,19 +24,6 @@
 const int INSTANCE_NUM = 3;
 const int input_length = 256;
 const int ut_magic = 10;
-
-static std::string get_multi_instance_port_range()
-{
-    // Concurrent UT processes need different ports; forked ranks share one range.
-    constexpr uint16_t first_port = 20000;
-    constexpr uint16_t range_size = INSTANCE_NUM + 1;
-    constexpr uint16_t last_port = 65535;
-    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    const uint64_t seed = static_cast<uint64_t>(now) ^ (static_cast<uint64_t>(getpid()) << 32);
-    std::mt19937 generator(static_cast<uint32_t>(seed));
-    const uint16_t start_port = first_port + generator() % (last_port - first_port - range_size);
-    return std::to_string(start_port) + ":" + std::to_string(start_port + range_size);
-}
 
 #define TEST_FUNC(NAME, TYPE)                                                                                       \
     extern void multi_instance_##NAME##_test_put(                                                                   \

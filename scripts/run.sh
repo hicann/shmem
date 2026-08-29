@@ -22,8 +22,12 @@ rm -rf "$COVERAGE_PATH"
 
 set -e
 RANK_SIZE="8"
-IPPORT="tcp://127.0.0.1:8666"
-SESSION_ID="127.0.0.1:8766"
+# Bash RANDOM is 15-bit. Combine two samples so concurrent CI jobs are
+# less likely to select the same bootstrap port.
+RANDOM_VALUE=$(((RANDOM << 15) | RANDOM))
+RANDOM_PORT=$((1024 + RANDOM_VALUE % 64512))
+IPPORT="tcp://127.0.0.1:${RANDOM_PORT}"
+SESSION_ID="127.0.0.1:${RANDOM_PORT}"
 GNPU_NUM="8"
 FIRST_NPU="0"
 FIRST_RANK="0"
@@ -70,7 +74,6 @@ while [[ $# -gt 0 ]]; do
                 if [[ "$2" =~ ^[a-zA-Z0-9/:._-]+$ ]]; then
                     IPPORT="tcp://${2}"
                     SESSION_ID="${2}"
-                    export SHMEM_UID_SESSION_ID=$SESSION_ID
                     shift 2
                 else
                     echo "Error: Invalid -ipport format, only alphanumeric and :/_- allowed"
@@ -128,6 +131,8 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+echo "Using SHMEM bootstrap endpoint: ${IPPORT}"
+export SHMEM_UID_SESSION_ID="${SESSION_ID}"
 export SMEM_CONF_STORE_TLS_ENABLE=0
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 
