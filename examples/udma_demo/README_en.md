@@ -1,5 +1,7 @@
 Instructions:
 
+- The sample enables `aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG)` after initialization and calls `aclshmemx_report_exception()` after kernel synchronization to show the UDMA exception reporting API usage.
+
 1. Build in the `shmem/` directory:
 ```bash
 bash scripts/build.sh -examples -soc_type Ascend950

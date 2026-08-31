@@ -812,6 +812,29 @@ TEST(TestExceptionReportAPI, TestReportKeepsUdmaReporterForCompositeMasks)
     aclshmemi_exception_report_finalize();
 }
 
+TEST(TestExceptionReportAPI, TestReportRecomputesUdmaReporterAfterLateDebugEnable)
+{
+    aclshmemi_exception_report_finalize();
+    const int old_npes = g_state.npes;
+    g_state.npes = 2;
+
+    const auto requested_engines = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_UDMA | ACLSHMEM_DATA_OP_ROCE);
+    EXPECT_EQ(aclshmemi_exception_report_apply_deferred_config(requested_engines), ACLSHMEM_SUCCESS);
+    aclshmemi_exception_report_context_t context{};
+    aclshmemi_exception_report_save_context(context);
+    EXPECT_EQ(context.requested_engines, static_cast<uint32_t>(requested_engines));
+    EXPECT_EQ(context.enabled_engines, 0U);
+
+    EXPECT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG), ACLSHMEM_SUCCESS);
+    aclshmemi_exception_report_context_t debug_context{};
+    aclshmemi_exception_report_save_context(debug_context);
+    EXPECT_EQ(debug_context.requested_engines, static_cast<uint32_t>(requested_engines));
+    EXPECT_EQ(debug_context.enabled_engines, static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA));
+
+    g_state.npes = old_npes;
+    aclshmemi_exception_report_finalize();
+}
+
 TEST(TestExceptionReportAPI, TestReportSkipsUdmaReporterForSinglePeDebug)
 {
     aclshmemi_exception_report_finalize();

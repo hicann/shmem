@@ -23,6 +23,7 @@ enum aclshmemi_exception_report_mode_t : uint32_t {
 
 struct aclshmemi_exception_report_context_t {
     bool explicit_configured{false};
+    uint32_t requested_engines{0};
     uint32_t enabled_engines{0};
     uint32_t mode{ACLSHMEMI_EXCEPTION_REPORT_MODE_OFF};
     aclshmemx_exception_info_callback_t user_callback{nullptr};

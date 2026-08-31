@@ -194,6 +194,7 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_udma_poll_cq(uint32_t slot, uint32_t qp_idx, 
         }
         if (times >= MAX_RETRY_TIMES) {
             ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "Poll cq timeout! cur_tail=%d idx=%d\n", cur_tail, idx);
+            trap();
             return 0xFF;
         }
         // Check CQE status
@@ -202,6 +203,7 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_udma_poll_cq(uint32_t slot, uint32_t qp_idx, 
         constexpr uint8_t STATUS_SHIFT = 8;
         if (status != 0 || sub_status != 0) {
             ACLSHMEM_DEBUG_FUNC(aclshmemi_dump_cqe, cqe_addr);
+            trap();
             return (status << STATUS_SHIFT) | sub_status;
         }
         last_entry_idx = cqe_addr->entry_idx;

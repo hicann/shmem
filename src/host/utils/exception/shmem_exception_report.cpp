@@ -50,6 +50,8 @@ struct aclshmemi_runtime_exception_atomic_t {
 
 struct aclshmemi_exception_report_state_t {
     std::atomic<bool> explicit_configured{false};
+    // Raw engine mask requested by init; the selected mask may be recomputed after DEBUG is enabled.
+    std::atomic<uint32_t> requested_engines{0};
     std::atomic<uint32_t> enabled_engines{0};
     std::atomic<uint64_t> udma_info_address{0};
     std::atomic<uint32_t> mode{ACLSHMEMI_EXCEPTION_REPORT_MODE_OFF};
@@ -283,6 +285,7 @@ void aclshmemi_exception_report_save_context(aclshmemi_exception_report_context_
 {
     const auto snapshot = aclshmemi_exception_report_snapshot();
     context.explicit_configured = g_exception_report_state.explicit_configured.load(std::memory_order_acquire);
+    context.requested_engines = g_exception_report_state.requested_engines.load(std::memory_order_acquire);
     context.enabled_engines = g_exception_report_state.enabled_engines.load(std::memory_order_acquire);
     context.mode = g_exception_report_state.mode.load(std::memory_order_acquire);
     context.user_callback = g_exception_report_state.user_callback.load(std::memory_order_acquire);
@@ -319,6 +322,7 @@ void aclshmemi_exception_report_restore_context(const aclshmemi_exception_report
     state.snapshot_lock.clear(std::memory_order_release);
 
     state.explicit_configured.store(context.explicit_configured, std::memory_order_release);
+    state.requested_engines.store(context.requested_engines, std::memory_order_release);
     state.enabled_engines.store(context.enabled_engines, std::memory_order_release);
     state.mode.store(context.mode, std::memory_order_release);
     state.user_callback.store(context.user_callback, std::memory_order_release);
@@ -339,6 +343,7 @@ int aclshmemi_exception_report_dump(void)
 
 int aclshmemi_exception_report_apply_deferred_config(data_op_engine_type_t enabled_engines)
 {
+    g_exception_report_state.requested_engines.store(static_cast<uint32_t>(enabled_engines), std::memory_order_release);
     g_exception_report_state.enabled_engines.store(
         aclshmemi_exception_report_selected_transport_engine(enabled_engines), std::memory_order_release);
     if (g_exception_report_state.explicit_configured.load(std::memory_order_acquire)) {
@@ -366,6 +371,7 @@ void aclshmemi_exception_report_finalize(void)
     const bool callback_registered = g_exception_report_state.registration_state.load(std::memory_order_acquire) ==
                                      ACLSHMEMI_EXCEPTION_REPORT_REGISTRATION_REGISTERED;
     g_exception_report_state.enabled_engines.store(0, std::memory_order_release);
+    g_exception_report_state.requested_engines.store(0, std::memory_order_release);
     g_exception_report_state.udma_info_address.store(0, std::memory_order_release);
     g_exception_report_state.user_callback.store(nullptr, std::memory_order_release);
     g_exception_report_state.mode.store(ACLSHMEMI_EXCEPTION_REPORT_MODE_OFF, std::memory_order_release);
@@ -395,6 +401,8 @@ int aclshmemx_enable_exception_report(
     }
 
     const bool old_explicit_configured = state.explicit_configured.load(std::memory_order_acquire);
+    const uint32_t old_requested_engines = state.requested_engines.load(std::memory_order_acquire);
+    const uint32_t old_enabled_engines = state.enabled_engines.load(std::memory_order_acquire);
     const uint32_t old_mode = state.mode.load(std::memory_order_acquire);
     const auto old_callback = state.user_callback.load(std::memory_order_acquire);
     const uint32_t old_registration_state = state.registration_state.load(std::memory_order_acquire);
@@ -403,6 +411,10 @@ int aclshmemx_enable_exception_report(
     state.mode.store(static_cast<uint32_t>(mode), std::memory_order_release);
     state.user_callback.store(callback, std::memory_order_release);
     state.registration_state.store(ACLSHMEMI_EXCEPTION_REPORT_REGISTRATION_DEFERRED, std::memory_order_release);
+    state.enabled_engines.store(
+        aclshmemi_exception_report_selected_transport_engine(
+            static_cast<data_op_engine_type_t>(state.requested_engines.load(std::memory_order_acquire))),
+        std::memory_order_release);
 
     int ret = aclshmemi_exception_report_set_callback();
     if (ret == ACLSHMEM_NOT_SUPPORTED && !g_state.is_aclshmem_created) {
@@ -410,6 +422,8 @@ int aclshmemx_enable_exception_report(
     }
     if (ret != ACLSHMEM_SUCCESS) {
         state.explicit_configured.store(old_explicit_configured, std::memory_order_release);
+        state.requested_engines.store(old_requested_engines, std::memory_order_release);
+        state.enabled_engines.store(old_enabled_engines, std::memory_order_release);
         state.mode.store(old_mode, std::memory_order_release);
         state.user_callback.store(old_callback, std::memory_order_release);
         state.registration_state.store(old_registration_state, std::memory_order_release);

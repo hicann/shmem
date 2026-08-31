@@ -79,6 +79,20 @@ int init_acl_shmem(
         (void)aclFinalize();
         return ACLSHMEM_INNER_ERROR;
     }
+    status = aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG);
+    if (status == ACLSHMEM_NOT_SUPPORTED) {
+        std::cout << "runtime exception report is not supported, skip enabling" << std::endl;
+        status = ACLSHMEM_SUCCESS;
+    }
+    if (status != ACLSHMEM_SUCCESS) {
+        (void)aclshmem_free(ptr);
+        (void)aclshmem_finalize();
+        (void)aclrtDestroyStream(stream);
+        stream = nullptr;
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
     return ACLSHMEM_SUCCESS;
 }
 
@@ -161,6 +175,11 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     // Launch the all-gather kernel.
     launch_udma_all_gather(1, stream, (uint8_t*)ptr, dump, trans_size * sizeof(int32_t));
     status |= aclrtSynchronizeStream(stream);
+    const int report_status = aclshmemx_report_exception();
+    if (report_status != ACLSHMEM_SUCCESS) {
+        std::cout << "aclshmemx_report_exception failed, status=" << report_status << std::endl;
+    }
+    status |= report_status;
 #if defined(ENABLE_ASCENDC_DUMP)
     Adx::AdumpPrintWorkSpace(dump, DEBUG_DUMP_SIZE, stream, "udma_demo");
 #endif
@@ -169,11 +188,15 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
         std::cout << "check transport result success, pe=" << pe_id << std::endl;
     } else {
         std::cout << "check transport result failed, pe=" << pe_id << std::endl;
-        cleanup_resources(stream, device_id, ptr);
-        return -1;
+        if (status == 0) {
+            status = -1;
+        }
+        (void)cleanup_resources(stream, device_id, ptr);
+        return status;
     }
 
-    return cleanup_resources(stream, device_id, ptr);
+    const int cleanup_status = cleanup_resources(stream, device_id, ptr);
+    return status != 0 ? status : cleanup_status;
 }
 
 int test_aclshmem_udma_put_signal(int pe_id, int n_pes, uint64_t local_mem_size)
@@ -212,13 +235,21 @@ int test_aclshmem_udma_put_signal(int pe_id, int n_pes, uint64_t local_mem_size)
     uint64_t signal = 1000;
     launch_udma_put_signal(1, stream, (uint8_t*)ptr, sig_addr, dump, trans_size * sizeof(int32_t), signal);
     status |= aclrtSynchronizeStream(stream);
+    const int report_status = aclshmemx_report_exception();
+    if (report_status != ACLSHMEM_SUCCESS) {
+        std::cout << "aclshmemx_report_exception failed, status=" << report_status << std::endl;
+    }
+    status |= report_status;
 
     if (validate_result(ptr, n_pes, trans_size)) {
         std::cout << "check udma put signal result success, pe=" << pe_id << std::endl;
     } else {
         std::cout << "check udma put signal result failed, pe=" << pe_id << std::endl;
-        cleanup_resources(stream, device_id, ptr, sig_addr);
-        return -1;
+        if (status == 0) {
+            status = -1;
+        }
+        (void)cleanup_resources(stream, device_id, ptr, sig_addr);
+        return status;
     }
 
     // Read and validate all signals
@@ -252,7 +283,8 @@ int test_aclshmem_udma_put_signal(int pe_id, int n_pes, uint64_t local_mem_size)
         aclrtFree(dump);
     }
 #endif
-    return cleanup_resources(stream, device_id, ptr, sig_addr);
+    const int cleanup_status = cleanup_resources(stream, device_id, ptr, sig_addr);
+    return status != 0 ? status : cleanup_status;
 }
 
 int main(int argc, char* argv[])
