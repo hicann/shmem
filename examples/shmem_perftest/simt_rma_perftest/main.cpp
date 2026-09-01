@@ -66,6 +66,17 @@ static aclshmem_prof_pe_t* out_profs;
 // -----------------------------------------------------------------------------
 // Data preparation and validation
 // -----------------------------------------------------------------------------
+// Location and values of the first differing byte found by check_data().
+struct DataMismatch {
+    bool ok = true;
+    int32_t block = -1;
+    size_t offset_in_block = 0;
+    size_t absolute_offset = 0;
+    int8_t expected = 0;
+    int8_t actual = 0;
+    uint64_t mismatch_count = 0; // total differing bytes across all blocks
+};
+
 class PerfDataPrepValidator {
 private:
     int32_t my_pe;
@@ -94,23 +105,33 @@ public:
     // Region-based check: validates the first 'effective_bytes_per_block' of
     // each block. Called with block_stride == logical_segment_bytes so the
     // validated regions exactly match the contiguous ring written by the kernel.
-    bool check_data(void* data, size_t effective_bytes_per_block, int32_t block_count, size_t block_stride)
+    // Scans every block so mismatch_count reflects the full extent of the corruption.
+    DataMismatch check_data(void* data, size_t effective_bytes_per_block, int32_t block_count, size_t block_stride)
     {
+        DataMismatch result;
         // No validation on the source side
         if ((OP_TYPE == OpType::Put && my_pe == ACTIVE_PE) || (OP_TYPE == OpType::Get && my_pe == PASSIVE_PE) ||
             OP_TYPE == OpType::None) {
-            return true;
+            return result;
         }
         const int8_t* base = static_cast<const int8_t*>(data);
         for (int32_t b = 0; b < block_count; ++b) {
             const int8_t* block_start = base + b * block_stride;
             for (size_t i = 0; i < effective_bytes_per_block; ++i) {
                 if (block_start[i] != expected_value) {
-                    return false;
+                    if (result.ok) {
+                        result.ok = false;
+                        result.block = b;
+                        result.offset_in_block = i;
+                        result.absolute_offset = static_cast<size_t>(b) * block_stride + i;
+                        result.expected = expected_value;
+                        result.actual = block_start[i];
+                    }
+                    ++result.mismatch_count;
                 }
             }
         }
-        return true;
+        return result;
     }
 };
 
@@ -376,8 +397,24 @@ int32_t execute_test_loop(const Config& config, aclrtStream stream)
 
             ACL_CHECK(aclrtMemcpy(host_mem, used_bytes, device_mem, used_bytes, ACL_MEMCPY_DEVICE_TO_HOST));
 
-            bool success = pdpv.check_data(host_mem, invp.logical_segment_bytes, block, invp.logical_segment_bytes);
-            ever_failed = ever_failed || (!success);
+            DataMismatch mm = pdpv.check_data(host_mem, invp.logical_segment_bytes, block, invp.logical_segment_bytes);
+            if (!mm.ok) {
+                ERROR_LOG(
+                    "Data validation FAILED on PE %d (%s), op=%s, vf=%s, data_size=%d bits, threads=%d\n"
+                    "          test point: blocks=%d, transfer=2^%d=%d B/invocation, "
+                    "logical_segment=%d B, used_bytes=%zu, ub_size=%d KB\n"
+                    "          loops=%d (+%d warmup), frame_id=%d\n"
+                    "          first bad byte: block=%d, offset_in_block=%zu, absolute_offset=%zu, "
+                    "expected=%d, actual=%d\n"
+                    "          total mismatched bytes: %llu of %zu checked",
+                    mype, (mype == ACTIVE_PE ? "ACTIVE" : "PASSIVE"), to_string(OP_TYPE).c_str(),
+                    to_string(VF_TYPE).c_str(), DATA_SIZE, THREAD_COUNT, block, exp, invp.per_invocation_bytes,
+                    invp.logical_segment_bytes, used_bytes, config.ub_size, config.loop_count, WARMUP_LOOPS, frame_id,
+                    mm.block, mm.offset_in_block, mm.absolute_offset, static_cast<int>(mm.expected),
+                    static_cast<int>(mm.actual), static_cast<unsigned long long>(mm.mismatch_count),
+                    static_cast<size_t>(invp.logical_segment_bytes) * block);
+            }
+            ever_failed = ever_failed || (!mm.ok);
 
             aclshmemx_get_prof(&out_profs, false);
             collect_prof_data_to_csv_v2(
@@ -425,7 +462,7 @@ int32_t execute_test_loop(const Config& config, aclrtStream stream)
     }
 
     if (ever_failed) {
-        printf("[ERROR] Some tests failed.\n");
+        ERROR_LOG("Some tests failed on PE %d; see the per-test-point details above.", mype);
     }
     return ever_failed ? -1 : 0;
 }

@@ -29,23 +29,9 @@ DATA_TYPE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -pes)
-            PE_SIZE="$2"
-            if [[ "$GNPU_NUM" =~ ^[0-9]+$ && "$PE_SIZE" =~ ^[0-9]+$ && "$GNPU_NUM" -gt "$PE_SIZE" ]]; then
-                GNPU_NUM="$PE_SIZE"
-                echo "Because GNPU_NUM is greater than PE_SIZE, GNPU_NUM is assigned the value of PE_SIZE=${PE_SIZE}."
-            fi
-            shift 2
-            ;;
+        -pes)               PE_SIZE="$2"; shift 2 ;;
         -ipport)            IPPORT="$2"; shift 2 ;;
-        -gnpus)
-            GNPU_NUM="$2"
-            if [[ "$GNPU_NUM" =~ ^[0-9]+$ && "$PE_SIZE" =~ ^[0-9]+$ && "$GNPU_NUM" -gt "$PE_SIZE" ]]; then
-                GNPU_NUM="$PE_SIZE"
-                echo "Because GNPU_NUM is greater than PE_SIZE, GNPU_NUM is assigned the value of PE_SIZE=${PE_SIZE}."
-            fi
-            shift 2
-            ;;
+        -gnpus)             GNPU_NUM="$2"; shift 2 ;;
         -fnpu)              FIRST_NPU="$2"; shift 2 ;;
         -fpe)               FIRST_PE="$2"; shift 2 ;;
         -t|--test-type)     TEST_TYPE="$2"; shift 2 ;;
@@ -66,7 +52,7 @@ Launches a fixed 2-card (Active PE0 / Passive PE1) gm2gm RMA perf test.
 Options:
   -pes <int>                Number of PEs, must be 2.                    (default: 2)
   -ipport <ip:port>         Bootstrap communication address.            (default: tcp://127.0.0.1:8760)
-  -gnpus <int>              Number of NPUs used on this node.           (default: 2)
+  -gnpus <int>              Number of NPUs used on this node, must be 2. (default: 2)
   -fnpu <int>               First NPU id; device = pe_id % gnpus + fnpu.(default: 0)
   -fpe <int>                First PE id. Kept for CLI compatibility; unused.(default: 0)
   -t|--test-type <put|get|none>
@@ -105,12 +91,13 @@ if [[ "$MIN_EXPONENT" -lt 3 || "$MAX_EXPONENT" -gt 20 || "$MIN_EXPONENT" -gt "$M
     echo "Error: exponent range must satisfy 3 <= min <= max <= 20."
     exit 1
 fi
-if ! [[ "$GNPU_NUM" =~ ^[0-9]+$ ]]; then
-    echo "Error: -gnpus must be an integer."
+# 固定两卡 Active(PE0)/Passive(PE1) 模型，-pes 与 -gnpus 均只能为 2。
+if ! [[ "$PE_SIZE" =~ ^[0-9]+$ && "$GNPU_NUM" =~ ^[0-9]+$ ]]; then
+    echo "Error: -pes and -gnpus must be non-negative integers."
     exit 1
 fi
-if [[ "$GNPU_NUM" -ne 2 ]]; then
-    echo "Error: -gnpus must be 2 for simt_rma_perftest fixed 2-card Active/Passive model."
+if [[ "$PE_SIZE" -ne 2 || "$GNPU_NUM" -ne 2 ]]; then
+    echo "Error: -pes and -gnpus must both be 2 for the simt_rma_perftest fixed 2-card Active/Passive model."
     exit 1
 fi
 

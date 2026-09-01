@@ -133,14 +133,16 @@ EOF
     esac
 done
 
-# Check parameters
-if [ "$NPES" -ne 2 ] || [ "$GNPUS" -ne 2 ]; then
-    echo "[ERROR] This test requires exactly 2 PEs and 2 NPUs."
+# Check the integer shape first: a non-numeric value makes the -ne tests below error
+# out and fall through instead of reporting the bad argument.
+if ! [[ "$NPES" =~ ^[0-9]+$ && "$GNPUS" =~ ^[0-9]+$ ]]; then
+    echo "[ERROR] -pes and -gnpus must be non-negative integers." >&2
     exit 1
 fi
-
-# Create output directory
-mkdir -p output
+if [ "$NPES" -ne 2 ] || [ "$GNPUS" -ne 2 ]; then
+    echo "[ERROR] This test requires exactly 2 PEs and 2 NPUs." >&2
+    exit 1
+fi
 
 # Environment setup
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -172,10 +174,14 @@ fi
 BINARY="${PROJECT_ROOT}/build/bin/simt_rma_ub2gm_perftest"
 
 if [ ! -f "$BINARY" ]; then
-    echo "[ERROR] Binary not found. Please compile first with:"
-    echo "  bash scripts/build.sh -examples -enable_simt -soc_type Ascend950"
+    echo "[ERROR] Binary not found. Please compile first with:" >&2
+    echo "  bash scripts/build.sh -examples -enable_simt -soc_type Ascend950" >&2
     exit 1
 fi
+
+# CSV output dir (see main.cpp). Created only after the checks above pass, so a
+# failed run leaves no empty directory behind.
+mkdir -p output
 
 # Launch processes. PE ranks are always 0..NPES-1: the binary only accepts rank 0
 # (ACTIVE) or 1 (PASSIVE), so -fpe must not shift them. It is forwarded for CLI
@@ -201,9 +207,7 @@ done
 
 if [ $EXIT_CODE -eq 0 ]; then
     echo "[SUCCESS] Test completed successfully."
-    if [ -d output ]; then
-        echo "[INFO] Results saved in output/"
-    fi
+    echo "[INFO] Results saved in output/"
 else
     echo "[FAILURE] Test failed with exit code $EXIT_CODE"
 fi

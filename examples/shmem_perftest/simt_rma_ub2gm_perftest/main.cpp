@@ -65,6 +65,17 @@ constexpr int32_t PASSIVE_PE = 1;
 aclshmemx_uniqueid_t default_flag_uid;
 static aclshmem_prof_pe_t* out_profs;
 
+// Location and values of the first differing byte found by check_data().
+struct DataMismatch {
+    bool ok = true;
+    int32_t block = -1;
+    size_t offset_in_block = 0;
+    size_t absolute_offset = 0;
+    int8_t expected = 0;
+    int8_t actual = 0;
+    uint64_t mismatch_count = 0; // total differing bytes across all blocks
+};
+
 // Data preparation and validation.
 //
 // Both the fill and the check work at byte granularity rather than on T: the fill
@@ -93,10 +104,12 @@ public:
         std::fill_n(static_cast<int8_t*>(data), len, fill_val);
     }
 
-    bool check_data(void* data, size_t effective_bytes_per_block, int32_t block_count, size_t block_stride)
+    // Scans every block so mismatch_count reflects the full extent of the corruption.
+    DataMismatch check_data(void* data, size_t effective_bytes_per_block, int32_t block_count, size_t block_stride)
     {
+        DataMismatch result;
         if ((op_type == OpType::Put && my_pe == ACTIVE_PE) || (op_type == OpType::Get && my_pe == PASSIVE_PE)) {
-            return true;
+            return result;
         }
 
         const int8_t* base = static_cast<const int8_t*>(data);
@@ -104,11 +117,19 @@ public:
             const int8_t* block_start = base + b * block_stride;
             for (size_t i = 0; i < effective_bytes_per_block; ++i) {
                 if (block_start[i] != expected_value) {
-                    return false;
+                    if (result.ok) {
+                        result.ok = false;
+                        result.block = b;
+                        result.offset_in_block = i;
+                        result.absolute_offset = static_cast<size_t>(b) * block_stride + i;
+                        result.expected = expected_value;
+                        result.actual = block_start[i];
+                    }
+                    ++result.mismatch_count;
                 }
             }
         }
-        return true;
+        return result;
     }
 };
 
@@ -208,7 +229,6 @@ __global__ __vector__ void run_demo_mem_ub2gm(__gm__ void* sym_addr, InvokeParam
     int32_t my_block_id = AscendC::GetBlockIdx();
     int32_t total_block_num = AscendC::GetBlockNum();
 
-    // Define UB buffer in __global__ function
     __ubuf__ T ub_buf[UB_BUFFER_SIZE];
 
     const int32_t ring_size = total_block_num * invp.logical_segment_bytes;
@@ -222,8 +242,6 @@ __global__ __vector__ void run_demo_mem_ub2gm(__gm__ void* sym_addr, InvokeParam
 
     // Preparation phase: initialize UB data (not timed)
     if constexpr (OP_TYPE == OpType::Put) {
-        // Copy data from local GM to UB. Every element of this PE's symmetric
-        // memory holds the same fill value, so one copy from the base is enough.
         __gm__ T* src_gm = reinterpret_cast<__gm__ T*>(sym_addr);
         copy_gm2ub(ub_buf, src_gm, invp.per_invocation_bytes);
         AscendC::PipeBarrier<PIPE_ALL>();
@@ -245,28 +263,23 @@ __global__ __vector__ void run_demo_mem_ub2gm(__gm__ void* sym_addr, InvokeParam
         VSSync::end();
     }
 
-    // Performance measurement loop
     SHMEMI_PROF_START(frame_id);
     AscendC::PipeBarrier<PIPE_ALL>();
 
     for (int32_t i = 0; i < invp.loops; i++) {
-        // Calculate target address (logical ring) - continue from warmup
         int32_t iter = invp.warmup + i;
         int32_t window_start = (iter % steps_per_ring_scan) * invp.per_invocation_bytes;
         int32_t offset = (window_start + my_block_id * invp.logical_segment_bytes) % ring_size;
         __gm__ T* target_addr = reinterpret_cast<__gm__ T*>(reinterpret_cast<__gm__ int8_t*>(sym_addr) + offset);
 
-        // Scalar → Vector synchronization
         VSSync::start();
 
-        // Call SIMT transfer function (core measurement)
         if constexpr (OP_TYPE == OpType::Put) {
             asc_vf_call<transfer_vf_put>(dim3(THREAD_COUNT), target_addr, ub_buf, count, next_pe);
         } else {
             asc_vf_call<transfer_vf_get>(dim3(THREAD_COUNT), ub_buf, target_addr, count, next_pe);
         }
 
-        // Wait for transfer completion
         AscendC::SyncAll<true>();
         VSSync::end();
     }
@@ -274,10 +287,6 @@ __global__ __vector__ void run_demo_mem_ub2gm(__gm__ void* sym_addr, InvokeParam
     SHMEMI_PROF_END(frame_id);
     AscendC::PipeBarrier<PIPE_ALL>();
 
-    // Verification phase (not timed). Write the fetched UB data back to the base
-    // of this block's logical segment: a deterministic location the host can
-    // validate. Only per_invocation_bytes per block are written, so the host
-    // checks exactly that much (see the check_data call).
     if constexpr (OP_TYPE == OpType::Get) {
         __gm__ T* seg_base = reinterpret_cast<__gm__ T*>(
             reinterpret_cast<__gm__ int8_t*>(sym_addr) + my_block_id * invp.logical_segment_bytes);
@@ -351,16 +360,23 @@ int32_t execute_test_loop(const Config& config, aclrtStream stream)
 
             ACL_CHECK(aclrtMemcpy(host_mem, used_bytes, device_mem, used_bytes, ACL_MEMCPY_DEVICE_TO_HOST));
 
-            // PUT fills each block's whole logical segment (the sliding window
-            // sweeps the ring), so the full segment is validated. GET only writes
-            // per_invocation_bytes back per block, so only that prefix is valid.
             size_t check_bytes = (OP_TYPE == OpType::Put) ? invp.logical_segment_bytes : invp.per_invocation_bytes;
-            bool success = pdpv.check_data(host_mem, check_bytes, block, invp.logical_segment_bytes);
-            ever_failed = ever_failed || (!success);
-            if (!success) {
-                printf(
-                    "[ERROR] Verification failed: op=%s blocks=%d size=%dB\n", to_string(OP_TYPE).c_str(), block,
-                    invp.per_invocation_bytes);
+            DataMismatch mm = pdpv.check_data(host_mem, check_bytes, block, invp.logical_segment_bytes);
+            ever_failed = ever_failed || (!mm.ok);
+            if (!mm.ok) {
+                ERROR_LOG(
+                    "Data validation FAILED on PE %d (%s), op=%s, data_size=%d bits, threads=%d\n"
+                    "          test point: blocks=%d, transfer=2^%d=%d B/invocation, "
+                    "logical_segment=%d B, used_bytes=%zu, checked=%zu B/block\n"
+                    "          ub_buffer=%d elements, loops=%d (+%d warmup), frame_id=%d\n"
+                    "          first bad byte: block=%d, offset_in_block=%zu, absolute_offset=%zu, "
+                    "expected=%d, actual=%d\n"
+                    "          total mismatched bytes: %llu of %zu checked",
+                    mype, (mype == ACTIVE_PE ? "ACTIVE" : "PASSIVE"), to_string(OP_TYPE).c_str(), DATA_SIZE,
+                    THREAD_COUNT, block, exp, invp.per_invocation_bytes, invp.logical_segment_bytes, used_bytes,
+                    check_bytes, UB_BUFFER_SIZE, config.loop_count, WARMUP_LOOPS, frame_id, mm.block,
+                    mm.offset_in_block, mm.absolute_offset, static_cast<int>(mm.expected), static_cast<int>(mm.actual),
+                    static_cast<unsigned long long>(mm.mismatch_count), check_bytes * block);
             }
 
             aclshmemx_get_prof(&out_profs, false);
@@ -409,12 +425,11 @@ int32_t execute_test_loop(const Config& config, aclrtStream stream)
     }
 
     if (ever_failed) {
-        printf("[ERROR] Some tests failed.\n");
+        ERROR_LOG("Some tests failed on PE %d; see the per-test-point details above.", mype);
     }
     return ever_failed ? -1 : 0;
 }
 
-// Run configuration test
 int32_t run_config_test(const Config& config)
 {
     printf("[INFO] Starting test for PE %d of %d\n", config.mype, config.npes);
@@ -449,7 +464,6 @@ int32_t run_config_test(const Config& config)
     return ret;
 }
 
-// Main function
 int32_t main(int argc, char* argv[])
 {
     setenv("SHMEM_CYCLE_PROF_PE", "0", 1);
