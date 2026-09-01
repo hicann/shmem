@@ -5,6 +5,7 @@ This example describes how to use the scalar put and get data transfer APIs to a
 ## Supported Product Models
 
 - Atlas A3 training products and Atlas A3 inference products
+- Ascend 950PR (Ascend 950DT is not supported yet)
 
 ## Example Implementation
 
@@ -33,8 +34,12 @@ This example demonstrates the workflow of the SHMEM scalar put and get data tran
 For details about environment configuration, see [Quick Start](../../docs/quickstart_en.md). After the environment is configured, run the following commands to verify the function:
 
 ```bash
-# Build the case.
+# Build on A3.
 bash scripts/build.sh -examples -cann
+
+# Build on Ascend950.
+bash scripts/build.sh -soc_type Ascend950 -examples -cann
+
 cd examples/rma_d2h_demo
 # Run the case.
 bash run.sh
@@ -43,6 +48,10 @@ bash run.sh
 After the case is executed, if `[INFO] demo run end in pe <my_pe>` is displayed, the case execution is complete. If `[SUCCESS] run success in pe <my_pe>` is displayed, the case is successfully executed and the result is correct.
 
 ## Restrictions
+
+### Ascend950 Runtime Requirements
+
+ If initialization reports `aclrtMemSetAccess failed`, verify that the driver, firmware, CANN Toolkit, and ops package are compatible versions.
 
 ### Querying the Available Memory Size of A3 SuperPoD
 

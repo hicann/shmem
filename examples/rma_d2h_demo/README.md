@@ -1,7 +1,5 @@
 # 样例说明
 
-> **暂不支持 Ascend950**：当前暂不支持在 Ascend950 平台配套编译运行。
-
 ## 概述
 
 本样例基于 SHMEM 工程，介绍了 put & get scalar 数据传输接口访问 Host 内存的使用。
@@ -9,6 +7,7 @@
 ## 支持的产品型号
 
 - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Ascend 950PR（暂不支持 Ascend 950DT）
 
 ## 样例实现
 
@@ -37,8 +36,12 @@
 环境配置请参考[快速上手](../../docs/quickstart.md)。完成环境配置后，执行如下命令可进行功能验证。
 
 ```bash
-# 执行编译
+# A3 平台：执行编译
 bash scripts/build.sh -examples -cann
+
+# Ascend950 平台：执行编译
+bash scripts/build.sh -soc_type Ascend950 -examples -cann
+
 cd examples/rma_d2h_demo
 # 运行用例
 bash run.sh
@@ -47,6 +50,10 @@ bash run.sh
 用例执行完成，打屏信息出现`[INFO] demo run end in pe <my_pe>`，说明样例执行结束；打屏信息出现`[SUCCESS] run success in pe <my_pe>`，说明样例执行成功且结果准确。
 
 ## 约束限制
+
+### Ascend950 运行环境要求
+
+若初始化阶段出现 `aclrtMemSetAccess failed`，请检查驱动、固件、CANN Toolkit 和 ops 包是否为相互兼容的配套版本。
 
 ### 查询A3超节点可用内存大小
 

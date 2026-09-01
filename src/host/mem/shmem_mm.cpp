@@ -9,6 +9,8 @@
  */
 #include <memory>
 #include "acl/acl.h"
+#include "dl_comm_def.h"
+#include "dl_api.h"
 #include "shmemi_host_common.h"
 #include "shmemi_mm.h"
 
@@ -170,7 +172,15 @@ bool support_host_mem_type(aclshmem_mem_type_t mem_type)
 {
 #ifndef USE_ACLRT_MEM_FABRIC_HANDLE
     if (mem_type == HOST_SIDE) {
-        SHM_LOG_ERROR("Not support HOST_SIDE malloc, please update CANN version");
+        if (shm::DlApi::GetAscendSocType() == AscendSocType::ASCEND_950) {
+            SHM_LOG_ERROR(
+                "HOST_SIDE malloc is not supported. Detected CANN version: "
+                << GetCannVersion() << ". Ascend950 requires CANN 9.0.0 or later. Please upgrade the CANN version.");
+        } else {
+            SHM_LOG_ERROR(
+                "HOST_SIDE malloc is not supported. Detected CANN version: "
+                << GetCannVersion() << ". Atlas A3 requires CANN 8.5.0 or later. Please upgrade the CANN version.");
+        }
         return false;
     }
 #endif
