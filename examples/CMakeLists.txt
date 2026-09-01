@@ -185,6 +185,10 @@ if(SOC_TYPE STREQUAL "Ascend950"
     add_subdirectory(shmem_mega_moe)
 endif()
 
+if(SOC_TYPE STREQUAL "Ascend950")
+    add_subdirectory(transpose_alltoall)
+endif()
+
 if(ACLSHMEM_HCCS_SIO_LINK)
     add_subdirectory(hccs_sio_link)
 endif()
