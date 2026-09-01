@@ -8,23 +8,20 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <iostream>
-#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 #include "shmem.h"
 #include "acl/acl.h"
 #include "kernel_operator.h"
 #include "../utils/utils.h"
 
-
-const char *ipport = "tcp://127.0.0.1:8998";
+const char* ipport = "tcp://127.0.0.1:8998";
 
 aclshmemx_uniqueid_t default_flag_uid;
 
 __simt_vf__ __launch_bounds__(1024) inline void demo_call_simt(
-    __gm__ int32_t* sym_input,
-    __gm__ int32_t* output, 
-    __gm__ uint64_t* dbg
-) 
+    __gm__ int32_t* sym_input, __gm__ int32_t* output, __gm__ uint64_t* dbg)
 {
     int32_t mype = simt::aclshmem_my_pe();
     int32_t npes = simt::aclshmem_n_pes();
@@ -42,9 +39,7 @@ __global__ __vector__ void demo_call(__gm__ int* input, __gm__ int* output, __gm
 
 void run_demo_scalar(uint32_t block_dim, void* stream, int* input, int* output, uint64_t* dbg)
 {
-    demo_call<<<1, 0, stream>>>(
-        input, output, dbg
-    );
+    demo_call<<<1, 0, stream>>>(input, output, dbg);
 }
 
 int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
@@ -56,20 +51,23 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
     ACL_CHECK_WITH_RET(aclrtSetDevice(my_pe), ERROR_LOG("aclrtSetDevice failed"), return -1);
     ACL_CHECK_WITH_RET(aclrtCreateStream(&stream), ERROR_LOG("aclrtCreateStream failed"), return -1);
 
-    int32_t *input_host;
-    int32_t *output_host;
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&input_host), sizeof(int)),
-        ERROR_LOG("aclrtMallocHost failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&output_host), sizeof(int)),
-        ERROR_LOG("aclrtMallocHost failed"), return -1);
+    int32_t* input_host;
+    int32_t* output_host;
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&input_host), sizeof(int)), ERROR_LOG("aclrtMallocHost failed"),
+        return -1);
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&output_host), sizeof(int)), ERROR_LOG("aclrtMallocHost failed"),
+        return -1);
     *input_host = -1;
     *output_host = -1;
 
     uint64_t* debug_host;
     constexpr int32_t debug_size = 32;
-    ACL_CHECK_WITH_RET(aclrtMallocHost(reinterpret_cast<void**>(&debug_host), sizeof(uint64_t) * debug_size),
+    ACL_CHECK_WITH_RET(
+        aclrtMallocHost(reinterpret_cast<void**>(&debug_host), sizeof(uint64_t) * debug_size),
         ERROR_LOG("aclrtMallocHost failed"), return -1);
-    for (int i = 0;i < debug_size;i++) {
+    for (int i = 0; i < debug_size; i++) {
         debug_host[i] = 0;
     }
 
@@ -79,19 +77,26 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
     auto status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
     ACL_CHECK_WITH_RET(status, ERROR_LOG("aclshmemx_init_attr failed"), return -1);
 
-    uint8_t *input_device = (uint8_t*)aclshmem_malloc(2*1024*1024);
-    uint8_t *output_device = nullptr;
-    ACL_CHECK_WITH_RET(aclrtMalloc((void **)&output_device, sizeof(int), ACL_MEM_MALLOC_HUGE_FIRST),
-        ERROR_LOG("aclrtMalloc failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMemcpy(input_device, sizeof(int), input_host, sizeof(int), ACL_MEMCPY_HOST_TO_DEVICE),
+    uint8_t* input_device = (uint8_t*)aclshmem_malloc(2 * 1024 * 1024);
+    uint8_t* output_device = nullptr;
+    ACL_CHECK_WITH_RET(
+        aclrtMalloc((void**)&output_device, sizeof(int), ACL_MEM_MALLOC_HUGE_FIRST), ERROR_LOG("aclrtMalloc failed"),
+        return -1);
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(input_device, sizeof(int), input_host, sizeof(int), ACL_MEMCPY_HOST_TO_DEVICE),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMemcpy(output_device, sizeof(int), output_host, sizeof(int), ACL_MEMCPY_HOST_TO_DEVICE),
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(output_device, sizeof(int), output_host, sizeof(int), ACL_MEMCPY_HOST_TO_DEVICE),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
 
     uint64_t* debug_device = nullptr;
-    ACL_CHECK_WITH_RET(aclrtMalloc((void **)&debug_device, sizeof(uint64_t) * debug_size, ACL_MEM_MALLOC_HUGE_FIRST),
+    ACL_CHECK_WITH_RET(
+        aclrtMalloc((void**)&debug_device, sizeof(uint64_t) * debug_size, ACL_MEM_MALLOC_HUGE_FIRST),
         ERROR_LOG("aclrtMalloc failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMemcpy(debug_device, sizeof(uint64_t) * debug_size, debug_host, sizeof(uint64_t) * debug_size, ACL_MEMCPY_HOST_TO_DEVICE),
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(
+            debug_device, sizeof(uint64_t) * debug_size, debug_host, sizeof(uint64_t) * debug_size,
+            ACL_MEMCPY_HOST_TO_DEVICE),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
 
     aclshmem_barrier_all();
@@ -104,18 +109,24 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
     }
     aclshmem_barrier_all();
 
-    ACL_CHECK_WITH_RET(aclrtMemcpy(input_host, sizeof(int), input_device, sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST),
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(input_host, sizeof(int), input_device, sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMemcpy(output_host, sizeof(int), output_device, sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST),
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(output_host, sizeof(int), output_device, sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
-    ACL_CHECK_WITH_RET(aclrtMemcpy(debug_host, sizeof(uint64_t) * debug_size, debug_device, sizeof(uint64_t) * debug_size, ACL_MEMCPY_DEVICE_TO_HOST),
+    ACL_CHECK_WITH_RET(
+        aclrtMemcpy(
+            debug_host, sizeof(uint64_t) * debug_size, debug_device, sizeof(uint64_t) * debug_size,
+            ACL_MEMCPY_DEVICE_TO_HOST),
         ERROR_LOG("aclrtMemcpy failed"), return -1);
 
     printf("%d: received message %d %d\n", my_pe, *input_host, *output_host);
     if ((*output_host == ((my_pe + 1) % n_pes)) && (*input_host == my_pe)) {
         printf("[SUCCESS] run success in pe %d\n", my_pe);
     } else {
-        printf("[ERROR] run result incorrect in pe %d, hopes %d, given %d\n", my_pe, ((my_pe + 1) % n_pes), *output_host);
+        printf(
+            "[ERROR] run result incorrect in pe %d, hopes %d, given %d\n", my_pe, ((my_pe + 1) % n_pes), *output_host);
     }
 
     std::cout << "Debug Info: #[";
@@ -137,15 +148,26 @@ int test_aclshmem_rma_scalar_8p(int my_pe, int n_pes)
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     if (argc < 3) {
         ERROR_LOG("Usage: %s <n_pes> <my_pe>", argv[0]);
         return -1;
     }
 
-    int n_pes = atoi(argv[1]);
-    int my_pe = atoi(argv[2]);
+    int n_pes = 0;
+    int my_pe = 0;
+    try {
+        n_pes = std::stoi(argv[1]);
+        my_pe = std::stoi(argv[2]);
+    } catch (const std::exception& e) {
+        ERROR_LOG("Invalid n_pes='%s' or my_pe='%s': %s", argv[1], argv[2], e.what());
+        return -1;
+    }
+    if (n_pes <= 0 || my_pe < 0 || my_pe >= n_pes) {
+        ERROR_LOG("Invalid n_pes=%d or my_pe=%d, expected n_pes > 0 and 0 <= my_pe < n_pes", n_pes, my_pe);
+        return -1;
+    }
 
     (void)test_aclshmem_rma_scalar_8p(my_pe, n_pes);
     INFO_LOG("[INFO] demo run end in pe %d.", my_pe);

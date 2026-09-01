@@ -1,9 +1,9 @@
 ## Overview
 
-This example demonstrates how to use the SIMT remote memory access (RMA) APIs in SIMD and SIMT hybrid compilation mode. It demonstrates the transmission of a single scalar. The APIs mainly includes the following two forms:
+This example demonstrates how to use the SIMT remote memory access (RMA) APIs in SIMD and SIMT hybrid compilation mode. It demonstrates the transmission of a single scalar. The APIs mainly include the following two forms:
 
 1. `__simt_callee__ inline void aclshmem_{NAME}_p(__gm__ TYPE *dst, const TYPE value, int pe)`
-2. `__simt_callee__ inline void aclshmem_{NAME}_g(__gm__ TYPE *dst, const TYPE value, int pe)`
+2. `__simt_callee__ inline TYPE aclshmem_{NAME}_g(__gm__ TYPE *src, int32_t pe)`
 
 The following table lists the allowed values of the placeholder `{NAME}` in the API names.
 
@@ -11,9 +11,11 @@ The following table lists the allowed values of the placeholder `{NAME}` in the 
 | --- | --- |
 | `{NAME}` | `half`, `float`, `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `char`, and `bfloat16`|
 
-The core functions of the APIs are to implement single-scalar or small-segment data transfer:
-- **`_p` APIs**: Directly write a specified scalar value to the target memory address of a specified compute unit (PE).
-- **`_g` APIs**: Read a single scalar value from the source memory address of a specified compute unit (PE).
+The core function of these APIs is to transfer a single scalar:
+- **`_p` APIs**: Directly write the specified scalar value to the target memory address of a specified compute unit (PE).
+- **`_g` APIs**: Read a single scalar value from the source memory address of a specified compute unit (PE) and return it.
+
+Unlike the contiguous-region RMA APIs, `_p` and `_g` are thread-level only — they have no `_block` or `_warp` variants. Accordingly, this example launches the kernel with `dim3(1)`.
 
 ### Sample Execution Process
 
@@ -41,5 +43,13 @@ This example demonstrates how RMA single-scalar APIs work through the following 
    Go to the `examples` directory and run the execution script.
    ```bash
    cd examples/simt_rma_scalar
-   bash scripts/run.sh
+   bash run.sh
    ```
+
+   By default, `run.sh` launches 2 independent processes, each corresponding to one PE bound to one device, and runs the sample using `build/bin/simt_rma_scalar`. Use the `-pes` option to specify the number of PEs (devices) to run with, for example, to run with 4 devices:
+
+   ```bash
+   bash run.sh -pes 4
+   ```
+
+   When running with multiple devices, make sure the number of NPU devices actually available in the environment is not less than the specified number of PEs.

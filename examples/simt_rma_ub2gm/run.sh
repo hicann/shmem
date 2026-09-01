@@ -22,9 +22,31 @@ export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -pes)
+            if [ -n "$2" ]; then
+                if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+                    echo "Error: -pes requires a positive integer value, got '$2'."
+                    exit 1
+                fi
+                GNPU_NUM="$2"
+                shift 2
+            else
+                echo "Error: -pes requires a value."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown option $1."
+            exit 1
+            ;;
+    esac
+done
+
 pids=()
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    ${PROJECT_ROOT}/build/bin/${EXAMPLE} 2 $idx &
+    ${PROJECT_ROOT}/build/bin/${EXAMPLE} ${GNPU_NUM} $idx &
     pid=$!
     pids+=("$pid")
     echo "$pid background process recorded"
@@ -33,8 +55,8 @@ done
 ret=0
 for pid in ${pids[@]}; do
     wait $pid
-    echo "wait process $pid done"
     cur_ret=$?
+    echo "wait process $pid done"
     if [[ $cur_ret -ne 0 ]]; then
         ret=$cur_ret
     fi

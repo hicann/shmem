@@ -7,8 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#include <cstdlib>
 #include <cstring>
+#include <stdexcept>
+#include <string>
 #include <unistd.h>
 
 #include "acl/acl.h"
@@ -23,27 +24,32 @@ aclshmemx_uniqueid_t default_flag_uid;
 // 定义传输大小(传输COPY_SIZE个int32_t的数据)
 constexpr int32_t COPY_SIZE = 4096;
 
+// 每个函数都做两件事：
+//   get: 把上一个 PE 的 origin 拉取到自身 res_prev
+//   put: 把自身 origin 推送到上一个 PE 的 res_next
+// put 的目标之所以是 prev_pe 而非 next_pe：对 prev_pe 而言当前 PE 正是它的“下一个 PE”，
+// 这样每个 PE 的 res_next 最终存放的就是它下一个 PE 的 origin 数据
 __simt_callee__ inline void test_put_get_mem(
-    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe, int32_t next_pe)
+    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe)
 {
     simt::aclshmemx_getmem_warp((__gm__ void*)res_prev, (__gm__ void*)origin, COPY_SIZE * sizeof(int32_t), prev_pe);
-    simt::aclshmemx_putmem_warp((__gm__ void*)res_next, (__gm__ void*)origin, COPY_SIZE * sizeof(int32_t), next_pe);
+    simt::aclshmemx_putmem_warp((__gm__ void*)res_next, (__gm__ void*)origin, COPY_SIZE * sizeof(int32_t), prev_pe);
 }
 
 __simt_callee__ inline void test_put_get_type(
-    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe, int32_t next_pe)
+    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe)
 {
     simt::aclshmemx_int16_get_warp(
         (__gm__ int16_t*)res_prev, (__gm__ int16_t*)origin, COPY_SIZE * sizeof(int32_t) / sizeof(int16_t), prev_pe);
     simt::aclshmemx_int16_put_warp(
-        (__gm__ int16_t*)res_next, (__gm__ int16_t*)origin, COPY_SIZE * sizeof(int32_t) / sizeof(int16_t), next_pe);
+        (__gm__ int16_t*)res_next, (__gm__ int16_t*)origin, COPY_SIZE * sizeof(int32_t) / sizeof(int16_t), prev_pe);
 }
 
 __simt_callee__ inline void test_put_get_bits(
-    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe, int32_t next_pe)
+    __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, int32_t prev_pe)
 {
     simt::aclshmemx_get128_warp((__gm__ void*)res_prev, (__gm__ void*)origin, COPY_SIZE * 32 / 128, prev_pe);
-    simt::aclshmemx_put128_warp((__gm__ void*)res_next, (__gm__ void*)origin, COPY_SIZE * 32 / 128, next_pe);
+    simt::aclshmemx_put128_warp((__gm__ void*)res_next, (__gm__ void*)origin, COPY_SIZE * 32 / 128, prev_pe);
 }
 
 __simt_vf__ __launch_bounds__(1024) inline void demo_call_simt(
@@ -53,9 +59,8 @@ __simt_vf__ __launch_bounds__(1024) inline void demo_call_simt(
     int32_t npes = simt::aclshmem_n_pes();
 
     int32_t prev_pe = (mype - 1 + npes) % npes;
-    int32_t next_pe = (mype + 1) % npes;
 
-    test_put_get_bits(origin, res_prev, res_next, prev_pe, next_pe);
+    test_put_get_bits(origin, res_prev, res_next, prev_pe);
 }
 
 __global__ __vector__ void demo_call(
@@ -234,8 +239,19 @@ int main(int argc, char* argv[])
         ERROR_LOG("Usage: %s <n_pes> <my_pe>", argv[0]);
         return -1;
     }
-    int n_pes = atoi(argv[1]);
-    int my_pe = atoi(argv[2]);
+    int n_pes = 0;
+    int my_pe = 0;
+    try {
+        n_pes = std::stoi(argv[1]);
+        my_pe = std::stoi(argv[2]);
+    } catch (const std::exception& e) {
+        ERROR_LOG("Invalid n_pes='%s' or my_pe='%s': %s", argv[1], argv[2], e.what());
+        return -1;
+    }
+    if (n_pes <= 0 || my_pe < 0 || my_pe >= n_pes) {
+        ERROR_LOG("Invalid n_pes=%d or my_pe=%d, expected n_pes > 0 and 0 <= my_pe < n_pes", n_pes, my_pe);
+        return -1;
+    }
 
     test_aclshmem_rma_mem(my_pe, n_pes);
     INFO_LOG("[INFO] demo run end in pe %d.", my_pe);

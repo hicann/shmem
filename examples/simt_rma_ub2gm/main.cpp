@@ -7,7 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#include <cstdlib>
+#include <stdexcept>
+#include <string>
 #include <unistd.h>
 
 #include "acl/acl.h"
@@ -24,11 +25,13 @@ constexpr int32_t COPY_SIZE = 4096;
 
 __simt_vf__ __launch_bounds__(1024) inline void transfer_data(
     __gm__ int32_t* origin, __gm__ int32_t* res_prev, __gm__ int32_t* res_next, uint32_t elem_size, int32_t prev_pe,
-    int32_t next_pe, int32_t mype)
+    int32_t mype)
 {
     __ubuf__ int32_t ub_buf[COPY_SIZE];
+
     simt::aclshmemx_int32_get_nbi_warp(ub_buf, origin, elem_size, mype);
-    simt::aclshmemx_int32_put_nbi_warp(res_next, ub_buf, elem_size, next_pe);
+    simt::aclshmemx_int32_put_nbi_warp(res_next, ub_buf, elem_size, prev_pe);
+
     simt::aclshmemx_int32_get_nbi_warp(ub_buf, origin, elem_size, prev_pe);
     simt::aclshmemx_int32_put_nbi_warp(res_prev, ub_buf, elem_size, mype);
 }
@@ -39,9 +42,8 @@ __global__ __vector__ void demo_call(__gm__ int32_t* origin, __gm__ int32_t* res
     int32_t npes = aclshmem_n_pes();
 
     int32_t prev_pe = (mype - 1 + npes) % npes;
-    int32_t next_pe = (mype + 1) % npes;
 
-    asc_vf_call<transfer_data>(dim3(32), origin, res_prev, res_next, COPY_SIZE, prev_pe, next_pe, mype);
+    asc_vf_call<transfer_data>(dim3(32), origin, res_prev, res_next, COPY_SIZE, prev_pe, mype);
 }
 
 void run_demo_mem(void* stream, int32_t* origin, int32_t* res_prev, int32_t* res_next)
@@ -197,8 +199,19 @@ int main(int argc, char* argv[])
         ERROR_LOG("Usage: %s <n_pes> <my_pe>", argv[0]);
         return -1;
     }
-    int n_pes = atoi(argv[1]);
-    int my_pe = atoi(argv[2]);
+    int n_pes = 0;
+    int my_pe = 0;
+    try {
+        n_pes = std::stoi(argv[1]);
+        my_pe = std::stoi(argv[2]);
+    } catch (const std::exception& e) {
+        ERROR_LOG("Invalid n_pes='%s' or my_pe='%s': %s", argv[1], argv[2], e.what());
+        return -1;
+    }
+    if (n_pes <= 0 || my_pe < 0 || my_pe >= n_pes) {
+        ERROR_LOG("Invalid n_pes=%d or my_pe=%d, expected n_pes > 0 and 0 <= my_pe < n_pes", n_pes, my_pe);
+        return -1;
+    }
 
     int32_t ret = test_aclshmem_rma_mem(my_pe, n_pes);
     INFO_LOG("[INFO] demo run end in pe %d.", my_pe);
