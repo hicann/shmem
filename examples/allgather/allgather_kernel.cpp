@@ -11,6 +11,7 @@
 #include "kernel_operator.h"
 #include "acl/acl.h"
 #include "shmem.h"
+#include "mstx_example_report.h"
 
 // shmem prof
 #include "utils/prof/shmemi_prof.h"
@@ -28,6 +29,8 @@ using bf16_t = op::bfloat16;
 constexpr int64_t SYNC_FLAG_INTERVAL = 16;
 constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
 constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
+// The large-data kernel uses eight producer groups, each emitting at most 68 chunks per 100 MiB staging window.
+constexpr int32_t MSTX_EVENT_GROUP_STRIDE = 128;
 
 template <typename T>
 ACLSHMEM_DEVICE void all_gather_origin(
@@ -85,6 +88,8 @@ ACLSHMEM_DEVICE void all_gather_origin(
             times += 1;
             flag = times + magic;
             aclshmemx_signal_op(gva_sync_gm + flag_offset, flag, ACLSHMEM_SIGNAL_SET, my_rank);
+            EXAMPLE_MSTX_CROSS_CORE_SET_FLAG_REPORT(
+                static_cast<int32_t>(magic + aivIndex * MSTX_EVENT_GROUP_STRIDE + times), -1, true);
             SHMEMI_PROF_END(0);
             AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
@@ -106,6 +111,8 @@ ACLSHMEM_DEVICE void all_gather_origin(
         times += 1;
         flag = times + magic;
         aclshmemx_signal_op(gva_sync_gm + flag_offset, flag, ACLSHMEM_SIGNAL_SET, my_rank);
+        EXAMPLE_MSTX_CROSS_CORE_SET_FLAG_REPORT(
+            static_cast<int32_t>(magic + aivIndex * MSTX_EVENT_GROUP_STRIDE + times), -1, true);
         return;
     }
 
@@ -143,17 +150,31 @@ ACLSHMEM_DEVICE void all_gather_origin(
                 continue;
             }
 
+            EXAMPLE_MSTX_FUSE_SCOPE_START();
             aclshmem_int32_get_nbi(flags_ub2[group_idx], gva_sync_gm + group_idx * SYNC_FLAG_INTERVAL, 1, x);
             AscendC::PipeBarrier<PIPE_ALL>();
 
-            if ((*flags_ub2[group_idx] >> 10) != (magic >> 10)) {
+            const int32_t ready_flag = *flags_ub2[group_idx];
+            int64_t ready_num = ready_flag - magic;
+            const bool observed =
+                ((ready_flag >> 10) == (magic >> 10)) && ready_num > 0 && *flags_ub1[group_idx] < ready_num;
+            if (!observed) {
+                EXAMPLE_MSTX_FUSE_SCOPE_END();
                 continue;
             }
+            EXAMPLE_MSTX_FUSE_SCOPE_END();
 
-            int64_t ready_num = *flags_ub2[group_idx] - magic;
-            if (ready_num <= 0 || *flags_ub1[group_idx] >= ready_num) {
-                continue;
+            if (x == my_rank) {
+                // A unique event ID pairs the local producer and consumer without relying on a specific core ID.
+                EXAMPLE_MSTX_CROSS_CORE_WAIT_FLAG_REPORT(
+                    static_cast<int32_t>(magic + group_idx * MSTX_EVENT_GROUP_STRIDE + ready_num), -1, true);
+            } else {
+                // Remote progress is address-based and must retain the cross-NPU signal wait semantics.
+                __gm__ int32_t* remote_flag_addr =
+                    (__gm__ int32_t*)aclshmem_ptr(gva_sync_gm, x) + group_idx * SYNC_FLAG_INTERVAL;
+                EXAMPLE_MSTX_SIGNAL_WAIT_REPORT(remote_flag_addr, ACLSHMEM_CMP_EQ, ready_flag);
             }
+            AscendC::PipeBarrier<PIPE_ALL>();
 
             int group_recv_offset = x * elements + group_idx * len_per_core;
             int group_send_offset = group_idx * len_per_core;
@@ -164,7 +185,6 @@ ACLSHMEM_DEVICE void all_gather_origin(
             if (ready_num * UB_DMA_MAX_SIZE > all_data_size) {
                 num_total = (all_data_size - *flags_ub1[group_idx] * UB_DMA_MAX_SIZE) / sizeof(T);
             }
-            AscendC::PipeBarrier<PIPE_ALL>();
             for (int i = 0; num_total > 0; i++) {
                 AscendC::TEventID event_id = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
                 __ubuf__ T* buf = pingpongId == 0 ? ping_buff : pong_buff;
