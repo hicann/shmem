@@ -474,7 +474,7 @@ int aclshmemi_team_split_2d_x(
         int x_stride = 1;
         int x_size = ((i == x_team_counts - 1) && (src_size % x_range != 0)) ? src_size % x_range : x_range;
         if (aclshmem_team_split_strided(parent_team, start, x_stride, x_size, &my_xteam) != ACLSHMEM_SUCCESS) {
-            SHM_LOG_INFO("create x-axis team " << (i + 1) << " of " << x_team_counts << " failed");
+            SHM_LOG_WARN("create x-axis team " << (i + 1) << " of " << x_team_counts << " failed");
         }
         start += x_range;
 
@@ -505,7 +505,7 @@ int aclshmemi_team_split_2d_y(
         int y_size = (remainder && i < remainder) ? y_range + 1 : y_range;
 
         if (aclshmem_team_split_strided(parent_team, start, y_stride, y_size, &my_yteam) != ACLSHMEM_SUCCESS) {
-            SHM_LOG_INFO("create y-axis team " << (i + 1) << " of " << y_team_counts << " failed");
+            SHM_LOG_WARN("create y-axis team " << (i + 1) << " of " << y_team_counts << " failed");
         }
 
         start += 1;
@@ -571,14 +571,14 @@ void aclshmem_team_destroy(aclshmem_team_t team)
 {
     std::lock_guard<std::recursive_mutex> lock(g_team_mutex);
     if (!is_valid_team(team)) {
-        SHM_LOG_INFO("input team is invalid!, team: " << team);
+        SHM_LOG_WARN("input team is invalid!, team: " << team);
         return;
     }
 
     device_team_destroy(team);
     release_team_idx(team);
     if (update_device_state() != ACLSHMEM_SUCCESS) {
-        SHM_LOG_INFO("update state failed when destroy team!");
+        SHM_LOG_WARN("update state failed when destroy team!");
     }
 }
 

@@ -35,7 +35,7 @@ public:
         if (domain_ != nullptr) {
             SHM_LOG_INFO("mstx_mem_register created, domain init success");
         } else {
-            SHM_LOG_INFO("mstx_mem_register created, domain init failed");
+            SHM_LOG_ERROR("mstx_mem_register created, domain init failed");
         }
     }
 

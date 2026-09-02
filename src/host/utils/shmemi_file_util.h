@@ -26,46 +26,46 @@ class FileUtil {
     static constexpr uint32_t MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 public:
     /**
-       * @brief Get the lengthiest of path
-       *
-       * @return the lengthiest of path
+     * @brief Get the lengthiest of path
+     *
+     * @return the lengthiest of path
      */
     static constexpr size_t GetSafePathMax();
 
     /**
      * @brief Check if file or dir exists
      */
-    static bool Exist(const std::string &path);
+    static bool Exist(const std::string& path);
 
     /**
      * @brief Check if the file or dir readable
      */
-    static bool Readable(const std::string &path);
+    static bool Readable(const std::string& path);
 
     /**
      * @brief Check if the file or dir writable
      */
-    static bool Writable(const std::string &path);
+    static bool Writable(const std::string& path);
 
     /**
      * @brief Create dir
      */
-    static bool MakeDir(const std::string &path, uint32_t mode);
+    static bool MakeDir(const std::string& path, uint32_t mode);
 
     /**
      * @brief Remove the dir without sub dirs
      */
-    static bool Remove(const std::string &path);
+    static bool Remove(const std::string& path);
 
     /**
      * @brief Remove the dir recursively, its sub dir will be removed
      */
-    static bool RemoveDirRecursive(const std::string &path);
+    static bool RemoveDirRecursive(const std::string& path);
 
     /**
      * @brief Get the realpath for security consideration
      */
-    static bool Realpath(std::string &path);
+    static bool Realpath(std::string& path);
 
     /**
      * @brief Get real path of a library and check if exists
@@ -75,12 +75,12 @@ public:
      * @param realPath     [out] realpath of the library
      * @return 0 if successful
      */
-    static bool LibraryRealPath(const std::string &libDirPath, const std::string &libName, std::string &realPath);
+    static bool LibraryRealPath(const std::string& libDirPath, const std::string& libName, std::string& realPath);
 
     /**
      * @brief Get size of a file
      */
-    static size_t GetFileSize(const std::string &filePath);
+    static size_t GetFileSize(const std::string& filePath);
 
     /**
      * @brief Close file
@@ -90,12 +90,12 @@ public:
     /**
      * @brief Check if the file or dir is symbol link
      */
-    static bool IsSymlink(const std::string &filePath);
+    static bool IsSymlink(const std::string& filePath);
 
     /**
      * @brief Check if the file is empty one
      */
-    static bool IsEmptyFile(const std::string &filePath);
+    static bool IsEmptyFile(const std::string& filePath);
 
     /**
      * @brief Find whether the path is a file or not
@@ -103,7 +103,7 @@ public:
      * @param path         [in] input path
      * @return true if it is a file
      */
-    static bool IsFile(const std::string &path);
+    static bool IsFile(const std::string& path);
 
     /**
      * @brief Find whether the path is a directory or not
@@ -111,7 +111,7 @@ public:
      * @param path         [in] input path
      * @return true if it is a directory
      */
-    static bool IsDir(const std::string &path);
+    static bool IsDir(const std::string& path);
 
     /**
      * @brief Check if the path is owned by current user or root
@@ -120,7 +120,7 @@ public:
      * @param path         [in] path to check
      * @return true if owned by current user or root
      */
-    static bool IsOwnedByCurrentUserOrRoot(const std::string &path);
+    static bool IsOwnedByCurrentUserOrRoot(const std::string& path);
 
     /**
      * @brief Check if the path has secure permissions (no write permission for group/others)
@@ -129,7 +129,7 @@ public:
      * @param path         [in] path to check
      * @return true if permissions are secure
      */
-    static bool HasSecurePermissions(const std::string &path);
+    static bool HasSecurePermissions(const std::string& path);
 
     /**
      * @brief Find whether the path exceed the max size or not
@@ -138,25 +138,16 @@ public:
      * @param maxSize      [in] the max size allowed
      * @return true if the file size is less or equals to maxSize
      */
-    static bool CheckFileSize(const std::string &path, uint32_t maxSize = MAX_FILE_SIZE);
+    static bool CheckFileSize(const std::string& path, uint32_t maxSize = MAX_FILE_SIZE);
 };
 
-inline bool FileUtil::Exist(const std::string &path)
-{
-    return access(path.c_str(), 0) != -1;
-}
+inline bool FileUtil::Exist(const std::string& path) { return access(path.c_str(), 0) != -1; }
 
-inline bool FileUtil::Readable(const std::string &path)
-{
-    return access(path.c_str(), F_OK | R_OK) != -1;
-}
+inline bool FileUtil::Readable(const std::string& path) { return access(path.c_str(), F_OK | R_OK) != -1; }
 
-inline bool FileUtil::Writable(const std::string &path)
-{
-    return access(path.c_str(), F_OK | W_OK) != -1;
-}
+inline bool FileUtil::Writable(const std::string& path) { return access(path.c_str(), F_OK | W_OK) != -1; }
 
-inline bool FileUtil::MakeDir(const std::string &path, uint32_t mode)
+inline bool FileUtil::MakeDir(const std::string& path, uint32_t mode)
 {
     if (path.empty()) {
         return false;
@@ -169,7 +160,7 @@ inline bool FileUtil::MakeDir(const std::string &path, uint32_t mode)
     return ::mkdir(path.c_str(), mode) == 0;
 }
 
-inline bool FileUtil::Remove(const std::string &path)
+inline bool FileUtil::Remove(const std::string& path)
 {
     if (path.empty() || path.size() > PATH_MAX_LIMIT) {
         return false;
@@ -183,7 +174,7 @@ inline bool FileUtil::Remove(const std::string &path)
     return ::remove(realPath.c_str()) == 0;
 }
 
-inline bool FileUtil::Realpath(std::string &path)
+inline bool FileUtil::Realpath(std::string& path)
 {
     if (path.empty() || path.size() > PATH_MAX_LIMIT) {
         return false;
@@ -203,7 +194,7 @@ inline bool FileUtil::Realpath(std::string &path)
     return true;
 }
 
-inline bool FileUtil::LibraryRealPath(const std::string &libDirPath, const std::string &libName, std::string &realPath)
+inline bool FileUtil::LibraryRealPath(const std::string& libDirPath, const std::string& libName, std::string& realPath)
 {
     std::string tmpFullPath = libDirPath;
     if (!Realpath(tmpFullPath)) {
@@ -232,11 +223,11 @@ inline void FileUtil::CloseFile(FILE* fp)
 
     auto ret = fclose(fp);
     if (ret != 0) {
-        SHM_LOG_INFO("util fclose failed, ret = " << ret);
+        SHM_LOG_ERROR("util fclose failed, ret = " << ret);
     }
 }
 
-inline size_t FileUtil::GetFileSize(const std::string &path)
+inline size_t FileUtil::GetFileSize(const std::string& path)
 {
     if (!Exist(path)) {
         return 0;
@@ -274,7 +265,7 @@ inline size_t FileUtil::GetFileSize(const std::string &path)
     return fileSize;
 }
 
-inline bool FileUtil::IsSymlink(const std::string &filePath)
+inline bool FileUtil::IsSymlink(const std::string& filePath)
 {
     /* remove / at tail */
     std::string cleanPath = filePath;
@@ -289,7 +280,7 @@ inline bool FileUtil::IsSymlink(const std::string &filePath)
     return S_ISLNK(buf.st_mode);
 }
 
-inline bool FileUtil::IsEmptyFile(const std::string &filePath)
+inline bool FileUtil::IsEmptyFile(const std::string& filePath)
 {
     if (!Exist(filePath)) {
         return false;
@@ -298,7 +289,7 @@ inline bool FileUtil::IsEmptyFile(const std::string &filePath)
     return GetFileSize(filePath) == 0;
 }
 
-inline bool FileUtil::IsFile(const std::string &path)
+inline bool FileUtil::IsFile(const std::string& path)
 {
     struct stat buf;
     if (lstat(path.c_str(), &buf) != 0) {
@@ -307,7 +298,7 @@ inline bool FileUtil::IsFile(const std::string &path)
     return S_ISREG(buf.st_mode);
 }
 
-inline bool FileUtil::IsDir(const std::string &path)
+inline bool FileUtil::IsDir(const std::string& path)
 {
     struct stat buf;
     if (lstat(path.c_str(), &buf) != 0) {
@@ -316,48 +307,47 @@ inline bool FileUtil::IsDir(const std::string &path)
     return S_ISDIR(buf.st_mode);
 }
 
-inline bool FileUtil::IsOwnedByCurrentUserOrRoot(const std::string &path)
+inline bool FileUtil::IsOwnedByCurrentUserOrRoot(const std::string& path)
 {
     struct stat buf;
     if (stat(path.c_str(), &buf) != 0) {
         SHM_LOG_ERROR("stat failed for path: " << path);
         return false;
     }
-    
+
     uid_t currentUid = getuid();
     uid_t pathOwner = buf.st_uid;
-    
+
     if (pathOwner == currentUid || pathOwner == 0) {
         return true;
     }
-    
-    SHM_LOG_ERROR("Path owner check failed: path=" << path 
-                  << ", owner_uid=" << pathOwner 
-                  << ", current_uid=" << currentUid);
+
+    SHM_LOG_ERROR(
+        "Path owner check failed: path=" << path << ", owner_uid=" << pathOwner << ", current_uid=" << currentUid);
     return false;
 }
 
-inline bool FileUtil::HasSecurePermissions(const std::string &path)
+inline bool FileUtil::HasSecurePermissions(const std::string& path)
 {
     struct stat buf;
     if (stat(path.c_str(), &buf) != 0) {
         SHM_LOG_ERROR("stat failed for path: " << path);
         return false;
     }
-    
+
     mode_t mode = buf.st_mode;
-    
+
     if ((mode & S_IWGRP) || (mode & S_IWOTH)) {
-        SHM_LOG_ERROR("Insecure permissions: path=" << path 
-                      << ", mode=" << std::oct << mode 
-                      << " (group or others have write permission)");
+        SHM_LOG_ERROR(
+            "Insecure permissions: path=" << path << ", mode=" << std::oct << mode
+                                          << " (group or others have write permission)");
         return false;
     }
-    
+
     return true;
 }
 
-inline bool FileUtil::CheckFileSize(const std::string &path, uint32_t maxSize)
+inline bool FileUtil::CheckFileSize(const std::string& path, uint32_t maxSize)
 {
     if (!Exist(path)) {
         return false;
@@ -374,7 +364,7 @@ inline constexpr size_t FileUtil::GetSafePathMax()
     return PATH_MAX_LIMIT;
 #endif
 }
-}  // namespace utils
-}  // namespace shm
+} // namespace utils
+} // namespace shm
 
 #endif
