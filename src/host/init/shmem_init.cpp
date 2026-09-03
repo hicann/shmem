@@ -24,6 +24,7 @@
 #include "host/shmem_host_def.h"
 #include "prof/prof_util.h"
 #include "shmemi_scope_guard.h"
+#include "transport_def.h"
 
 #define DEFAULT_MY_PE (-1)
 #define DEFAULT_N_PES (-1)
@@ -89,6 +90,7 @@ aclshmemi_init_backend* init_manager = nullptr;
 
 // Protect instance context access
 static std::mutex g_aclshmem_ctx_mutex;
+static shm::transport::SdmaQpConfig g_sdma_qp_config{};
 
 // Instance context used to store global_resources
 struct aclshmem_context {
@@ -199,6 +201,12 @@ bool is_valid_data_op_engine_type(data_op_engine_type_t value)
     constexpr uint32_t valid_mask = (static_cast<uint32_t>(ACLSHMEM_DATA_OP_MAX) << 1) - 1;
     uint32_t int_value = static_cast<uint32_t>(value);
     return int_value > 0 && (int_value & ~valid_mask) == 0;
+}
+
+bool is_valid_qp_num(uint32_t qp_num, uint32_t max_qp_num)
+{
+    constexpr uint32_t min_qp_num = 1U;
+    return qp_num >= min_qp_num && qp_num <= max_qp_num;
 }
 
 int32_t check_attr(aclshmemx_init_attr_t* attributes)
@@ -524,6 +532,37 @@ int aclshmemx_instance_ctx_set_impl(uint64_t instance_id)
     return ACLSHMEM_INNER_ERROR;
 }
 
+int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
+{
+    std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
+    switch (engine) {
+        case ACLSHMEM_DATA_OP_SDMA: {
+            int device_id = -1;
+            int64_t vector_core_num = 0;
+            (void)aclrtGetDevice(&device_id);
+            auto query_ret = aclrtGetDeviceInfo(device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &vector_core_num);
+            if (query_ret != ACL_SUCCESS || vector_core_num <= 0) {
+                query_ret = aclGetDeviceCapability(device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &vector_core_num);
+            }
+            const uint32_t max_qp_num =
+                (query_ret == ACL_SUCCESS && vector_core_num > 0) ?
+                    std::min<uint32_t>(static_cast<uint32_t>(vector_core_num), ACLSHMEM_MAX_AIV_PER_NPU) :
+                    ACLSHMEM_MAX_AIV_PER_NPU;
+            if (!is_valid_qp_num(qp_num, max_qp_num)) {
+                SHM_LOG_ERROR("invalid SDMA qp num: " << qp_num << ", supported range is [1, " << max_qp_num << "]");
+                return ACLSHMEM_INVALID_VALUE;
+            }
+            g_sdma_qp_config.qpNum = qp_num;
+            break;
+        }
+        default:
+            SHM_LOG_WARN("QP count configuration does not support engine = " << engine);
+            return ACLSHMEM_NOT_SUPPORTED;
+    }
+    SHM_LOG_INFO("set qp num success, engine=" << engine << ", qp_num=" << qp_num);
+    return ACLSHMEM_SUCCESS;
+}
+
 int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_init_attr_t* attributes)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
@@ -603,7 +642,8 @@ int32_t aclshmemx_init_attr(aclshmemx_bootstrap_t bootstrap_flags, aclshmemx_ini
     }
 
     // aclshmem_entity init
-    ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle));
+    ACLSHMEM_CHECK_RET(
+        init_manager->bind_aclshmem_entity(attributes, &g_state, &g_boot_handle, g_sdma_qp_config.qpNum));
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
@@ -694,6 +734,7 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     if (g_init_manager_count == 0) {
         delete init_manager;
         init_manager = nullptr;
+        g_sdma_qp_config = shm::transport::SdmaQpConfig{};
     }
     SHM_LOG_INFO("The pe: " << aclshmem_my_pe() << " finalize success.");
     g_state.is_aclshmem_initialized = false;

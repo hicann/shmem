@@ -45,6 +45,12 @@ static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
 aclshmemx_uniqueid_t default_flag_uid;
 extern aclshmem_host_state_t g_state_host;
 
+// 每个 block 包含 2 个 AIV；kernel 内 GetBlockIdx() 是 AIV 级全局索引（0 ~ block_num*2-1），
+// 每个 AIV 用同编号的独立 SDMA QP 收发并记录 notify，因此 QP 数必须等于 block 数 × 每 block AIV 数。
+constexpr uint32_t SDMA_AIVS_PER_BLOCK = 2;
+constexpr uint32_t SDMA_BLOCK_NUM = 20;
+constexpr uint32_t SDMA_QP_NUM = SDMA_BLOCK_NUM * SDMA_AIVS_PER_BLOCK;
+
 template <typename T>
 __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR dump, bool is_put)
 {
@@ -84,16 +90,16 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
                 continue;
             }
             if (is_put) {
-                aclshmemx_sdma_put_nbi(
+                aclshmemx_sdma_qp_put_nbi(
                     gva + data_length * my_pe + data_offset, gva + data_length * my_pe + data_offset, tmp_buff, ub_size,
-                    base_per_core, i, EVENT_ID0);
+                    base_per_core, i, cur_block_idx, EVENT_ID0);
             } else {
-                aclshmemx_sdma_get_nbi(
+                aclshmemx_sdma_qp_get_nbi(
                     gva + data_length * i + data_offset, gva + data_length * i + data_offset, tmp_buff, ub_size,
-                    base_per_core, i, EVENT_ID0);
+                    base_per_core, i, cur_block_idx, EVENT_ID0);
             }
         }
-        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
     }
 }
 
@@ -144,16 +150,51 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
                     reinterpret_cast<__gm__ T*>(gva + my_pe * elem_size * sizeof(T) + data_offset * sizeof(T));
                 src_tensor.SetGlobalBuffer(data_addr, base_per_core);
                 dst_tensor.SetGlobalBuffer(data_addr, base_per_core);
-                aclshmemx_sdma_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_put_nbi(
+                    dst_tensor, src_tensor, tmp_local, base_per_core, i, cur_block_idx, EVENT_ID0);
             } else {
                 __gm__ T* data_addr =
                     reinterpret_cast<__gm__ T*>(gva + i * elem_size * sizeof(T) + data_offset * sizeof(T));
                 src_tensor.SetGlobalBuffer(data_addr, base_per_core);
                 dst_tensor.SetGlobalBuffer(data_addr, base_per_core);
-                aclshmemx_sdma_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_get_nbi(
+                    dst_tensor, src_tensor, tmp_local, base_per_core, i, cur_block_idx, EVENT_ID0);
             }
         }
-        aclshmemx_sdma_notify_record(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_local, cur_block_idx, EVENT_ID0);
+    }
+}
+
+// 不带QP的SDMA接口使用样例：aclshmemx_sdma_put_nbi/aclshmemx_sdma_notify_record固定使用QP 0，
+// 属于单核接口，仅由0号AIV执行；单核搬运无需按AIV切分数据，Host侧只需等待notify_arr[0]一个notify。
+template <typename T>
+__global__ __aicore__ void allgather_sdma_noqp(GM_ADDR gva, int elem_size, GM_ADDR dump)
+{
+    AscendC::TPipe pipe;
+#if defined(ENABLE_ASCENDC_DUMP)
+    AscendC::InitDump(false, dump, ALL_DUMPSIZE);
+#endif
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        int my_pe = aclshmem_my_pe();
+        int n_pes = aclshmem_n_pes();
+
+        // Define temporary UB buffer for SDMA operations
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+
+        uint32_t data_length = elem_size * sizeof(T);
+        for (int i = 0; i < n_pes; i++) {
+            if (i == my_pe) {
+                continue;
+            }
+            aclshmemx_sdma_put_nbi(
+                gva + data_length * my_pe, gva + data_length * my_pe, tmp_buff, ub_size, data_length, i, EVENT_ID0);
+        }
+        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
     }
 }
 
@@ -190,6 +231,12 @@ void allgather_kernel(
     }
 }
 
+template <class T>
+void allgather_kernel_noqp(uint32_t block_dim, void* stream, uint8_t* gva, int n_elements, uint8_t* device_dump)
+{
+    allgather_sdma_noqp<T><<<block_dim, nullptr, stream>>>(gva, n_elements, device_dump);
+}
+
 int32_t test_set_attr(
     int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char* ip_port, aclshmemx_init_attr_t* attributes)
 {
@@ -219,22 +266,27 @@ int32_t test_set_attr(
 template <class T>
 int test_allgather_sdma(int my_pe, int n_pes)
 {
+    constexpr size_t symmetric_elements = 128 * 1024 * 1024;
+    constexpr size_t trans_size = 8 * 1024 * 1024;
     // ACLStream init
     aclrtStream stream = nullptr;
     CHECK_RET(aclrtCreateStream(&stream));
 
-    constexpr uint32_t total_block_num = 20;
+    constexpr uint32_t total_block_num = SDMA_BLOCK_NUM;
     constexpr int num10 = 10;
-    constexpr int sub_block_num = 2;
+    constexpr int sub_block_num = SDMA_AIVS_PER_BLOCK;
     uint8_t* device_dump = nullptr;
 #if defined(ENABLE_ASCENDC_DUMP)
     CHECK_RET(aclrtMalloc(reinterpret_cast<void**>(&device_dump), ALL_DUMPSIZE, ACL_MEM_MALLOC_HUGE_FIRST));
 #endif
 
-    void* gva = aclshmem_malloc((128 * 1024 * 1024) * sizeof(T));
+    void* gva = aclshmem_malloc(symmetric_elements * sizeof(T));
+    if (gva == nullptr) {
+        std::cerr << "notifywait failed to allocate symmetric memory" << std::endl;
+        return -1;
+    }
 
     // 初始化数据
-    size_t trans_size = 8 * 1024 * 1024;
     std::vector<T> input(trans_size, 0);
     for (size_t i = 0; i < trans_size; i++) {
         input[i] = (T)(my_pe + num10);
@@ -265,18 +317,31 @@ int test_allgather_sdma(int my_pe, int n_pes)
     uint32_t pe_id = aclshmem_my_pe();
     // 校验 ptr_A 中的内容
     uint32_t status = aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size);
-    status = aclrtMemcpy(y_host, input_size, ptr_A, input_size, ACL_MEMCPY_DEVICE_TO_HOST);
-    std::cout << "Pe " << pe_id << " AllGather result in ptr_A after notify_wait:" << std::endl;
-    int unexpected_count = 0;
-    for (int i = 0; i < n_pes; i++) {
-        for (int j = 0; j < trans_size; j++) {
-            int y = (int)(y_host[trans_size * i + j]);
-            if (y != num10 + i) {
-                unexpected_count++;
+    auto check_result = [&](const char* stage) {
+        status = aclrtMemcpy(y_host, input_size, ptr_A, input_size, ACL_MEMCPY_DEVICE_TO_HOST);
+        std::cout << "Pe " << pe_id << " AllGather result in ptr_A after " << stage << ":" << std::endl;
+        int unexpected_count = 0;
+        for (int i = 0; i < n_pes; i++) {
+            for (int j = 0; j < trans_size; j++) {
+                int y = (int)(y_host[trans_size * i + j]);
+                if (y != num10 + i) {
+                    unexpected_count++;
+                }
             }
         }
-    }
-    std::cout << "Pe " << pe_id << " has " << unexpected_count << " unexpected values." << std::endl;
+        std::cout << "Pe " << pe_id << " has " << unexpected_count << " unexpected values." << std::endl;
+    };
+    check_result("notify_wait");
+
+    // ===== 不带QP的SDMA接口使用样例 =====
+    // aclshmemx_sdma_put_nbi/aclshmemx_sdma_notify_record固定使用QP 0，仅由0号AIV执行，
+    // 因此只启动1个block，Host侧只等待notify_arr[0]一个notify。
+    allgather_kernel_noqp<T>(1, stream, ptr, trans_size, device_dump);
+    CHECK_RET(aclrtWaitAndResetNotify(g_state_host.notify_arr[0], g_state_host.default_stream, 0));
+    aclshmem_barrier_all();
+    copy_demo<T>(1, g_state_host.default_stream, ptr, ptr_A, n_pes * trans_size * sizeof(T));
+    CHECK_RET(aclrtSynchronizeStream(g_state_host.default_stream));
+    check_result("sdma_put_nbi (no QP)");
 
     CHECK_RET(aclrtFreeHost(y_host));
     aclshmem_free(gva);
@@ -306,6 +371,7 @@ int main(int argc, char* argv[])
     CHECK_RET(test_set_attr(my_pe, n_pes, local_mem_size, ipport, &attributes));
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA;
+    CHECK_RET(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, SDMA_QP_NUM));
     CHECK_RET(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     if (std::string(data_type) == "int") {

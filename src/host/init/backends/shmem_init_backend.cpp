@@ -44,7 +44,8 @@ aclshmemi_init_backend::~aclshmemi_init_backend()
 }
 
 int aclshmemi_init_backend::bind_aclshmem_entity(
-    aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle)
+    aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
+    uint32_t sdma_qp_num)
 {
     std::lock_guard<std::mutex> lock(entity_map_mutex_);
     // fetch entity resources
@@ -59,6 +60,7 @@ int aclshmemi_init_backend::bind_aclshmem_entity(
         return ACLSHMEM_INNER_ERROR;
     }
     elem->entity_boot_handle = handle;
+    elem->sdma_qp_num = sdma_qp_num;
 
     entity_map_[instance_id] = elem;
 
@@ -189,9 +191,16 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
     options.role = HYBM_ROLE_PEER;
     std::string defaultNic = "10002";
     std::copy_n(defaultNic.c_str(), defaultNic.size() + 1, options.nic);
+    shm::transport::TransportOptions transport_options;
+    transport_options.rankId = attributes->my_pe;
+    transport_options.rankCount = attributes->n_pes;
+    transport_options.protocol = options.bmDataOpType;
+    transport_options.role = HYBM_ROLE_PEER;
+    transport_options.nic = defaultNic;
+    transport_options.sdmaQpNum = elem->sdma_qp_num;
     auto entity_id = instance_id << 1;
     if (mem_type == HOST_SIDE) {
-        elem->dram_entity = hybm_create_entity(entity_id + 1, &options, 0);
+        elem->dram_entity = hybm_create_entity_with_transport_options(entity_id + 1, &options, &transport_options, 0);
         if (elem->dram_entity == nullptr) {
             SHM_LOG_ERROR("create host dram entity failed");
             return ACLSHMEM_SMEM_ERROR;
@@ -199,7 +208,7 @@ int aclshmemi_init_backend::create_entity(aclshmem_mem_type_t mem_type)
         return ACLSHMEM_SUCCESS;
     }
 
-    elem->hbm_entity = hybm_create_entity(entity_id, &options, 0);
+    elem->hbm_entity = hybm_create_entity_with_transport_options(entity_id, &options, &transport_options, 0);
     if (elem->hbm_entity == nullptr) {
         SHM_LOG_ERROR("create device hbm entity failed");
         return ACLSHMEM_SMEM_ERROR;

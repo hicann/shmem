@@ -42,11 +42,11 @@
 
 （4）`get` kernel 中，调用 `aclshmemx_sdma_get_nbi` 从本 PE 或目标 PE 的 `HOST_SIDE` SHMEM 对称地址读取数据，写入本 PE 普通 Device 内存。接口内部根据源 PE 编号完成 Host 侧地址转换，`pe == my_pe` 时验证本地 H2D。
 
-（5）`aclshmemx_sdma_put_nbi` 和 `aclshmemx_sdma_get_nbi` 为非阻塞接口，kernel 中调用 `aclshmemx_sdma_quiet` 等待当前 block 提交的 SDMA 任务完成。
+（5）`aclshmemx_sdma_qp_put_nbi` 和 `aclshmemx_sdma_qp_get_nbi` 为非阻塞接口，kernel 中调用相同 `qp_idx` 的 `aclshmemx_sdma_qp_quiet` 等待任务完成。
 
 ## 编译执行
 
-环境配置请参考[快速上手](../../docs/quickstart.md)。完成环境配置后，执行如下命令可进行功能验证。
+环境配置请参考[快速上手](../../docs/quickstart.md#431-cann-版本说明)。完成环境配置后，执行如下命令可进行功能验证。
 
 ```bash
 # 执行编译
@@ -66,7 +66,7 @@ bash run.sh -pes 2 -op all -type fp32 -elems 262144
 bash run.sh -pes 2 -op put -type uint8 -elems 1048576 -heap_mb 16
 ```
 
-用例执行完成，打屏信息出现“[SUCCESS] put op pass in pe <my_pe>”，说明当前 PE 的 `put` 结果校验成功；打屏信息出现“[SUCCESS] get op pass in pe <my_pe>”，说明当前 PE 的 `get` 结果校验成功；打屏信息出现“[SUCCESS] sdma_d2h_demo run success in pe <my_pe>”，说明当前 PE 样例执行成功且资源释放正常。
+用例执行完成，打屏信息出现"[SUCCESS] put op pass in pe <my_pe>"，说明当前 PE 的 `put` 结果校验成功；打屏信息出现"[SUCCESS] get op pass in pe <my_pe>"，说明当前 PE 的 `get` 结果校验成功；打屏信息出现"[SUCCESS] sdma_d2h_demo run success in pe <my_pe>"，说明当前 PE 样例执行成功且资源释放正常。
 
 样例还会打印每个 PE 负责 segment 的前 8 个值，例如：
 

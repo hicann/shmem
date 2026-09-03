@@ -23,8 +23,8 @@ extern "C" __global__ __aicore__ void PutNotifyWaitTest(GM_ADDR gva, uint64_t co
 
         // Define temporary UB buffer for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
-        __ubuf__ uint8_t *tmp_buff = reinterpret_cast<__ubuf__ uint8_t *>(uint64_t(ub_offset));
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
 
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
@@ -47,14 +47,15 @@ extern "C" __global__ __aicore__ void PutNotifyWaitTest(GM_ADDR gva, uint64_t co
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_put_nbi(gva + my_pe * MESSAGE_SIZE + data_offset, gva + my_pe * MESSAGE_SIZE + data_offset,
-                                tmp_buff, ub_size, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_put_nbi(
+                gva + my_pe * MESSAGE_SIZE + data_offset, gva + my_pe * MESSAGE_SIZE + data_offset, tmp_buff, ub_size,
+                base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_put_notify_wait(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_put_notify_wait(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     PutNotifyWaitTest<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -70,8 +71,8 @@ extern "C" __global__ __aicore__ void GetNotifyWaitTest(GM_ADDR gva, uint64_t co
 
         // Define temporary UB buffer for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
-        __ubuf__ uint8_t *tmp_buff = reinterpret_cast<__ubuf__ uint8_t *>(uint64_t(ub_offset));
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
 
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
@@ -94,14 +95,15 @@ extern "C" __global__ __aicore__ void GetNotifyWaitTest(GM_ADDR gva, uint64_t co
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_get_nbi(gva + peer * MESSAGE_SIZE + data_offset, gva + peer * MESSAGE_SIZE + data_offset,
-                                tmp_buff, ub_size, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_get_nbi(
+                gva + peer * MESSAGE_SIZE + data_offset, gva + peer * MESSAGE_SIZE + data_offset, tmp_buff, ub_size,
+                base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_get_notify_wait(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_get_notify_wait(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     GetNotifyWaitTest<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -141,20 +143,20 @@ extern "C" __global__ __aicore__ void PutNotifyWaitTestTensor(GM_ADDR gva, uint6
         }
         GM_ADDR data_addr = gva + my_pe * MESSAGE_SIZE + data_offset;
         AscendC::GlobalTensor<uint8_t> src_tensor;
-        src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+        src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
         AscendC::GlobalTensor<uint8_t> dst_tensor;
-        dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+        dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
         for (int64_t peer = 0; peer < n_pes; peer++) {
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_notify_record(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_local, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_put_tensor_notify_wait(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_put_tensor_notify_wait(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     PutNotifyWaitTestTensor<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -198,31 +200,101 @@ extern "C" __global__ __aicore__ void GetNotifyWaitTestTensor(GM_ADDR gva, uint6
             }
             GM_ADDR data_addr = gva + peer * MESSAGE_SIZE + data_offset;
             AscendC::GlobalTensor<uint8_t> src_tensor;
-            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
             AscendC::GlobalTensor<uint8_t> dst_tensor;
-            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
-            aclshmemx_sdma_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, EVENT_ID0);
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
+            aclshmemx_sdma_qp_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_notify_record(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_notify_record(tmp_local, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_get_tensor_notify_wait(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_get_tensor_notify_wait(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     GetNotifyWaitTestTensor<<<block_dim, nullptr, stream>>>(gva, config);
 }
 
+// 不带QP的接口固定使用QP 0，属于单核接口，仅由0号AIV执行整段搬运
+extern "C" __global__ __aicore__ void PutNotifyWaitTestNoQp(GM_ADDR gva, uint64_t config)
+{
+    util_set_ffts_config(config);
+    AscendC::TPipe pipe;
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        int64_t my_pe = aclshmem_my_pe();
+        int64_t n_pes = aclshmem_n_pes();
+
+        // Define temporary UB buffer for SDMA operations
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+
+        uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
+        for (int64_t peer = 0; peer < n_pes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmemx_sdma_put_nbi(
+                gva + my_pe * MESSAGE_SIZE, gva + my_pe * MESSAGE_SIZE, tmp_buff, ub_size, data_length, peer,
+                EVENT_ID0);
+        }
+        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
+    }
+}
+
+void test_put_notify_wait_noqp(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
+{
+    PutNotifyWaitTestNoQp<<<block_dim, nullptr, stream>>>(gva, config);
+}
+
+extern "C" __global__ __aicore__ void GetNotifyWaitTestNoQp(GM_ADDR gva, uint64_t config)
+{
+    util_set_ffts_config(config);
+    AscendC::TPipe pipe;
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        int64_t my_pe = aclshmem_my_pe();
+        int64_t n_pes = aclshmem_n_pes();
+
+        // Define temporary UB buffer for SDMA operations
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+
+        uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
+        for (int64_t peer = 0; peer < n_pes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmemx_sdma_get_nbi(
+                gva + peer * MESSAGE_SIZE, gva + peer * MESSAGE_SIZE, tmp_buff, ub_size, data_length, peer, EVENT_ID0);
+        }
+        aclshmemx_sdma_notify_record(tmp_buff, ub_size, EVENT_ID0);
+    }
+}
+
+void test_get_notify_wait_noqp(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
+{
+    GetNotifyWaitTestNoQp<<<block_dim, nullptr, stream>>>(gva, config);
+}
+
 __global__ __aicore__ void device_copy(GM_ADDR src, GM_ADDR dst, int message_length)
 {
-    __gm__ aclshmem_device_host_state_t *device_state = aclshmemi_get_state();
+    __gm__ aclshmem_device_host_state_t* device_state = aclshmemi_get_state();
 
     uint64_t copy_ub = device_state->mte_config.aclshmem_ub;
     uint32_t copy_ub_size = device_state->mte_config.ub_size;
     int64_t my_pe = aclshmem_my_pe();
     AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.sync_id;
-    aclshmemx_mte_put_nbi(reinterpret_cast<__gm__ char *>(dst), reinterpret_cast<__gm__ char *>(src),
-                          reinterpret_cast<__ubuf__ char *>(copy_ub),
-                          copy_ub_size, message_length, my_pe, copy_event_id);
+    aclshmemx_mte_put_nbi(
+        reinterpret_cast<__gm__ char*>(dst), reinterpret_cast<__gm__ char*>(src),
+        reinterpret_cast<__ubuf__ char*>(copy_ub), copy_ub_size, message_length, my_pe, copy_event_id);
     aclshmem_quiet();
 }
 

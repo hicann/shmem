@@ -41,11 +41,11 @@ constexpr int COMM_FRAME_ID = 1;
 constexpr int COMBINE_UB_SIZE_KB = 190;
 
 int g_npus = 8;
-const char *ipport = "tcp://127.0.0.1:8766";
+const char* ipport = "tcp://127.0.0.1:8766";
 int f_npu = 0;
-const char *data_type = "int32_t";
+const char* data_type = "int32_t";
 aclshmemx_uniqueid_t default_flag_uid;
-aclshmem_prof_pe_t *out_profs = nullptr;
+aclshmem_prof_pe_t* out_profs = nullptr;
 
 struct CombineArgs {
     int pe_size = 2;
@@ -78,7 +78,7 @@ bool AlmostEqual<fp16_t>(fp16_t lhs, fp16_t rhs)
 }
 
 template <typename T>
-bool CheckArray(const T *actual, const T *expected, size_t count, int pe_id)
+bool CheckArray(const T* actual, const T* expected, size_t count, int pe_id)
 {
     for (size_t i = 0; i < count; ++i) {
         if (!AlmostEqual(actual[i], expected[i])) {
@@ -91,10 +91,7 @@ bool CheckArray(const T *actual, const T *expected, size_t count, int pe_id)
     return true;
 }
 
-size_t AlignUp(size_t value, size_t alignment)
-{
-    return (value + alignment - 1) / alignment * alignment;
-}
+size_t AlignUp(size_t value, size_t alignment) { return (value + alignment - 1) / alignment * alignment; }
 
 size_t CombineWindowBytes(size_t bs, size_t h, size_t topk, size_t elem_size)
 {
@@ -102,7 +99,7 @@ size_t CombineWindowBytes(size_t bs, size_t h, size_t topk, size_t elem_size)
     return bs * topk * payload_stride + bs * topk * ALIGN_BYTES;
 }
 
-bool MakeDirs(const std::string &path)
+bool MakeDirs(const std::string& path)
 {
     if (path.empty()) {
         return true;
@@ -125,7 +122,7 @@ bool MakeDirs(const std::string &path)
 
 int GetCycleToUs()
 {
-    const char *soc_name = aclrtGetSocName();
+    const char* soc_name = aclrtGetSocName();
     if (soc_name != nullptr && std::string(soc_name).find("Ascend950") != std::string::npos) {
         return 1000;
     }
@@ -149,14 +146,14 @@ std::string DoubleToString(double value)
 
 int GetProfPe()
 {
-    const char *prof_pe_env = std::getenv("SHMEM_CYCLE_PROF_PE");
+    const char* prof_pe_env = std::getenv("SHMEM_CYCLE_PROF_PE");
     if (prof_pe_env == nullptr) {
         return -1;
     }
     return std::atoi(prof_pe_env);
 }
 
-std::vector<double> GetCoreTimesUs(aclshmem_prof_pe_t *profs, int frame_id, int block_num, double *max_time)
+std::vector<double> GetCoreTimesUs(aclshmem_prof_pe_t* profs, int frame_id, int block_num, double* max_time)
 {
     std::vector<double> core_times;
     *max_time = 0.0;
@@ -167,7 +164,7 @@ std::vector<double> GetCoreTimesUs(aclshmem_prof_pe_t *profs, int frame_id, int 
     const int actual_blocks = std::min(block_num, ACLSHMEM_CYCLE_PROF_MAX_BLOCK);
     const int cycle_to_us = GetCycleToUs();
     for (int block_id = 0; block_id < actual_blocks; ++block_id) {
-        aclshmem_prof_block_t *prof = &profs->block_prof[block_id];
+        aclshmem_prof_block_t* prof = &profs->block_prof[block_id];
         if (prof->ccount[frame_id] == 0) {
             continue;
         }
@@ -179,8 +176,8 @@ std::vector<double> GetCoreTimesUs(aclshmem_prof_pe_t *profs, int frame_id, int 
     return core_times;
 }
 
-void AppendPerfCsvRows(const std::string &csv_path, const CombineArgs &args, const PerfArgs &perf_args,
-                       size_t elem_size, int block_num)
+void AppendPerfCsvRows(
+    const std::string& csv_path, const CombineArgs& args, const PerfArgs& perf_args, size_t elem_size, int block_num)
 {
     if (csv_path.empty()) {
         return;
@@ -213,15 +210,14 @@ void AppendPerfCsvRows(const std::string &csv_path, const CombineArgs &args, con
                     "SingleCoreTime/us\n";
     }
 
-    const auto write_row = [&](const std::string &metric, int frame_id) {
+    const auto write_row = [&](const std::string& metric, int frame_id) {
         double max_time = 0.0;
         std::vector<double> core_times = GetCoreTimesUs(out_profs, frame_id, block_num, &max_time);
         out_file << per_pe_bytes << "," << args.pe_size << "," << block_num << "," << COMBINE_UB_SIZE_KB << ","
                  << DoubleToString(BytesToGBps(global_bytes, max_time)) << "," << DoubleToString(max_time) << ","
-                 << metric << "," << global_bytes << "," << DoubleToString(BytesToGBps(per_pe_bytes, max_time))
-                 << "," << args.bs << "," << args.h << "," << args.topk << "," << args.expert_per_pe << ","
-                 << data_type << "," << perf_args.warmup_count << "," << perf_args.loop_count << "," << prof_pe
-                 << "," << perf_args.case_id;
+                 << metric << "," << global_bytes << "," << DoubleToString(BytesToGBps(per_pe_bytes, max_time)) << ","
+                 << args.bs << "," << args.h << "," << args.topk << "," << args.expert_per_pe << "," << data_type << ","
+                 << perf_args.warmup_count << "," << perf_args.loop_count << "," << prof_pe << "," << perf_args.case_id;
         for (double core_time : core_times) {
             out_file << "," << DoubleToString(core_time);
         }
@@ -233,29 +229,29 @@ void AppendPerfCsvRows(const std::string &csv_path, const CombineArgs &args, con
 }
 
 template <class T>
-int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
+int RunCombineCase(const CombineArgs& args, const PerfArgs& perf_args)
 {
-    if (args.expert_per_pe <= 0 || args.pe_size <= 0 || args.pe_id < 0 || args.pe_id >= args.pe_size ||
-        args.bs <= 0 || args.h <= 0 || args.topk <= 0 || g_npus <= 0) {
+    if (args.expert_per_pe <= 0 || args.pe_size <= 0 || args.pe_id < 0 || args.pe_id >= args.pe_size || args.bs <= 0 ||
+        args.h <= 0 || args.topk <= 0 || g_npus <= 0) {
         std::cerr << "[Combine] invalid arguments." << std::endl;
         return 1;
     }
 
     aclrtStream stream = nullptr;
-    T *expand_x_host = nullptr;
-    int32_t *assist_host = nullptr;
-    int32_t *ep_recv_count_host = nullptr;
-    int32_t *expert_ids_host = nullptr;
-    float *expert_scales_host = nullptr;
-    T *x_out_host = nullptr;
-    T *golden_x_out = nullptr;
-    void *expand_x_device = nullptr;
-    void *assist_device = nullptr;
-    void *ep_recv_count_device = nullptr;
-    void *expert_ids_device = nullptr;
-    void *expert_scales_device = nullptr;
-    void *x_out_device = nullptr;
-    void *shmem_window = nullptr;
+    T* expand_x_host = nullptr;
+    int32_t* assist_host = nullptr;
+    int32_t* ep_recv_count_host = nullptr;
+    int32_t* expert_ids_host = nullptr;
+    float* expert_scales_host = nullptr;
+    T* x_out_host = nullptr;
+    T* golden_x_out = nullptr;
+    void* expand_x_device = nullptr;
+    void* assist_device = nullptr;
+    void* ep_recv_count_device = nullptr;
+    void* expert_ids_device = nullptr;
+    void* expert_scales_device = nullptr;
+    void* x_out_device = nullptr;
+    void* shmem_window = nullptr;
 
     auto cleanup = [&]() {
         if (shmem_window != nullptr) {
@@ -319,27 +315,27 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
             stream = nullptr;
         }
     };
-    auto check_acl = [&](aclError error, const char *op_name) -> bool {
+    auto check_acl = [&](aclError error, const char* op_name) -> bool {
         if (error != ACL_ERROR_NONE) {
             std::cerr << "[Combine] " << op_name << " failed, aclError=" << error << std::endl;
             return false;
         }
         return true;
     };
-    auto check_not_null = [&](const void *ptr, const char *name) -> bool {
+    auto check_not_null = [&](const void* ptr, const char* name) -> bool {
         if (ptr == nullptr) {
             std::cerr << "[Combine] " << name << " returned nullptr." << std::endl;
             return false;
         }
         return true;
     };
-    auto alloc_host = [&](void **ptr, size_t bytes, const char *name) -> bool {
+    auto alloc_host = [&](void** ptr, size_t bytes, const char* name) -> bool {
         if (!check_acl(aclrtMallocHost(ptr, bytes), name)) {
             return false;
         }
         return check_not_null(*ptr, name);
     };
-    auto alloc_device = [&](void **ptr, size_t bytes, const char *name) -> bool {
+    auto alloc_device = [&](void** ptr, size_t bytes, const char* name) -> bool {
         if (!check_acl(aclrtMalloc(ptr, bytes, ACL_MEM_MALLOC_HUGE_FIRST), name)) {
             return false;
         }
@@ -356,9 +352,9 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
     const int64_t max_recv_tokens = static_cast<int64_t>(args.pe_size) * args.bs * args.topk;
     const int64_t segment_num = static_cast<int64_t>(args.expert_per_pe) * args.pe_size;
 
-    const std::string case_dir = "golden/shape_" + std::to_string(args.bs) + "_" +
-                                 std::to_string(args.h) + "_" + std::to_string(args.topk) + "_" +
-                                 std::to_string(moe_expert_num) + "_" + std::to_string(args.pe_size);
+    const std::string case_dir = "golden/shape_" + std::to_string(args.bs) + "_" + std::to_string(args.h) + "_" +
+                                 std::to_string(args.topk) + "_" + std::to_string(moe_expert_num) + "_" +
+                                 std::to_string(args.pe_size);
     const std::string rank_dir = case_dir + "/rank_" + std::to_string(args.pe_id);
 
     const size_t expand_x_bytes = static_cast<size_t>(max_recv_tokens) * args.h * sizeof(T);
@@ -369,13 +365,15 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
     const size_t x_out_bytes = static_cast<size_t>(args.bs) * args.h * sizeof(T);
     const size_t shmem_window_bytes = CombineWindowBytes(args.bs, args.h, args.topk, sizeof(T));
 
-    if (!alloc_host(reinterpret_cast<void **>(&expand_x_host), expand_x_bytes, "aclrtMallocHost(expand_x_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&assist_host), assist_bytes, "aclrtMallocHost(assist_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&ep_recv_count_host), ep_recv_count_bytes,
-                    "aclrtMallocHost(ep_recv_count_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&expert_ids_host), expert_ids_bytes, "aclrtMallocHost(expert_ids_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&expert_scales_host), expert_scales_bytes,
-                    "aclrtMallocHost(expert_scales_host)")) {
+    if (!alloc_host(reinterpret_cast<void**>(&expand_x_host), expand_x_bytes, "aclrtMallocHost(expand_x_host)") ||
+        !alloc_host(reinterpret_cast<void**>(&assist_host), assist_bytes, "aclrtMallocHost(assist_host)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&ep_recv_count_host), ep_recv_count_bytes,
+            "aclrtMallocHost(ep_recv_count_host)") ||
+        !alloc_host(reinterpret_cast<void**>(&expert_ids_host), expert_ids_bytes, "aclrtMallocHost(expert_ids_host)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&expert_scales_host), expert_scales_bytes,
+            "aclrtMallocHost(expert_scales_host)")) {
         cleanup();
         return 1;
     }
@@ -405,19 +403,26 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
         return 1;
     }
 
-    if (!check_acl(aclrtMemcpy(expand_x_device, expand_x_bytes, expand_x_host, expand_x_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(expand_x_device)") ||
-        !check_acl(aclrtMemcpy(assist_device, assist_bytes, assist_host, assist_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(assist_device)") ||
-        !check_acl(aclrtMemcpy(ep_recv_count_device, ep_recv_count_bytes, ep_recv_count_host, ep_recv_count_bytes,
-                               ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(ep_recv_count_device)") ||
-        !check_acl(aclrtMemcpy(expert_ids_device, expert_ids_bytes, expert_ids_host, expert_ids_bytes,
-                               ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(expert_ids_device)") ||
-        !check_acl(aclrtMemcpy(expert_scales_device, expert_scales_bytes, expert_scales_host, expert_scales_bytes,
-                               ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(expert_scales_device)") ||
+    if (!check_acl(
+            aclrtMemcpy(expand_x_device, expand_x_bytes, expand_x_host, expand_x_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(expand_x_device)") ||
+        !check_acl(
+            aclrtMemcpy(assist_device, assist_bytes, assist_host, assist_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(assist_device)") ||
+        !check_acl(
+            aclrtMemcpy(
+                ep_recv_count_device, ep_recv_count_bytes, ep_recv_count_host, ep_recv_count_bytes,
+                ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(ep_recv_count_device)") ||
+        !check_acl(
+            aclrtMemcpy(
+                expert_ids_device, expert_ids_bytes, expert_ids_host, expert_ids_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(expert_ids_device)") ||
+        !check_acl(
+            aclrtMemcpy(
+                expert_scales_device, expert_scales_bytes, expert_scales_host, expert_scales_bytes,
+                ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(expert_scales_device)") ||
         !check_acl(aclrtMemset(x_out_device, x_out_bytes, 0, x_out_bytes), "aclrtMemset(x_out_device)") ||
         !check_acl(aclrtMemset(shmem_window, shmem_window_bytes, 0, shmem_window_bytes), "aclrtMemset(shmem_window)") ||
         !check_acl(aclrtSynchronizeStream(stream), "aclrtSynchronizeStream")) {
@@ -431,12 +436,12 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
     const int loop_count = perf_args.perf_mode ? perf_args.loop_count : 1;
     for (int iter = 0; iter < warmup_count + loop_count; ++iter) {
         const int launch_perf_mode = (perf_args.perf_mode && iter >= warmup_count) ? 1 : 0;
-        combine_demo<T>(block_num, stream, fftsAddr, reinterpret_cast<uint8_t *>(expand_x_device),
-                        reinterpret_cast<int32_t *>(assist_device), reinterpret_cast<int32_t *>(ep_recv_count_device),
-                        reinterpret_cast<int32_t *>(expert_ids_device), reinterpret_cast<float *>(expert_scales_device),
-                        reinterpret_cast<uint8_t *>(x_out_device), reinterpret_cast<uint8_t *>(shmem_window), args.bs,
-                        args.h, args.topk, moe_expert_num, MAGIC_MULTIPLIER, launch_perf_mode, FULL_FRAME_ID,
-                        COMM_FRAME_ID, 0, 1);
+        combine_demo<T>(
+            block_num, stream, fftsAddr, reinterpret_cast<uint8_t*>(expand_x_device),
+            reinterpret_cast<int32_t*>(assist_device), reinterpret_cast<int32_t*>(ep_recv_count_device),
+            reinterpret_cast<int32_t*>(expert_ids_device), reinterpret_cast<float*>(expert_scales_device),
+            reinterpret_cast<uint8_t*>(x_out_device), reinterpret_cast<uint8_t*>(shmem_window), args.bs, args.h,
+            args.topk, moe_expert_num, MAGIC_MULTIPLIER, launch_perf_mode, FULL_FRAME_ID, COMM_FRAME_ID, 0, 1);
 
         if (!check_acl(aclrtSynchronizeStream(stream), "aclrtSynchronizeStream")) {
             cleanup();
@@ -445,13 +450,14 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
         aclshmem_barrier_all();
     }
 
-    if (!alloc_host(reinterpret_cast<void **>(&x_out_host), x_out_bytes, "aclrtMallocHost(x_out_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&golden_x_out), x_out_bytes, "aclrtMallocHost(golden_x_out)")) {
+    if (!alloc_host(reinterpret_cast<void**>(&x_out_host), x_out_bytes, "aclrtMallocHost(x_out_host)") ||
+        !alloc_host(reinterpret_cast<void**>(&golden_x_out), x_out_bytes, "aclrtMallocHost(golden_x_out)")) {
         cleanup();
         return 1;
     }
-    if (!check_acl(aclrtMemcpy(x_out_host, x_out_bytes, x_out_device, x_out_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-                   "aclrtMemcpy(x_out_host)")) {
+    if (!check_acl(
+            aclrtMemcpy(x_out_host, x_out_bytes, x_out_device, x_out_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
+            "aclrtMemcpy(x_out_host)")) {
         cleanup();
         return 1;
     }
@@ -484,7 +490,7 @@ int RunCombineCase(const CombineArgs &args, const PerfArgs &perf_args)
 
 } // namespace
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     if (argc < 12) {
         std::cerr << "Usage: combine pe_size pe_id ipport g_npus first_pe first_npu data_type bs h topk "
@@ -523,8 +529,7 @@ int main(int argc, char *argv[])
     }
     if (perf_args.case_id.empty()) {
         perf_args.case_id = "shape_" + std::to_string(args.bs) + "_" + std::to_string(args.h) + "_" +
-                            std::to_string(args.topk) + "_" +
-                            std::to_string(args.pe_size * args.expert_per_pe) + "_" +
+                            std::to_string(args.topk) + "_" + std::to_string(args.pe_size * args.expert_per_pe) + "_" +
                             std::to_string(args.pe_size);
     }
     if (perf_args.warmup_count < 0) {
@@ -543,7 +548,10 @@ int main(int argc, char *argv[])
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(args.pe_id, args.pe_size, 1024UL * 1024UL * 1024, ipport, default_flag_uid, &attributes);
-    attributes.option_attr.data_op_engine_type = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_SDMA);
+    attributes.option_attr.data_op_engine_type =
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_SDMA);
+    // SDMA 数据面按 AIV 维度使用独立 QP（qp_idx = aiv_index < pe_size），须在初始化前配置 QP 数。
+    ACL_CHECK(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, static_cast<uint32_t>(args.pe_size)));
     ACL_CHECK(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     int status = 0;

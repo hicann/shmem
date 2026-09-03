@@ -68,12 +68,13 @@ threshold_den = max(pe_size - 1, 1) * local_expert_num
 
 1. 每个 active core 统计发往目标 rank 的各 local expert segment 的 `segment_counts`。
 2. 根据远端总 token 数计算平均阈值，并为每个 segment 标记 `sdma_flags`。
-3. 先提交所有 SDMA payload：使用 `aclshmemx_sdma_put_nbi` 非阻塞写远端 payload。
-4. 每提交 256 次 SDMA issue 后调用 `aclshmemx_sdma_quiet`，避免 outstanding 请求无限积压。
-5. SDMA payload 阶段结束后，如果仍有未 quiet 的请求，再统一 `sdma_quiet`。
-6. 小段 payload 使用 MTE 直连路径传输。
-7. 控制面信号统一用 MTE 写入，包括 `assist_info_for_combine`、ready flag 和 count signal。
-8. 接收端等待 count/ready 后，按经典 dispatch 的顺序构造最终 `expand_x`、`assist_info_for_combine`、`ep_recv_count` 和 `expert_token_nums`。
+3. 先提交所有 SDMA payload：使用 `aclshmemx_sdma_qp_put_nbi` 非阻塞写远端 payload，每个 AIV 以自身索引（`aiv_index`，小于 pe_size）作为 qp_idx 使用独立 QP。
+4. 每提交 256 次 SDMA issue 后调用 `aclshmemx_sdma_qp_quiet`（携带同一 qp_idx），避免 outstanding 请求无限积压。
+5. SDMA payload 阶段结束后，如果仍有未 quiet 的请求，再统一调用 `aclshmemx_sdma_qp_quiet`。
+6. host 侧在 `aclshmemx_init_attr` 之前调用 `aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, pe_size)`，保证 QP 数量与 AIV 索引范围一致。
+7. 小段 payload 使用 MTE 直连路径传输。
+8. 控制面信号统一用 MTE 写入，包括 `assist_info_for_combine`、ready flag 和 count signal。
+9. 接收端等待 count/ready 后，按经典 dispatch 的顺序构造最终 `expand_x`、`assist_info_for_combine`、`ep_recv_count` 和 `expert_token_nums`。
 
 注意：SDMA 只负责大段 payload 数据面；控制面仍然由 MTE 负责。这样可以避免对端看到 ready 但 payload 仍未完成的时序问题。
 

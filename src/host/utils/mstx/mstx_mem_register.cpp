@@ -16,28 +16,26 @@
 #include "acl/acl.h"
 #include "shmemi_logger.h"
 
-#define CHECK_MSTX_ENABLE() \
-    do { \
-        if (!is_mstx_enable()) { \
+#define CHECK_MSTX_ENABLE()                          \
+    do {                                             \
+        if (!is_mstx_enable()) {                     \
             SHM_LOG_INFO("MSTX tool not supported"); \
-            return; \
-        } \
+            return;                                  \
+        }                                            \
     } while (0)
 
 namespace shm {
 
 class mstx_mem_register_real : public mstx_mem_register_base {
 public:
-    mstx_mem_register_real() :
-        ranges_desc_(MSTX_REGISTER_GROUP_NUM),
-        region_handles_(MSTX_REGISTER_GROUP_NUM)
+    mstx_mem_register_real() : ranges_desc_(MSTX_REGISTER_GROUP_NUM), region_handles_(MSTX_REGISTER_GROUP_NUM)
     {
         init_domain();
 
         if (domain_ != nullptr) {
             SHM_LOG_INFO("mstx_mem_register created, domain init success");
         } else {
-            SHM_LOG_INFO("mstx_mem_register created, domain init failed");
+            SHM_LOG_ERROR("mstx_mem_register created, domain init failed");
         }
     }
 
@@ -78,10 +76,9 @@ public:
         SHM_LOG_INFO("Register group " << group << ", total regions: " << target_ranges.size());
         for (size_t i = 0; i < target_ranges.size(); ++i) {
             const auto& region = target_ranges[i];
-            SHM_LOG_INFO("  Region " << i
-                         << ": ptr=" << region.ptr
-                         << ", size=" << region.size
-                         << ", deviceId=" << static_cast<unsigned int>(region.deviceId));
+            SHM_LOG_INFO(
+                "  Region " << i << ": ptr=" << region.ptr << ", size=" << region.size
+                            << ", deviceId=" << static_cast<unsigned int>(region.deviceId));
         }
 
         target_handles.resize(target_ranges.size());
@@ -97,10 +94,8 @@ public:
 
         std::vector<mstxMemPermissionsAssignRegionsDesc_t> permAssignDesc(target_handles.size());
         for (size_t i = 0; i < target_handles.size(); ++i) {
-            permAssignDesc[i].flags =
-                MSTX_MEM_PERMISSIONS_REGION_FLAGS_READ |
-                MSTX_MEM_PERMISSIONS_REGION_FLAGS_WRITE |
-                MSTX_MEM_PERMISSIONS_REGION_FLAGS_SHARED;
+            permAssignDesc[i].flags = MSTX_MEM_PERMISSIONS_REGION_FLAGS_READ | MSTX_MEM_PERMISSIONS_REGION_FLAGS_WRITE |
+                                      MSTX_MEM_PERMISSIONS_REGION_FLAGS_SHARED;
             permAssignDesc[i].region.refType = MSTX_MEM_REGION_REF_TYPE_HANDLE;
             permAssignDesc[i].region.handle = target_handles[i];
         }
@@ -136,7 +131,7 @@ public:
         }
 
         size_t arr_size = target_handles.size();
-        mstxMemRegionRef_t *region_ref = new mstxMemRegionRef_t[arr_size]();
+        mstxMemRegionRef_t* region_ref = new mstxMemRegionRef_t[arr_size]();
         for (size_t i = 0; i < target_handles.size(); ++i) {
             region_ref[i].refType = MSTX_MEM_REGION_REF_TYPE_HANDLE;
             region_ref[i].handle = target_handles[i];
@@ -146,7 +141,7 @@ public:
         refs_desc.refCount = target_handles.size();
         refs_desc.refArray = region_ref;
         mstxMemRegionsUnregister(domain_, &refs_desc);
-        
+
         delete[] region_ref;
         region_ref = nullptr;
 
@@ -154,7 +149,7 @@ public:
         SHM_LOG_INFO("Unregistered " << target_ranges.size() << " regions for group " << group);
     }
 
-    void add_mem_regions(void *ptr, uint64_t size, int group = 0) override
+    void add_mem_regions(void* ptr, uint64_t size, int group = 0) override
     {
         CHECK_MSTX_ENABLE();
         if (group < 0 || group >= MSTX_REGISTER_GROUP_NUM) {
@@ -162,9 +157,7 @@ public:
             return;
         }
 
-        SHM_LOG_INFO("Add mem region: group=" << group 
-                     << ", ptr=" << ptr
-                     << ", size=" << size);
+        SHM_LOG_INFO("Add mem region: group=" << group << ", ptr=" << ptr << ", size=" << size);
 
         if (get_mstx_device() >= 0) {
             mstxMemVirtualRangeDesc_t region_info = {0};
@@ -175,7 +168,8 @@ public:
         }
     }
 
-    void add_mem_regions_multi_pe_align(void *ptr, uint64_t size, uint64_t align_size, uint32_t pe_size, int group = 0) override
+    void add_mem_regions_multi_pe_align(
+        void* ptr, uint64_t size, uint64_t align_size, uint32_t pe_size, int group = 0) override
     {
         CHECK_MSTX_ENABLE();
         if (group < 0 || group >= MSTX_REGISTER_GROUP_NUM) {
@@ -187,8 +181,9 @@ public:
             return;
         }
         if (align_size < size) {
-            SHM_LOG_ERROR("Align size (" << align_size << ") cannot be less than region size (" << size 
-                        << ") for multi-PE aligned regions (group=" << group << ")");
+            SHM_LOG_ERROR(
+                "Align size (" << align_size << ") cannot be less than region size (" << size
+                               << ") for multi-PE aligned regions (group=" << group << ")");
             return;
         }
 
@@ -198,14 +193,12 @@ public:
             return;
         }
 
-        SHM_LOG_INFO("Add multi-PE aligned mem regions: group=" << group 
-                    << ", base ptr=" << ptr
-                    << ", size per region=" << size 
-                    << ", align size=" << align_size 
-                    << ", PE count=" << pe_size);
+        SHM_LOG_INFO(
+            "Add multi-PE aligned mem regions: group=" << group << ", base ptr=" << ptr << ", size per region=" << size
+                                                       << ", align size=" << align_size << ", PE count=" << pe_size);
 
         for (uint32_t pe_idx = 0; pe_idx < pe_size; ++pe_idx) {
-            void *current_ptr = (void *)((uintptr_t)ptr + (pe_idx * align_size));
+            void* current_ptr = (void*)((uintptr_t)ptr + (pe_idx * align_size));
 
             mstxMemVirtualRangeDesc_t region_info = {0};
             region_info.deviceId = static_cast<uint32_t>(device_id);
@@ -214,9 +207,7 @@ public:
 
             ranges_desc_[group].push_back(region_info);
 
-            SHM_LOG_INFO("PE " << pe_idx 
-                        << ": ptr=" << current_ptr
-                        << ", size=" << size);
+            SHM_LOG_INFO("PE " << pe_idx << ": ptr=" << current_ptr << ", size=" << size);
         }
 
         SHM_LOG_INFO("Added total " << pe_size << " multi-PE aligned regions (group=" << group << ")");
@@ -236,10 +227,7 @@ private:
         }
     }
 
-    bool is_mstx_enable() const
-    {
-        return is_mstx_enable_ && (domain_ != nullptr);
-    }
+    bool is_mstx_enable() const { return is_mstx_enable_ && (domain_ != nullptr); }
 
     void clear_mstx_mem_regions(int group = 0) noexcept
     {
@@ -278,9 +266,6 @@ private:
     std::vector<std::vector<mstxMemRegionHandle_t>> region_handles_;
 };
 
-extern "C" mstx_mem_register_base* create_mstx_mem_register_instance(void)
-{
-    return new mstx_mem_register_real();
-}
+extern "C" mstx_mem_register_base* create_mstx_mem_register_instance(void) { return new mstx_mem_register_real(); }
 
 } /* namespace shm */

@@ -16,25 +16,22 @@ extern char test_global_ipport[ACLSHMEM_MAX_IP_PORT_LEN];
 extern int test_first_rank;
 extern int test_first_npu;
 
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                       aclshmemx_init_attr_t *attributes);
-void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
-int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
-int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
-void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st);
-void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream *st, int inst_count);
+int32_t test_set_attr(
+    int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char* ip_port, aclshmemx_init_attr_t* attributes);
+void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
+int32_t test_rdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
+int32_t test_sdma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
+int32_t test_udma_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream* st);
+void test_cross_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream* st);
+void test_multi_instance_init(int pe_id, int n_pes, uint64_t local_mem_size, aclrtStream* st, int inst_count);
 void test_finalize(aclrtStream stream, int device_id);
 void test_multi_instance_finalize(aclrtStream stream, int device_id, int inst_count);
 void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
 void test_mutil_task_with_uid(
-    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func,
-    uint64_t local_mem_size,
-    int process_count);
+    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func, uint64_t local_mem_size, int process_count);
 
 void test_mutil_task_uid_loop(
-    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func,
-    uint64_t local_mem_size,
-    int process_count,
+    std::function<void(int, int, uint64_t, aclshmemx_uniqueid_t&)> func, uint64_t local_mem_size, int process_count,
     int loop_count = 20);
 
 #endif // UNITTEST_H

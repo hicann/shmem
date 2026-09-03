@@ -33,11 +33,11 @@ constexpr int ASSIST_FIELDS = 3;
 constexpr size_t ALIGN_BYTES = 32;
 
 int g_npus = 8;
-const char *ipport = "tcp://127.0.0.1:8766";
+const char* ipport = "tcp://127.0.0.1:8766";
 int f_npu = 0;
-const char *data_type = "int32_t";
+const char* data_type = "int32_t";
 aclshmemx_uniqueid_t default_flag_uid;
-aclshmem_prof_pe_t *out_profs = nullptr;
+aclshmem_prof_pe_t* out_profs = nullptr;
 
 constexpr int FULL_FRAME_ID = 0;
 constexpr int COMM_FRAME_ID = 1;
@@ -64,7 +64,7 @@ bool AlmostEqual<bfloat16>(bfloat16 lhs, bfloat16 rhs)
 }
 
 template <typename T>
-bool CheckArray(const std::string &name, const T *actual, const T *expected, size_t count, int pe_id)
+bool CheckArray(const std::string& name, const T* actual, const T* expected, size_t count, int pe_id)
 {
     for (size_t i = 0; i < count; ++i) {
         if (!AlmostEqual(actual[i], expected[i])) {
@@ -77,7 +77,7 @@ bool CheckArray(const std::string &name, const T *actual, const T *expected, siz
     return true;
 }
 
-bool CheckIntArray(const std::string &name, const int32_t *actual, const int32_t *expected, size_t count, int pe_id)
+bool CheckIntArray(const std::string& name, const int32_t* actual, const int32_t* expected, size_t count, int pe_id)
 {
     for (size_t i = 0; i < count; ++i) {
         if (actual[i] != expected[i]) {
@@ -89,10 +89,7 @@ bool CheckIntArray(const std::string &name, const int32_t *actual, const int32_t
     return true;
 }
 
-size_t AlignUp(size_t value, size_t alignment)
-{
-    return (value + alignment - 1) / alignment * alignment;
-}
+size_t AlignUp(size_t value, size_t alignment) { return (value + alignment - 1) / alignment * alignment; }
 
 size_t DispatchWindowBytes(size_t bs, size_t h, size_t topk, size_t pe_size, size_t local_expert_num, size_t elem_size)
 {
@@ -100,15 +97,11 @@ size_t DispatchWindowBytes(size_t bs, size_t h, size_t topk, size_t pe_size, siz
     const size_t segment_num = pe_size * local_expert_num;
     const size_t total_slots = segment_num * max_tokens_per_segment;
     const size_t payload_stride = AlignUp(h * elem_size, ALIGN_BYTES);
-    return total_slots * payload_stride +
-           total_slots * ALIGN_BYTES +
-           total_slots * ALIGN_BYTES +
-           segment_num * ALIGN_BYTES +
-           segment_num * ALIGN_BYTES;
+    return total_slots * payload_stride + total_slots * ALIGN_BYTES + total_slots * ALIGN_BYTES +
+           segment_num * ALIGN_BYTES + segment_num * ALIGN_BYTES;
 }
 
-size_t DispatchCountOffset(size_t bs, size_t h, size_t topk, size_t pe_size, size_t local_expert_num,
-                           size_t elem_size)
+size_t DispatchCountOffset(size_t bs, size_t h, size_t topk, size_t pe_size, size_t local_expert_num, size_t elem_size)
 {
     const size_t max_tokens_per_segment = bs * topk;
     const size_t segment_num = pe_size * local_expert_num;
@@ -117,43 +110,40 @@ size_t DispatchCountOffset(size_t bs, size_t h, size_t topk, size_t pe_size, siz
     return total_slots * payload_stride + total_slots * ALIGN_BYTES + total_slots * ALIGN_BYTES;
 }
 
-size_t DispatchCountBytes(size_t pe_size, size_t local_expert_num)
-{
-    return pe_size * local_expert_num * ALIGN_BYTES;
-}
+size_t DispatchCountBytes(size_t pe_size, size_t local_expert_num) { return pe_size * local_expert_num * ALIGN_BYTES; }
 
 template <class T>
-int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
+int RunDispatchCase(const MoeShapeArgs& args, const MoePerfArgs& perf_args)
 {
-    if (args.expert_per_pe <= 0 || args.pe_size <= 0 || args.pe_id < 0 || args.pe_id >= args.pe_size ||
-        args.bs <= 0 || args.h <= 0 || args.topk <= 0 || g_npus <= 0) {
+    if (args.expert_per_pe <= 0 || args.pe_size <= 0 || args.pe_id < 0 || args.pe_id >= args.pe_size || args.bs <= 0 ||
+        args.h <= 0 || args.topk <= 0 || g_npus <= 0) {
         std::cerr << "[DispatchDoubleplane] invalid arguments." << std::endl;
         return 1;
     }
     if (args.expert_per_pe > DISPATCH_MAX_LOCAL_EXPERT_NUM) {
-        std::cerr << "[DispatchDoubleplane] invalid expert_per_pe=" << args.expert_per_pe
-                  << ", max supported value is " << DISPATCH_MAX_LOCAL_EXPERT_NUM << "." << std::endl;
+        std::cerr << "[DispatchDoubleplane] invalid expert_per_pe=" << args.expert_per_pe << ", max supported value is "
+                  << DISPATCH_MAX_LOCAL_EXPERT_NUM << "." << std::endl;
         return 1;
     }
 
     aclrtStream stream = nullptr;
-    T *x_host = nullptr;
-    int32_t *expert_ids_host = nullptr;
-    T *expand_x_host = nullptr;
-    int32_t *assist_host = nullptr;
-    int32_t *ep_recv_count_host = nullptr;
-    int32_t *expert_token_nums_host = nullptr;
-    T *golden_expand_x = nullptr;
-    int32_t *golden_assist = nullptr;
-    int32_t *golden_ep_recv_count = nullptr;
-    int32_t *golden_expert_token_nums = nullptr;
-    void *x_device = nullptr;
-    void *expert_ids_device = nullptr;
-    void *expand_x_device = nullptr;
-    void *assist_device = nullptr;
-    void *ep_recv_count_device = nullptr;
-    void *expert_token_nums_device = nullptr;
-    void *shmem_window = nullptr;
+    T* x_host = nullptr;
+    int32_t* expert_ids_host = nullptr;
+    T* expand_x_host = nullptr;
+    int32_t* assist_host = nullptr;
+    int32_t* ep_recv_count_host = nullptr;
+    int32_t* expert_token_nums_host = nullptr;
+    T* golden_expand_x = nullptr;
+    int32_t* golden_assist = nullptr;
+    int32_t* golden_ep_recv_count = nullptr;
+    int32_t* golden_expert_token_nums = nullptr;
+    void* x_device = nullptr;
+    void* expert_ids_device = nullptr;
+    void* expand_x_device = nullptr;
+    void* assist_device = nullptr;
+    void* ep_recv_count_device = nullptr;
+    void* expert_token_nums_device = nullptr;
+    void* shmem_window = nullptr;
 
     auto cleanup = [&]() {
         if (shmem_window != nullptr) {
@@ -229,27 +219,27 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
             stream = nullptr;
         }
     };
-    auto check_acl = [&](aclError error, const char *op_name) -> bool {
+    auto check_acl = [&](aclError error, const char* op_name) -> bool {
         if (error != ACL_ERROR_NONE) {
             std::cerr << "[DispatchDoubleplane] " << op_name << " failed, aclError=" << error << std::endl;
             return false;
         }
         return true;
     };
-    auto check_not_null = [&](const void *ptr, const char *name) -> bool {
+    auto check_not_null = [&](const void* ptr, const char* name) -> bool {
         if (ptr == nullptr) {
             std::cerr << "[DispatchDoubleplane] " << name << " returned nullptr." << std::endl;
             return false;
         }
         return true;
     };
-    auto alloc_host = [&](void **ptr, size_t bytes, const char *name) -> bool {
+    auto alloc_host = [&](void** ptr, size_t bytes, const char* name) -> bool {
         if (!check_acl(aclrtMallocHost(ptr, bytes), name)) {
             return false;
         }
         return check_not_null(*ptr, name);
     };
-    auto alloc_device = [&](void **ptr, size_t bytes, const char *name) -> bool {
+    auto alloc_device = [&](void** ptr, size_t bytes, const char* name) -> bool {
         if (!check_acl(aclrtMalloc(ptr, bytes, ACL_MEM_MALLOC_HUGE_FIRST), name)) {
             return false;
         }
@@ -266,9 +256,9 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
     const int64_t max_recv_tokens = static_cast<int64_t>(args.pe_size) * args.bs * args.topk;
     const int64_t segment_num = static_cast<int64_t>(args.expert_per_pe) * args.pe_size;
 
-    const std::string case_dir = "golden/shape_" + std::to_string(args.bs) + "_" +
-                                 std::to_string(args.h) + "_" + std::to_string(args.topk) + "_" +
-                                 std::to_string(moe_expert_num) + "_" + std::to_string(args.pe_size);
+    const std::string case_dir = "golden/shape_" + std::to_string(args.bs) + "_" + std::to_string(args.h) + "_" +
+                                 std::to_string(args.topk) + "_" + std::to_string(moe_expert_num) + "_" +
+                                 std::to_string(args.pe_size);
     const std::string rank_dir = case_dir + "/rank_" + std::to_string(args.pe_id);
 
     const size_t x_bytes = static_cast<size_t>(args.bs) * args.h * sizeof(T);
@@ -283,8 +273,8 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
         DispatchCountOffset(args.bs, args.h, args.topk, args.pe_size, args.expert_per_pe, sizeof(T));
     const size_t shmem_count_bytes = DispatchCountBytes(args.pe_size, args.expert_per_pe);
 
-    if (!alloc_host(reinterpret_cast<void **>(&x_host), x_bytes, "aclrtMallocHost(x_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&expert_ids_host), expert_ids_bytes, "aclrtMallocHost(expert_ids_host)")) {
+    if (!alloc_host(reinterpret_cast<void**>(&x_host), x_bytes, "aclrtMallocHost(x_host)") ||
+        !alloc_host(reinterpret_cast<void**>(&expert_ids_host), expert_ids_bytes, "aclrtMallocHost(expert_ids_host)")) {
         cleanup();
         return 1;
     }
@@ -310,21 +300,26 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
         return 1;
     }
 
-    if (!check_acl(aclrtMemcpy(x_device, x_bytes, x_host, x_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(x_device)") ||
-        !check_acl(aclrtMemcpy(expert_ids_device, expert_ids_bytes, expert_ids_host, expert_ids_bytes,
-                               ACL_MEMCPY_HOST_TO_DEVICE),
-                   "aclrtMemcpy(expert_ids_device)") ||
+    if (!check_acl(
+            aclrtMemcpy(x_device, x_bytes, x_host, x_bytes, ACL_MEMCPY_HOST_TO_DEVICE), "aclrtMemcpy(x_device)") ||
+        !check_acl(
+            aclrtMemcpy(
+                expert_ids_device, expert_ids_bytes, expert_ids_host, expert_ids_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
+            "aclrtMemcpy(expert_ids_device)") ||
         !check_acl(aclrtMemset(expand_x_device, expand_x_bytes, 0, expand_x_bytes), "aclrtMemset(expand_x_device)") ||
         !check_acl(aclrtMemset(assist_device, assist_bytes, 0, assist_bytes), "aclrtMemset(assist_device)") ||
-        !check_acl(aclrtMemset(ep_recv_count_device, ep_recv_count_bytes, 0, ep_recv_count_bytes),
-                   "aclrtMemset(ep_recv_count_device)") ||
-        !check_acl(aclrtMemset(expert_token_nums_device, expert_token_nums_bytes, 0, expert_token_nums_bytes),
-                   "aclrtMemset(expert_token_nums_device)") ||
+        !check_acl(
+            aclrtMemset(ep_recv_count_device, ep_recv_count_bytes, 0, ep_recv_count_bytes),
+            "aclrtMemset(ep_recv_count_device)") ||
+        !check_acl(
+            aclrtMemset(expert_token_nums_device, expert_token_nums_bytes, 0, expert_token_nums_bytes),
+            "aclrtMemset(expert_token_nums_device)") ||
         !check_acl(aclrtMemset(shmem_window, shmem_window_bytes, 0, shmem_window_bytes), "aclrtMemset(shmem_window)") ||
-        !check_acl(aclrtMemset(reinterpret_cast<uint8_t *>(shmem_window) + shmem_count_offset, shmem_count_bytes,
-                               0xFF, shmem_count_bytes),
-                   "aclrtMemset(shmem_count_window)") ||
+        !check_acl(
+            aclrtMemset(
+                reinterpret_cast<uint8_t*>(shmem_window) + shmem_count_offset, shmem_count_bytes, 0xFF,
+                shmem_count_bytes),
+            "aclrtMemset(shmem_count_window)") ||
         !check_acl(aclrtSynchronizeStream(stream), "aclrtSynchronizeStream")) {
         cleanup();
         return 1;
@@ -336,12 +331,12 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
     const int loop_count = perf_args.perf_mode ? perf_args.loop_count : 1;
     for (int iter = 0; iter < warmup_count + loop_count; ++iter) {
         const int launch_perf_mode = (perf_args.perf_mode && iter >= warmup_count) ? 1 : 0;
-        dispatch_demo<T>(block_num, stream, fftsAddr, reinterpret_cast<uint8_t *>(x_device),
-                         reinterpret_cast<int32_t *>(expert_ids_device), reinterpret_cast<uint8_t *>(expand_x_device),
-                         reinterpret_cast<int32_t *>(assist_device), reinterpret_cast<int32_t *>(ep_recv_count_device),
-                         reinterpret_cast<int32_t *>(expert_token_nums_device),
-                         reinterpret_cast<uint8_t *>(shmem_window), args.bs, args.h, args.topk, moe_expert_num,
-                         MAGIC_MULTIPLIER, launch_perf_mode, FULL_FRAME_ID, COMM_FRAME_ID, 0, 1);
+        dispatch_demo<T>(
+            block_num, stream, fftsAddr, reinterpret_cast<uint8_t*>(x_device),
+            reinterpret_cast<int32_t*>(expert_ids_device), reinterpret_cast<uint8_t*>(expand_x_device),
+            reinterpret_cast<int32_t*>(assist_device), reinterpret_cast<int32_t*>(ep_recv_count_device),
+            reinterpret_cast<int32_t*>(expert_token_nums_device), reinterpret_cast<uint8_t*>(shmem_window), args.bs,
+            args.h, args.topk, moe_expert_num, MAGIC_MULTIPLIER, launch_perf_mode, FULL_FRAME_ID, COMM_FRAME_ID, 0, 1);
 
         if (!check_acl(aclrtSynchronizeStream(stream), "aclrtSynchronizeStream")) {
             cleanup();
@@ -350,26 +345,34 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
         aclshmem_barrier_all();
     }
 
-    if (!alloc_host(reinterpret_cast<void **>(&expand_x_host), expand_x_bytes, "aclrtMallocHost(expand_x_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&assist_host), assist_bytes, "aclrtMallocHost(assist_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&ep_recv_count_host), ep_recv_count_bytes,
-                    "aclrtMallocHost(ep_recv_count_host)") ||
-        !alloc_host(reinterpret_cast<void **>(&expert_token_nums_host), expert_token_nums_bytes,
-                    "aclrtMallocHost(expert_token_nums_host)")) {
+    if (!alloc_host(reinterpret_cast<void**>(&expand_x_host), expand_x_bytes, "aclrtMallocHost(expand_x_host)") ||
+        !alloc_host(reinterpret_cast<void**>(&assist_host), assist_bytes, "aclrtMallocHost(assist_host)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&ep_recv_count_host), ep_recv_count_bytes,
+            "aclrtMallocHost(ep_recv_count_host)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&expert_token_nums_host), expert_token_nums_bytes,
+            "aclrtMallocHost(expert_token_nums_host)")) {
         cleanup();
         return 1;
     }
 
-    if (!check_acl(aclrtMemcpy(expand_x_host, expand_x_bytes, expand_x_device, expand_x_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-                   "aclrtMemcpy(expand_x_host)") ||
-        !check_acl(aclrtMemcpy(assist_host, assist_bytes, assist_device, assist_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-                   "aclrtMemcpy(assist_host)") ||
-        !check_acl(aclrtMemcpy(ep_recv_count_host, ep_recv_count_bytes, ep_recv_count_device, ep_recv_count_bytes,
-                               ACL_MEMCPY_DEVICE_TO_HOST),
-                   "aclrtMemcpy(ep_recv_count_host)") ||
-        !check_acl(aclrtMemcpy(expert_token_nums_host, expert_token_nums_bytes, expert_token_nums_device,
-                               expert_token_nums_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
-                   "aclrtMemcpy(expert_token_nums_host)")) {
+    if (!check_acl(
+            aclrtMemcpy(expand_x_host, expand_x_bytes, expand_x_device, expand_x_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
+            "aclrtMemcpy(expand_x_host)") ||
+        !check_acl(
+            aclrtMemcpy(assist_host, assist_bytes, assist_device, assist_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
+            "aclrtMemcpy(assist_host)") ||
+        !check_acl(
+            aclrtMemcpy(
+                ep_recv_count_host, ep_recv_count_bytes, ep_recv_count_device, ep_recv_count_bytes,
+                ACL_MEMCPY_DEVICE_TO_HOST),
+            "aclrtMemcpy(ep_recv_count_host)") ||
+        !check_acl(
+            aclrtMemcpy(
+                expert_token_nums_host, expert_token_nums_bytes, expert_token_nums_device, expert_token_nums_bytes,
+                ACL_MEMCPY_DEVICE_TO_HOST),
+            "aclrtMemcpy(expert_token_nums_host)")) {
         cleanup();
         return 1;
     }
@@ -390,12 +393,14 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
     WriteFile(recv_out, ep_recv_count_host, ep_recv_count_bytes);
     WriteFile(expert_out, expert_token_nums_host, expert_token_nums_bytes);
 
-    if (!alloc_host(reinterpret_cast<void **>(&golden_expand_x), expand_x_bytes, "aclrtMallocHost(golden_expand_x)") ||
-        !alloc_host(reinterpret_cast<void **>(&golden_assist), assist_bytes, "aclrtMallocHost(golden_assist)") ||
-        !alloc_host(reinterpret_cast<void **>(&golden_ep_recv_count), ep_recv_count_bytes,
-                    "aclrtMallocHost(golden_ep_recv_count)") ||
-        !alloc_host(reinterpret_cast<void **>(&golden_expert_token_nums), expert_token_nums_bytes,
-                    "aclrtMallocHost(golden_expert_token_nums)")) {
+    if (!alloc_host(reinterpret_cast<void**>(&golden_expand_x), expand_x_bytes, "aclrtMallocHost(golden_expand_x)") ||
+        !alloc_host(reinterpret_cast<void**>(&golden_assist), assist_bytes, "aclrtMallocHost(golden_assist)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&golden_ep_recv_count), ep_recv_count_bytes,
+            "aclrtMallocHost(golden_ep_recv_count)") ||
+        !alloc_host(
+            reinterpret_cast<void**>(&golden_expert_token_nums), expert_token_nums_bytes,
+            "aclrtMallocHost(golden_expert_token_nums)")) {
         cleanup();
         return 1;
     }
@@ -409,17 +414,17 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
         return 1;
     }
 
-    const bool ok = CheckArray("expand_x", expand_x_host, golden_expand_x, max_recv_tokens * args.h, args.pe_id) &&
-                    CheckIntArray("assist_info", assist_host, golden_assist, max_recv_tokens * ASSIST_FIELDS,
-                                  args.pe_id) &&
-                    CheckIntArray("ep_recv_count", ep_recv_count_host, golden_ep_recv_count, segment_num,
-                                  args.pe_id) &&
-                    CheckIntArray("expert_token_nums", expert_token_nums_host, golden_expert_token_nums,
-                                  args.expert_per_pe, args.pe_id);
+    const bool ok =
+        CheckArray("expand_x", expand_x_host, golden_expand_x, max_recv_tokens * args.h, args.pe_id) &&
+        CheckIntArray("assist_info", assist_host, golden_assist, max_recv_tokens * ASSIST_FIELDS, args.pe_id) &&
+        CheckIntArray("ep_recv_count", ep_recv_count_host, golden_ep_recv_count, segment_num, args.pe_id) &&
+        CheckIntArray(
+            "expert_token_nums", expert_token_nums_host, golden_expert_token_nums, args.expert_per_pe, args.pe_id);
 
     if (ok && perf_args.perf_mode && args.pe_id == MoeGetProfPe()) {
-        MoeAppendPerfCsvRows("DispatchDoubleplane", &out_profs, perf_args.csv_path, args, perf_args, data_type, sizeof(T),
-                             static_cast<int>(block_num), DISPATCH_UB_SIZE_KB);
+        MoeAppendPerfCsvRows(
+            "DispatchDoubleplane", &out_profs, perf_args.csv_path, args, perf_args, data_type, sizeof(T),
+            static_cast<int>(block_num), DISPATCH_UB_SIZE_KB);
     }
 
     cleanup();
@@ -434,7 +439,7 @@ int RunDispatchCase(const MoeShapeArgs &args, const MoePerfArgs &perf_args)
 
 } // namespace
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     if (argc < INDEX12) {
         std::cerr << "Usage: dispatch_doubleplane pe_size pe_id ipport g_npus first_pe first_npu data_type bs h topk "
@@ -467,7 +472,10 @@ int main(int argc, char *argv[])
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(args.pe_id, args.pe_size, 1024UL * 1024UL * 1024, ipport, default_flag_uid, &attributes);
-    attributes.option_attr.data_op_engine_type = static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_SDMA);
+    attributes.option_attr.data_op_engine_type =
+        static_cast<data_op_engine_type_t>(ACLSHMEM_DATA_OP_MTE | ACLSHMEM_DATA_OP_SDMA);
+    // SDMA 数据面按 AIV 维度使用独立 QP（qp_idx = aiv_index < pe_size），须在初始化前配置 QP 数。
+    ACL_CHECK(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, static_cast<uint32_t>(args.pe_size)));
     ACL_CHECK(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     int status = 0;

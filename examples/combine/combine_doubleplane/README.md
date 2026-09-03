@@ -91,12 +91,13 @@ threshold_den = max(pe_size - 1, 1) * local_expert_num
 
 1. 每个 active core 根据 `ep_recv_count` 遍历自己负责来源 rank 的所有 local expert segment。
 2. 计算当前 PE 的远端平均 segment 字节数，并对每个 segment 判断 `use_sdma`。
-3. 对大段先提交 SDMA payload：使用 `aclshmemx_sdma_put_nbi` 非阻塞写回来源 PE 的 combine window。
-4. 每提交 256 次 SDMA issue 后调用 `aclshmemx_sdma_quiet`，避免 outstanding 请求无限积压。
+3. 对大段先提交 SDMA payload：使用 `aclshmemx_sdma_qp_put_nbi` 非阻塞写回来源 PE 的 combine window，每个 AIV 以自身索引（`aiv_index`，小于 pe_size）作为 qp_idx 使用独立 QP。
+4. 每提交 256 次 SDMA issue 后调用 `aclshmemx_sdma_qp_quiet`（携带同一 qp_idx），避免 outstanding 请求无限积压。
 5. 对小段使用 MTE 直连路径写 payload，并立即写 status ready。
-6. SDMA payload 阶段完成后统一 `sdma_quiet`，再用 MTE 为 SDMA 段写 status ready。
-7. 来源 PE 等待本地每个 token 的全部 topK status ready。
-8. 按 `expert_scales` 做加权求和，写出 `x_out`，再清理 status 并同步退出。
+6. SDMA payload 阶段完成后统一调用 `aclshmemx_sdma_qp_quiet`，再用 MTE 为 SDMA 段写 status ready。
+7. host 侧在 `aclshmemx_init_attr` 之前调用 `aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, pe_size)`，保证 QP 数量与 AIV 索引范围一致。
+8. 来源 PE 等待本地每个 token 的全部 topK status ready。
+9. 按 `expert_scales` 做加权求和，写出 `x_out`，再清理 status 并同步退出。
 
 注意：SDMA 只负责大段 payload 数据面；status ready 控制面仍由 MTE 写入。这样可以保证 status 不会早于 payload 可见。
 

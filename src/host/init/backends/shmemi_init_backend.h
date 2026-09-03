@@ -25,20 +25,20 @@
 #include "utils/mstx/mstx_mem_register.h"
 
 typedef struct entity_member {
-    void *hbm_gva = nullptr;
-    void *dram_gva = nullptr;
+    void* hbm_gva = nullptr;
+    void* dram_gva = nullptr;
 
     hybm_entity_t hbm_entity = nullptr;
     hybm_entity_t dram_entity = nullptr;
     hybm_mem_slice_t hbm_slice = nullptr;
     hybm_mem_slice_t dram_slice = nullptr;
 
-    aclshmemx_init_attr_t *entity_attr;
-    aclshmemi_bootstrap_handle_t *entity_boot_handle;
-    aclshmem_device_host_state_t *entity_host_state;
-    aclshmem_device_host_state_t *entity_device_state;
+    aclshmemx_init_attr_t* entity_attr;
+    aclshmemi_bootstrap_handle_t* entity_boot_handle;
+    aclshmem_device_host_state_t* entity_host_state;
+    aclshmem_device_host_state_t* entity_device_state;
+    uint32_t sdma_qp_num{1};
 } entity_member;
-
 
 class aclshmemi_init_backend {
 public:
@@ -57,11 +57,13 @@ public:
     int aclshmemi_control_barrier_all();
     int is_alloc_size_symmetric(size_t size);
 
-    int bind_aclshmem_entity(aclshmemx_init_attr_t *attr, aclshmem_device_host_state_t *state, aclshmemi_bootstrap_handle_t *handle);
+    int bind_aclshmem_entity(
+        aclshmemx_init_attr_t* attr, aclshmem_device_host_state_t* state, aclshmemi_bootstrap_handle_t* handle,
+        uint32_t sdma_qp_num);
     int release_aclshmem_entity(uint64_t instance_id);
 
 private:
-    int reach_info_init(void *&gva);
+    int reach_info_init(void*& gva);
     int create_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int exchange_slice(aclshmem_mem_type_t mem_type = DEVICE_SIDE);
     int exchange_entity(aclshmem_mem_type_t mem_type = DEVICE_SIDE);

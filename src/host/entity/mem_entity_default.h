@@ -46,6 +46,7 @@ public:
     ~MemEntityDefault() override;
 
     int32_t Initialize(const hybm_options* options) noexcept override;
+    int32_t Initialize(const hybm_options* options, const transport::TransportOptions* transport_options) noexcept;
     void UnInitialize() noexcept override;
 
     int32_t ReserveMemorySpace(void** reservedMem) noexcept override;
@@ -99,6 +100,7 @@ private:
     const int32_t id_; /* id of the engine */
     static thread_local bool isSetDevice_;
     hybm_options options_{};
+    transport::TransportOptions transportOptions_{};
     void* hbmGva_{nullptr};
     void* dramGva_{nullptr};
     std::shared_ptr<MemSegment> hbmSegment_{nullptr};

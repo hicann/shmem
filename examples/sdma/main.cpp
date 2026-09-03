@@ -12,7 +12,6 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
-#include <fstream>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -37,27 +36,32 @@
 #include "param.h"
 #include "shmem.h"
 
-#define CHECK_RET(func)                                                                                                \
-    do {                                                                                                               \
-        int ret = func;                                                                                                \
-        if (ret != 0) {                                                                                                \
-            std::cerr << __FILE__ << ":" << __LINE__ << " error: " << ret << std::endl;                                \
-            return ret;                                                                                                \
-        }                                                                                                              \
+#define CHECK_RET(func)                                                                 \
+    do {                                                                                \
+        int ret = func;                                                                 \
+        if (ret != 0) {                                                                 \
+            std::cerr << __FILE__ << ":" << __LINE__ << " error: " << ret << std::endl; \
+            return ret;                                                                 \
+        }                                                                               \
     } while (0)
 
-
 int g_npus = 8;
-const char *ipport = "tcp://127.0.0.1:8998";
+const char* ipport = "tcp://127.0.0.1:8998";
 int f_pe = 0;
 int f_npu = 0;
-const char *data_type = "int";
+const char* data_type = "int";
 static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
 aclshmemx_uniqueid_t default_flag_uid;
 
 constexpr float FLOAT_EPS = 1e-5f;
 constexpr double DOUBLE_EPS = 1e-8;
 constexpr int INT_EPS = 0;
+
+// 每个 block 包含 2 个 AIV；kernel 内 GetBlockIdx() 是 AIV 级全局索引（0 ~ block_num*2-1），
+// 每个 AIV 用同编号的独立 SDMA QP 收发，因此 QP 数必须等于 block 数 × 每 block AIV 数。
+constexpr uint32_t SDMA_AIVS_PER_BLOCK = 2;
+constexpr uint32_t SDMA_BLOCK_NUM = 20;
+constexpr uint32_t SDMA_QP_NUM = SDMA_BLOCK_NUM * SDMA_AIVS_PER_BLOCK;
 
 template <typename T>
 bool check_accuracy(T actual, T expected)
@@ -86,8 +90,8 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
 
         // Define temporary UB buffer for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
-        __ubuf__ uint8_t *tmp_buff = reinterpret_cast<__ubuf__ uint8_t *>(uint64_t(ub_offset));
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
 
         uint32_t data_length = elem_size * sizeof(T);
         // allgather
@@ -99,8 +103,7 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
         if (cur_block_idx < extra_bytes) {
             data_offset = cur_block_idx * (base_per_core + 1);
         } else {
-            data_offset = extra_bytes * (base_per_core + 1) +
-                                    (cur_block_idx - extra_bytes) * base_per_core;
+            data_offset = extra_bytes * (base_per_core + 1) + (cur_block_idx - extra_bytes) * base_per_core;
         }
         if (cur_block_idx < extra_bytes) {
             base_per_core += 1;
@@ -113,13 +116,35 @@ __global__ __aicore__ void allgather_sdma(GM_ADDR gva, int elem_size, GM_ADDR du
                 continue;
             }
             if (is_put) {
-                aclshmemx_sdma_put_nbi(gva + data_length * my_pe + data_offset, gva + data_length * my_pe + data_offset,
-                    tmp_buff, ub_size, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_put_nbi(
+                    gva + data_length * my_pe + data_offset, gva + data_length * my_pe + data_offset, tmp_buff, ub_size,
+                    base_per_core, i, cur_block_idx, EVENT_ID0);
             } else {
-                aclshmemx_sdma_get_nbi(gva + data_length * i + data_offset, gva + data_length * i + data_offset,
-                    tmp_buff, ub_size, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_get_nbi(
+                    gva + data_length * i + data_offset, gva + data_length * i + data_offset, tmp_buff, ub_size,
+                    base_per_core, i, cur_block_idx, EVENT_ID0);
             }
         }
+        aclshmemx_sdma_qp_quiet(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
+    }
+}
+
+template <typename T>
+__global__ __aicore__ void sdma_put_single_qp(GM_ADDR gva, int elem_size, int target_pe)
+{
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64;
+        __ubuf__ T* tmp_buff = reinterpret_cast<__ubuf__ T*>(uint64_t(ub_offset));
+        const uint64_t segment_bytes = static_cast<uint64_t>(elem_size) * sizeof(T);
+        __gm__ T* src = reinterpret_cast<__gm__ T*>(gva + aclshmem_my_pe() * segment_bytes);
+
+        // dst is a local symmetric address; sdma_put_nbi translates it to target_pe and submits on QP 0.
+        aclshmemx_sdma_put_nbi(src, src, tmp_buff, ub_size, elem_size, target_pe, EVENT_ID0);
         aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
     }
 }
@@ -137,7 +162,7 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
 
         // Define temporary UB buffer as LocalTensor for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
         AscendC::LocalTensor<T> tmp_local;
         tmp_local.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
         tmp_local.address_.bufferAddr = ub_offset;
@@ -151,8 +176,7 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
         if (cur_block_idx < extra_size) {
             data_offset = cur_block_idx * (base_per_core + 1);
         } else {
-            data_offset = extra_size * (base_per_core + 1) +
-                                    (cur_block_idx - extra_size) * base_per_core;
+            data_offset = extra_size * (base_per_core + 1) + (cur_block_idx - extra_size) * base_per_core;
         }
         if (cur_block_idx < extra_size) {
             base_per_core += 1;
@@ -172,22 +196,25 @@ __global__ __aicore__ void allgather_sdma_tensor(GM_ADDR gva, int elem_size, GM_
                     reinterpret_cast<__gm__ T*>(gva + my_pe * elem_size * sizeof(T) + data_offset * sizeof(T));
                 src_tensor.SetGlobalBuffer(data_addr, base_per_core);
                 dst_tensor.SetGlobalBuffer(data_addr, base_per_core);
-                aclshmemx_sdma_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_put_nbi(
+                    dst_tensor, src_tensor, tmp_local, base_per_core, i, cur_block_idx, EVENT_ID0);
             } else {
                 __gm__ T* data_addr =
                     reinterpret_cast<__gm__ T*>(gva + i * elem_size * sizeof(T) + data_offset * sizeof(T));
                 src_tensor.SetGlobalBuffer(data_addr, base_per_core);
                 dst_tensor.SetGlobalBuffer(data_addr, base_per_core);
-                aclshmemx_sdma_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, i, EVENT_ID0);
+                aclshmemx_sdma_qp_get_nbi(
+                    dst_tensor, src_tensor, tmp_local, base_per_core, i, cur_block_idx, EVENT_ID0);
             }
         }
-        aclshmemx_sdma_quiet(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_quiet(tmp_local, cur_block_idx, EVENT_ID0);
     }
 }
 
 template <class T>
-void allgather_kernel(uint32_t block_dim, void *stream, uint8_t *gva, int n_elements, uint8_t *device_dump,
-    bool test_tensor_mode, bool is_put)
+void allgather_kernel(
+    uint32_t block_dim, void* stream, uint8_t* gva, int n_elements, uint8_t* device_dump, bool test_tensor_mode,
+    bool is_put)
 {
     if (!test_tensor_mode) {
         allgather_sdma<T><<<block_dim, nullptr, stream>>>(gva, n_elements, device_dump, is_put);
@@ -196,8 +223,14 @@ void allgather_kernel(uint32_t block_dim, void *stream, uint8_t *gva, int n_elem
     }
 }
 
-int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char *ip_port,
-                      aclshmemx_init_attr_t *attributes)
+template <typename T>
+void sdma_put_single_qp_kernel(void* stream, uint8_t* gva, int n_elements, int target_pe)
+{
+    sdma_put_single_qp<T><<<1, nullptr, stream>>>(gva, n_elements, target_pe);
+}
+
+int32_t test_set_attr(
+    int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, const char* ip_port, aclshmemx_init_attr_t* attributes)
 {
     size_t ip_len = 0;
     if (ip_port != nullptr) {
@@ -214,10 +247,9 @@ int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, con
     attributes->n_pes = n_pes;
     attributes->ip_port[ip_len] = '\0';
     attributes->local_mem_size = local_mem_size;
-    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, 
-                               DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    attributes->comm_args = reinterpret_cast<void *>(&default_flag_uid);
-    aclshmemx_uniqueid_t *uid_args = (aclshmemx_uniqueid_t *)(attributes->comm_args);
+    attributes->option_attr = {attr_version, ACLSHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    attributes->comm_args = reinterpret_cast<void*>(&default_flag_uid);
+    aclshmemx_uniqueid_t* uid_args = (aclshmemx_uniqueid_t*)(attributes->comm_args);
     uid_args->my_pe = my_pe;
     uid_args->n_pes = n_pes;
     return ACLSHMEM_SUCCESS;
@@ -226,31 +258,54 @@ int32_t test_set_attr(int32_t my_pe, int32_t n_pes, uint64_t local_mem_size, con
 template <class T>
 int test_allgather_sdma(int my_pe, int n_pes)
 {
+    constexpr size_t symmetric_elements = 128 * 1024 * 1024;
+    constexpr size_t trans_size = 16 * 1024 * 1024;
     // ACLStream init
     aclrtStream stream = nullptr;
     CHECK_RET(aclrtCreateStream(&stream));
 
-    constexpr uint32_t n_blocks = 20;
+    constexpr uint32_t n_blocks = SDMA_BLOCK_NUM;
     constexpr int num10 = 10;
 
-    uint8_t *device_dump = nullptr;
+    uint8_t* device_dump = nullptr;
 #if defined(ENABLE_ASCENDC_DUMP)
-    CHECK_RET(aclrtMalloc(reinterpret_cast<void **>(&device_dump), ALL_DUMPSIZE, ACL_MEM_MALLOC_HUGE_FIRST));
+    CHECK_RET(aclrtMalloc(reinterpret_cast<void**>(&device_dump), ALL_DUMPSIZE, ACL_MEM_MALLOC_HUGE_FIRST));
 #endif
 
-    void *gva = aclshmem_malloc((128 * 1024 * 1024) * sizeof(T));
+    void* gva = aclshmem_malloc(symmetric_elements * sizeof(T));
+    if (gva == nullptr) {
+        std::cerr << "sdma failed to allocate symmetric memory" << std::endl;
+        return -1;
+    }
 
     // 初始化数据
-    size_t trans_size = 16 * 1024 * 1024;
     std::vector<T> input(trans_size, 0);
     for (size_t i = 0; i < trans_size; i++) {
         input[i] = (T)(my_pe + num10);
     }
 
-    CHECK_RET(aclrtMemcpy(reinterpret_cast<uint8_t *>(gva) + aclshmem_my_pe() * trans_size * sizeof(T),
-        trans_size * sizeof(T), input.data(), trans_size * sizeof(T), ACL_MEMCPY_HOST_TO_DEVICE));
+    CHECK_RET(aclrtMemcpy(
+        reinterpret_cast<uint8_t*>(gva) + aclshmem_my_pe() * trans_size * sizeof(T), trans_size * sizeof(T),
+        input.data(), trans_size * sizeof(T), ACL_MEMCPY_HOST_TO_DEVICE));
 
-    allgather_kernel<T>(n_blocks, stream, reinterpret_cast<uint8_t *>(gva), trans_size, device_dump, false, true);
+    const int target_pe = (my_pe + 1) % n_pes;
+    sdma_put_single_qp_kernel<T>(stream, reinterpret_cast<uint8_t*>(gva), trans_size, target_pe);
+    CHECK_RET(aclrtSynchronizeStream(stream));
+    aclshmem_barrier_all();
+
+    const int source_pe = (my_pe + n_pes - 1) % n_pes;
+    T put_sample{};
+    CHECK_RET(aclrtMemcpy(
+        &put_sample, sizeof(T), reinterpret_cast<uint8_t*>(gva) + source_pe * trans_size * sizeof(T), sizeof(T),
+        ACL_MEMCPY_DEVICE_TO_HOST));
+    if (put_sample != static_cast<T>(source_pe + num10)) {
+        std::cerr << "aclshmemx_sdma_put_nbi verification failed on PE " << my_pe << std::endl;
+        aclshmem_free(gva);
+        aclrtDestroyStream(stream);
+        return -1;
+    }
+
+    allgather_kernel<T>(n_blocks, stream, reinterpret_cast<uint8_t*>(gva), trans_size, device_dump, false, true);
 
     CHECK_RET(aclrtSynchronizeStream(stream));
     aclshmem_barrier_all();
@@ -267,7 +322,7 @@ int test_allgather_sdma(int my_pe, int n_pes)
 
     const int check_step = 1; // 数据校验的步长
     for (int i = 0; i < n_pes; i++) {
-        for (int j = 0; j < trans_size; j+= check_step) {
+        for (int j = 0; j < trans_size; j += check_step) {
             int y = (int)(y_host[trans_size * i + j]);
             if (y != i + num10) {
                 printf("ERROR in pe%d:%d %d != %d\n", i, j, y, i + num10);
@@ -285,7 +340,7 @@ int test_allgather_sdma(int my_pe, int n_pes)
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int status = 0;
     int n_pes = atoi(argv[INDEX1]);
@@ -306,6 +361,7 @@ int main(int argc, char *argv[])
     CHECK_RET(test_set_attr(my_pe, n_pes, local_mem_size, ipport, &attributes));
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA;
+    CHECK_RET(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, SDMA_QP_NUM));
     CHECK_RET(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     if (std::string(data_type) == "int") {

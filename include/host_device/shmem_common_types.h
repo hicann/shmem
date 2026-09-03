@@ -172,6 +172,11 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 /// \brief SDMA flag data length
 #define ACLSHMEM_SDMA_FLAG_LENGTH 64
 
+/// \def ACLSHMEM_SDMA_WORKSPACE_SIZE
+/// \brief SDMA shared workspace capacity, covering channel metadata, notify IDs, and three flag regions for up to 72
+/// AIVs
+#define ACLSHMEM_SDMA_WORKSPACE_SIZE (28U * 1024U)
+
 /// \def ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE
 /// \brief Minimum UB scratch size in bytes for UDMA PIPE_MTE3 WQE staging
 #define ACLSHMEM_UDMA_MTE_STAGING_UB_SIZE 128U
@@ -227,12 +232,12 @@ typedef uint64_t aclshmemx_team_uniqueid_t;
 
 // core level sync
 /// \def ACLSHMEM_MAX_AIV_PER_NPU
-/// \brief Maximum number of AIV (AI Core) supported per NPU (48)
-#define ACLSHMEM_MAX_AIV_PER_NPU 48
+/// \brief Maximum number of AIV (AI Core) supported per NPU (72)
+#define ACLSHMEM_MAX_AIV_PER_NPU 72
 
 /// \def ACLSHMEM_LOG_MAX_AIV_PER_NPU
-/// \brief Number of log bits required for core-level synchronization (6 bits), calculated as: ceil(log₂(48)) = 6
-#define ACLSHMEM_LOG_MAX_AIV_PER_NPU 6
+/// \brief Number of log bits required for core-level synchronization (7 bits), calculated as: ceil(log₂(72)) = 7
+#define ACLSHMEM_LOG_MAX_AIV_PER_NPU 7
 
 /// \def ACLSHMEM_CORE_SYNC_POOL_SIZE
 /// \brief Total size of the core-level synchronization pool, calculated from AIV count, log bits and sync bit size

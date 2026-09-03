@@ -29,8 +29,6 @@
 namespace shm {
 namespace transport {
 namespace device {
-constexpr int32_t MAX_AIV_CORE_NUM = 72;
-constexpr size_t SDMA_WORKSPACE_SIZE = 28U * 1024U;
 
 sdma_op_res_info_t SdmaTransportManager::op_res_info_ = {};
 void* SdmaTransportManager::op_res_info_device_ptr_ = nullptr;
@@ -45,15 +43,18 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions& options)
 
     dlerror(); // 清除历史错误
 
-    int32_t channel_num = 0;
-    ACLSHMEM_CHECK_RET(GetVectorCoreNum(channel_num));
+    if (options.sdmaQpNum < 1U || options.sdmaQpNum > ACLSHMEM_MAX_AIV_PER_NPU) {
+        SHM_LOG_ERROR(mype_ << " invalid configured SDMA QP count " << options.sdmaQpNum);
+        return ACLSHMEM_INVALID_VALUE;
+    }
+    const int32_t channel_num = static_cast<int32_t>(options.sdmaQpNum);
     ACLSHMEM_CHECK_RET(CreateStarsStreams(channel_num));
 
     // 申请AICPU和AIV的共享内存
-    ACLSHMEM_CHECK_RET(MallocSdmaWorkspace(SDMA_WORKSPACE_SIZE));
+    ACLSHMEM_CHECK_RET(MallocSdmaWorkspace(ACLSHMEM_SDMA_WORKSPACE_SIZE));
 
     // 创建Notify并保存id到共享内存
-    CreateNotifyIds();
+    ACLSHMEM_CHECK_RET(CreateNotifyIds(static_cast<uint32_t>(channel_num)));
 
     // 申请的资源H2D
     ACLSHMEM_CHECK_RET(CopyHostOpResToDevice());
@@ -67,42 +68,24 @@ Result SdmaTransportManager::OpenDevice(const TransportOptions& options)
     return ACLSHMEM_SUCCESS;
 }
 
-Result SdmaTransportManager::GetVectorCoreNum(int32_t& channel_num)
+Result SdmaTransportManager::CreateNotifyIds(uint32_t channel_num)
 {
-    int32_t device_id = -1;
-    ACLSHMEM_CHECK_RET(aclrtGetDevice(&device_id));
-
-    int64_t vector_core_num = 0;
-    auto ret = aclrtGetDeviceInfo(device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &vector_core_num);
-    if (ret != ACL_SUCCESS || vector_core_num <= 0) {
-        ret = aclGetDeviceCapability(device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &vector_core_num);
+    if (channel_num == 0 || channel_num > ACLSHMEM_MAX_AIV_PER_NPU) {
+        return ACLSHMEM_INVALID_VALUE;
     }
-    if (ret != ACL_SUCCESS || vector_core_num <= 0) {
-        channel_num = MAX_AIV_CORE_NUM;
-        SHM_LOG_WARN(mype_ << " get vector core num failed, ret: " << ret << ", use default value: " << channel_num);
-        return ACLSHMEM_SUCCESS;
-    }
-
-    channel_num = static_cast<int32_t>(vector_core_num);
-    SHM_LOG_INFO(mype_ << " get vector core num: " << channel_num);
-    return ACLSHMEM_SUCCESS;
-}
-
-Result SdmaTransportManager::CreateNotifyIds()
-{
     uint32_t notify_ids[ACLSHMEM_MAX_AIV_PER_NPU] = {0};
 
     // 获取NotifyId存储区的起始地址
     uint32_t* notify_id_base = reinterpret_cast<uint32_t*>(
         reinterpret_cast<uint8_t*>(g_state.sdma_workspace_addr) + ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET);
-    for (size_t i = 0; i < ACLSHMEM_MAX_AIV_PER_NPU; i++) {
+    for (uint32_t i = 0; i < channel_num; i++) {
         g_state_host.notify_arr[i] = nullptr;
         ACLSHMEM_CHECK_RET(aclrtCreateNotify(&g_state_host.notify_arr[i], 0));
         ACLSHMEM_CHECK_RET(aclrtGetNotifyId(g_state_host.notify_arr[i], &notify_ids[i]));
     }
     ACLSHMEM_CHECK_RET(aclrtMemcpy(
-        notify_id_base, ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t), notify_ids,
-        ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t), ACL_MEMCPY_HOST_TO_DEVICE));
+        notify_id_base, channel_num * sizeof(uint32_t), notify_ids, channel_num * sizeof(uint32_t),
+        ACL_MEMCPY_HOST_TO_DEVICE));
 
     return ACLSHMEM_SUCCESS;
 }

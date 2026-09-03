@@ -15,6 +15,8 @@
 
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
+#include "unittest/sdma_kernel.h"
+#include "unittest_main_test.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -25,6 +27,14 @@ extern void test_finalize(aclrtStream stream, int device_id);
 extern void copy_perf_kernel(
     uint32_t block_dim, void* stream, uint8_t* src, uint8_t* res, uint32_t copypad_size, uint32_t copypad_times);
 extern void cmo_pretech_kernel(uint8_t* src, uint32_t size, void* stream);
+extern void cmo_pretech_noqp_kernel(uint8_t* src, uint32_t size, void* stream);
+
+// SDMA QP 接口 kernel（cmo_pretech）以 block_dim=1 启动（每 block 2 个 AIV），AIV 用 GetBlockIdx()
+// （AIV 级全局索引 0~1）作为 qp_idx，须在初始化前按 block 数 × 每 block AIV 数创建 QP；
+// 不带 QP 的接口（cmo_pretech_noqp）固定使用 QP 0，单核执行，无此要求。
+constexpr uint32_t SDMA_UT_BLOCK_DIM = 1;
+constexpr uint32_t SDMA_UT_AIVS_PER_BLOCK = 2;
+constexpr uint32_t SDMA_UT_QP_NUM = SDMA_UT_BLOCK_DIM * SDMA_UT_AIVS_PER_BLOCK;
 
 static void test_cmo_function(aclrtStream stream, uint32_t pe, uint32_t npes)
 {
@@ -80,7 +90,8 @@ static void test_cmo_function(aclrtStream stream, uint32_t pe, uint32_t npes)
     ASSERT_EQ(aclrtMalloc((void**)&(src_ptr), src_size, ACL_MEM_MALLOC_HUGE_FIRST), 0);
     ASSERT_EQ(aclrtMalloc((void**)&(res_ptr), res_size, ACL_MEM_MALLOC_HUGE_FIRST), 0);
     aclrtMallocHost((void**)(&res_host), res_size);
-    cmo_pretech_kernel((uint8_t*)src_ptr, src_size, stream); // cmo_pretech_kernel
+    cmo_pretech_kernel((uint8_t*)src_ptr, src_size, stream);      // cmo_pretech_kernel（QP接口）
+    cmo_pretech_noqp_kernel((uint8_t*)src_ptr, src_size, stream); // 不带QP的CMO接口，固定使用QP 0
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     copy_perf_kernel(n_blocks, stream, (uint8_t*)src_ptr, (uint8_t*)res_ptr, copypad_size, copypad_times);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
@@ -101,6 +112,7 @@ static void test_cmo_function(aclrtStream stream, uint32_t pe, uint32_t npes)
 void test_aclshmem_cmo_mem(int pe, int npes, uint64_t local_mem_size)
 {
     int32_t device_id = pe % test_gnpu_num + test_first_npu;
+    ASSERT_EQ(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, SDMA_UT_QP_NUM), 0);
     aclrtStream stream;
     auto status = test_sdma_init(pe, npes, local_mem_size, &stream);
     if (status != 0) {
@@ -117,5 +129,5 @@ TEST(TestMemApi, TestShmemCMOMem)
 {
     const int processCount = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 64;
-    // test_mutil_task(test_aclshmem_cmo_mem, local_mem_size, processCount);
+    test_mutil_task(test_aclshmem_cmo_mem, local_mem_size, processCount);
 }
