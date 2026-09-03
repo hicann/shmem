@@ -24,9 +24,9 @@
 
 ## 性能测试方法
 
-为使统计结果只反映 ub2gm 接口本身的开销，并避免数据缓存（Data Cache）命中导致结果虚高，本样例采用以下设计：
+为使统计结果尽可能聚焦于 ub2gm 接口的开销，并避免数据缓存（Data Cache）命中导致结果虚高，本样例采用以下设计：
 
-- **UB 缓冲区在核函数内申请**：UB 数组定义在 `__global__` 核函数中，由 `asc_vf_call` 传入 `__simt_vf__` 函数使用。数据准备与结果回写都在计时区间之外完成，测量循环内只有一次 ub2gm 接口调用。
+- **UB 缓冲区在核函数内申请**：UB 数组定义在 `__global__` 核函数中，由 `asc_vf_call` 传入 `__simt_vf__` 函数使用。数据准备与结果回写都在计时区间之外完成，测量循环的每次迭代内只有一次 ub2gm 接口调用，另有一次 `VSSync`（S_V / V_S 打点）与一次 `AscendC::SyncAll<true>()` 全核同步；这两项同步开销计入计时窗口，在小数据量下占比不可忽略。
 - **仅 Active PE 发起、源与目的同址**：`put` / `get` 是单边（one-sided）操作，全部由 Active PE 发起，Passive PE 仅作为远端对象、不参与计算（两卡通过 host 侧 barrier 同步）。GM 一侧的地址在两卡的相同对称内存偏移上。
 - **UB 数据来自本卡 GM**：`put` 测试在计时前，用 `DataCopyPad` 将本卡对称内存中的数据搬运到 UB。由于同一 PE 的对称内存被填充为同一值，只需在测量循环外搬运一次。
 - **预热与多轮取均值**：单次测量会先执行固定 128 次传输进行预热（不计入统计），再执行 `loops` 次传输进行采样。计时方式为：预热结束后，对这 `loops` 次传输整体计时（仅在首次采样前打点开始、末次采样后打点结束），统计得到的总时长再除以 `loops` 得到单次耗时，从而摊薄打点开销、排除冷启动的影响。
@@ -36,17 +36,19 @@
 
 ## 源文件宏定义配置
 
-部分测试维度通过 `main.cpp` 开头的常量定义控制。在编译前可直接修改这些常量来改变被测接口的行为：
+部分测试维度通过 `main.cpp` 开头的常量定义控制。在编译前可直接修改其中的可配置项来改变被测接口的行为：
 
 | 常量定义 | 含义与作用 | 可选值 / 默认值 |
 | --- | --- | --- |
-| `OP_TYPE` | 性能测试执行的具体操作。 | `OpType::Put`（默认）、`OpType::Get` |
-| `DATA_SIZE` | 所调用 RMA 底层接口的数据位宽（单位：bit）。 | 固定为 `32` |
+| `OP_TYPE` | 性能测试执行的具体操作。 | `OpType::Get`（默认）、`OpType::Put` |
+| `T` | 传输负载的元素类型，`DATA_SIZE` 由其推导。 | 固定为 `int32_t` |
+| `DATA_SIZE` | 所调用 RMA 底层接口的数据位宽（单位：bit），由 `sizeof(T) * 8` 得出，不单独配置。 | 固定为 `32` |
 | `THREAD_COUNT` | SIMT 模式下单 Core 启动的线程数，决定向量指令流的并发规模。 | 默认 `1024` |
 | `UB_BUFFER_SIZE` | UB 缓冲区可容纳的元素个数，决定单次传输大小的上限。 | 默认 `16384`（即 64KB，对应 $2^{16}$ 字节） |
 | `WARMUP_LOOPS` | 预热轮数（不计入统计）。 | 默认 `128` |
 
 > **提示**：修改上述常量后，需重新回到根目录执行编译（见下文），新配置才会生效。
+> 数据位宽固定为 32 bit：`main.cpp` 中的 `static_assert` 会拦住其他取值，且 `transfer_vf_put` / `transfer_vf_get` 里直接调用的是 `simt::aclshmemx_int32_{put,get}_nbi_block`，仅改 `T` 并不会切换到其他位宽的接口。
 > 单次传输大小受 UB 容量限制：按默认配置上限为 $2^{16}$ 字节，因此 `-e`/`--exponent-range` 的取值被限制在 $[3, 16]$，超出会报错退出。需要测试更大数据量时，请同时增大 `main.cpp` 中的 `UB_BUFFER_SIZE` 与 `argparser.h` 中的 `BYTES_IN_EXP_UPPER` 后重新编译。
 > 本样例仅支持 SIMT 模式，不提供 SIMD 模式对照。
 
@@ -96,13 +98,13 @@
 | `-b`/`--block-size <int>` | 每个 PE 使用的 Core（Block）数量。 | 32 |
 | `--block-range <min> <max>` | Core（Block）数量扫描范围，每个核数各产出统计结果。 | 32 32 |
 | `--block-list <b1,b2,...>` | 以逗号分隔显式指定要测试的核数（如 `1,8,16`）。同时指定时优先于 `-b`/`--block-size` 与 `--block-range`。 | - |
-| `--loop-count <int>` | 正式采样的循环次数。 | 1000 |
+| `--loop-count <int>` | 正式采样的循环次数，取值须落在 $[1, 10000)$，越界会报错退出。 | 1000 |
 | `-e`/`--exponent <exp>` | 单次传输数据量的指数（单值），取值为 2 的指数（例如 `10` 表示 $2^{10} = 1024$ 字节）。 | - |
 | `--exponent-range <min> <max>` | 单次传输数据量的指数范围，取值须落在 $[3, 16]$。 | 3 16 |
 | `-h`/`--help` | 打印参数说明并退出。 | - |
 
 > 本测试为固定的两卡（Active PE0 / Passive PE1）模型，启动进程数与程序内 PE 数均固定为 2。`-pes` 和 `-gnpus` 保留为与 shmem_perftest 参数兼容，但传入非 2 的值会报错。
-> 核数须落在 $[1, 64]$：上界为 profiling 缓冲区的每核槽位数，超出会报错退出。
+> 核数须落在 $[1, 64]$：上界为每个 PE 的 profiling 缓冲区所含的 Core 槽位数（`ACLSHMEM_CYCLE_PROF_MAX_BLOCK`），超出会报错退出。
 > 测试会从 `--exponent-range` 的 min 到 max 逐个指数遍历单次传输数据量（即 $2^{min}, 2^{min+1}, \dots, 2^{max}$ 字节），并在 `--block-list`（或 `--block-range`）指定的核数集合上逐个核数遍历，每个（核数, 数据量）组合各产出一行统计结果。
 
 例如，测试 `4` 个 Core 在传输 $2^8$ 到 $2^{12}$ 字节数据时的性能表现：
@@ -125,7 +127,7 @@ bash run.sh --block-list 1,8,16,24,48 --exponent-range 4 16
 ub2gm_[DATA_SIZE]_[blocks]_[OpType]_simt_[minExp]-[maxExp]_l[loop_count]_t[THREAD_COUNT]_ub[UB_BUFFER_SIZE].csv
 ```
 
-其中 `[blocks]` 段反映本次实际测试的核数：连续区间（如 `--block-range 1 4`）记为 `1-4`；通过 `--block-list` 指定的离散核数（如 `1,8,16`）按测试顺序以 `_` 连接，记为 `1_8_16`。
+其中 `[blocks]` 段反映本次实际测试的核数集合，命名规则只取决于该集合本身、与它是由哪个参数指定的无关：若集合恰好是一段连续升序区间，记为 `min-max`（如 `--block-range 1 4` 与 `--block-list 1,2,3,4` 都记为 `1-4`）；否则按测试顺序以 `_` 连接（如 `--block-list 1,8,16` 记为 `1_8_16`，`--block-list 16,1,8` 记为 `16_1_8`）。
 
 `.csv` 文件中各列含义如下：
 
@@ -133,7 +135,7 @@ ub2gm_[DATA_SIZE]_[blocks]_[OpType]_simt_[minExp]-[maxExp]_l[loop_count]_t[THREA
 | --- | --- |
 | `DataSize/B` | 单次 RMA 通信传输的数据量（字节），对应本行采样的 $2^{exp}$ 取值。 |
 | `Npus` | 参与测试的 PE 数量，两卡测试下为 2。 |
-| `Blocks` | 参与通信的 Core（Block）数量，即 `-b`/`--block-size`。 |
+| `Blocks` | 参与通信的 Core（Block）数量，即本行采样所用的核数。核数扫描（`--block-range` / `--block-list`）下逐行取自扫描集合。 |
 | `UBsize/elements` | UB 缓冲区可容纳的元素个数，即编译期 `UB_BUFFER_SIZE`。 |
 | `Bandwidth/GB/s (1000)` | 本组参数测得的跨卡平均传输带宽，按十进制单位换算（除以 $1000^3$）。 |
 | `Bandwidth/GiB/s (1024)` | 同一带宽按二进制单位换算（除以 $1024^3$）。 |

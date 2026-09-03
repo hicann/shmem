@@ -53,7 +53,7 @@ function usage() {
     echo "  -d|--datatype <type>      设置数据类型 (float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all)"
     echo "  -b|--block-size <size>          设置核数"
     echo "  --block-range <min> <max>       设置连续核数范围"
-    echo "  --block-list <b1,b2,...>        设置离散核数列表（ascendc/mte/simt_rma_perftest），如 2,4,6,8"
+    echo "  --block-list <b1,b2,...>        设置离散核数列表（ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest），如 2,4,6,8"
     echo "  -e|--exponent <exponent>        设置数据量的幂数"
     echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
     echo "  --loop-count <count>            设置循环次数"
@@ -261,7 +261,7 @@ if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
 fi
 
 if [ -n "$BLOCK_LIST" ] && [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
-    echo "WARN: --block-list takes effect for ascendc/mte/simt_rma_perftest; udma_perftest always uses block_size=1."
+    echo "WARN: --block-list takes effect for ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest; udma_perftest always uses block_size=1."
 fi
 
 echo "=============================================="
@@ -303,6 +303,8 @@ fi
 if [[ "$MODE" == "simt" || "$MODE" == "all" ]]; then
     rm -rf "${SCRIPT_DIR}/simt_rma_perftest/output"
     echo "Cleaned: ${SCRIPT_DIR}/simt_rma_perftest/output"
+    rm -rf "${SCRIPT_DIR}/simt_rma_ub2gm_perftest/output"
+    echo "Cleaned: ${SCRIPT_DIR}/simt_rma_ub2gm_perftest/output"
 fi
 
 # 清理外层output目录
@@ -390,6 +392,52 @@ if [[ "$MODE" == "simt" || "$MODE" == "all" ]]; then
     fi
 fi
 
+# simt_rma_ub2gm_perftest 与 simt_rma_perftest 同属 SIMT RMA，共用 simt/all 模式一起运行。
+# 与 gm2gm 版的两点差异：其 run.sh 不接受 -d/--ub-size（位宽固定 32 bit、UB 大小由编译期
+# 常量决定），且单次传输量受 UB 容量限制，指数上界为 16（见其 argparser.h 的 BYTES_IN_EXP_UPPER）。
+if [[ "$MODE" == "simt" || "$MODE" == "all" ]]; then
+    UB2GM_VALID_TT="put get"
+    UB2GM_EXP_UPPER=16
+    UB2GM_EXEC="${PROJECT_ROOT}/build/bin/simt_rma_ub2gm_perftest"
+    # 指数范围钳位到 [MIN, 16]，下界本身超界则跳过（其余取值范围由其 argparser 自行校验）。
+    UB2GM_MAX_EXPONENT="$MAX_EXPONENT"
+    if [[ "$MAX_EXPONENT" -gt "$UB2GM_EXP_UPPER" ]]; then
+        UB2GM_MAX_EXPONENT="$UB2GM_EXP_UPPER"
+    fi
+    if [[ ! -x "$UB2GM_EXEC" ]]; then
+        if [[ "$MODE" == "simt" ]]; then
+            echo "ERROR: simt_rma_ub2gm_perftest binary not found or not executable (${UB2GM_EXEC}). Build with SIMT support to run it."
+            exit 1
+        fi
+        echo "WARN: simt_rma_ub2gm_perftest binary not found or not executable (${UB2GM_EXEC}). Build with SIMT support to run it. Skipping simt_rma_ub2gm_perftest."
+    elif [[ "$TEST_TYPE_PROVIDED" == "1" && "$TEST_TYPE" == "all" ]]; then
+        echo "WARN: simt_rma_ub2gm_perftest does not support -t all because OP_TYPE is fixed at compile time. Skipping simt_rma_ub2gm_perftest."
+    elif [[ "$TEST_TYPE_PROVIDED" == "1" && ! " $UB2GM_VALID_TT " =~ " $TEST_TYPE " ]]; then
+        echo "WARN: simt_rma_ub2gm_perftest does not support -t $TEST_TYPE (supports: $UB2GM_VALID_TT). Skipping simt_rma_ub2gm_perftest."
+    elif [[ "$DATA_TYPE_PROVIDED" == "1" && "$DATA_TYPE" != "float" && "$DATA_TYPE" != "int32" && "$DATA_TYPE" != "uint32" ]]; then
+        echo "WARN: simt_rma_ub2gm_perftest is fixed at DATA_SIZE 32 bits, which -d $DATA_TYPE does not match. Skipping simt_rma_ub2gm_perftest."
+    elif [[ "$MIN_EXPONENT" -gt "$UB2GM_EXP_UPPER" ]]; then
+        echo "WARN: simt_rma_ub2gm_perftest caps the transfer-size exponent at $UB2GM_EXP_UPPER (UB capacity), below the requested lower bound $MIN_EXPONENT. Skipping simt_rma_ub2gm_perftest."
+    else
+        if [[ "$MAX_EXPONENT" -gt "$UB2GM_EXP_UPPER" ]]; then
+            echo "WARN: simt_rma_ub2gm_perftest caps the transfer-size exponent at $UB2GM_EXP_UPPER (UB capacity); clamping --exponent-range to $MIN_EXPONENT $UB2GM_EXP_UPPER for it."
+        fi
+        UB2GM_ARGS=()
+        if [[ "$TEST_TYPE_PROVIDED" == "1" ]]; then
+            UB2GM_ARGS+=("-t" "$TEST_TYPE")
+        fi
+        # 核数集合：--block-list（若指定）优先，否则用连续区间。
+        if [ -n "$BLOCK_LIST" ]; then
+            UB2GM_ARGS+=("--block-list" "$BLOCK_LIST")
+        else
+            UB2GM_ARGS+=("--block-range" "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE")
+        fi
+        echo -e "\n========== Running simt_rma_ub2gm_perftest =========="
+        echo "Command: bash ${SCRIPT_DIR}/simt_rma_ub2gm_perftest/run.sh ${UB2GM_ARGS[*]} --exponent-range \"$MIN_EXPONENT\" \"$UB2GM_MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\""
+        bash "${SCRIPT_DIR}/simt_rma_ub2gm_perftest/run.sh" "${UB2GM_ARGS[@]}" --exponent-range "$MIN_EXPONENT" "$UB2GM_MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE"
+    fi
+fi
+
 # 拷贝output到外层output目录
 echo -e "\n========== Copying outputs =========="
 mkdir -p "${SCRIPT_DIR}/output"
@@ -423,6 +471,11 @@ if [[ "$MODE" == "simt" || "$MODE" == "all" ]]; then
         mkdir -p "${SCRIPT_DIR}/output/simt_rma_perftest"
         cp -r "${SCRIPT_DIR}/simt_rma_perftest/output"/* "${SCRIPT_DIR}/output/simt_rma_perftest/"
         echo "Copied: simt_rma_perftest -> ${SCRIPT_DIR}/output/simt_rma_perftest"
+    fi
+    if [ -d "${SCRIPT_DIR}/simt_rma_ub2gm_perftest/output" ]; then
+        mkdir -p "${SCRIPT_DIR}/output/simt_rma_ub2gm_perftest"
+        cp -r "${SCRIPT_DIR}/simt_rma_ub2gm_perftest/output"/* "${SCRIPT_DIR}/output/simt_rma_ub2gm_perftest/"
+        echo "Copied: simt_rma_ub2gm_perftest -> ${SCRIPT_DIR}/output/simt_rma_ub2gm_perftest"
     fi
 fi
 

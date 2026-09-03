@@ -33,8 +33,8 @@
 
 | 常量定义 | 含义与作用 | 可选值 / 默认值 |
 | --- | --- | --- |
-| `VF_TYPE` | 指令计算模式框架。 | `SIMT`（默认）、`SIMD` |
-| `OP_TYPE` | 性能测试执行的具体操作。 | `PUT`（默认）、`GET`、`NONE`（仅以 `count = 0` 调用接口，测量接口调用开销而不传输实际数据） |
+| `VF_TYPE` | 指令计算模式框架。 | `VfType::Simt`（默认）、`VfType::Simd` |
+| `OP_TYPE` | 性能测试执行的具体操作。 | `OpType::Put`（默认）、`OpType::Get`、`OpType::None`（仅以 `count = 0` 调用接口，测量接口调用开销而不传输实际数据） |
 | `DATA_SIZE` | 所调用 RMA 底层接口的数据位宽（单位：bit）。修改后会切换到对应位宽的读写接口（如 `aclshmemx_get32_block` 切换为 `aclshmemx_get64_block`）。 | `8`、`16`、`32`（默认）、`64` |
 | `THREAD_COUNT` | SIMT 模式下单 Core 启动的线程数，决定向量指令流的并发规模。 | 默认 `1024` |
 
@@ -88,9 +88,9 @@
 | `-b`/`--block-size` | 每个 PE 使用的 Core（Block）数量。 | 32 |
 | `--block-range <min> <max>` | Core（Block）数量扫描范围，每个核数各产出统计结果。 | 32 32 |
 | `--block-list <b1,b2,...>` | 以逗号分隔显式指定要测试的核数（如 `2,4,8`）。指定后优先于 `-b`/`--block-range`。 | - |
-| `--loop-count` | 正式采样的循环次数。 | 1000 |
-| `-e`/`--exponent <exp>` | 单次传输数据量的指数（单值），取值为 2 的指数（例如 `10` 表示 $2^{10} = 1024$ 字节）。 | - |
-| `--exponent-range <min> <max>` | 单次传输数据量的指数范围。 | 3 20 |
+| `--loop-count` | 正式采样的循环次数，取值须落在 $[1, 10000)$，越界会报错退出。 | 1000 |
+| `-e`/`--exponent <exp>` | 单次传输数据量的指数（单值），取值为 2 的指数（例如 `10` 表示 $2^{10} = 1024$ 字节）。取值须落在 $[3, 20]$。 | - |
+| `--exponent-range <min> <max>` | 单次传输数据量的指数范围，取值须落在 $[3, 20]$，越界会报错退出。上界 20 对应单次传输 1MB，即每个 Core 的物理缓冲大小。 | 3 20 |
 | `--ub-size` | 每个 Core 使用的 Unified Buffer 大小，单位 KB。**仅在 SIMD 模式下生效；默认的 SIMT 模式不使用该参数。** | 16 |
 
 > 本测试为固定的两卡（Active PE0 / Passive PE1）模型，启动进程数与程序内 PE 数均固定为 2。`-pes` 和 `-gnpus` 保留为与 shmem_perftest 参数兼容，但传入非 2 的值会报错。
@@ -110,7 +110,7 @@ bash run.sh -b 4 --exponent-range 8 12
 [DATA_SIZE]_[blocks]_[OpType]_[VfType]_[minExp]-[maxExp]_l[loop_count]_t[THREAD_COUNT].csv
 ```
 
-其中 `[blocks]` 段反映本次实际测试的核数：连续区间（如 `--block-range 1 4`）记为 `1-4`；通过 `--block-list` 指定的离散核数（如 `2,4,8`）按测试顺序以 `_` 连接，记为 `2_4_8`。
+其中 `[blocks]` 段反映本次实际测试的核数集合，命名规则只取决于该集合本身、与它是由哪个参数指定的无关：若集合恰好是一段连续升序区间，记为 `min-max`（如 `--block-range 1 4` 与 `--block-list 1,2,3,4` 都记为 `1-4`）；否则按测试顺序以 `_` 连接（如 `--block-list 2,4,8` 记为 `2_4_8`，`--block-list 8,2,4` 记为 `8_2_4`）。
 
 `.csv` 文件中各列含义如下：
 
@@ -118,7 +118,7 @@ bash run.sh -b 4 --exponent-range 8 12
 | --- | --- |
 | `DataSize/B` | 单次 RMA 通信传输的数据量（字节），对应本行采样的 $2^{exp}$ 取值。 |
 | `Npus` | 参与测试的 PE 数量，两卡测试下为 2。 |
-| `Blocks` | 参与通信的 Core（Block）数量，即 `-b`/`--block-size`。 |
+| `Blocks` | 参与通信的 Core（Block）数量，即本行采样所用的核数。核数扫描（`--block-range` / `--block-list`）下逐行取自扫描集合。 |
 | `UBsize/KB` | 每个 Core 使用的 Unified Buffer 大小（KB），即 `--ub-size`。 |
 | `Bandwidth/GB/s (1000)` | 本组参数测得的跨卡平均传输带宽，按十进制单位换算（除以 $1000^3$）。`none` 操作下恒为 0。 |
 | `Bandwidth/GiB/s (1024)` | 同一带宽按二进制单位换算（除以 $1024^3$）。`none` 操作下恒为 0。 |

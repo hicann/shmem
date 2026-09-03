@@ -152,6 +152,8 @@ export SHMEM_UID_SESSION_ID=127.0.0.1:8899
 export ACLSHMEM_UID_SESSION_ID=127.0.0.1:8899
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 
+cd "${SCRIPT_DIR}"
+
 # Build arguments
 ARGS="-pes $NPES -gnpus $GNPUS -fnpu $FIRST_NPU -fpe $FIRST_PE -ipport $IPPORT"
 ARGS="$ARGS --loop-count $LOOP_COUNT --exponent-range $EXP_MIN $EXP_MAX"

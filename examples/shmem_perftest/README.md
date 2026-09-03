@@ -1,12 +1,13 @@
 # 示例介绍
 
-shmem_perftest是用于测试AscendC::DataCopy、shmem MTE/UDMA/RDMA引擎以及SIMT RMA接口性能的参数化测试示例集合，包含五个子示例：
+shmem_perftest是用于测试AscendC::DataCopy、shmem MTE/UDMA/RDMA引擎以及SIMT RMA接口性能的参数化测试示例集合，包含六个子示例：
 
 - **ascendc_perftest**：测试AscendC::DataCopy性能（不支持Ascend950）
 - **mte_perftest**：测试shmem MTE引擎性能
 - **udma_perftest**：测试shmem UDMA低阶接口性能（仅Ascend950）
 - **rdma_perftest**：测试shmem RDMA低阶接口性能（需开启RDMA支持编译）
 - **simt_rma_perftest**：测试SIMT RMA gm2gm接口性能（仅Ascend950，需开启SIMT支持编译）
+- **simt_rma_ub2gm_perftest**：测试SIMT RMA ub2gm接口性能（仅Ascend950，需开启SIMT支持编译）
 
 该示例可以帮助用户对比多种数据传输方式的性能表现。**该脚本测试结果仅做参考，性能以实际场景为准**
 
@@ -32,7 +33,7 @@ bash scripts/build.sh -examples
 # Ascend950 平台
 bash scripts/build.sh -soc_type Ascend950 -examples
 
-# 如需运行 simt_rma_perftest，需启用SIMT支持并指定Ascend950
+# 如需运行 simt_rma_perftest / simt_rma_ub2gm_perftest，需启用SIMT支持并指定Ascend950
 bash scripts/build.sh -examples -enable_simt -soc_type Ascend950
 
 # 如需运行 rdma_perftest，需启用RDMA支持（RDMA参数详见docs/compilation_build_guide.md）
@@ -48,7 +49,8 @@ bash scripts/build.sh -examples -cann
 bash scripts/build.sh -soc_type Ascend950 -examples -cann
 
 # 运行已编译示例（默认模式 all，仅生成CSV）
-# 注：all 模式包含 ascendc/mte/udma/simt，不包含 rdma_perftest（需单独运行）
+# 注：all 模式包含 ascendc/mte/udma/simt（simt 含 gm2gm 与 ub2gm 两个子示例），
+#     不包含 rdma_perftest（需单独运行）
 cd examples/shmem_perftest
 bash run.sh -m all -t put -d float -fpe 0
 
@@ -69,6 +71,7 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `-d\|--datatype <type>` | 数据类型 (float\|int8\|int16\|int32\|int64\|uint8\|uint16\|uint32\|uint64\|char\|all) | float |
 | `-b\|--block-size <size>` | 设置核数（udma/rdma 强制为 1） | 32 |
 | `--block-range <min> <max>` | 设置核数范围（udma/rdma 强制为 1） | 32-32 |
+| `--block-list <b1,b2,...>` | 设置离散核数列表（对 ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest 生效），如 `2,4,6,8`；指定后优先于 `-b` 与 `--block-range`。udma_perftest 恒为 1，指定时会打印 WARN | - |
 | `-e\|--exponent <exponent>` | 设置数据量的幂数 | - |
 | `--exponent-range <min> <max>` | 设置数据量的幂数范围 | 3-20 |
 | `--loop-count <count>` | 设置循环次数 | 1000 |
@@ -80,8 +83,9 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `-gnpus <num>` | 设置NPU数量 | 2 |
 | `-fnpu <id>` | 设置首个NPU ID | 0 |
 | `-fpe <id>` | 设置首个PE ID | 0 |
-| `-m\|--mode <ascendc\|mte\|udma\|simt\|all>` | 设置运行模式 (ascendc=只跑ascendc, mte=只跑mte, udma=只跑udma, simt=只跑simt, all=全跑), 默认all |
-| `-a\|--analyse <none\|plot\|md>` | 设置分析模式 (none=不生成, plot=只生成图, md=同时生成图和md), 默认none |
+| `-m\|--mode <ascendc\|mte\|udma\|simt\|all>` | 设置运行模式 (ascendc=只跑ascendc, mte=只跑mte, udma=只跑udma, simt=跑两个SIMT RMA子示例, all=全跑) | all |
+| `-a\|--analyse <none\|plot\|md>` | 设置分析模式 (none=不生成, plot=只生成图, md=同时生成图和md) | none |
+| `-h\|--help` | 打印参数说明并退出 | - |
 
 > **`-t/--test-type` 各引擎可选值差异**：
 >
@@ -89,16 +93,17 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 > - **mte_perftest / rdma_perftest**：`put` / `bi_put` / `get` / `bi_get` / `all`
 > - **udma_perftest**：`put` / `bi_put` / `get` / `bi_get` / `put_signal` / `all`
 > - **simt_rma_perftest**：`put` / `get`（由编译期常量 `OP_TYPE` 决定，`-t` 仅做一致性校验）
+> - **simt_rma_ub2gm_perftest**：`put` / `get`（同上，由编译期常量 `OP_TYPE` 决定；不支持 `none`）
 >
 > 若指定的 `-t` 不被某引擎支持，外层脚本会跳过该引擎并打印 WARN。各参数的详细说明、约束及子示例独有参数（如 udma 的 `--metric`、rdma 的 `--sync-id` / `-q` 等）请参考对应子示例 README。
 
 ### 运行模式
 
-- **all（默认）**：依次运行ascendc_perftest（不支持Ascend950，950上运行会报错）、mte_perftest、udma_perftest（udma仅在Ascend950上有效）、simt_rma_perftest（需SIMT编译，否则跳过）
+- **all（默认）**：依次运行ascendc_perftest（不支持Ascend950，950上运行会报错）、mte_perftest、udma_perftest（udma仅在Ascend950上有效）、simt_rma_perftest与simt_rma_ub2gm_perftest（均需SIMT编译，否则跳过）
 - **ascendc**：只运行ascendc_perftest（不支持Ascend950，950上运行会报错）
 - **mte**：只运行mte_perftest
 - **udma**：只运行udma_perftest
-- **simt**：只运行simt_rma_perftest
+- **simt**：运行两个SIMT RMA子示例——simt_rma_perftest（gm2gm）与simt_rma_ub2gm_perftest（ub2gm）。该模式下二者缺少可执行文件会直接报错退出（`all` 模式下则打印WARN跳过）
 
 > 注：`rdma_perftest` 不包含在上述运行模式中，需单独进入 `rdma_perftest/` 目录运行，且编译时需启用 `-enable_rdma` 参数，详见 [rdma_perftest/README.md](./rdma_perftest/README.md)。
 
@@ -107,6 +112,13 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 `simt_rma_perftest` 固定使用两卡进行性能测试，`-pes` 和 `-gnpus` 必须为 2。该子示例的 `OP_TYPE` 和 `DATA_SIZE` 由 `simt_rma_perftest/main.cpp` 中的编译期常量决定；外层 `-t` / `-d` 只有在用户显式传入时才会转发给SIMT子脚本进行一致性校验，不会改变实际测试的操作类型或数据位宽。
 
 因此，`-t all` 或 `-d all` 不会展开运行SIMT矩阵，顶层脚本会跳过 `simt_rma_perftest` 并打印提示。如需测试其他SIMT RMA操作或数据位宽，请修改 `simt_rma_perftest/main.cpp` 中的编译期常量后重新编译。
+
+`simt_rma_ub2gm_perftest` 同属 SIMT RMA、同为固定两卡模型，随 `simt`/`all` 模式一起运行，上述编译期常量的约束同样适用（其常量位于 `simt_rma_ub2gm_perftest/main.cpp`）。它与 gm2gm 版有两点差异，外层脚本会自动处理，无需手工调整参数：
+
+| 差异 | 外层脚本的处理 |
+| --- | --- |
+| 单次传输量受 UB 容量限制，指数上界为 16（gm2gm 为 20） | 超出部分会收缩到16，并打印 WARN 说明收缩后的范围；若 `--exponent-range` 的 min 本身已大于 16，则跳过该子示例 |
+| 位宽固定 32 bit，UB 大小由编译期常量决定，其 `run.sh` 无 `-d` / `--ub-size` 参数 | 这两个参数不转发给它；若显式传入的 `-d` 不对应 32 bit（即非 `float`/`int32`/`uint32`），则跳过该子示例并打印 WARN |
 
 ### DRAM内存测试约束
 
@@ -149,6 +161,8 @@ examples/shmem_perftest/output/
 │   └── rdma_put_float_0.csv
 ├── simt_rma_perftest/    # simt_rma_perftest测试结果
 │   └── 32_32-32_put_simt_3-20_l1000_t1024.csv
+├── simt_rma_ub2gm_perftest/  # simt_rma_ub2gm_perftest测试结果
+│   └── ub2gm_32_32-32_get_simt_3-16_l1000_t1024_ub16384.csv
 └── performance_report.md  # （使用--markdown时生成）性能测试报告
 ```
 
@@ -161,3 +175,4 @@ examples/shmem_perftest/output/
 - **udma_perftest**：请参考 [udma_perftest/README.md](./udma_perftest/README.md)
 - **rdma_perftest**：请参考 [rdma_perftest/README.md](./rdma_perftest/README.md)
 - **simt_rma_perftest**：请参考 [simt_rma_perftest/README.md](./simt_rma_perftest/README.md)
+- **simt_rma_ub2gm_perftest**：请参考 [simt_rma_ub2gm_perftest/README.md](./simt_rma_ub2gm_perftest/README.md)
