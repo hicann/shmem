@@ -23,6 +23,8 @@
 #include "acc_includes.h"
 #include "openssl_api_dl.h"
 
+class AccTcpSslHelperTest; // UT fixture, see tests/unittest/host/bootstrap/acc_tcp_ssl_helper_test.cpp
+
 namespace shm {
 namespace acc {
 
@@ -30,32 +32,31 @@ constexpr int MIN_PRIVATE_KEY_CONTENT_BIT_LEN = 3072; // RSA密钥长度要求�
 constexpr int MIN_PRIVATE_KEY_CONTENT_BYTE_LEN = MIN_PRIVATE_KEY_CONTENT_BIT_LEN / 8;
 
 class AccTcpSslHelper : public AccReferable {
+    friend class ::AccTcpSslHelperTest;
+
 public:
-    AccResult Start(SSL_CTX *sslCtx, AccTlsOption &param);
+    AccResult Start(SSL_CTX* sslCtx, AccTlsOption& param);
     void Stop(bool afterFork = false);
 
-    ~AccTcpSslHelper()
-    {
-        EraseDecryptData();
-    }
+    ~AccTcpSslHelper() { EraseDecryptData(); }
 
     void EraseDecryptData();
 
-    static AccResult NewSslLink(bool isServer, int fd, SSL_CTX *ctx, SSL *&ssl);
-    void RegisterDecryptHandler(const AccDecryptHandler &h);
+    static AccResult NewSslLink(bool isServer, int fd, SSL_CTX* ctx, SSL*& ssl);
+    void RegisterDecryptHandler(const AccDecryptHandler& h);
 
 private:
-    void InitTlsPath(AccTlsOption &otherConfig);
-    AccResult InitSSL(SSL_CTX *sslCtx);
+    void InitTlsPath(AccTlsOption& otherConfig);
+    AccResult InitSSL(SSL_CTX* sslCtx);
 
-    static int CaVerifyCallback(X509_STORE_CTX *x509ctx, void *arg);
-    static int ProcessCrlAndVerifyCert(std::vector<std::string> paths, X509_STORE_CTX *x509ctx);
-    AccResult ReadFile(const std::string &path, std::string &content);
-    AccResult LoadCaFileList(std::vector<std::string> &caFileList);
-    AccResult LoadCaCert(SSL_CTX *sslCtx);
-    AccResult LoadServerCert(SSL_CTX *sslCtx);
-    AccResult LoadPrivateKey(SSL_CTX *sslCtx);
-    AccResult CertVerify(X509 *cert);
+    static int CaVerifyCallback(X509_STORE_CTX* x509ctx, void* arg);
+    static int ProcessCrlAndVerifyCert(std::vector<std::string> paths, X509_STORE_CTX* x509ctx);
+    AccResult ReadFile(const std::string& path, std::string& content);
+    AccResult LoadCaFileList(std::vector<std::string>& caFileList);
+    AccResult LoadCaCert(SSL_CTX* sslCtx);
+    AccResult LoadServerCert(SSL_CTX* sslCtx);
+    AccResult LoadPrivateKey(SSL_CTX* sslCtx);
+    AccResult CertVerify(X509* cert);
     AccResult CheckCertExpiredTask();
     AccResult StartCheckCertExpired();
     void StopCheckCertExpired(bool afterFork);
@@ -66,7 +67,7 @@ private:
 
 private:
     AccDecryptHandler mDecryptHandler_ = nullptr; // 解密回调
-    std::pair<char *, int> mKeyPass = { nullptr, 0 };
+    std::pair<char*, int> mKeyPass = {nullptr, 0};
     std::thread checkExpiredThread;
     std::mutex mMutex;
     std::condition_variable mCond;
@@ -86,7 +87,7 @@ private:
     std::string tlsPkPwd;
 };
 using AccTcpSslHelperPtr = AccRef<AccTcpSslHelper>;
-}  // namespace acc
-}  // namespace shm
+} // namespace acc
+} // namespace shm
 
-#endif  // ACC_LINKS_ACC_TCP_SSL_HELPER_H
+#endif // ACC_LINKS_ACC_TCP_SSL_HELPER_H
