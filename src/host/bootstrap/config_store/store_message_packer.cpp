@@ -15,15 +15,15 @@
 
 namespace shm {
 namespace store {
-std::vector<uint8_t> SmemMessagePacker::Pack(const SmemMessage &message) noexcept
+std::vector<uint8_t> SmemMessagePacker::Pack(const SmemMessage& message) noexcept
 {
     // size + userDef + mt + keyN + vN
     constexpr uint64_t baseSize = 4U * sizeof(uint64_t) + sizeof(MessageType);
     uint64_t totalSize = baseSize;
-    for (auto &key : message.keys) {
+    for (auto& key : message.keys) {
         totalSize += (sizeof(uint64_t) + key.size());
     }
-    for (auto &value : message.values) {
+    for (auto& value : message.values) {
         totalSize += (sizeof(uint64_t) + value.size());
     }
 
@@ -34,12 +34,12 @@ std::vector<uint8_t> SmemMessagePacker::Pack(const SmemMessage &message) noexcep
     PackValue(result, message.mt);
 
     PackValue(result, message.keys.size());
-    for (auto &key : message.keys) {
+    for (auto& key : message.keys) {
         PackString(result, key);
     }
 
     PackValue(result, message.values.size());
-    for (auto &value : message.values) {
+    for (auto& value : message.values) {
         PackBytes(result, value);
     }
 
@@ -53,37 +53,42 @@ bool SmemMessagePacker::Full(const uint8_t* buffer, const uint64_t bufferLen) no
         return false;
     }
 
-    auto totalSize = *reinterpret_cast<const uint64_t *>(buffer);
-    return bufferLen >= totalSize;
+    auto totalSize = *reinterpret_cast<const uint64_t*>(buffer);
+    return totalSize >= baseSize && bufferLen >= totalSize;
 }
 
-int64_t SmemMessagePacker::MessageSize(const std::vector<uint8_t> &buffer) noexcept
+int64_t SmemMessagePacker::MessageSize(const std::vector<uint8_t>& buffer) noexcept
 {
     if (buffer.size() < sizeof(uint64_t)) {
         return -1L;
     }
 
-    return *reinterpret_cast<const int64_t *>(buffer.data());
+    return *reinterpret_cast<const int64_t*>(buffer.data());
 }
 
-int64_t SmemMessagePacker::Unpack(const uint8_t* buffer, const uint64_t bufferLen, SmemMessage &message) noexcept
+int64_t SmemMessagePacker::Unpack(const uint8_t* buffer, const uint64_t bufferLen, SmemMessage& message) noexcept
 {
     SHM_CHECK_CONDITION_RET(buffer == nullptr, -1);
     SHM_CHECK_CONDITION_RET(!Full(buffer, bufferLen), -1);
 
     uint64_t length = 0ULL;
-    auto totalSize = *reinterpret_cast<const uint64_t *>(buffer + length);
+    auto totalSize = *reinterpret_cast<const uint64_t*>(buffer + length);
+    const auto hasRemaining = [totalSize](const uint64_t offset, const uint64_t size) {
+        return offset <= totalSize && size <= totalSize - offset;
+    };
     length += sizeof(uint64_t);
 
-    message.userDef = *reinterpret_cast<const int64_t *>(buffer + length);
+    message.userDef = *reinterpret_cast<const int64_t*>(buffer + length);
     length += sizeof(int64_t);
 
-    message.mt = *reinterpret_cast<const MessageType *>(buffer + length);
+    message.mt = *reinterpret_cast<const MessageType*>(buffer + length);
     length += sizeof(MessageType);
     SHM_CHECK_CONDITION_RET(message.mt < MessageType::SET || message.mt > MessageType::INVALID_MSG, -1);
 
     uint64_t keyCount = 0;
-    std::copy_n(reinterpret_cast<const uint64_t *>(buffer + length), 1, &keyCount);
+    // Ensure the field lies within the message boundary before dereferencing, to reject malformed messages.
+    SHM_CHECK_CONDITION_RET(!hasRemaining(length, sizeof(keyCount)), -1);
+    std::copy_n(reinterpret_cast<const uint64_t*>(buffer + length), 1, &keyCount);
     SHM_CHECK_CONDITION_RET(keyCount > MAX_KEY_COUNT, -1);
 
     length += sizeof(uint64_t);
@@ -91,16 +96,18 @@ int64_t SmemMessagePacker::Unpack(const uint8_t* buffer, const uint64_t bufferLe
 
     for (auto i = 0UL; i < keyCount; i++) {
         uint64_t keySize = 0;
-        std::copy_n(reinterpret_cast<const uint64_t *>(buffer + length), 1, &keySize);
+        SHM_CHECK_CONDITION_RET(!hasRemaining(length, sizeof(keySize)), -1);
+        std::copy_n(reinterpret_cast<const uint64_t*>(buffer + length), 1, &keySize);
         length += sizeof(uint64_t);
 
-        SHM_CHECK_CONDITION_RET(keySize > MAX_KEY_SIZE || length + keySize > bufferLen, -1);
-        message.keys.emplace_back(reinterpret_cast<const char *>(buffer + length), keySize);
+        SHM_CHECK_CONDITION_RET(keySize > MAX_KEY_SIZE || !hasRemaining(length, keySize), -1);
+        message.keys.emplace_back(reinterpret_cast<const char*>(buffer + length), keySize);
         length += keySize;
     }
 
     uint64_t valueCount = 0;
-    std::copy_n(reinterpret_cast<const uint64_t *>(buffer + length), 1, &valueCount);
+    SHM_CHECK_CONDITION_RET(!hasRemaining(length, sizeof(valueCount)), -1);
+    std::copy_n(reinterpret_cast<const uint64_t*>(buffer + length), 1, &valueCount);
     SHM_CHECK_CONDITION_RET(valueCount > MAX_VALUE_COUNT, -1);
 
     length += sizeof(uint64_t);
@@ -108,9 +115,10 @@ int64_t SmemMessagePacker::Unpack(const uint8_t* buffer, const uint64_t bufferLe
 
     for (auto i = 0UL; i < valueCount; i++) {
         uint64_t valueSize = 0;
-        std::copy_n(reinterpret_cast<const uint64_t *>(buffer + length), 1, &valueSize);
+        SHM_CHECK_CONDITION_RET(!hasRemaining(length, sizeof(valueSize)), -1);
+        std::copy_n(reinterpret_cast<const uint64_t*>(buffer + length), 1, &valueSize);
         length += sizeof(uint64_t);
-        SHM_CHECK_CONDITION_RET(valueSize > MAX_VALUE_SIZE || length + valueSize > bufferLen, -1);
+        SHM_CHECK_CONDITION_RET(valueSize > MAX_VALUE_SIZE || !hasRemaining(length, valueSize), -1);
 
         message.values.emplace_back(buffer + length, buffer + length + valueSize);
         length += valueSize;
@@ -119,7 +127,7 @@ int64_t SmemMessagePacker::Unpack(const uint8_t* buffer, const uint64_t bufferLe
     return static_cast<int64_t>(totalSize);
 }
 
-void SmemMessagePacker::PackString(std::vector<uint8_t> &dest, const std::string &str) noexcept
+void SmemMessagePacker::PackString(std::vector<uint8_t>& dest, const std::string& str) noexcept
 {
     PackValue(dest, static_cast<uint64_t>(str.size()));
     if (!str.empty()) {
@@ -127,10 +135,10 @@ void SmemMessagePacker::PackString(std::vector<uint8_t> &dest, const std::string
     }
 }
 
-void SmemMessagePacker::PackBytes(std::vector<uint8_t> &dest, const std::vector<uint8_t> &bytes) noexcept
+void SmemMessagePacker::PackBytes(std::vector<uint8_t>& dest, const std::vector<uint8_t>& bytes) noexcept
 {
     PackValue(dest, static_cast<uint64_t>(bytes.size()));
     dest.insert(dest.end(), bytes.begin(), bytes.end());
 }
-}  // shm
-}  // store
+} // namespace store
+} // namespace shm
