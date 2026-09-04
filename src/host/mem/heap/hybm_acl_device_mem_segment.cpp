@@ -629,6 +629,8 @@ Result AclMemSegmentDevice::Mmap() noexcept
     if (imports_.empty()) {
         return ACLSHMEM_SUCCESS;
     }
+    uint32_t unreachableCnt = 0;
+    bool anySuspicious = false;
     for (auto& im : imports_) {
         if (im.rankId == options_.rankId) {
             continue;
@@ -641,7 +643,8 @@ Result AclMemSegmentDevice::Mmap() noexcept
         }
 
         if (!CanMapRemote(im)) {
-            SHM_LOG_INFO("remote slice on rank(" << im.rankId << ") SDMA cannot reaches.");
+            anySuspicious = LogRemoteUnreachable(im) || anySuspicious;
+            ++unreachableCnt;
             continue;
         }
 
@@ -660,6 +663,7 @@ Result AclMemSegmentDevice::Mmap() noexcept
         }
         mappedMem_.insert((uint64_t)remoteAddress);
     }
+    LogUnreachableSummary(unreachableCnt, anySuspicious);
     imports_.clear();
     return ACLSHMEM_SUCCESS;
 }

@@ -7,6 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+#include <sstream>
+
 #include "dl_comm_def.h"
 #include "dl_api.h"
 #include "dl_acl_api.h"
@@ -23,6 +25,7 @@ int MemSegment::devicePhyId_{-1};
 uint32_t MemSegment::pid_{0};
 uint32_t MemSegment::sdid_{0};
 uint32_t MemSegment::serverId_{0};
+bool MemSegment::serverIdSubstituted_{false};
 uint32_t MemSegment::superPodId_{0};
 AscendSocType MemSegment::socType_{AscendSocType::ASCEND_UNKNOWN};
 std::string MemSegment::sysBoolId_{};
@@ -156,6 +159,7 @@ Result MemSegment::InitDeviceInfo()
 
     FillSysBootIdInfo();
     superPodId_ = static_cast<uint32_t>(value);
+    const uint32_t rawServerId = serverId_;
     if (superPodId_ == invalidSuperPodId && serverId_ == GetInvalidServerIdBySocType(socType_)) {
         if (bootIdHead_ != 0) {
             serverId_ = bootIdHead_;
@@ -167,10 +171,27 @@ Result MemSegment::InitDeviceInfo()
             }
             serverId_ = networks[0];
         }
+        serverIdSubstituted_ = true;
+        SHM_LOG_WARN(
+            "serverId read the invalid sentinel 0x"
+            << std::hex << rawServerId << ", substituted with 0x" << serverId_ << std::dec
+            << (bootIdHead_ != 0 ? " (boot-id head)" : " (local IP)")
+            << ". This id identifies the OS instance rather than the physical server, so only PEs "
+               "sharing it are judged same-server.");
+    }
+    if (superPodId_ == invalidSuperPodId) {
+        SHM_LOG_WARN(
+            "superPodId read invalid (0x"
+            << std::hex << invalidSuperPodId << std::dec << ") on logicDevId=" << logicDeviceId_
+            << ". Every peer on a different server will be rejected for SDMA/MTE no matter what the real "
+               "fabric topology is, and its heap slot will stay unmapped. This is expected only for a "
+               "deployment without a super pod; otherwise the super pod is not provisioned on this node.");
     }
     SHM_LOG_DEBUG(
-        "local sdid=0x" << std::hex << sdid_ << ", local server=0x" << std::hex << serverId_
-                        << ", spid=" << superPodId_);
+        "local topology identity: sdid=0x"
+        << std::hex << sdid_ << ", server=0x" << serverId_ << std::dec << (serverIdSubstituted_ ? "(substituted)" : "")
+        << ", spid=" << superPodId_ << (superPodId_ == invalidSuperPodId ? "(INVALID)" : "")
+        << ", logicDevId=" << logicDeviceId_ << ", socType=" << static_cast<int>(socType_));
     deviceInfoReady = true;
     return ACLSHMEM_SUCCESS;
 }
@@ -211,6 +232,56 @@ bool MemSegment::IsSdmaAccessible(uint32_t superPodId, uint32_t serverId, uint32
     }
 
     return superPodId == superPodId_;
+}
+
+bool MemSegmentDevice::LogRemoteUnreachable(const HbmExportInfo& rmi) noexcept
+{
+    const bool localSpidUnset = (superPodId_ == invalidSuperPodId);
+    const bool remoteSpidUnset = (rmi.superPodId == invalidSuperPodId);
+    const bool remoteSidInvalid = (rmi.serverId == GetInvalidServerIdBySocType(socType_));
+    const bool remoteDevIdBad = (rmi.logicDeviceId < 0);
+    // serverIdSubstituted_ is deliberately not a term here: substitution only happens when superPodId_ is
+    // already invalid, so localSpidUnset always covers it. The flag stays as a log annotation only.
+    const bool suspicious = localSpidUnset || remoteSpidUnset || remoteSidInvalid || remoteDevIdBad;
+
+    std::ostringstream os;
+    os << "SDMA/MTE cannot reach rank " << rmi.rankId << ", its heap slot stays unmapped."
+       << " | local: spid=" << superPodId_ << (localSpidUnset ? "(INVALID)" : "") << " server=0x" << std::hex
+       << serverId_ << std::dec << (serverIdSubstituted_ ? "(substituted)" : "") << " logicDevId=" << logicDeviceId_
+       << " socType=" << static_cast<int>(socType_) << " | remote: spid=" << rmi.superPodId
+       << (remoteSpidUnset ? "(INVALID)" : "") << " server=0x" << std::hex << rmi.serverId << std::dec
+       << (remoteSidInvalid ? "(INVALID)" : "") << " logicDevId=" << rmi.logicDeviceId
+       << (remoteDevIdBad ? "(NEGATIVE)" : "");
+
+    if (suspicious) {
+        os << " | this identity looks incomplete";
+        SHM_LOG_WARN(os.str());
+        return true;
+    }
+    // both identities are well-formed, so this is a genuine cross-super-pod peer
+    SHM_LOG_INFO(os.str());
+    return false;
+}
+
+void MemSegmentDevice::LogUnreachableSummary(uint32_t unreachableCnt, bool anySuspicious) noexcept
+{
+    if (unreachableCnt == 0) {
+        return;
+    }
+
+    std::ostringstream os;
+    os << unreachableCnt
+       << " peer(s) left unmapped. A peer is mappable only when (1) its serverId equals "
+          "the local one, and on 910B its logicDevId/"
+       << ASC910B_CONN_RANKS
+       << " also matches, or (2) its serverId differs while both superPodIds are valid and equal.";
+    if (!anySuspicious) {
+        SHM_LOG_INFO(os.str());
+        return;
+    }
+    os << " An invalid superPodId means no super pod is provisioned on that node; if these PEs are meant "
+          "to share one, check the super-pod configuration rather than this heap.";
+    SHM_LOG_WARN(os.str());
 }
 
 Result MemSegment::EnableRemotePeerAccess(int32_t remotePhyId, int32_t remoteUserId) noexcept

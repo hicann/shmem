@@ -86,6 +86,21 @@ public:
     static bool CanMapRemote(const HbmExportInfo& rmi) noexcept;
     static void GetDeviceInfo(uint32_t& sdId, uint32_t& serverId, uint32_t& superPodId) noexcept;
 
+    /**
+     * report a peer that CanMapRemote rejected, dumping both sides of the comparison so the reason can be
+     * judged from the log.
+     * @return true when either identity looks incomplete (unset superPodId, substituted serverId,
+     *         malformed remote device id), which makes the rejection likely a misconfiguration
+     */
+    static bool LogRemoteUnreachable(const HbmExportInfo& rmi) noexcept;
+
+    /**
+     * after a mapping pass, explain which topologies are mappable. Does nothing when every peer mapped.
+     * @param unreachableCnt how many peers CanMapRemote rejected
+     * @param anySuspicious  whether any rejection came with an incomplete identity
+     */
+    static void LogUnreachableSummary(uint32_t unreachableCnt, bool anySuspicious) noexcept;
+
 protected:
     void FreeMemory() noexcept;
     Result SetMemAccess() noexcept;

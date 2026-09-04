@@ -167,6 +167,10 @@ protected:
     static uint32_t pid_;
     static uint32_t sdid_;
     static uint32_t serverId_;
+    // true when serverId_ does not come from the hardware but was substituted with the boot-id head
+    // or a local IP because both serverId and superPodId read their invalid sentinels. Such an id
+    // identifies the OS instance, not the physical server, so reachability logs must say so.
+    static bool serverIdSubstituted_;
     static uint32_t superPodId_;
     static AscendSocType socType_;
     static std::string sysBoolId_;
