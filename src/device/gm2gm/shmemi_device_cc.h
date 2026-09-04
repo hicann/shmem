@@ -35,6 +35,8 @@ constexpr int32_t BARRIER_DISSEM_KVAL_MIN = 2;
 constexpr int32_t SHIFT_MULTIPLIER = 2;
 constexpr uint64_t ACLSHMEM_DATA_CACHE_LINE_SIZE = 64;
 
+ACLSHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t *addr);
+
 ACLSHMEM_DEVICE __gm__ aclshmemi_sync_bit *aclshmemi_get_core_sync_pool()
 {
     return (__gm__ aclshmemi_sync_bit *)aclshmemi_get_state()->core_sync_pool;
@@ -55,6 +57,9 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft()
     int32_t block_dim = AscendC::GetBlockNum() * AscendC::GetTaskRation();
     auto sync_pool = aclshmemi_get_core_sync_pool();
     auto sync_counter = aclshmemi_get_core_sync_counter();
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    dcci_cacheline((__gm__ uint8_t *)sync_counter);
+#endif
     int32_t count = aclshmemi_load((__gm__ int32_t *)(sync_counter)) + 1;
 
     int32_t shift = 1;
@@ -71,6 +76,9 @@ ACLSHMEM_DEVICE void aclshmemi_barrier_core_soft()
     }
 
     aclshmemi_store((__gm__ int32_t *)(sync_counter), count);
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+    dcci_cacheline((__gm__ uint8_t *)sync_counter);
+#endif
     MSTX_FUSE_SCOPE_END();
     MSTX_CROSS_CORE_BARRIER_REPORT(block_dim);
 }

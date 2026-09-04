@@ -15,7 +15,9 @@
 #include <numeric>
 #include <iostream>
 #include <algorithm>
-#include <filesystem>
+#include <cerrno>
+#include <sstream>
+#include <sys/stat.h>
 
 #include "utils.h"
 #include "param.h"
@@ -418,7 +420,10 @@ int test_copy_perf(int my_pe, int n_pes)
             csv_data.push_back(sub_data);
         }
     }
-    std::filesystem::create_directories("output");
+    if (mkdir("output", 0755) != 0 && errno != EEXIST) {
+        std::cerr << "Error: unable to create output directory, errno=" << errno << std::endl;
+        return ACLSHMEM_INVALID_VALUE;
+    }
     writeCSV("output/"+intToString(my_pe)+"_band.csv", csv_data);
 
     std::vector<std::vector<std::string>> csv_data_2 = {

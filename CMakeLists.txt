@@ -58,6 +58,7 @@ else()
 endif()
 
 if(USE_MSSANITIZER)
+    add_compile_definitions(ACLSHMEM_MSSANITIZER_BUILD)
     set(SANITIZER_FLAGS
         -g --cce-enable-sanitizer
     )
