@@ -136,9 +136,18 @@ export SHMEM_UID_SESSION_ID="${SESSION_ID}"
 export SMEM_CONF_STORE_TLS_ENABLE=0
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 
+# HBM 内存泄漏检查: UT 运行前采样基线(采样失败仅警告, 不阻塞 UT)
+readonly HBM_STATE_FILE="$BUILD_PATH/hbm_baseline_$$.txt"
+bash "$PROJECT_ROOT/tests/unittest/scripts/hbm_leak_check.sh" before "$FIRST_NPU" "$GNPU_NUM" "$HBM_STATE_FILE" || true
+
 # Run unit test
 cd "$BUILD_PATH"
-./bin/aclshmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU"  --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER}
+UT_RC=0
+./bin/aclshmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU"  --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER} || UT_RC=$?
+
+# HBM 内存泄漏检查: UT 运行后再次采样并与基线对比, 检测到泄漏时最终退出码非 0
+HBM_RC=0
+bash "$PROJECT_ROOT/tests/unittest/scripts/hbm_leak_check.sh" after "$FIRST_NPU" "$GNPU_NUM" "$HBM_STATE_FILE" || HBM_RC=$?
 
 if grep -q '^ACLSHMEM_RDMA_SUPPORT:BOOL=ON$' CMakeCache.txt && [ -x ./bin/aclshmem_rdma_topo_unittest ]; then
     ./bin/aclshmem_rdma_topo_unittest --gtest_output=xml:rdma_topo_test_detail.xml
@@ -157,3 +166,7 @@ else
 fi
 
 cd ${CURRENT_DIR}
+if [ "$UT_RC" -ne 0 ]; then
+    exit "$UT_RC"
+fi
+exit "$HBM_RC"
