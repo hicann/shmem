@@ -63,21 +63,21 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 
 ### 外层run.sh参数说明
 
-下表列出外层 `run.sh` 支持的参数及其默认值。**各子示例对同一参数的支持范围和默认值可能不同**（例如 `-t` 可选值、`-b` 是否强制为 1、`--ub-size` 最小值等），具体以各子示例 README 为准：
+下表列出外层 `run.sh` 支持的参数及其默认值。**各子示例对同一参数的支持范围和默认值可能不同**（例如 `-t` 可选值、`-b` 是否生效、`--ub-size` 最小值等），具体以各子示例 README 为准：
 
 | 参数 | 说明 | 外层默认值 |
 |------|------|---------|
 | `-t\|--test-type <type>` | 测试类型，可选值因引擎而异（见下方说明） | put |
 | `-d\|--datatype <type>` | 数据类型 (float\|int8\|int16\|int32\|int64\|uint8\|uint16\|uint32\|uint64\|char\|all) | float |
-| `-b\|--block-size <size>` | 设置核数（udma/rdma 强制为 1） | 32 |
-| `--block-range <min> <max>` | 设置核数范围（udma/rdma 强制为 1） | 32-32 |
-| `--block-list <b1,b2,...>` | 设置离散核数列表（对 ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest 生效），如 `2,4,6,8`；指定后优先于 `-b` 与 `--block-range`。udma_perftest 恒为 1，指定时会打印 WARN | - |
+| `-b\|--block-size <size>` | 设置核数（UDMA、RDMA 中核数等于 QP 数） | AscendC/MTE/SIMT 为 32；UDMA/RDMA 为 1 |
+| `--block-range <min> <max>` | 设置核数范围（UDMA/RDMA 当前不做范围扫描） | 32-32 |
+| `--block-list <b1,b2,...>` | 设置离散核数列表（对 ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest 生效），如 `2,4,6,8`；指定后优先于 `-b` 与 `--block-range` | - |
 | `-e\|--exponent <exponent>` | 设置数据量的幂数 | - |
 | `--exponent-range <min> <max>` | 设置数据量的幂数范围 | 3-20 |
 | `--loop-count <count>` | 设置循环次数 | 1000 |
 | `--ub-size <size>` | 设置UB size(KB)；rdma_perftest 至少需要 192B，具体以子示例 README 为准 | 16 |
 | `--memory-type <hbm\|dram>` | 设置mte_perftest使用的SHMEM内存类型（仅mte生效） | hbm |
-| `--batch <N>` | BW 路径下每 N 次 `*_nbi` 后 `quiet`；UDMA/RDMA 的具体限制以子示例 README 为准。RDMA XSCALE 要求 `batch < 1024`，非法值由 `rdma_perftest/run.sh` 自动改为 100 | 0 |
+| `--batch <N>` | BW 路径批量控制；UDMA 中 N > 1 使用 defer/submit 聚合并在每批后 quiet；RDMA 的聚合规则和限制以子示例 README 为准 | 0 |
 | `-pes <size>` | 设置PE大小 | 2 |
 | `-ipport <ip:port>` | 设置IP端口 | tcp://127.0.0.1:8760 |
 | `-gnpus <num>` | 设置NPU数量 | 2 |
@@ -156,7 +156,7 @@ examples/shmem_perftest/output/
 │           ├── put_float_0_bandwidth_max_heatmap.png
 │           └── put_float_0_bandwidth_mean_heatmap.png
 ├── udma_perftest/        # udma_perftest测试结果
-│   └── udma_bw_put_float_0.csv
+│   └── udma_bw_put_float[_qpN]_0.csv
 ├── rdma_perftest/        # rdma_perftest测试结果（单独运行rdma_perftest后拷贝至此）
 │   └── rdma_put_float_0.csv
 ├── simt_rma_perftest/    # simt_rma_perftest测试结果

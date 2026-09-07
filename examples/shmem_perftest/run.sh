@@ -23,6 +23,7 @@ DATA_TYPE_PROVIDED="0"
 MIN_BLOCK_SIZE="32"
 MAX_BLOCK_SIZE="32"
 BLOCK_LIST=""
+BLOCK_SIZE_PROVIDED="0"
 # 默认幂数范围
 MIN_EXPONENT="3"
 MAX_EXPONENT="20"
@@ -32,7 +33,7 @@ LOOP_COUNT="1000"
 UB_SIZE="16"
 # 默认SHMEM内存类型: hbm/dram，仅shmem模式使用
 MEMORY_TYPE="hbm"
-# 批量提交粒度（仅 BW 路径，当前仅支持 udma_perftest）：0=全异步(默认)，1=同步
+# 批量提交粒度（仅 BW 路径）：0=普通 NBI 全异步(默认)，1=每次后 quiet，>1=每批 defer/submit 后 quiet
 BATCH="0"
 # 默认运行模式: ascendc/mte/udma/simt/all (all表示全跑)
 MODE="all"
@@ -51,15 +52,15 @@ function usage() {
     echo "  -h|--help                 Show this help message"
     echo "  -t|--test-type <type>      设置测试类型 (put|get|ub2gm_local|ub2gm_remote|gm2ub_local|gm2ub_remote|all)"
     echo "  -d|--datatype <type>      设置数据类型 (float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all)"
-    echo "  -b|--block-size <size>          设置核数"
-    echo "  --block-range <min> <max>       设置连续核数范围"
+    echo "  -b|--block-size <size>          设置核数（UDMA、RDMA 中核数等于 QP 数）"
+    echo "  --block-range <min> <max>       设置连续核数范围（UDMA/RDMA 当前不做范围扫描）"
     echo "  --block-list <b1,b2,...>        设置离散核数列表（ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest），如 2,4,6,8"
     echo "  -e|--exponent <exponent>        设置数据量的幂数"
     echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
     echo "  --loop-count <count>            设置循环次数"
     echo "  --ub-size <size>                设置UB size(KB), 默认16"
     echo "  --memory-type <hbm|dram>        设置SHMEM内存类型, 默认hbm"
-    echo "  --batch <N>                     BW 路径下每 N 次 *_nbi 后 quiet (0=loop_count 全异步, 1=同步, 默认 0；当前仅支持 udma_perftest)"
+    echo "  --batch <N>                     BW 路径批量控制；具体 defer/submit/quiet 语义以各子示例 README 为准"
     echo "  -pes <size>                     设置PE大小"
     echo "  -ipport <ip:port>               设置IP端口"
     echo "  -gnpus <num>                   设置NPU数量"
@@ -101,6 +102,7 @@ while [[ $# -gt 0 ]]; do
                 MIN_BLOCK_SIZE="$2"
                 MAX_BLOCK_SIZE="$2"
                 BLOCK_LIST=""
+                BLOCK_SIZE_PROVIDED="1"
                 shift 2
             else
                 echo "Error: -b|--block-size requires a value."
@@ -112,6 +114,7 @@ while [[ $# -gt 0 ]]; do
                 MIN_BLOCK_SIZE="$2"
                 MAX_BLOCK_SIZE="$3"
                 BLOCK_LIST=""
+                BLOCK_SIZE_PROVIDED="1"
                 shift 3
             else
                 echo "Error: --block-range requires two values."
@@ -261,7 +264,7 @@ if [[ ! " $VALID_MEMORY_TYPES " =~ " $MEMORY_TYPE " ]]; then
 fi
 
 if [ -n "$BLOCK_LIST" ] && [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
-    echo "WARN: --block-list takes effect for ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest; udma_perftest always uses block_size=1."
+    echo "WARN: --block-list takes effect for ascendc/mte/simt_rma_perftest; UDMA uses one block per QP via -b/--block-size."
 fi
 
 echo "=============================================="
@@ -351,9 +354,17 @@ if [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
         if [[ "$MEMORY_TYPE" != "hbm" ]]; then
             echo "WARN: udma_perftest only operates on HBM symmetric memory; --memory-type=$MEMORY_TYPE is not forwarded to it."
         fi
+        UDMA_BLOCK_ARGS=()
+        if [[ "$BLOCK_SIZE_PROVIDED" == "1" ]]; then
+            if [[ "$MIN_BLOCK_SIZE" != "$MAX_BLOCK_SIZE" ]]; then
+                echo "WARN: UDMA does not sweep --block-range; use -b/--block-size N. UDMA will use its default 1 QP."
+            else
+                UDMA_BLOCK_ARGS=(--block-size "$MIN_BLOCK_SIZE")
+            fi
+        fi
         echo -e "\n========== Running udma_perftest =========="
-        echo "Command: bash ${SCRIPT_DIR}/udma_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --batch \"$BATCH\""
-        bash "${SCRIPT_DIR}/udma_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --batch "$BATCH"
+        echo "Command: bash ${SCRIPT_DIR}/udma_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --batch \"$BATCH\" ${UDMA_BLOCK_ARGS[*]}"
+        bash "${SCRIPT_DIR}/udma_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --batch "$BATCH" "${UDMA_BLOCK_ARGS[@]}"
     fi
 fi
 

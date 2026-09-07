@@ -23,7 +23,7 @@ EXEC_BIN=${PROJECT_ROOT}/build/bin/udma_perftest
 TEST_TYPE="put"
 # 默认数据类型为float
 DATA_TYPE="float"
-# UDMA强制单核, block-size 仅作为入参兼容
+# UDMA 中 block 数即 QP 数，通过 -b/--block-size 设置
 BLOCK_SIZE_INPUT="1"
 # 默认幂数范围
 MIN_EXPONENT="3"
@@ -34,8 +34,9 @@ LOOP_COUNT="1000"
 UB_SIZE="16"
 # 默认 metric: bw|lat (lat 仅支持 -t put)
 METRIC="bw"
-# 默认 batch: 0 表示按 loop_count 全异步提交，仅末尾一次 quiet
-# 1 表示同步（每次 nbi 后 quiet），其他值表示每 N 次 nbi 后 quiet
+# 默认 batch：0 表示按 loop_count 全异步提交，仅末尾一次 quiet
+# 1：每次普通 NBI 提交后调用 quiet；
+# >1：按 N 次操作分组，普通 put/get 每组执行 N-1 次 defer 和 1 次 submit，随后调用 quiet；put_signal 始终使用普通 NBI。
 BATCH="0"
 # 默认RANK配置
 PE_SIZE="2"
@@ -69,17 +70,12 @@ while [[ $# -gt 0 ]]; do
         -b|--block-size)
             if [ -n "$2" ]; then
                 BLOCK_SIZE_INPUT="$2"
-                if [[ "$BLOCK_SIZE_INPUT" != "1" ]]; then
-                    echo "WARN: UDMA perftest forces block_size=1, ignoring -b $BLOCK_SIZE_INPUT"
-                fi
                 shift 2
             else echo "Error: -b requires a value."; exit 1; fi
             ;;
         --block-range)
             if [ -n "$2" ] && [ -n "$3" ]; then
-                if [[ "$2" != "1" || "$3" != "1" ]]; then
-                    echo "WARN: UDMA perftest forces block_size=1, ignoring --block-range $2 $3"
-                fi
+                echo "WARN: UDMA ignores --block-range; use -b|--block-size N to set block/QP count"
                 shift 3
             else echo "Error: --block-range requires two values."; exit 1; fi
             ;;
@@ -125,14 +121,14 @@ while [[ $# -gt 0 ]]; do
             echo "使用方法: $0 [选项]"
             echo "  -t|--test-type <type>           put|bi_put|get|bi_get|put_signal|all"
             echo "  -d|--datatype <type>            float|int8|int16|int32|int64|uint8|uint16|uint32|uint64|char|all"
-            echo "  -b|--block-size <size>          UDMA 强制为 1，输入其他值会打印 WARN 后忽略"
-            echo "  --block-range <min> <max>       UDMA 强制为 1，输入其他值会打印 WARN 后忽略"
-            echo "  -e|--exponent <exponent>        数据量幂数"
-            echo "  --exponent-range <min> <max>    数据量幂数范围"
+            echo "  -b|--block-size <size>          UDMA block 数，同时作为 QP 数（一个 block 对应一个 QP）"
+            echo "  --block-range <min> <max>       UDMA 忽略范围，不做扫描；使用 -b|--block-size 指定 QP 数"
+            echo "  -e|--exponent <exponent>        单个 QP 的数据量幂数"
+            echo "  --exponent-range <min> <max>    单个 QP 的数据量幂数范围"
             echo "  --loop-count <count>            循环次数 (默认 1000)"
             echo "  --ub-size <size>                UB size(KB)，用于低阶 UDMA 入参和 CSV；高阶默认 MTE staging 需至少 128B"
             echo "  --metric <bw|lat>               性能口径 (lat 仅支持 -t put)"
-            echo "  --batch <N>                     BW 测试时每 N 次 nbi 后调用 quiet (0=loop_count 全异步, 1=同步, 默认 0)"
+            echo "  --batch <N>                     BW 测试：0=普通 NBI 全异步，1=每次后 quiet，>1=每批 defer...submit 后 quiet"
             echo "  -pes <size>                     PE 数量"
             echo "  -ipport <ip:port>               通信地址"
             echo "  -gnpus <num>                    NPU 数量"
@@ -170,6 +166,14 @@ if ! [[ "$BATCH" =~ ^[0-9]+$ ]]; then
     echo "错误: --batch 必须是非负整数 (got '$BATCH')"
     exit 1
 fi
+if ! [[ "$BLOCK_SIZE_INPUT" =~ ^[0-9]+$ ]] || [ "$BLOCK_SIZE_INPUT" -lt 1 ] || [ "$BLOCK_SIZE_INPUT" -gt 32 ]; then
+    echo "错误: --block-size 必须是 [1,32] 内的整数"
+    exit 1
+fi
+if [[ "$BLOCK_SIZE_INPUT" -gt 1 && ( "$TEST_TYPE" == "put_signal" || "$TEST_TYPE" == "all" ) ]]; then
+    echo "错误: 多 QP 仅支持 put/bi_put/get/bi_get；put_signal 保持单 QP"
+    exit 1
+fi
 
 echo "测试类型: $TEST_TYPE"
 echo "数据类型: $DATA_TYPE"
@@ -178,6 +182,7 @@ echo "循环次数: $LOOP_COUNT"
 echo "UB size(KB): $UB_SIZE"
 echo "Metric: $METRIC"
 echo "Batch: $BATCH"
+echo "Block/QP count: $BLOCK_SIZE_INPUT"
 echo "PE_SIZE: $PE_SIZE, GNPU_NUM: $GNPU_NUM"
 echo "FIRST_NPU: $FIRST_NPU, FIRST_PE: $FIRST_PE"
 
@@ -189,34 +194,43 @@ ALL_DATATYPES=("float" "int8" "int16" "int32" "int64" "uint8" "uint16" "uint32" 
 run_test() {
     local test_type="$1"
     local data_type="$2"
+    local -a pids=()
     for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
         ${EXEC_BIN} --pes "$PE_SIZE" --pe-id "$idx" --ipport "$IPPORT" --gnpus "$GNPU_NUM" \
             --fpe "$FIRST_PE" --fnpu "$FIRST_NPU" -t "$test_type" -d "$data_type" \
             --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" \
-            --ub-size "$UB_SIZE" --metric "$METRIC" --batch "$BATCH" &
+            --ub-size "$UB_SIZE" --metric "$METRIC" --batch "$BATCH" \
+            --block-size "$BLOCK_SIZE_INPUT" &
+        pids+=("$!")
     done
-    wait
+    local failed=0
+    for pid in "${pids[@]}"; do
+        wait "$pid" || failed=1
+    done
+    return "$failed"
 }
+
+overall_failed=0
 
 if [[ "$TEST_TYPE" == "all" && "$DATA_TYPE" == "all" ]]; then
     for type in "${ALL_TEST_TYPES[@]}"; do
         for dtype in "${ALL_DATATYPES[@]}"; do
             echo -e "\n=== 运行测试类型: $type, 数据类型: $dtype ==="
-            run_test "$type" "$dtype"
+            run_test "$type" "$dtype" || overall_failed=1
         done
     done
 elif [[ "$TEST_TYPE" == "all" ]]; then
     for type in "${ALL_TEST_TYPES[@]}"; do
         echo -e "\n=== 运行测试类型: $type, 数据类型: $DATA_TYPE ==="
-        run_test "$type" "$DATA_TYPE"
+        run_test "$type" "$DATA_TYPE" || overall_failed=1
     done
 elif [[ "$DATA_TYPE" == "all" ]]; then
     for dtype in "${ALL_DATATYPES[@]}"; do
         echo -e "\n=== 运行测试类型: $TEST_TYPE, 数据类型: $dtype ==="
-        run_test "$TEST_TYPE" "$dtype"
+        run_test "$TEST_TYPE" "$dtype" || overall_failed=1
     done
 else
-    run_test "$TEST_TYPE" "$DATA_TYPE"
+    run_test "$TEST_TYPE" "$DATA_TYPE" || overall_failed=1
 fi
 
 cd ${CURRENT_DIR}
@@ -232,3 +246,5 @@ if [ -f "${PERF_SCRIPT}" ]; then
         python3 "${PERF_SCRIPT}" "${cmd_args[@]}"
     fi
 fi
+
+exit "$overall_failed"
