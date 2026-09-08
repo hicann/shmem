@@ -549,7 +549,7 @@ Result AclMemSegmentDevice::Import(const std::vector<std::string>& allExInfo, vo
     }
     std::map<uint16_t, HbmExportInfo> importMap;
     LiteralExInfoTranslater<HbmExportInfo> translator;
-    std::vector<HbmExportInfo> desInfos{allExInfo.size()};
+    std::vector<HbmExportInfo> desInfos(allExInfo.size());
     const uint64_t expectedMagic =
         options_.segType == HYBM_MST_DRAM ? DRAM_SLICE_EXPORT_INFO_MAGIC : HBM_SLICE_EXPORT_INFO_MAGIC;
     for (auto i = 0U; i < allExInfo.size(); i++) {

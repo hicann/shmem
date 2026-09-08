@@ -326,7 +326,7 @@ Result HybmVmmBasedSegment::Import(const std::vector<std::string>& allExInfo, vo
     LiteralExInfoTranslater<MemExportInfo> translator;
     uint64_t exportMagic = HBM_SLICE_EXPORT_INFO_MAGIC;
     uint64_t heapSize = 0;
-    std::vector<MemExportInfo> desInfos{allExInfo.size()};
+    std::vector<MemExportInfo> desInfos(allExInfo.size());
     for (auto i = 0U; i < allExInfo.size(); i++) {
         auto ret = translator.Deserialize(allExInfo[i], desInfos[i]);
         if (ret != 0) {

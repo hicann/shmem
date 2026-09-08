@@ -225,7 +225,7 @@ Result MemSegmentDevice::Import(const std::vector<std::string>& allExInfo, void*
 {
     std::map<uint16_t, HbmExportInfo> importMap;
     LiteralExInfoTranslater<HbmExportInfo> translator;
-    std::vector<HbmExportInfo> desInfos{allExInfo.size()};
+    std::vector<HbmExportInfo> desInfos(allExInfo.size());
     for (auto i = 0U; i < allExInfo.size(); i++) {
         auto ret = translator.Deserialize(allExInfo[i], desInfos[i]);
         if (ret != 0) {
