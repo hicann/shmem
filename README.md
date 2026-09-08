@@ -33,13 +33,21 @@ SHMEM 提供三种安装方式，按需选择：
 
 **方式一：pip 安装**
 
+Python wheel 仅支持 Python 3.10～3.12，并依赖 TorchNPU（pip 包名为 `torch-npu`，Python 导入名为 `torch_npu`）。
+安装前请按照 [TorchNPU 版本配套](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.md)
+准备与当前 CANN、Python 和系统架构匹配的 `torch-npu`。
+
 ```bash
-pip install cann-shmem -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+python3 -m pip install cann-shmem \
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
 shmem-config --version   # 查询安装版本
 shmem-config --diagnose  # 检查 native 加载和包完整性
 ```
 
 > 注意：
+> - 如果希望 pip 在昇腾私有源缺少依赖时自动查询公共 PyPI，可以在安装 `cann-shmem` 时增加
+>   `--extra-index-url https://pypi.org/simple/`。pip 会合并两个源中的候选版本，不能保证优先选择
+>   主源中的同名包；生产环境建议先按照 TorchNPU 官方配套文档安装匹配版本。
 > - 运行环境 glibc 版本需 ≥ 2.34，否则可能因缺少符号导致 `libshmem.so` 加载失败。可通过 `ldd --version` 查看本地 glibc 版本。
 
 **方式二：二进制包安装**

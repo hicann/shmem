@@ -101,9 +101,13 @@ source ${install_path}/ascend-toolkit/set_env.sh
 ```
 
 ### 3.3 Other Software Dependencies
-- Install the PyTorch framework and torch_npu plugin.
-  - The package must be installed to build and run PyTorch operators with input and output tensors.
-  - Select the version to be installed based on the actual environment. For details, see [Ascend Extension for PyTorch](https://www.hiascend.com/document/detail/en/Pytorch/720/configandinstg/instg/insg_0004.html).
+- The `cann-shmem` Python wheel supports only Python 3.10 through 3.12. Install TorchNPU before
+  installing the wheel. The pip package name is `torch-npu`, while its Python import name is
+  `torch_npu`.
+- Match TorchNPU with the installed CANN, Python, and CPU architecture. SHMEM documentation does
+  not maintain TorchNPU installation commands or its version matrix. See the continuously updated
+  [TorchNPU compatibility matrix](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.md)
+  for other supported combinations.
 - Toolchains:
   - CMake 3.19 or later
   - GLIBC 2.28 or later
@@ -159,6 +163,28 @@ source /usr/local/Ascend/shmem/latest/set_env.sh
 # (Custom path: ${install_path}/shmem)
 source ${install_path}/shmem/latest/set_env.sh
 ```
+
+#### 4.1.3 Method 3: pip Installation
+
+The Ascend Python package index provides `cann-shmem` but may not provide all of its dependencies.
+Install a compatible `torch-npu` version by following the TorchNPU documentation, and then run:
+
+```bash
+python3 -m pip install cann-shmem \
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+```
+
+To let pip query public PyPI when a dependency is absent from the private index, use:
+
+```bash
+python3 -m pip install cann-shmem \
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/ \
+  --extra-index-url https://pypi.org/simple/
+```
+
+Pip combines candidates from both indexes and does not guarantee that a same-named package comes
+from `--index-url`. For production environments, explicitly install the compatible `torch-npu`
+version first, then install `cann-shmem` from the Ascend private index only.
 
 ### 4.2 Installation Verification
 Use `matmul_allreduce` as an example to verify core functions.

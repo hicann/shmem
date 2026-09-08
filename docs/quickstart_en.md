@@ -101,6 +101,27 @@ bash scripts/run.sh -ranks 8 -test_filter Init
 ```
 
 ## Python Test Cases     [Python API List](api/pythonAPI_en.md)
+
+The `cann-shmem` Python wheel supports only Python 3.10 through 3.12 and depends on TorchNPU.
+Install `torch-npu` matching the current CANN, Python, and CPU architecture before installing the
+wheel. SHMEM documentation does not maintain TorchNPU installation commands or its version matrix.
+See the
+[TorchNPU compatibility matrix](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.md)
+for other supported combinations.
+
+When installing `cann-shmem` from the Ascend private index, public PyPI can be configured as a
+supplementary index for dependencies that are not mirrored by the private index:
+
+```bash
+python3 -m pip install cann-shmem \
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/ \
+  --extra-index-url https://pypi.org/simple/
+```
+
+Pip combines candidates from both indexes and does not guarantee source priority. For production
+use, explicitly install the compatible `torch-npu` version first, and then install `cann-shmem`
+using only the Ascend private index.
+
 1. In the repository root directory, build the Python extension and wheel package.
 
 ```sh
