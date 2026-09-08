@@ -122,6 +122,7 @@ source ${install_path}/ascend-toolkit/set_env.sh
 | CANN ops 包 | 特性支持的 CANN、SDMA 等场景的运行依赖 | 安装与 SoC/CANN 版本匹配的 ops `.run` 包 | 提前下载匹配 SoC、CANN 版本和 CPU 架构的 ops 包 |
 | bisheng | Device 侧 AscendC kernel 编译 | 随 CANN toolkit 提供 | 安装 toolkit 后执行 `set_env.sh` |
 | Python 依赖 | 构建脚本、Python 示例和测试 | `requirements.txt`、`requirements-examples.txt` | 提前准备 pip wheel 或使用内部 PyPI 源 |
+| TorchNPU | Python wheel 的安装与运行；从 SHMEM 内存构造 NPU Tensor | 按官方配套关系安装 `torch-npu` | 提前下载匹配 CANN、Python 与 CPU 架构的 wheel |
 | googletest v1.14.x | `-uttests` 单元测试构建 | `scripts/build.sh` 自动从 GitCode 拉取 | 预置到 `3rdparty/googletest` |
 | nlohmann/json v3.11.3 | Ascend950 平台构建依赖 | `scripts/build.sh -soc_type Ascend950` 自动从 GitCode 拉取 | 预置到 `3rdparty/json` |
 
@@ -278,15 +279,29 @@ test -f "${SHMEM_HOME_PATH}/shmem/lib/libshmem.so"
 
 可以从昇腾 PyPI 源安装，也可以在仓库根目录构建本地 wheel，两种方式任选其一：
 
+> **前置依赖**：`cann-shmem` Python wheel 仅支持 Python 3.10～3.12。先按[安装 Pytorch 框架和 TorchNPU 插件](#45-安装pytorch框架和torchnpu插件)
+> 安装与当前 CANN、Python 和 CPU 架构匹配的 `torch-npu`。昇腾 PyPI 源当前
+> 不一定包含 `torch-npu`；仅指定该私有源在干净环境中可能出现
+> `No matching distribution found for torch-npu`。
+
 ```bash
-# 从昇腾 PyPI 源安装
+# 推荐：配套的 torch-npu 已经安装后，从昇腾 PyPI 源安装 cann-shmem
 python3 -m pip install cann-shmem \
-  -i https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/
+
+# 便捷方式：私有源缺少依赖时允许 pip 查询公共 PyPI
+python3 -m pip install cann-shmem \
+  --index-url https://ascend.devcloud.huaweicloud.com/cann/pypi/simple/ \
+  --extra-index-url https://pypi.org/simple/
 
 # 或构建并安装本地 wheel
 bash scripts/build.sh -python_extension
 python3 -m pip install --force-reinstall dist/cann_shmem-*.whl
 ```
+
+`--extra-index-url` 会让 pip 合并两个源中的全部候选版本，并不保证同名包优先从
+`--index-url` 下载。为避免依赖混淆以及自动选择到不匹配 CANN 的最新版 TorchNPU，生产环境
+建议先按 TorchNPU 官方文档安装配套的 `torch-npu`，再只使用昇腾私有源安装 `cann-shmem`。
 
 Python wheel 同时包含 A2/A3 的 910 后端和 Ascend950 的 950 后端，运行时自动选择。安装后执行：
 
