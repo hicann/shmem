@@ -49,11 +49,12 @@ ACLSHMEM_DEVICE void copy_gm_to_gm(
     AscendC::DataCopyPadExtParams<T> pad_params{false, 0, 0, 0};
     // gm2ub
     AscendC::DataCopyPad(tmp_local, gm_src, cp_params, pad_params);
-    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(sync_id);
     // ub2gm
     AscendC::DataCopyPad(gm_dst, tmp_local, cp_params);
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+    AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(sync_id);
 }
 
 template <typename T>
@@ -63,12 +64,13 @@ ACLSHMEM_DEVICE void aclshmemi_set_value(
     AscendC::GlobalTensor<T> gm_dst;
     gm_dst.SetGlobalBuffer((__gm__ T*)addr);
     tmp_local.SetValue(0, x);
-    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(sync_id);
     AscendC::DataCopyExtParams cp_out_params{1, sizeof(T), 0, 0, 0};
     // ub2gm
+    AscendC::WaitFlag<AscendC::HardEvent::S_MTE3>(sync_id);
     AscendC::DataCopyPad(gm_dst, tmp_local, cp_out_params);
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(sync_id);
+    AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(sync_id);
+    AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(sync_id);
 }
 
 ACLSHMEM_DEVICE void aclshmemi_fill_sdma_sqe(
@@ -315,14 +317,13 @@ ACLSHMEM_DEVICE void aclshmemi_stars_submit_notify_record(
 
     dcci_cacheline(((__gm__ uint8_t*)channel_info) + 4);
     uint32_t sq_tail = *((__gm__ uint32_t*)(((__gm__ uint8_t*)channel_info) + 4));
+    __gm__ uint8_t* sqe_slot = (__gm__ uint8_t*)(channel_info->sq_base) +
+                               (uint64_t)(sq_tail % channel_info->sq_depth) * sizeof(stars_notify_sqe_t);
 
     aclshmemi_fill_notify_record_sqe(channel_info, sq_tail, sq_tail - channel_info->sq_head, notify_addr[qp_idx]);
     sq_tail = (sq_tail + 1) % channel_info->sq_depth;
 
-    AscendC::GlobalTensor<uint8_t> write_info;
-    write_info.SetGlobalBuffer((__gm__ uint8_t*)(channel_info->sq_base), sizeof(stars_notify_sqe_t));
-    AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(
-        write_info);
+    dcci_cachelines(sqe_slot, sizeof(stars_notify_sqe_t));
 
     aclshmemi_set_value<uint32_t>(
         (__gm__ uint8_t*)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
@@ -333,9 +334,15 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
     __gm__ stars_channel_info_t* channel_info, const workspace_layout_t& layout,
     AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id)
 {
+    aclshmemi_set_value<uint32_t>(layout.send_workspace, 1U, tmp_local, sync_id);
+
     dcci_cachelines((__gm__ uint8_t*)channel_info + 4, 4);
-    uint32_t sq_tail = *((__gm__ uint32_t*)((__gm__ uint8_t*)channel_info + 4));
+    uint32_t sq_tail = *((__gm__ uint32_t*)(((__gm__ uint8_t*)channel_info + 4)));
     constexpr uint32_t flag_size = 8;
+    constexpr uint32_t data_sqe_size =
+        ACLSHMEM_STARS_V2_LAYOUT ? sizeof(stars_v2_sdma_cmo_sqe_t) : sizeof(stars_sdma_sqe_t);
+    __gm__ uint8_t* sqe_slot =
+        (__gm__ uint8_t*)(channel_info->sq_base) + (uint64_t)(sq_tail % channel_info->sq_depth) * data_sqe_size;
 
     if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
         aclshmemi_fill_stars_v2_sdma_sqe(
@@ -349,10 +356,7 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
 
     sq_tail = (sq_tail + 1) % channel_info->sq_depth;
 
-    AscendC::GlobalTensor<uint8_t> write_info;
-    write_info.SetGlobalBuffer((__gm__ uint8_t*)(channel_info->sq_base), sizeof(stars_sdma_sqe_t));
-    AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(
-        write_info);
+    dcci_cachelines(sqe_slot, data_sqe_size);
 
     aclshmemi_set_value<uint32_t>(
         (__gm__ uint8_t*)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
@@ -362,20 +366,30 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
 ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(
     const workspace_layout_t& layout, AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id)
 {
-    constexpr uint32_t max_times = 1000000;
-    uint32_t send_value = 0;
-    uint32_t times = 0;
+    // GetSystemCycle advances at 50 cycles/us on Ascend A2/A3 and 1000 cycles/us on Ascend950.
+#if defined(__DAV_C220_VEC__) || defined(__DAV_C220_CUBE__)
+    constexpr uint64_t ACLSHMEMI_SDMA_CYCLES_PER_US = 50;
+#else
+    constexpr uint64_t ACLSHMEMI_SDMA_CYCLES_PER_US = 1000;
+#endif
+    constexpr uint64_t ACLSHMEMI_SDMA_POLL_TIMEOUT_US = 60ULL * 1000 * 1000;
+    constexpr uint64_t ACLSHMEMI_SDMA_POLL_TIMEOUT_CYCLES =
+        ACLSHMEMI_SDMA_POLL_TIMEOUT_US * ACLSHMEMI_SDMA_CYCLES_PER_US;
 
-    while (send_value == 0 && times < max_times) {
+    uint32_t send_value = 0;
+    const uint64_t start_cycles = static_cast<uint64_t>(AscendC::GetSystemCycle());
+    while (send_value == 0 &&
+           static_cast<uint64_t>(AscendC::GetSystemCycle()) - start_cycles < ACLSHMEMI_SDMA_POLL_TIMEOUT_CYCLES) {
         copy_gm_to_gm<uint32_t>(layout.recv_workspace, layout.remote_recv_workspace, 1, tmp_local, sync_id);
         dcci_cacheline(layout.recv_workspace);
         send_value = *((__gm__ uint32_t*)layout.recv_workspace);
-        times++;
     }
 
     // Poll timeout means the completion flag never arrived; do not silently treat it as success.
     if (send_value == 0) {
-        aclshmemi_kernel_abort("SDMA quiet timeout: completion flag not observed, times=%u\n", times);
+        aclshmemi_set_value<uint32_t>(layout.remote_recv_workspace, 0U, tmp_local, sync_id);
+        aclshmemi_set_value<uint32_t>(layout.recv_workspace, 0U, tmp_local, sync_id);
+        aclshmemi_kernel_abort("SDMA quiet timeout: completion flag not observed.\n");
     }
 
     aclshmemi_set_value<uint32_t>(layout.remote_recv_workspace, 0U, tmp_local, sync_id);
@@ -392,14 +406,13 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
     ASCENDC_ASSERT((qp_idx < aclshmemi_sdma_get_channel_num(channel_base)), "SDMA QP index is out of range");
     __gm__ stars_channel_info_t* channel_info = reinterpret_cast<__gm__ stars_channel_info_t*>(channel_base) + qp_idx;
 
-    __gm__ uint8_t* send_workspace = channel_base - sizeof(stars_channel_flag_info_t) +
-                                     ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t) +
-                                     ACLSHMEM_SDMA_FLAG_LENGTH * qp_idx;
-    aclshmemi_set_value<uint32_t>(send_workspace, 1U, tmp_local, sync_id);
-
     dcci_cacheline(((__gm__ uint8_t*)channel_info) + 4);
     uint32_t sq_tail = *((__gm__ uint32_t*)(((__gm__ uint8_t*)channel_info) + 4));
     const uint32_t transfer_bytes = static_cast<uint32_t>(message_len);
+    constexpr uint32_t data_sqe_size =
+        ACLSHMEM_STARS_V2_LAYOUT ? sizeof(stars_v2_sdma_cmo_sqe_t) : sizeof(stars_sdma_sqe_t);
+    __gm__ uint8_t* sqe_slot =
+        (__gm__ uint8_t*)(channel_info->sq_base) + (uint64_t)(sq_tail % channel_info->sq_depth) * data_sqe_size;
     if constexpr (ACLSHMEM_STARS_V2_LAYOUT) {
         aclshmemi_fill_stars_v2_sdma_sqe(
             channel_info, send_buffer, recv_buffer, transfer_bytes, sq_tail, sq_tail - channel_info->sq_head);
@@ -409,16 +422,11 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
     }
     sq_tail = (sq_tail + 1) % channel_info->sq_depth;
 
-    AscendC::GlobalTensor<uint8_t> write_info;
-    write_info.SetGlobalBuffer((__gm__ uint8_t*)(channel_info->sq_base), sizeof(stars_sdma_sqe_t));
-    AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(
-        write_info);
+    dcci_cachelines(sqe_slot, data_sqe_size);
 
     aclshmemi_set_value<uint32_t>(
         (__gm__ uint8_t*)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
     aclshmemi_set_value<uint32_t>(((__gm__ uint8_t*)channel_info) + 4, sq_tail, tmp_local, sync_id);
-
-    AscendC::PipeBarrier<PIPE_ALL>();
 }
 
 ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(
@@ -433,7 +441,6 @@ ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(
     }
 
     sq_tail = (sq_tail + 1) % (channel_info->sq_depth);
-    AscendC::PipeBarrier<PIPE_ALL>();
 }
 
 ACLSHMEM_DEVICE void aclshmemi_cmo_async(
@@ -451,25 +458,20 @@ ACLSHMEM_DEVICE void aclshmemi_cmo_async(
 
     __gm__ stars_channel_info_t* channel_info = reinterpret_cast<__gm__ stars_channel_info_t*>(channel_base) + qp_idx;
 
-    __gm__ uint8_t* send_workspace = context_gm + ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET +
-                                     ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t) + ACLSHMEM_SDMA_FLAG_LENGTH * qp_idx;
-    aclshmemi_set_value<uint32_t>(send_workspace, 1U, tmp_local, sync_id);
-
     dcci_cacheline(((__gm__ uint8_t*)channel_info) + 4);
     uint32_t sq_tail = *((__gm__ uint32_t*)(((__gm__ uint8_t*)channel_info) + 4));
+    constexpr uint32_t cmo_sqe_size =
+        ACLSHMEM_STARS_V2_LAYOUT ? sizeof(stars_v2_sdma_cmo_sqe_t) : sizeof(stars_sdma_cmo_sqe_t);
+    __gm__ uint8_t* sqe_slot =
+        (__gm__ uint8_t*)(channel_info->sq_base) + (uint64_t)(sq_tail % channel_info->sq_depth) * cmo_sqe_size;
 
     aclshmemi_cmo_submit_data_sqes(channel_info, src, size, cmo_type, sq_tail);
 
-    AscendC::GlobalTensor<uint8_t> write_info;
-    write_info.SetGlobalBuffer((__gm__ uint8_t*)(channel_info->sq_base), sizeof(stars_sdma_cmo_sqe_t));
-    AscendC::DataCacheCleanAndInvalid<uint8_t, AscendC::CacheLine::ENTIRE_DATA_CACHE, AscendC::DcciDst::CACHELINE_OUT>(
-        write_info);
+    dcci_cachelines(sqe_slot, cmo_sqe_size);
 
     aclshmemi_set_value<uint32_t>(
         (__gm__ uint8_t*)(channel_info->sq_reg_base) + ACLSHMEM_STARS_SQ_TAIL_OFFSET, sq_tail, tmp_local, sync_id);
     aclshmemi_set_value<uint32_t>(((__gm__ uint8_t*)channel_info) + 4, sq_tail, tmp_local, sync_id);
-
-    AscendC::PipeBarrier<PIPE_ALL>();
 }
 
 // Set SDMA Interfaces necessary UB Buffer.
