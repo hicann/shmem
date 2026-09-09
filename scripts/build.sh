@@ -53,9 +53,6 @@ fi
 export VERSION="${VERSION:-${_DEFAULT_VERSION}}"
 unset _DEFAULT_VERSION
 OUTPUT_DIR=$PROJECT_ROOT/install
-
-rm -rf $OUTPUT_DIR
-mkdir -p $OUTPUT_DIR
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 mkdir -p $THIRD_PARTY_DIR
 RELEASE_DIR=$PROJECT_ROOT/ci/release
@@ -69,6 +66,10 @@ USE_MSSANITIZER=OFF
 ENABLE_EXAMPLES=OFF
 PYEXPAND_EXAMPLE=OFF
 BUILD_ALL=OFF
+BUILD_GOOGLETEST=OFF
+BUILD_CATLASS=OFF
+BUILD_DOC_DEPS=OFF
+ONLY_GEN_DOC=OFF
 
 COMPILE_OPTIONS=""
 
@@ -544,9 +545,9 @@ set -euo pipefail
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)
-            fn_build_googletest
+            BUILD_GOOGLETEST=ON
+            BUILD_CATLASS=ON
             BUILD_TYPE=Debug
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift
             ;;
@@ -560,7 +561,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -examples)
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
+            BUILD_CATLASS=ON
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_EXAMPLES=ON -DPython3_EXECUTABLE=$(which python3)"
             ENABLE_EXAMPLES=ON
             shift
@@ -582,21 +583,18 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -python_example)
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
+            BUILD_CATLASS=ON
             PYEXPAND_EXAMPLE=ON
             shift
             ;;
         -gendoc)
-            fn_build_doxygen
-            fn_build_sphinx
+            BUILD_DOC_DEPS=ON
             GEN_DOC=ON
             shift
             ;;
         -onlygendoc)
-            fn_build_doxygen
-            fn_build_sphinx
-            fn_gen_doc
-            exit 0
+            BUILD_DOC_DEPS=ON
+            ONLY_GEN_DOC=ON
             shift
             ;;
         -enable_ascendc_dump)
@@ -610,8 +608,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -full)
             BUILD_ALL=ON
-            fn_build_googletest
-            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git; cd $PROJECT_ROOT
+            BUILD_GOOGLETEST=ON
+            BUILD_CATLASS=ON
             shift
             ;;
         -use_cxx11_abi1)
@@ -685,6 +683,29 @@ if [ -n "$RDMA_BACKEND" ]; then
         print_usage
         exit 1
     fi
+fi
+
+rm -rf -- "$OUTPUT_DIR"
+mkdir -p -- "$OUTPUT_DIR"
+
+if [ "$BUILD_GOOGLETEST" = "ON" ]; then
+    fn_build_googletest
+fi
+
+if [ "$BUILD_CATLASS" = "ON" ]; then
+    cd "$THIRD_PARTY_DIR"
+    [[ ! -d "catlass" ]] && git clone https://gitcode.com/cann/catlass.git
+    cd "$PROJECT_ROOT"
+fi
+
+if [ "$BUILD_DOC_DEPS" = "ON" ]; then
+    fn_build_doxygen
+    fn_build_sphinx
+fi
+
+if [ "$ONLY_GEN_DOC" = "ON" ]; then
+    fn_gen_doc
+    exit 0
 fi
 
 if [ "$SOC_TYPE" = "Ascend950" ] || [ "$PACKAGE" = "ON" ]; then
