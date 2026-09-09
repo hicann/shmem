@@ -167,7 +167,12 @@ int test_rdma_perf_test_impl(
 
     test_set_attr(pe_id, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
+#if defined(ACLSHMEM_RDMA_V2_SUPPORT)
+    // The process-wide QP setting is only consumed by the RDMA v2 backend.
+    // Legacy RDMA (used on A2/indie) rejects this API, even for the default
+    // single-QP configuration, so do not call it in that build.
     CHECK_SHMEM_GOTO(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_ROCE, static_cast<uint32_t>(qp_num)), ret, cleanup);
+#endif
     CHECK_SHMEM_GOTO(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes), ret, cleanup);
     shmem_initialized = true;
 

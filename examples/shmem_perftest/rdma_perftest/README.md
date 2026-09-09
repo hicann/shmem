@@ -21,7 +21,7 @@
 |------|---------------|-----------------|-----------------|
 | 引擎 | 默认 MTE | 显式 `ACLSHMEM_DATA_OP_UDMA` | RDMA 引擎 |
 | 并发能力 | 同 peer 多核（默认 32 核切分数据） | 强制单核（UDMA 不允许同 peer 并发） | 单 QP；XSCALE 和 HNS_1825 支持多 QP 并行；仅 XSCALE 支持聚合提交 |
-| `-b/--block-size` | 控制核数 | 兼容入参，强制 1 | 兼容入参，实际由测试模式决定 |
+| `-b/--block-size` | 控制核数 | 兼容入参，强制 1 | 兼容入参，设置任何值都不生效，实际并行度由 `-q/--qp` 决定 |
 | UB 缓冲 | MTE 必需 | UDMA 必须 | 必须，至少 192B，默认 192B |
 | 测试模式 | put / bi_put / get / bi_get | put / bi_put / get / bi_get / **put_signal** | put / bi_put / get / bi_get |
 | SOC 限制 | 通用 | 仅 Ascend950 | Ascend950（需 XSCALE/HNS_1825 后端）或 A2/A3 |
@@ -59,7 +59,7 @@ RDMA 功能需在编译时启用 `-enable_rdma` 参数，并根据 SOC 类型配
 | 单 QP 带宽测试 | 支持 | 支持 | 支持 |
 | 单 QP 时延测试 | 支持 | 支持 | 支持 |
 | 带宽测试的 `batch` 分组与完成等待 | 支持 | 支持 | 支持 |
-| 显式 QP 数量和 QP 编号 | 不支持，`run.sh` 回退到默认单 QP | 支持，QP 数量范围 1~32 | 支持，QP 数量范围 1~32 |
+| 显式 QP 数量和 QP 编号 | 不支持，`run.sh` 报错退出 | 支持，QP 数量范围 1~32 | 支持，QP 数量范围 1~32 |
 | 多 QP 并行带宽测试 | 不支持 | 支持，QP 数量范围 2~32 | 支持，QP 数量范围 2~32 |
 | 固定 QP 诊断模式 | 不支持 | 支持 | 支持 |
 | 聚合提交 | 不支持 | 支持，仅 `bw`、`qp_num <= 2` 且消息小于 64 KiB | 不支持 |
@@ -89,7 +89,7 @@ bash run.sh [选项]
 | `-q/--qp/--qp-count <n>` | `-q` | QP 数量，即两个 PE 之间的队列对数，范围 1~32 | `1` |
 | `-i/--qp-index <n>` | `-i` | 固定使用的 QP 编号；`-1` 表示多 QP 并行模式自动分配 | `-1` |
 | `--sync-id <id>` | - | 显式传给 Put/Get/Quiet 的同步 ID | `0` |
-| `-b/--block-size <n>` | `-b` | 兼容入参，实际由测试模式决定 | `1` |
+| `-b/--block-size <n>` | `-b` | 兼容入参，设置任何值都不生效（仅打印 WARN），实际并行度由 `--qp` 决定 | `1` |
 | `--block-range <min> <max>` | - | 兼容入参，同上 | `1 1` |
 | `-pes <n>` | - | PE 数量（强制为 2） | `2` |
 | `-ipport <ip:port>` | - | 通信地址 | `tcp://127.0.0.1:8768` |
@@ -123,7 +123,7 @@ XSCALE 在带宽测试、`qp_num <= 2` 且消息小于 64 KiB 时自动聚合提
 - 例如 `-q 4 -i -1`、`DataSize=4MB`、`loop-count=1000`：4 个 QP 各自提交 1000 次 4MB 传输，单次并发总数据量 16MB，累计总数据量 16GB。
 - XSCALE 在 `N <= 2` 且单 QP 消息小于 64 KiB 时按 QP 聚合提交；HNS_1825 始终立即提交。
 
-> **云脉（XSCALE）和 1825（HNS_1825）** 均支持多 QP。其他后端会被 `run.sh` 拦截并回退为单 QP 模式。
+> **云脉（XSCALE）和 1825（HNS_1825）** 均支持多 QP。其他后端会被 `run.sh` 拦截并报错退出。
 
 #### 单 QP 诊断模式（`--qp N --qp-index K`）
 
@@ -133,7 +133,7 @@ XSCALE 在带宽测试、`qp_num <= 2` 且消息小于 64 KiB 时自动聚合提
 - 时延测试（`--metric lat`）要求 `qp_num=1`，不支持 `qp_num>1`；计时只覆盖唯一 QP 的传输耗时。
 - XSCALE 默认单 QP、固定 QP 和多 QP 模式均遵循同一聚合条件；HNS_1825 始终调用 QP 指定的普通 NBI 接口立即提交。
 
-> **云脉（XSCALE）和 1825（HNS_1825）** 均支持固定 QP 诊断模式。其他后端会被 `run.sh` 拦截并回退为单 QP 模式。
+> **云脉（XSCALE）和 1825（HNS_1825）** 均支持固定 QP 诊断模式。其他后端会被 `run.sh` 拦截并报错退出。
 
 #### 批量与完成语义（`--batch`）
 
@@ -145,7 +145,7 @@ XSCALE 在带宽测试、`qp_num <= 2` 且消息小于 64 KiB 时自动聚合提
 
 #### 多 QP 后端识别
 
-`run.sh` 通过 `IBV_EXTEND_DRIVERS` 环境变量或 `ibv_devinfo` 输出识别 XSCALE 和 HNS_1825 环境。仅这两个后端接受显式 QP 数量和 QP 编号；其他后端会回退为单 QP。仅 XSCALE 会按聚合条件调整 UB 和 batch 参数。
+`run.sh` 通过 `IBV_EXTEND_DRIVERS` 环境变量或 `ibv_devinfo` 输出识别 XSCALE 和 HNS_1825 环境。仅这两个后端接受显式 QP 数量和 QP 编号；其他后端传入显式 QP 参数会报错退出。仅 XSCALE 会按聚合条件调整 UB 和 batch 参数。
 
 ### 使用示例
 

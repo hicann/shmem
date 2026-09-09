@@ -289,11 +289,8 @@ if [[ "$QP_NUM" -lt "1" || "$QP_NUM" -gt "32" ]]; then
 fi
 
 if ! is_roce_multi_qp_runtime && [[ "$QP_SPECIFIED" == "1" ]]; then
-    echo "警告: 当前环境不支持多 QP，仅云脉（XSCALE）和 1825 网卡支持。"
-    echo "      已忽略 -q/--qp 和 -i/--qp-index 参数，回退为单 QP 模式。"
-    QP_NUM="1"
-    QP_INDEX="-1"
-    QP_SPECIFIED="0"
+    echo "错误: 当前环境不支持 QP 设置，仅云脉（XSCALE）和 1825 网卡支持 -q/--qp 与 -i/--qp-index。"
+    exit 1
 fi
 
 if [[ "$QP_INDEX" -ge "$QP_NUM" ]]; then
