@@ -337,7 +337,7 @@ static int32_t query_buffer_property(
     if (property->handleType != ACL_MEM_HANDLE_TYPE_NONE ||
         property->allocationType != ACL_MEM_ALLOCATION_TYPE_PINNED ||
         property->location.type != ACL_MEM_LOCATION_TYPE_DEVICE || property->location.id != current_device ||
-        property->memAttr != ACL_HBM_MEM_HUGE) {
+        (property->memAttr != ACL_HBM_MEM_HUGE && property->memAttr != ACL_HBM_MEM_HUGE1G)) {
         SHM_LOG_ERROR(
             "Unsupported physical allocation properties for buffer "
             << index << ": handleType=" << static_cast<int>(property->handleType)
