@@ -122,7 +122,7 @@ function fn_build()
     fi
 
     cmake $build_compile_options -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE ..
-    make install -j$(nproc)
+    cmake --build . --target install
     cd -
 }
 
@@ -256,7 +256,7 @@ function fn_whl_build()
         -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
         -DBUILD_PYTHON=ON \
         .. || { echo "[ERROR] cmake failed for backend 910"; exit 1; }
-    make install -j$(nproc) || { echo "[ERROR] make install failed for backend 910"; exit 1; }
+    cmake --build . --target install || { echo "[ERROR] cmake build failed for backend 910"; exit 1; }
     # Copy shared libraries from install/shmem/lib/ to wheel backend directory
     mkdir -p ../install/shmem/backends/910
     cp ../install/shmem/lib/*.so ../install/shmem/backends/910/ || { echo "[ERROR] Failed to copy 910 backend libraries"; exit 1; }
@@ -303,7 +303,7 @@ function fn_whl_build()
         -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
         -DBUILD_PYTHON=OFF \
         .. || { echo "[ERROR] cmake failed for backend 950 (XSCALE)"; exit 1; }
-    make install -j$(nproc) || { echo "[ERROR] make install failed for backend 950 (XSCALE)"; exit 1; }
+    cmake --build . --target install || { echo "[ERROR] cmake build failed for backend 950 (XSCALE)"; exit 1; }
     # Copy shared libraries from install/shmem/lib/ to wheel backend directory
     mkdir -p ../install/shmem/backends/950
     cp ../install/shmem/lib/*.so ../install/shmem/backends/950/ || { echo "[ERROR] Failed to copy 950 (XSCALE) backend libraries (default)"; exit 1; }
@@ -334,7 +334,7 @@ function fn_whl_build()
             -DPYEXPAND_EXAMPLE=${PYEXPAND_EXAMPLE} \
             -DBUILD_PYTHON=OFF \
             .. || { echo "[ERROR] cmake failed for backend 950 (HNS_1825)"; exit 1; }
-        make install -j$(nproc) || { echo "[ERROR] make install failed for backend 950 (HNS_1825)"; exit 1; }
+        cmake --build . --target install || { echo "[ERROR] cmake build failed for backend 950 (HNS_1825)"; exit 1; }
         mkdir -p ../install/shmem/backends/950_hns1825
         cp ../install/shmem/lib/*.so ../install/shmem/backends/950_hns1825/ || { echo "[ERROR] Failed to copy 950 (HNS_1825) backend libraries"; exit 1; }
         cd -
@@ -456,7 +456,7 @@ function fn_build_googletest()
     fi
 
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
-    cmake --build . --parallel $(nproc)
+    cmake --build .
     cmake --install . > /dev/null
     [[ -d "$THIRD_PARTY_DIR/googletest/lib64" ]] && cp -rf $THIRD_PARTY_DIR/googletest/lib64 $THIRD_PARTY_DIR/googletest/lib
     echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
@@ -486,7 +486,7 @@ function fn_build_doxygen()
     cd doxygen-1.9.6
     mkdir -p build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/doxygen
-    cmake --build . --parallel $(nproc)
+    cmake --build .
     cmake --install . > /dev/null
     rm -rf $THIRD_PARTY_DIR/doxygen-1.9.6
     cd ${PROJECT_ROOT}
@@ -542,6 +542,10 @@ function fn_gen_doc()
 }
 
 set -euo pipefail
+if [ -z "${CMAKE_BUILD_PARALLEL_LEVEL+x}" ]; then
+    export CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)"
+fi
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)

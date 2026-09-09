@@ -66,6 +66,8 @@ git clone https://gitcode.com/cann/shmem.git
 cd shmem
 bash scripts/build.sh             # A2/A3 平台
 # bash scripts/build.sh -soc_type Ascend950  # 950 平台
+# 可选：通过 CMake 标准环境变量限制构建并行度
+# CMAKE_BUILD_PARALLEL_LEVEL=16 bash scripts/build.sh
 source install/set_env.sh
 ```
 
