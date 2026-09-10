@@ -155,12 +155,12 @@ ACLSHMEM_DEVICE void combine_classic(
                 const int32_t topk_id = assist_info_for_combine[i * COMBINE_ASSIST_FIELDS + 2];
                 const int64_t slot = token_id * k + topk_id;
 
-                aclshmemx_sdma_put_nbi(
+                aclshmemx_sdma_qp_put_nbi(
                     data_base + slot * data_stride, expand_x + i * h, sdma_tmp, SDMA_UB_SIZE, h, target_src_rank,
-                    SDMA_EVENT_ID);
+                    aiv_index, SDMA_EVENT_ID);
                 ++sdma_outstanding;
                 if (sdma_outstanding >= SDMA_ISSUE_LIMIT) {
-                    aclshmemx_sdma_quiet(sdma_tmp, SDMA_UB_SIZE, SDMA_EVENT_ID);
+                    aclshmemx_sdma_qp_quiet(sdma_tmp, SDMA_UB_SIZE, aiv_index, SDMA_EVENT_ID);
                     sdma_outstanding = 0;
                 }
             }
@@ -195,7 +195,7 @@ ACLSHMEM_DEVICE void combine_classic(
         }
 
         if (has_sdma && sdma_outstanding > 0) {
-            aclshmemx_sdma_quiet(sdma_tmp, SDMA_UB_SIZE, SDMA_EVENT_ID);
+            aclshmemx_sdma_qp_quiet(sdma_tmp, SDMA_UB_SIZE, aiv_index, SDMA_EVENT_ID);
         }
 
         for (int64_t local_expert = 0; local_expert < local_expert_num; ++local_expert) {

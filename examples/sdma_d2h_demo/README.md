@@ -42,7 +42,7 @@
 
 （4）`get` kernel 中，调用 `aclshmemx_sdma_get_nbi` 从本 PE 或目标 PE 的 `HOST_SIDE` SHMEM 对称地址读取数据，写入本 PE 普通 Device 内存。接口内部根据源 PE 编号完成 Host 侧地址转换，`pe == my_pe` 时验证本地 H2D。
 
-（5）`aclshmemx_sdma_put_nbi` 和 `aclshmemx_sdma_get_nbi` 为非阻塞接口，kernel 中调用 `aclshmemx_sdma_quiet` 等待当前 block 提交的 SDMA 任务完成。
+（5）`aclshmemx_sdma_qp_put_nbi` 和 `aclshmemx_sdma_qp_get_nbi` 为非阻塞接口，kernel 中调用相同 `qp_idx` 的 `aclshmemx_sdma_qp_quiet` 等待任务完成。
 
 ## 编译执行
 

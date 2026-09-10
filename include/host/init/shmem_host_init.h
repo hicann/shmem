@@ -118,19 +118,23 @@ ACLSHMEM_HOST_API int aclshmemx_set_attr_uniqueid_args(
 #define shmem_set_attr_uniqueid_args aclshmemx_set_attr_uniqueid_args
 
 /**
- * @brief Configure the process-wide number of QPs created per peer for a data operation engine.
+ * @brief Configure the process-wide number of QPs created for a data operation engine.
  *
- * @note This interface is supported on Ascend950 only. UDMA is supported on Ascend950, while ROCE requires the
- *       XSCALE or HNS_1825 backend. Call this interface when no ACLSHMEM instance is initialized. The configuration
- *       remains frozen while any instance is alive. After the last instance is finalized, the ROCE and UDMA QP counts
- *       are reset to 1 and can be configured again before the next initialization. The value must be in
- *       [1, ACLSHMEM_MAX_QP_NUM] and must be identical on every PE;
- *       inconsistent values produce incompatible metadata layouts. This function is thread-safe within a process and is
- *       serialized with ACLSHMEM initialization and finalization.
+ * @note Valid ranges and resource scopes differ per engine:
+ *       - SDMA: [1, min(device vector-core count, ACLSHMEM_MAX_AIV_PER_NPU)]. SDMA creates local device-only
+ *         streams, one per QP; the streams are not bound to a specific peer. SDMA defaults to one QP.
+ *       - UDMA: [1, ACLSHMEM_MAX_QP_NUM], one QP group per peer connection; supported on Ascend950.
+ *       - ROCE: [1, ACLSHMEM_MAX_QP_NUM], one QP group per peer connection; requires the Ascend950 XSCALE or
+ *         HNS_1825 backend.
+ *       Call this interface when no ACLSHMEM instance is initialized. The configuration remains
+ *       frozen while any instance is alive. After the last instance is finalized, the QP counts of every
+ *       engine (SDMA, UDMA and ROCE) are reset to 1 and can be configured again before the next
+ *       initialization. The value must be identical on every PE; inconsistent values produce incompatible
+ *       metadata layouts. This function is thread-safe within a process and is serialized with ACLSHMEM
+ *       initialization and finalization.
  *
- * @param engine              [in] Data operation engine; UDMA is supported, and ROCE is supported only with the
- *                                Ascend950 XSCALE or HNS_1825 backend.
- * @param qp_num              [in] Number of QPs per peer connection.
+ * @param engine              [in] Data operation engine: SDMA, UDMA, or ROCE.
+ * @param qp_num              [in] Number of QPs; see the per-engine ranges above.
  * @return ACLSHMEM_SUCCESS on success, otherwise an ACLSHMEM error code.
  */
 ACLSHMEM_HOST_API int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num);

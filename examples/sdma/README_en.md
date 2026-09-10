@@ -21,16 +21,38 @@ bash scripts/build.sh -examples
 bash run.sh -pes ${PES} -type ${TYPES}
 ````
   - **Parameter description**:
-      - PES: the number of devices (NPUs) used for running the demo, limited to a single server
+      - PES: the number of devices (NPUs) used for running the demo; only 2, 4, or 8 cards are supported on one server
       - TYPES: type of the data to be transferred. Currently, the following data types are supported: int, uint8, int64, and fp32.
 
 ## SDMA API Usage Description
 
 ### aclshmemx_sdma_put_nbi
+
+The ordinary put API is for a single submitting AIV and always uses QP 0:
+
+```c++
+template <typename T>
+__global__ __aicore__ void sdma_put_single_qp(GM_ADDR gva, int elem_size, int target_pe)
+{
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        __ubuf__ T* tmp = reinterpret_cast<__ubuf__ T*>(uint64_t(1024));
+        __gm__ T* src = reinterpret_cast<__gm__ T*>(gva) + aclshmem_my_pe() * elem_size;
+        aclshmemx_sdma_put_nbi(src, src, tmp, 64, elem_size, target_pe, EVENT_ID0);
+        aclshmemx_sdma_quiet(tmp, 64, EVENT_ID0);
+    }
+}
+```
+
+The example first runs this kernel so every PE writes one complete segment to the next PE on QP 0 and verifies the segment received from the previous PE. It then runs the explicit-QP multi-AIV allgather. Multiple AIVs must not concurrently share the ordinary QP 0 API; use `aclshmemx_sdma_qp_put_nbi` for that case.
+
+### aclshmemx_sdma_qp_put_nbi
 For example, consider an API with pointer-type parameters:
 ```c++
-ACLSHMEM_DEVICE void aclshmemx_sdma_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                            uint32_t elem_size, int pe, uint32_t sync_id)
+ACLSHMEM_DEVICE void aclshmemx_sdma_qp_put_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+                                               uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
 ```
 API function: This API transfers elements (with the number specified by `elem_size`) from the local `src` address of the current PE to the remote symmetric address `dst` on the target PE `pe`.
 | Parameter      | Description                                                                |
@@ -41,13 +63,14 @@ API function: This API transfers elements (with the number specified by `elem_si
 | ub_size      | Buffer size                                                          |
 | elem_size    | Number of elements                                                            |
 | pe           | Destination PE                                                              |
+| qp_idx       | SDMA QP used by the current AIV, normally `GetBlockIdx()`                   |
 | sync_id      | Synchronization ID                                                              |
 
-### aclshmemx_sdma_get_nbi
+### aclshmemx_sdma_qp_get_nbi
 For example, consider an API with pointer-type parameters:
 ```c++
-ACLSHMEM_DEVICE void aclshmemx_sdma_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
-                                            uint32_t elem_size, int pe, uint32_t sync_id)
+ACLSHMEM_DEVICE void aclshmemx_sdma_qp_get_nbi(__gm__ T *dst, __gm__ T *src, __ubuf__ T *buf, uint32_t ub_size,
+                                               uint32_t elem_size, int pe, uint32_t qp_idx, uint32_t sync_id)
 ```
 API function: This API pulls elements (with the number specified by `elem_size`) from the remote symmetric address `src` on the target PE `pe` and writes them to the local `dst` address of the current PE.
 | Parameter      | Description                                                                |
@@ -58,11 +81,14 @@ API function: This API pulls elements (with the number specified by `elem_size`)
 | ub_size      | Buffer size                                                          |
 | elem_size    | Number of elements                                                            |
 | pe           | Destination PE                                                              |
+| qp_idx       | SDMA QP used by the current AIV, normally `GetBlockIdx()`                   |
 | sync_id      | Synchronization ID                                                              |
 
 ## Precautions
-Both `aclshmemx_sdma_put_nbi` and `aclshmemx_sdma_get_nbi` are non-blocking APIs. They return control to the caller right away and do not wait for the data transfer to finish. To ensure that the data transfer has finished, you can adopt one of the following methods:
-1. For each kernel that calls `aclshmemx_sdma_put/get_nbi`, call the `aclshmemx_sdma_quiet` API within the operator after the SDMA task ends, and wait until all SDMA operations are complete.
+The example allocates `128M * sizeof(T)` bytes of symmetric memory and uses `16M * sizeof(T)` bytes per PE. The documented support matrix is 2, 4, and 8 cards; actual use also depends on available symmetric-memory capacity. The SDMA infrastructure supports up to 72 AIVs/QPs.
+
+Both `aclshmemx_sdma_qp_put_nbi` and `aclshmemx_sdma_qp_get_nbi` are non-blocking APIs. They return control to the caller right away and do not wait for the data transfer to finish. To ensure that the data transfer has finished, you can adopt one of the following methods:
+1. For each kernel that calls `aclshmemx_sdma_qp_put/get_nbi`, call `aclshmemx_sdma_qp_quiet` with the same `qp_idx` after the SDMA task ends, and wait until the operations on that QP are complete.
 Scenario: Subsequent operations within the operator depend on the completion of the SDMA task. For example, subsequent operations need to use the data transferred by the SDMA.
-2. For each kernel that calls `aclshmemx_sdma_put/get_nbi`, call the `aclshmemx_sdma_notify_record` API within the operator after the SDMA task ends, then call the `aclrtWaitAndResetNotify` API on the host, and wait until the synchronization with the specified ID has completed. For details, see [NotifyWait Mechanism Usage Description](../notifywait/README_en.md).
+2. For each kernel that calls `aclshmemx_sdma_qp_put/get_nbi`, call `aclshmemx_sdma_qp_notify_record` with the same `qp_idx` after the SDMA task ends, then call `aclrtWaitAndResetNotify` on the host and wait until the specified synchronization ID completes. For details, see [NotifyWait Mechanism Usage Description](../notifywait/README_en.md).
 Scenario: Kernels on other streams must wait for the SDMA task to finish before continuing execution.

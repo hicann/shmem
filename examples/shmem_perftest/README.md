@@ -4,6 +4,7 @@ shmem_perftest是用于测试AscendC::DataCopy、shmem MTE/UDMA/RDMA引擎以及
 
 - **ascendc_perftest**：测试AscendC::DataCopy性能（不支持Ascend950）
 - **mte_perftest**：测试shmem MTE引擎性能
+- **sdma_perftest**：测试shmem SDMA put/get性能（支持`put`、`bi_put`、`get`和`bi_get`；Ascend950仅支持get）
 - **udma_perftest**：测试shmem UDMA低阶接口性能（仅Ascend950）
 - **rdma_perftest**：测试shmem RDMA低阶接口性能（需开启RDMA支持编译）
 - **simt_rma_perftest**：测试SIMT RMA gm2gm接口性能（仅Ascend950，需开启SIMT支持编译）
@@ -72,6 +73,7 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `-b\|--block-size <size>` | 设置核数（UDMA、RDMA 中核数等于 QP 数） | AscendC/MTE/SIMT 为 32；UDMA/RDMA 为 1 |
 | `--block-range <min> <max>` | 设置核数范围（UDMA/RDMA 当前不做范围扫描） | 32-32 |
 | `--block-list <b1,b2,...>` | 设置离散核数列表（对 ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest 生效），如 `2,4,6,8`；指定后优先于 `-b` 与 `--block-range` | - |
+| `--qp <count>` | 设置 SDMA QP/AIV 数量，范围为 1 到设备可用 AIV 数，且不超过72 | 2 |
 | `-e\|--exponent <exponent>` | 设置数据量的幂数 | - |
 | `--exponent-range <min> <max>` | 设置数据量的幂数范围 | 3-20 |
 | `--loop-count <count>` | 设置循环次数 | 1000 |
@@ -83,7 +85,7 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 | `-gnpus <num>` | 设置NPU数量 | 2 |
 | `-fnpu <id>` | 设置首个NPU ID | 0 |
 | `-fpe <id>` | 设置首个PE ID | 0 |
-| `-m\|--mode <ascendc\|mte\|udma\|simt\|all>` | 设置运行模式 (ascendc=只跑ascendc, mte=只跑mte, udma=只跑udma, simt=跑两个SIMT RMA子示例, all=全跑) | all |
+| `-m\|--mode <ascendc\|mte\|sdma\|udma\|simt\|all>` | 设置运行模式 (sdma=只跑SDMA put/get), 其他模式含义见下文 | all |
 | `-a\|--analyse <none\|plot\|md>` | 设置分析模式 (none=不生成, plot=只生成图, md=同时生成图和md) | none |
 | `-h\|--help` | 打印参数说明并退出 | - |
 
@@ -91,6 +93,7 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 >
 > - **ascendc_perftest**：`put` / `get` / `ub2gm_local` / `ub2gm_remote` / `gm2ub_local` / `gm2ub_remote` / `all`
 > - **mte_perftest / rdma_perftest**：`put` / `bi_put` / `get` / `bi_get` / `all`
+> - **sdma_perftest**：`put` / `bi_put` / `get` / `bi_get`（Ascend950仅支持get）
 > - **udma_perftest**：`put` / `bi_put` / `get` / `bi_get` / `put_signal` / `all`
 > - **simt_rma_perftest**：`put` / `get`（由编译期常量 `OP_TYPE` 决定，`-t` 仅做一致性校验）
 > - **simt_rma_ub2gm_perftest**：`put` / `get`（同上，由编译期常量 `OP_TYPE` 决定；不支持 `none`）
@@ -99,9 +102,10 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 
 ### 运行模式
 
-- **all（默认）**：依次运行ascendc_perftest（不支持Ascend950，950上运行会报错）、mte_perftest、udma_perftest（udma仅在Ascend950上有效）、simt_rma_perftest与simt_rma_ub2gm_perftest（均需SIMT编译，否则跳过）
+- **all（默认）**：按测试类型运行支持该类型的ascendc、mte、sdma、udma和simt性能用例；不支持该测试类型的引擎会跳过。
 - **ascendc**：只运行ascendc_perftest（不支持Ascend950，950上运行会报错）
 - **mte**：只运行mte_perftest
+- **sdma**：只运行sdma_perftest
 - **udma**：只运行udma_perftest
 - **simt**：运行两个SIMT RMA子示例——simt_rma_perftest（gm2gm）与simt_rma_ub2gm_perftest（ub2gm）。该模式下二者缺少可执行文件会直接报错退出（`all` 模式下则打印WARN跳过）
 
@@ -155,6 +159,8 @@ examples/shmem_perftest/output/
 │           ├── put_float_0_Core_compare.png
 │           ├── put_float_0_bandwidth_max_heatmap.png
 │           └── put_float_0_bandwidth_mean_heatmap.png
+├── sdma_perftest/        # sdma_perftest测试结果
+│   └── sdma_get_float_0.csv
 ├── udma_perftest/        # udma_perftest测试结果
 │   └── udma_bw_put_float[_qpN]_0.csv
 ├── rdma_perftest/        # rdma_perftest测试结果（单独运行rdma_perftest后拷贝至此）
@@ -172,6 +178,7 @@ examples/shmem_perftest/output/
 
 - **ascendc_perftest**：请参考 [ascendc_perftest/README.md](./ascendc_perftest/README.md)
 - **mte_perftest**：请参考 [mte_perftest/README.md](./mte_perftest/README.md)
+- **sdma_perftest**：请参考 [sdma_perftest/README.md](./sdma_perftest/README.md)
 - **udma_perftest**：请参考 [udma_perftest/README.md](./udma_perftest/README.md)
 - **rdma_perftest**：请参考 [rdma_perftest/README.md](./rdma_perftest/README.md)
 - **simt_rma_perftest**：请参考 [simt_rma_perftest/README.md](./simt_rma_perftest/README.md)

@@ -58,8 +58,7 @@ ACLSHMEM_DEVICE void aclshmemi_quiet_all_reachable_transports(
     uint32_t sdma_sync_id = state->sdma_config.sync_id;
     uint64_t rdma_ub = state->rdma_config.aclshmem_ub;
     uint32_t rdma_sync_id = state->rdma_config.sync_id;
-    // SDMA completion is scoped to the current core's queue, so one quiet covers
-    // requests submitted to self and every SDMA-reachable PE.
+    // High-level SDMA RMA uses QP 0, so one quiet drains its requests to all SDMA-reachable PEs.
     if (quiet_transport_mask & ACLSHMEM_TRANSPORT_SDMA) {
         aclshmemx_sdma_quiet(reinterpret_cast<__ubuf__ char*>(sdma_ub), sdma_ub_size, sdma_sync_id);
     }

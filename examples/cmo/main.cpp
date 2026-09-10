@@ -15,6 +15,7 @@
 #include <numeric>
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 #include <sys/stat.h>
 
 #include "utils.h"
@@ -73,13 +74,15 @@ const char* data_type = "int";
 static char g_ipport[ACLSHMEM_MAX_IP_PORT_LEN] = {0};
 aclshmemx_uniqueid_t default_flag_uid;
 const uint32_t max_block_nums = 20;
+const uint32_t aivs_per_block = 2;
+const uint32_t sdma_qp_num = max_block_nums * aivs_per_block;
 const uint32_t gm_align_size = 512;
 const uint32_t l2_cache_size = 192 * 1024 * 1024;
 
 template <typename T>
 __global__ __aicore__ void copy_perftest(
     GM_ADDR trash_gm, GM_ADDR copy_gm, GM_ADDR dump_gm, GM_ADDR res_gm, uint32_t copypad_size, uint32_t copypad_times,
-    uint32_t is_block_prefetch)
+    uint32_t is_block_prefetch, uint32_t use_explicit_qp)
 {
     if ASCEND_IS_NOT_AIV {
         return;
@@ -116,19 +119,26 @@ __global__ __aicore__ void copy_perftest(
 
     start_cycle = AscendC::GetSystemCycle();
     start_cmo_cycle = start_cycle;
+    send_cmo_cycle = start_cmo_cycle;
+    end_cmo_cycle = start_cmo_cycle;
 
-    if (is_block_prefetch != 0) {
-        aclshmemx_cmo_nbi(
-            reinterpret_cast<__gm__ uint8_t*>(copy_gm + cmo_size * block_id), cmo_size,
-            ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, EVENT_ID0);
-    } else {
-        aclshmemx_cmo_nbi(
-            reinterpret_cast<__gm__ uint8_t*>(trash_gm + cmo_size * block_id), cmo_size,
-            ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, EVENT_ID0);
+    // 不带QP的接口固定使用QP 0，只能由0号AIV单核调用；显式QP接口每个AIV使用自己的QP。
+    if (use_explicit_qp != 0 || block_id == 0) {
+        __gm__ uint8_t* cmo_target_gm =
+            reinterpret_cast<__gm__ uint8_t*>((is_block_prefetch != 0 ? copy_gm : trash_gm) + cmo_size * block_id);
+        if (use_explicit_qp != 0) {
+            aclshmemx_cmo_qp_nbi(
+                cmo_target_gm, cmo_size, ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, block_id, EVENT_ID0);
+            send_cmo_cycle = AscendC::GetSystemCycle();
+            aclshmemx_sdma_qp_quiet(tmp_buff, ub_size, block_id, EVENT_ID0);
+        } else {
+            aclshmemx_cmo_nbi(
+                cmo_target_gm, cmo_size, ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, EVENT_ID0);
+            send_cmo_cycle = AscendC::GetSystemCycle();
+            aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+        }
+        end_cmo_cycle = AscendC::GetSystemCycle();
     }
-    send_cmo_cycle = AscendC::GetSystemCycle();
-    aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
-    end_cmo_cycle = AscendC::GetSystemCycle();
 
     AscendC::PipeBarrier<PIPE_ALL>();
 
@@ -185,10 +195,12 @@ __global__ __aicore__ void copy_perftest(
 template <class T>
 void copy_perftest_kernel(
     uint32_t block_dim, void* stream, uint8_t* trash_gm_ptr, uint8_t* cache_gm_ptr, uint8_t* dump_gm_ptr,
-    uint8_t* res_gm_ptr, uint32_t move_size_each_time, uint32_t copypad_times, uint32_t is_block_prefetch)
+    uint8_t* res_gm_ptr, uint32_t move_size_each_time, uint32_t copypad_times, uint32_t is_block_prefetch,
+    uint32_t use_explicit_qp)
 {
     copy_perftest<T><<<block_dim, nullptr, stream>>>(
-        trash_gm_ptr, cache_gm_ptr, dump_gm_ptr, res_gm_ptr, move_size_each_time, copypad_times, is_block_prefetch);
+        trash_gm_ptr, cache_gm_ptr, dump_gm_ptr, res_gm_ptr, move_size_each_time, copypad_times, is_block_prefetch,
+        use_explicit_qp);
 }
 
 __global__ __aicore__ void cmo_pretech(GM_ADDR src, uint32_t size)
@@ -211,14 +223,211 @@ __global__ __aicore__ void cmo_pretech(GM_ADDR src, uint32_t size)
 
 void cmo_pretech_kernel(uint8_t* src, uint32_t size, void* stream) { cmo_pretech<<<1, nullptr, stream>>>(src, size); }
 
+__global__ __aicore__ void cmo_nbi_latency_perftest(GM_ADDR src, GM_ADDR res, uint32_t cmo_size)
+{
+    if ASCEND_IS_NOT_AIV {
+        return;
+    }
+    if (AscendC::GetBlockIdx() != 0) {
+        return;
+    }
+
+    constexpr uint32_t ub_offset = 1024;
+    constexpr uint32_t ub_size = 64;
+    __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+    constexpr uint32_t copy_ub_offset = 2048;
+    constexpr uint32_t copy_size = 512;
+    __ubuf__ uint8_t* copy_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(copy_ub_offset));
+    AscendC::LocalTensor<uint8_t> ub_copy_tensor;
+    ub_copy_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ub_copy_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_buff);
+    AscendC::GlobalTensor<uint8_t> gm_tensor;
+    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(src));
+
+    const uint64_t submit_start = AscendC::GetSystemCycle();
+    aclshmemx_cmo_nbi(
+        reinterpret_cast<__gm__ uint8_t*>(src), cmo_size, ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size,
+        EVENT_ID0);
+    const uint64_t submit_end = AscendC::GetSystemCycle();
+
+    aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+    const uint64_t quiet_end = AscendC::GetSystemCycle();
+
+    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::DataCopyExtParams data_copy_params(1, copy_size, 0, 0, 0);
+    AscendC::DataCopyPadExtParams<uint8_t> pad_params;
+    for (uint32_t offset = 0; offset < cmo_size; offset += copy_size) {
+        AscendC::DataCopyPad(ub_copy_tensor, gm_tensor[offset], data_copy_params, pad_params);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_S>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_S>(EVENT_ID0);
+    }
+    AscendC::PipeBarrier<PIPE_ALL>();
+
+#if defined(__DAV_C220_VEC__) || defined(__DAV_C220_CUBE__)
+    constexpr float cycle2us = 50.0f;
+#else
+    constexpr float cycle2us = 1000.0f;
+#endif
+    const float submit_us = (float)(int32_t)(submit_end - submit_start) / cycle2us;
+    const float execute_us = (float)(int32_t)(quiet_end - submit_start) / cycle2us;
+
+    AscendC::LocalTensor<float> ub_tensor;
+    ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(tmp_buff);
+    ub_tensor.address_.dataLen = ub_size;
+    aclshmemi_set_value(reinterpret_cast<__gm__ uint8_t*>(res), submit_us, ub_tensor, EVENT_ID0);
+    AscendC::PipeBarrier<PIPE_ALL>();
+    aclshmemi_set_value(reinterpret_cast<__gm__ uint8_t*>(res + sizeof(float)), execute_us, ub_tensor, EVENT_ID0);
+    AscendC::PipeBarrier<PIPE_ALL>();
+}
+
+void cmo_nbi_latency_perftest_kernel(uint8_t* src, uint8_t* res, uint32_t cmo_size, void* stream)
+{
+    cmo_nbi_latency_perftest<<<1, nullptr, stream>>>(src, res, cmo_size);
+}
+
+int cmo_nbi_latency_test(aclrtStream stream, uint32_t cmo_size, float& submit_us, float& execute_us)
+{
+    void* src_ptr = nullptr;
+    void* res_ptr = nullptr;
+    void* res_host = nullptr;
+    const size_t src_size = static_cast<size_t>(cmo_size);
+    const size_t res_size = sizeof(float) * 2;
+    CHECK_RET(aclrtMalloc(&src_ptr, src_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    CHECK_RET(aclrtMalloc(&res_ptr, res_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    CHECK_RET(aclrtMallocHost(&res_host, res_size));
+
+    cmo_nbi_latency_perftest_kernel(
+        reinterpret_cast<uint8_t*>(src_ptr), reinterpret_cast<uint8_t*>(res_ptr), cmo_size, stream);
+    CHECK_RET(aclrtSynchronizeStream(stream));
+    CHECK_RET(aclrtMemcpy(res_host, res_size, res_ptr, res_size, ACL_MEMCPY_DEVICE_TO_HOST));
+
+    const float* result = reinterpret_cast<const float*>(res_host);
+    submit_us = result[0];
+    execute_us = result[1];
+
+    CHECK_RET(aclrtFree(src_ptr));
+    CHECK_RET(aclrtFree(res_ptr));
+    CHECK_RET(aclrtFreeHost(res_host));
+    return 0;
+}
+
+// Measure the explicit-QP CMO path. GetBlockIdx() is the global AIV index.
+__global__ __aicore__ void cmo_qp_latency_perftest(GM_ADDR src, GM_ADDR res, uint32_t cmo_size, uint32_t aiv_num)
+{
+    if ASCEND_IS_NOT_AIV {
+        return;
+    }
+    AscendC::TPipe pipe;
+    const uint32_t block_id = AscendC::GetBlockIdx();
+    if (block_id >= aiv_num) {
+        return;
+    }
+
+    uint32_t copy_setp_size = cmo_size > gm_align_size ? cmo_size : gm_align_size;
+    uint32_t copy_block_step_size = copy_setp_size;
+    uint32_t copy_step_element = copy_setp_size / sizeof(uint8_t);
+    uint32_t copy_block_step_element = copy_block_step_size / sizeof(uint8_t);
+    uint32_t qp_idx = block_id;
+
+    constexpr uint32_t ub_offset = 1024;
+    constexpr uint32_t ub_size = 64;
+    __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+    __gm__ uint8_t* aiv_src = reinterpret_cast<__gm__ uint8_t*>(src) + copy_block_step_size * block_id;
+    constexpr uint32_t copy_ub_offset = 2048;
+    constexpr uint32_t copy_size = 512;
+    __ubuf__ uint8_t* copy_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(copy_ub_offset));
+    AscendC::LocalTensor<uint8_t> ub_copy_tensor;
+    ub_copy_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ub_copy_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_buff);
+    AscendC::GlobalTensor<uint8_t> gm_tensor;
+    gm_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(src));
+    gm_tensor = gm_tensor[copy_block_step_element * block_id];
+
+    const uint64_t submit_start = AscendC::GetSystemCycle();
+    aclshmemx_cmo_qp_nbi(aiv_src, cmo_size, ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, qp_idx, EVENT_ID0);
+    const uint64_t submit_end = AscendC::GetSystemCycle();
+
+    aclshmemx_sdma_qp_quiet(tmp_buff, ub_size, qp_idx, EVENT_ID0);
+    const uint64_t quiet_end = AscendC::GetSystemCycle();
+
+    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::DataCopyExtParams data_copy_params(1, copy_size, 0, 0, 0);
+    AscendC::DataCopyPadExtParams<uint8_t> pad_params;
+    for (uint32_t offset = 0; offset < cmo_size; offset += copy_size) {
+        AscendC::DataCopyPad(ub_copy_tensor, gm_tensor[offset], data_copy_params, pad_params);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_S>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_S>(EVENT_ID0);
+    }
+    AscendC::PipeBarrier<PIPE_ALL>();
+
+#if defined(__DAV_C220_VEC__) || defined(__DAV_C220_CUBE__)
+    constexpr float cycle2us = 50.0f;
+#else
+    constexpr float cycle2us = 1000.0f;
+#endif
+    const float submit_us = (float)(int32_t)(submit_end - submit_start) / cycle2us;
+    const float execute_us = (float)(int32_t)(quiet_end - submit_start) / cycle2us;
+
+    AscendC::LocalTensor<float> ub_tensor;
+    ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
+    ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(tmp_buff);
+    ub_tensor.address_.dataLen = ub_size;
+    aclshmemi_set_value(
+        reinterpret_cast<__gm__ uint8_t*>(res + block_id * 2 * sizeof(float)), submit_us, ub_tensor, EVENT_ID0);
+    AscendC::PipeBarrier<PIPE_ALL>();
+    aclshmemi_set_value(
+        reinterpret_cast<__gm__ uint8_t*>(res + (block_id * 2 + 1) * sizeof(float)), execute_us, ub_tensor, EVENT_ID0);
+    AscendC::PipeBarrier<PIPE_ALL>();
+}
+
+void cmo_qp_latency_perftest_kernel(
+    uint32_t block_dim, uint8_t* src, uint8_t* res, uint32_t cmo_size, uint32_t aiv_num, void* stream)
+{
+    cmo_qp_latency_perftest<<<block_dim, nullptr, stream>>>(src, res, cmo_size, aiv_num);
+}
+
+int cmo_qp_latency_test(
+    aclrtStream stream, uint32_t cmo_size, uint32_t aiv_num, std::vector<float>& submit_us,
+    std::vector<float>& execute_us)
+{
+    void* src_ptr = nullptr;
+    void* res_ptr = nullptr;
+    void* res_host = nullptr;
+    const size_t src_size = static_cast<size_t>(cmo_size) * aiv_num;
+    const size_t res_size = sizeof(float) * aiv_num * 2;
+    CHECK_RET(aclrtMalloc(&src_ptr, src_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    CHECK_RET(aclrtMalloc(&res_ptr, res_size, ACL_MEM_MALLOC_HUGE_FIRST));
+    CHECK_RET(aclrtMallocHost(&res_host, res_size));
+
+    cmo_qp_latency_perftest_kernel(
+        (aiv_num + aivs_per_block - 1) / aivs_per_block, reinterpret_cast<uint8_t*>(src_ptr),
+        reinterpret_cast<uint8_t*>(res_ptr), cmo_size, aiv_num, stream);
+    CHECK_RET(aclrtSynchronizeStream(stream));
+    CHECK_RET(aclrtMemcpy(res_host, res_size, res_ptr, res_size, ACL_MEMCPY_DEVICE_TO_HOST));
+
+    const float* result = reinterpret_cast<const float*>(res_host);
+    submit_us.resize(aiv_num);
+    execute_us.resize(aiv_num);
+    for (uint32_t i = 0; i < aiv_num; ++i) {
+        submit_us[i] = result[i * 2];
+        execute_us[i] = result[i * 2 + 1];
+    }
+
+    CHECK_RET(aclrtFree(src_ptr));
+    CHECK_RET(aclrtFree(res_ptr));
+    CHECK_RET(aclrtFreeHost(res_host));
+    return 0;
+}
+
 template <class T>
 int copy_test(
     aclrtStream stream, uint32_t n_blocks, uint32_t copypad_size, uint32_t copypad_times, CMOEXAMPLE prefetch_type,
-    res_t& res)
+    res_t& res, uint32_t use_explicit_qp = 1)
 {
     uint32_t copy_setp_size = copypad_size > gm_align_size ? copypad_size : gm_align_size;
     uint32_t copy_block_size = copy_setp_size * copypad_times;
-    size_t cache_gm_size = n_blocks * 2 * copy_block_size;
+    size_t cache_gm_size = n_blocks * aivs_per_block * copy_block_size;
 
     void* cache_gm_ptr;
     CHECK_RET(aclrtMalloc((void**)&(cache_gm_ptr), cache_gm_size, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -254,25 +463,29 @@ int copy_test(
     copy_perftest_kernel<T>(
         n_blocks, stream, reinterpret_cast<uint8_t*>(trash_gm_ptr), reinterpret_cast<uint8_t*>(cache_gm_ptr),
         reinterpret_cast<uint8_t*>(device_dump), reinterpret_cast<uint8_t*>(res_ptr), copypad_size, copypad_times,
-        is_device_block_prefetch);
+        is_device_block_prefetch, use_explicit_qp);
     CHECK_RET(aclrtSynchronizeStream(stream));
     aclshmem_barrier_all();
 
     aclrtMemcpy(res_host, res_size, res_ptr, res_size, ACL_MEMCPY_DEVICE_TO_HOST);
     float* float_res = reinterpret_cast<float*>(res_host);
+    // 不带QP的接口仅由0号AIV下发，其时延只统计0号AIV；拷贝指标仍统计全部AIV。
+    const uint32_t cmo_aivs = (use_explicit_qp != 0) ? n_blocks * aivs_per_block : 1;
     float total_cmo_send_us = 0;
     float total_cmo_flag_us = 0;
     float total_copy_us = 0;
     float total_band = 0;
-    for (int32_t i = 0; i < n_blocks * 2; i++) {
-        total_cmo_send_us += float_res[i * 10 + 0];
-        total_cmo_flag_us += float_res[i * 10 + 1];
+    for (int32_t i = 0; i < n_blocks * aivs_per_block; i++) {
         total_copy_us += float_res[i * 10 + 2];
         total_band += float_res[i * 10 + 3];
     }
-    res.avg_cmo_send_us = total_cmo_send_us / (n_blocks * 2);
-    res.avg_cmo_flag_us = total_cmo_flag_us / (n_blocks * 2);
-    res.avg_copy_us = total_copy_us / (n_blocks * 2);
+    for (int32_t i = 0; i < (int32_t)cmo_aivs; i++) {
+        total_cmo_send_us += float_res[i * 10 + 0];
+        total_cmo_flag_us += float_res[i * 10 + 1];
+    }
+    res.avg_cmo_send_us = total_cmo_send_us / cmo_aivs;
+    res.avg_cmo_flag_us = total_cmo_flag_us / cmo_aivs;
+    res.avg_copy_us = total_copy_us / (n_blocks * aivs_per_block);
     res.total_band = total_band;
 #if defined(ENABLE_ASCENDC_DUMP)
     Adx::AdumpPrintWorkSpace(device_dump, ALL_DUMPSIZE, stream, "cmo");
@@ -306,6 +519,21 @@ static std::string format_size(int size)
     }
 }
 
+static std::vector<uint32_t> get_cmo_size_vector()
+{
+    std::vector<uint32_t> cmo_size_vector; // 512B-4MB and 96MB
+    for (int exponent = 9; exponent <= 22; ++exponent) {
+        cmo_size_vector.push_back(1U << exponent);
+    }
+    cmo_size_vector.push_back(96U * 1024U * 1024U);
+    return cmo_size_vector;
+}
+
+static std::string core_column(const char* metric, uint32_t core_idx)
+{
+    return std::string(metric) + "_core_" + int_to_string(core_idx) + "/us";
+}
+
 template <class T>
 int test_copy_perf(int my_pe, int n_pes)
 {
@@ -315,6 +543,19 @@ int test_copy_perf(int my_pe, int n_pes)
     // ACLStream init
     aclrtStream stream = nullptr;
     CHECK_RET(aclrtCreateStream(&stream));
+
+    // ===== 不带QP的CMO接口使用样例 =====
+    // aclshmemx_cmo_nbi/aclshmemx_sdma_quiet固定使用QP 0，属于单核接口，仅由0号AIV执行
+    // （见cmo_pretech内核），这里对一块独立内存做L2预取并等待完成，仅演示基本用法。
+    {
+        constexpr uint32_t cmo_demo_size = 1 * 1024 * 1024; // 1MB
+        void* cmo_demo_ptr = nullptr;
+        CHECK_RET(aclrtMalloc(&cmo_demo_ptr, cmo_demo_size, ACL_MEM_MALLOC_HUGE_FIRST));
+        cmo_pretech_kernel(reinterpret_cast<uint8_t*>(cmo_demo_ptr), cmo_demo_size, stream);
+        CHECK_RET(aclrtSynchronizeStream(stream));
+        std::cout << "PE " << my_pe << " cmo_nbi (without QP) demo finished." << std::endl;
+        CHECK_RET(aclrtFree(cmo_demo_ptr));
+    }
 
     std::vector<int> copypad_size_vector; // 8B-256KB
     for (int exponent = 3; exponent <= 17; ++exponent) {
@@ -340,7 +581,7 @@ int test_copy_perf(int my_pe, int n_pes)
     };
 
     for (uint32_t n_blocks = 20; n_blocks <= max_block_nums; n_blocks++) {
-        uint32_t aiv_num = n_blocks * 2;
+        uint32_t aiv_num = n_blocks * aivs_per_block;
         for (uint32_t copypad_size : copypad_size_vector) {
             uint32_t copypad_setp_size = copypad_size > gm_align_size ? copypad_size : gm_align_size;
             uint32_t copypad_times = copy_size_per_loop / aiv_num / copypad_setp_size;
@@ -389,50 +630,130 @@ int test_copy_perf(int my_pe, int n_pes)
     make_dir("output");
     write_csv("output/" + int_to_string(my_pe) + "_band.csv", csv_data);
 
-    std::vector<std::vector<std::string>> csv_data_2 = {
-        {"loop_times", "blocks", "cmo_size", "cmo_send_time_p05/us", "cmo_send_time_p50/us", "cmo_send_time_p95/us",
-         "cmo_flag_time_p05/us", "cmo_flag_time_p50/us", "cmo_flag_time_p95/us"},
+    std::vector<std::vector<std::string>> csv_data_nbi = {
+        {"loop_times", "blocks", "cmo_size", "cmo_submit_time_p05/us", "cmo_submit_time_p50/us",
+         "cmo_submit_time_p95/us", "cmo_execute_time_p05/us", "cmo_execute_time_p50/us", "cmo_execute_time_p95/us"},
     };
+    const std::vector<uint32_t> cmo_perf_size_vector = get_cmo_size_vector();
+    const uint32_t nbi_blocks = 1;
 
-    std::vector<int> cmo_size_vector; // 512B-96MB
-    for (int exponent = 9; exponent <= 26; ++exponent) {
-        int value = 1 << exponent;
-        cmo_size_vector.push_back(value);
+    std::vector<std::vector<std::string>> csv_data_qp = {
+        {"loop_times", "aiv_num", "cmo_size", "cmo_qp_submit_time_avg/us", "cmo_qp_submit_time_max/us",
+         "cmo_qp_execute_time_avg/us", "cmo_qp_execute_time_max/us", "cmo_qp_submit_time_p05/us",
+         "cmo_qp_submit_time_p50/us", "cmo_qp_submit_time_p95/us", "cmo_qp_execute_time_p05/us",
+         "cmo_qp_execute_time_p50/us", "cmo_qp_execute_time_p95/us"},
+    };
+    for (uint32_t core_idx = 0; core_idx < sdma_qp_num; ++core_idx) {
+        csv_data_qp[0].push_back(core_column("cmo_qp_submit_time_p05", core_idx));
+        csv_data_qp[0].push_back(core_column("cmo_qp_submit_time_p50", core_idx));
+        csv_data_qp[0].push_back(core_column("cmo_qp_submit_time_p95", core_idx));
+        csv_data_qp[0].push_back(core_column("cmo_qp_execute_time_p05", core_idx));
+        csv_data_qp[0].push_back(core_column("cmo_qp_execute_time_p50", core_idx));
+        csv_data_qp[0].push_back(core_column("cmo_qp_execute_time_p95", core_idx));
     }
-    cmo_size_vector.push_back(96 * 1024 * 1024);
 
-    for (uint32_t n_blocks = 1; n_blocks <= 1; n_blocks++) {
-        uint32_t aiv_num = n_blocks * 2;
+    const std::vector<uint32_t> qp_aiv_nums = {1U, 2U, 4U, 8U, 16U, 32U, sdma_qp_num};
+    // 单核和多核测试使用同一组预取大小，保证横向对比口径一致。
+
+    for (uint32_t cmo_size : cmo_perf_size_vector) {
         uint32_t copypad_size = 512;
-        for (uint32_t cmo_size : cmo_size_vector) {
-            uint32_t copypad_times = cmo_size / copypad_size;
+        uint32_t copypad_times = cmo_size / copypad_size;
+        std::vector<float> nbi_submit_times;
+        std::vector<float> nbi_execute_times;
+        res_t res = {};
 
-            res_csv_t res_csv = {};
-            std::vector<std::string> sub_data = {
-                int_to_string(loop_times), int_to_string(n_blocks), format_size(cmo_size)};
+        CHECK_RET(
+            copy_test<T>(stream, nbi_blocks, copypad_size, copypad_times, CMOEXAMPLE::DEVICE_BLOCK_PREFETCH, res, 0));
+        for (uint32_t loop_i = 0; loop_i < loop_times; ++loop_i) {
+            CHECK_RET(copy_test<T>(
+                stream, nbi_blocks, copypad_size, copypad_times, CMOEXAMPLE::DEVICE_BLOCK_PREFETCH, res, 0));
+            nbi_submit_times.push_back(res.avg_cmo_send_us);
+            nbi_execute_times.push_back(res.avg_cmo_flag_us);
+        }
 
-            res_t res = {};
-            // cmo warmup
-            copy_test<T>(stream, n_blocks, copypad_size, copypad_times, CMOEXAMPLE::NO_PREFETCH, res);
+        csv_data_nbi.push_back({
+            int_to_string(loop_times),
+            int_to_string(nbi_blocks),
+            format_size(cmo_size),
+            float_to_string(percentile(nbi_submit_times, 5.0f)),
+            float_to_string(percentile(nbi_submit_times, 50.0f)),
+            float_to_string(percentile(nbi_submit_times, 95.0f)),
+            float_to_string(percentile(nbi_execute_times, 5.0f)),
+            float_to_string(percentile(nbi_execute_times, 50.0f)),
+            float_to_string(percentile(nbi_execute_times, 95.0f)),
+        });
 
-            // device block prefetch cmo
-            for (uint32_t loop_i = 0; loop_i < loop_times; loop_i++) {
-                copy_test<T>(stream, n_blocks, copypad_size, copypad_times, CMOEXAMPLE::DEVICE_BLOCK_PREFETCH, res);
-                res_csv.device_block_prefetch_cmo_us.push_back(res.avg_cmo_send_us);
-                res_csv.device_block_prefetch_cmo_flag_us.push_back(res.avg_cmo_flag_us);
+        for (uint32_t aiv_num : qp_aiv_nums) {
+            std::vector<std::vector<float>> qp_submit_samples(aiv_num);
+            std::vector<std::vector<float>> qp_execute_samples(aiv_num);
+
+            std::vector<float> qp_submit_once;
+            std::vector<float> qp_execute_once;
+            CHECK_RET(cmo_qp_latency_test(stream, cmo_size, aiv_num, qp_submit_once, qp_execute_once));
+            for (uint32_t loop_i = 0; loop_i < loop_times; ++loop_i) {
+                CHECK_RET(cmo_qp_latency_test(stream, cmo_size, aiv_num, qp_submit_once, qp_execute_once));
+                for (uint32_t core_idx = 0; core_idx < aiv_num; ++core_idx) {
+                    qp_submit_samples[core_idx].push_back(qp_submit_once[core_idx]);
+                    qp_execute_samples[core_idx].push_back(qp_execute_once[core_idx]);
+                }
             }
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 5.0f)));
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 50.0f)));
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_us, 95.0f)));
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 5.0f)));
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 50.0f)));
-            sub_data.push_back(float_to_string(percentile(res_csv.device_block_prefetch_cmo_flag_us, 95.0f)));
 
-            csv_data_2.push_back(sub_data);
+            std::vector<float> qp_submit_medians;
+            std::vector<float> qp_execute_medians;
+            qp_submit_medians.reserve(aiv_num);
+            qp_execute_medians.reserve(aiv_num);
+            for (uint32_t core_idx = 0; core_idx < sdma_qp_num; ++core_idx) {
+                if (core_idx < aiv_num) {
+                    float submit_med = percentile(qp_submit_samples[core_idx], 50.0f);
+                    float execute_med = percentile(qp_execute_samples[core_idx], 50.0f);
+                    qp_submit_medians.push_back(submit_med);
+                    qp_execute_medians.push_back(execute_med);
+                }
+            }
+            float submit_avg = std::accumulate(qp_submit_medians.begin(), qp_submit_medians.end(), 0.0f) /
+                               static_cast<float>(qp_submit_medians.size());
+            float execute_avg = std::accumulate(qp_execute_medians.begin(), qp_execute_medians.end(), 0.0f) /
+                                static_cast<float>(qp_execute_medians.size());
+            float submit_max = *std::max_element(qp_submit_medians.begin(), qp_submit_medians.end());
+            float execute_max = *std::max_element(qp_execute_medians.begin(), qp_execute_medians.end());
+            std::vector<std::string> sub_data = {
+                int_to_string(loop_times),
+                int_to_string(aiv_num),
+                format_size(cmo_size),
+                float_to_string(submit_avg),
+                float_to_string(submit_max),
+                float_to_string(execute_avg),
+                float_to_string(execute_max),
+                float_to_string(percentile(qp_submit_medians, 5.0f)),
+                float_to_string(percentile(qp_submit_medians, 50.0f)),
+                float_to_string(percentile(qp_submit_medians, 95.0f)),
+                float_to_string(percentile(qp_execute_medians, 5.0f)),
+                float_to_string(percentile(qp_execute_medians, 50.0f)),
+                float_to_string(percentile(qp_execute_medians, 95.0f))};
+            sub_data.reserve(csv_data_qp[0].size());
+            for (uint32_t core_idx = 0; core_idx < sdma_qp_num; ++core_idx) {
+                if (core_idx < aiv_num) {
+                    sub_data.push_back(float_to_string(percentile(qp_submit_samples[core_idx], 5.0f)));
+                    sub_data.push_back(float_to_string(percentile(qp_submit_samples[core_idx], 50.0f)));
+                    sub_data.push_back(float_to_string(percentile(qp_submit_samples[core_idx], 95.0f)));
+                    sub_data.push_back(float_to_string(percentile(qp_execute_samples[core_idx], 5.0f)));
+                    sub_data.push_back(float_to_string(percentile(qp_execute_samples[core_idx], 50.0f)));
+                    sub_data.push_back(float_to_string(percentile(qp_execute_samples[core_idx], 95.0f)));
+                } else {
+                    sub_data.push_back("N/A");
+                    sub_data.push_back("N/A");
+                    sub_data.push_back("N/A");
+                    sub_data.push_back("N/A");
+                    sub_data.push_back("N/A");
+                    sub_data.push_back("N/A");
+                }
+            }
+            csv_data_qp.push_back(sub_data);
         }
     }
 
-    write_csv("output/" + int_to_string(my_pe) + "_cmo.csv", csv_data_2);
+    write_csv("output/" + int_to_string(my_pe) + "_cmo_nbi.csv", csv_data_nbi);
+    write_csv("output/" + int_to_string(my_pe) + "_cmo_qp.csv", csv_data_qp);
     std::cout << "PE " << my_pe << " Finished !" << std::endl;
 
     CHECK_RET(aclrtDestroyStream(stream));
@@ -486,6 +807,7 @@ int main(int argc, char* argv[])
     CHECK_RET(test_set_attr(my_pe, n_pes, local_mem_size, ipport, &attributes));
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_SDMA;
+    CHECK_RET(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, sdma_qp_num));
     CHECK_RET(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     if (std::string(data_type) == "int") {

@@ -69,8 +69,7 @@ public:
     }
 
 private:
-    Result GetVectorCoreNum(int32_t& channel_num);
-    Result CreateNotifyIds();
+    Result CreateNotifyIds(uint32_t channel_num);
     Result CreateStarsStreams(int32_t channel_num);
     Result MallocSdmaWorkspace(size_t workspace_size);
     Result CopyHostOpResToDevice();

@@ -101,6 +101,7 @@ aclshmemi_init_backend* init_manager = nullptr;
 static std::mutex g_aclshmem_ctx_mutex;
 static shm::transport::UdmaQpConfig g_udma_qp_config{};
 static shm::transport::TransportOptions::RdmaQpConfig g_rdma_qp_config{};
+static shm::transport::SdmaQpConfig g_sdma_qp_config{};
 static bool g_qp_config_frozen = false;
 
 // Instance context used to store global_resources
@@ -216,7 +217,11 @@ bool is_valid_data_op_engine_type(data_op_engine_type_t value)
     return int_value > 0 && (int_value & ~valid_mask) == 0;
 }
 
-bool is_valid_rdma_qp_num(uint32_t qp_num) { return qp_num >= 1U && qp_num <= ACLSHMEM_MAX_QP_NUM; }
+bool is_valid_qp_num(uint32_t qp_num, uint32_t max_qp_num)
+{
+    constexpr uint32_t min_qp_num = 1U;
+    return qp_num >= min_qp_num && qp_num <= max_qp_num;
+}
 
 bool aclshmemi_user_buffer_heap_engine_supported(data_op_engine_type_t engine)
 {
@@ -658,30 +663,52 @@ int aclshmemx_set_attr_uniqueid_args(
 int aclshmemx_set_qp_num(data_op_engine_type_t engine, uint32_t qp_num)
 {
     std::lock_guard<std::mutex> lock(g_aclshmem_ctx_mutex);
-    // Legacy ROCE does not consume the process-wide QP configuration.
-    // Reject it before mutating the configuration unless RDMA v2 is compiled in.
-    if (engine == ACLSHMEM_DATA_OP_ROCE) {
-#if !defined(ACLSHMEM_RDMA_V2_SUPPORT)
-        SHM_LOG_WARN("ROCE QP configuration requires the Ascend950 RDMA v2 backend");
-        return ACLSHMEM_NOT_SUPPORTED;
-#endif
-    }
-    if (!is_valid_rdma_qp_num(qp_num)) {
-        SHM_LOG_ERROR("invalid qp num: " << qp_num);
-        return ACLSHMEM_INVALID_VALUE;
-    }
     if (g_qp_config_frozen) {
         SHM_LOG_ERROR("QP configuration cannot be changed while an ACLSHMEM instance is initialized.");
         return ACLSHMEM_NOT_SUPPORTED;
     }
-
-    if (engine == ACLSHMEM_DATA_OP_ROCE) {
-        g_rdma_qp_config.qpNum = qp_num;
-    } else if (engine == ACLSHMEM_DATA_OP_UDMA) {
-        g_udma_qp_config.qpNum = qp_num;
-    } else {
-        SHM_LOG_WARN("QP count configuration does not support engine = " << engine);
-        return ACLSHMEM_NOT_SUPPORTED;
+    switch (engine) {
+        case ACLSHMEM_DATA_OP_SDMA: {
+            int device_id = -1;
+            int64_t vector_core_num = 0;
+            (void)aclrtGetDevice(&device_id);
+            auto query_ret = aclrtGetDeviceInfo(device_id, ACL_DEV_ATTR_VECTOR_CORE_NUM, &vector_core_num);
+            if (query_ret != ACL_SUCCESS || vector_core_num <= 0) {
+                query_ret = aclGetDeviceCapability(device_id, ACL_DEVICE_INFO_VECTOR_CORE_NUM, &vector_core_num);
+            }
+            const uint32_t max_qp_num =
+                (query_ret == ACL_SUCCESS && vector_core_num > 0) ?
+                    std::min<uint32_t>(static_cast<uint32_t>(vector_core_num), ACLSHMEM_MAX_AIV_PER_NPU) :
+                    ACLSHMEM_MAX_AIV_PER_NPU;
+            if (!is_valid_qp_num(qp_num, max_qp_num)) {
+                SHM_LOG_ERROR("invalid SDMA qp num: " << qp_num << ", supported range is [1, " << max_qp_num << "]");
+                return ACLSHMEM_INVALID_VALUE;
+            }
+            g_sdma_qp_config.qpNum = qp_num;
+            break;
+        }
+        case ACLSHMEM_DATA_OP_ROCE:
+#if !defined(ACLSHMEM_RDMA_V2_SUPPORT)
+            SHM_LOG_WARN("ROCE QP configuration requires the Ascend950 RDMA v2 backend");
+            return ACLSHMEM_NOT_SUPPORTED;
+#else
+            if (!is_valid_qp_num(qp_num, ACLSHMEM_MAX_QP_NUM)) {
+                SHM_LOG_ERROR("invalid ROCE qp num: " << qp_num);
+                return ACLSHMEM_INVALID_VALUE;
+            }
+            g_rdma_qp_config.qpNum = qp_num;
+            break;
+#endif
+        case ACLSHMEM_DATA_OP_UDMA:
+            if (!is_valid_qp_num(qp_num, ACLSHMEM_MAX_QP_NUM)) {
+                SHM_LOG_ERROR("invalid UDMA qp num: " << qp_num);
+                return ACLSHMEM_INVALID_VALUE;
+            }
+            g_udma_qp_config.qpNum = qp_num;
+            break;
+        default:
+            SHM_LOG_WARN("QP count configuration does not support engine = " << engine);
+            return ACLSHMEM_NOT_SUPPORTED;
     }
     SHM_LOG_INFO("set qp num success, engine=" << engine << ", qp_num=" << qp_num);
     return ACLSHMEM_SUCCESS;
@@ -1053,7 +1080,7 @@ static int32_t aclshmemi_init_attr_impl(
     // aclshmem_entity init
     ACLSHMEM_CHECK_RET(init_manager->bind_aclshmem_entity(
         attributes, &g_state, &g_boot_handle, std::move(user_buffer_heap_input), g_udma_qp_config,
-        g_rdma_qp_config.qpNum));
+        g_rdma_qp_config.qpNum, g_sdma_qp_config.qpNum));
     entity_bound = true;
     ACLSHMEM_CHECK_RET(init_manager->init_device_state());
     device_state_initialized = true;
@@ -1211,6 +1238,7 @@ static int32_t aclshmemi_finalize_impl(uint64_t instance_id)
     if (is_last_instance) {
         g_rdma_qp_config = shm::transport::TransportOptions::RdmaQpConfig{};
         g_udma_qp_config = shm::transport::UdmaQpConfig{};
+        g_sdma_qp_config = shm::transport::SdmaQpConfig{};
         g_qp_config_frozen = false;
     }
     return firstCleanupStatus;

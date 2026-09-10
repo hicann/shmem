@@ -197,17 +197,17 @@ ACLSHMEM_DEVICE void dispatch_classic(
             const int64_t data_block = my_rank * local_expert_num + dst_local_expert;
             const int64_t global_slot = data_block * max_tokens_per_segment + slot;
 
-            aclshmemx_sdma_put_nbi(
+            aclshmemx_sdma_qp_put_nbi(
                 payload_base + global_slot * payload_stride, x + token_id * h, sdma_tmp, SDMA_UB_SIZE, h, dst_rank,
-                SDMA_EVENT_ID);
+                aiv_index, SDMA_EVENT_ID);
             ++sdma_outstanding;
             if (sdma_outstanding >= SDMA_ISSUE_LIMIT) {
-                aclshmemx_sdma_quiet(sdma_tmp, SDMA_UB_SIZE, SDMA_EVENT_ID);
+                aclshmemx_sdma_qp_quiet(sdma_tmp, SDMA_UB_SIZE, aiv_index, SDMA_EVENT_ID);
                 sdma_outstanding = 0;
             }
         }
         if (has_sdma && sdma_outstanding > 0) {
-            aclshmemx_sdma_quiet(sdma_tmp, SDMA_UB_SIZE, SDMA_EVENT_ID);
+            aclshmemx_sdma_qp_quiet(sdma_tmp, SDMA_UB_SIZE, aiv_index, SDMA_EVENT_ID);
         }
 
         // Direct payload phase keeps the original per-token payload quiet while batching control-plane writes.

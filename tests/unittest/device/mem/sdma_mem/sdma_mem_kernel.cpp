@@ -23,8 +23,8 @@ extern "C" __global__ __aicore__ void SDMAPutTest(GM_ADDR gva, uint64_t config)
 
         // Define temporary UB buffer for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
-        __ubuf__ uint8_t *tmp_buff = reinterpret_cast<__ubuf__ uint8_t *>(uint64_t(ub_offset));
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
 
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
@@ -47,14 +47,15 @@ extern "C" __global__ __aicore__ void SDMAPutTest(GM_ADDR gva, uint64_t config)
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_put_nbi(gva + my_pe * MESSAGE_SIZE + data_offset, gva + my_pe * MESSAGE_SIZE + data_offset,
-                                tmp_buff, ub_size, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_put_nbi(
+                gva + my_pe * MESSAGE_SIZE + data_offset, gva + my_pe * MESSAGE_SIZE + data_offset, tmp_buff, ub_size,
+                base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+        aclshmemx_sdma_qp_quiet(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_sdma_put(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_sdma_put(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     SDMAPutTest<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -70,8 +71,8 @@ extern "C" __global__ __aicore__ void SDMAGetTest(GM_ADDR gva, uint64_t config)
 
         // Define temporary UB buffer for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
-        __ubuf__ uint8_t *tmp_buff = reinterpret_cast<__ubuf__ uint8_t *>(uint64_t(ub_offset));
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
 
         uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
         const auto cur_block_idx = AscendC::GetBlockIdx();
@@ -94,14 +95,15 @@ extern "C" __global__ __aicore__ void SDMAGetTest(GM_ADDR gva, uint64_t config)
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_get_nbi(gva + peer * MESSAGE_SIZE + data_offset, gva + peer * MESSAGE_SIZE + data_offset,
-                                tmp_buff, ub_size, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_get_nbi(
+                gva + peer * MESSAGE_SIZE + data_offset, gva + peer * MESSAGE_SIZE + data_offset, tmp_buff, ub_size,
+                base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+        aclshmemx_sdma_qp_quiet(tmp_buff, ub_size, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_sdma_get(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_sdma_get(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     SDMAGetTest<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -117,7 +119,7 @@ extern "C" __global__ __aicore__ void SDMAPutTestTensor(GM_ADDR gva, uint64_t co
 
         // Define temporary UB buffer as LocalTensor for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
         AscendC::LocalTensor<uint8_t> tmp_local;
         tmp_local.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
         tmp_local.address_.bufferAddr = ub_offset;
@@ -142,20 +144,20 @@ extern "C" __global__ __aicore__ void SDMAPutTestTensor(GM_ADDR gva, uint64_t co
         }
         GM_ADDR data_addr = gva + my_pe * MESSAGE_SIZE + data_offset;
         AscendC::GlobalTensor<uint8_t> src_tensor;
-        src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+        src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
         AscendC::GlobalTensor<uint8_t> dst_tensor;
-        dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+        dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
         for (int64_t peer = 0; peer < n_pes; peer++) {
             if (peer == my_pe) {
                 continue;
             }
-            aclshmemx_sdma_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, EVENT_ID0);
+            aclshmemx_sdma_qp_put_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_quiet(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_quiet(tmp_local, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_sdma_put_tensor(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_sdma_put_tensor(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     SDMAPutTestTensor<<<block_dim, nullptr, stream>>>(gva, config);
 }
@@ -171,7 +173,7 @@ extern "C" __global__ __aicore__ void SDMAGetTestTensor(GM_ADDR gva, uint64_t co
 
         // Define temporary UB buffer as LocalTensor for SDMA operations
         constexpr uint32_t ub_offset = 1024;
-        constexpr uint32_t ub_size = 64;  // 64B for temporary buffer
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
         AscendC::LocalTensor<uint8_t> tmp_local;
         tmp_local.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECOUT);
         tmp_local.address_.bufferAddr = ub_offset;
@@ -200,16 +202,86 @@ extern "C" __global__ __aicore__ void SDMAGetTestTensor(GM_ADDR gva, uint64_t co
             }
             GM_ADDR data_addr = gva + peer * MESSAGE_SIZE + data_offset;
             AscendC::GlobalTensor<uint8_t> src_tensor;
-            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
+            src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
             AscendC::GlobalTensor<uint8_t> dst_tensor;
-            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t *>(data_addr), base_per_core);
-            aclshmemx_sdma_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, EVENT_ID0);
+            dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint8_t*>(data_addr), base_per_core);
+            aclshmemx_sdma_qp_get_nbi(dst_tensor, src_tensor, tmp_local, base_per_core, peer, cur_block_idx, EVENT_ID0);
         }
-        aclshmemx_sdma_quiet(tmp_local, EVENT_ID0);
+        aclshmemx_sdma_qp_quiet(tmp_local, cur_block_idx, EVENT_ID0);
     }
 }
 
-void test_sdma_get_tensor(uint32_t block_dim, void *stream, uint8_t *gva, uint64_t config)
+void test_sdma_get_tensor(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
 {
     SDMAGetTestTensor<<<block_dim, nullptr, stream>>>(gva, config);
+}
+
+// 不带QP的接口固定使用QP 0，属于单核接口，仅由0号AIV执行整段搬运
+extern "C" __global__ __aicore__ void SDMAPutTestNoQp(GM_ADDR gva, uint64_t config)
+{
+    util_set_ffts_config(config);
+    AscendC::TPipe pipe;
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        int64_t my_pe = aclshmem_my_pe();
+        int64_t n_pes = aclshmem_n_pes();
+
+        // Define temporary UB buffer for SDMA operations
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+
+        uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
+        for (int64_t peer = 0; peer < n_pes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmemx_sdma_put_nbi(
+                gva + my_pe * MESSAGE_SIZE, gva + my_pe * MESSAGE_SIZE, tmp_buff, ub_size, data_length, peer,
+                EVENT_ID0);
+        }
+        aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+    }
+}
+
+void test_sdma_put_noqp(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
+{
+    SDMAPutTestNoQp<<<block_dim, nullptr, stream>>>(gva, config);
+}
+
+extern "C" __global__ __aicore__ void SDMAGetTestNoQp(GM_ADDR gva, uint64_t config)
+{
+    util_set_ffts_config(config);
+    AscendC::TPipe pipe;
+
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() != 0) {
+            return;
+        }
+        int64_t my_pe = aclshmem_my_pe();
+        int64_t n_pes = aclshmem_n_pes();
+
+        // Define temporary UB buffer for SDMA operations
+        constexpr uint32_t ub_offset = 1024;
+        constexpr uint32_t ub_size = 64; // 64B for temporary buffer
+        __ubuf__ uint8_t* tmp_buff = reinterpret_cast<__ubuf__ uint8_t*>(uint64_t(ub_offset));
+
+        uint32_t data_length = static_cast<uint32_t>(MESSAGE_SIZE);
+        for (int64_t peer = 0; peer < n_pes; peer++) {
+            if (peer == my_pe) {
+                continue;
+            }
+            aclshmemx_sdma_get_nbi(
+                gva + peer * MESSAGE_SIZE, gva + peer * MESSAGE_SIZE, tmp_buff, ub_size, data_length, peer, EVENT_ID0);
+        }
+        aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+    }
+}
+
+void test_sdma_get_noqp(uint32_t block_dim, void* stream, uint8_t* gva, uint64_t config)
+{
+    SDMAGetTestNoQp<<<block_dim, nullptr, stream>>>(gva, config);
 }

@@ -469,9 +469,12 @@ Arguments:
     m.def(
         "aclshmemx_set_qp_num", &aclshmemx_set_qp_num, py::call_guard<py::gil_scoped_release>(), py::arg("engine"),
         py::arg("qp_num"), R"(
-Configure the number of QPs created per peer for a data operation engine.
+Configure the number of QPs created for a data operation engine.
 
-This process-wide configuration must be set before ACLSHMEM initialization and must be identical on every PE.
+Valid ranges and scopes differ per engine: SDMA accepts [1, min(device vector-core count, 72)] and creates
+local device-only streams (not per peer); UDMA and ROCE accept [1, 32] QP groups per peer connection.
+This process-wide configuration must be set before ACLSHMEM initialization, must be identical on every PE,
+and is reset to 1 after the last instance is finalized.
     )");
 
     m.def(

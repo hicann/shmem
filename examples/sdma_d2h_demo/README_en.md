@@ -42,7 +42,7 @@ This example demonstrates how to use the SHMEM SDMA batch put/get APIs to transf
 
 (4) In the `get` kernel, call `aclshmemx_sdma_get_nbi` to read data from a `HOST_SIDE` SHMEM symmetric address on the local PE or a target PE and write the data to regular device memory on the local PE. The API converts the source host-side address based on the PE ID. The `pe == my_pe` case verifies local H2D.
 
-(5) `aclshmemx_sdma_put_nbi` and `aclshmemx_sdma_get_nbi` are non-blocking APIs. In the kernel, call `aclshmemx_sdma_quiet` to wait for the SDMA tasks submitted by the current block to complete.
+(5) `aclshmemx_sdma_qp_put_nbi` and `aclshmemx_sdma_qp_get_nbi` are non-blocking APIs. In the kernel, call `aclshmemx_sdma_qp_quiet` with the same `qp_idx` to wait for completion.
 
 ## Build and Execution
 

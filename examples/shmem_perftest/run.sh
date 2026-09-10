@@ -31,6 +31,7 @@ MAX_EXPONENT="20"
 LOOP_COUNT="1000"
 # 默认UB size(KB)
 UB_SIZE="16"
+QP_NUM="2"
 # 默认SHMEM内存类型: hbm/dram，仅shmem模式使用
 MEMORY_TYPE="hbm"
 # 批量提交粒度（仅 BW 路径）：0=普通 NBI 全异步(默认)，1=每次后 quiet，>1=每批 defer/submit 后 quiet
@@ -55,6 +56,7 @@ function usage() {
     echo "  -b|--block-size <size>          设置核数（UDMA、RDMA 中核数等于 QP 数）"
     echo "  --block-range <min> <max>       设置连续核数范围（UDMA/RDMA 当前不做范围扫描）"
     echo "  --block-list <b1,b2,...>        设置离散核数列表（ascendc/mte/simt_rma_perftest/simt_rma_ub2gm_perftest），如 2,4,6,8"
+    echo "  --qp <count>                    设置SDMA QP/AIV数量，范围1到72，默认2"
     echo "  -e|--exponent <exponent>        设置数据量的幂数"
     echo "  --exponent-range <min> <max>    设置数据量的幂数范围"
     echo "  --loop-count <count>            设置循环次数"
@@ -106,6 +108,15 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo "Error: -b|--block-size requires a value."
+                exit 1
+            fi
+            ;;
+        --qp)
+            if [ -n "$2" ]; then
+                QP_NUM="$2"
+                shift 2
+            else
+                echo "Error: --qp requires a value."
                 exit 1
             fi
             ;;
@@ -299,6 +310,10 @@ if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
     rm -rf "${SCRIPT_DIR}/mte_perftest/output"
     echo "Cleaned: ${SCRIPT_DIR}/mte_perftest/output"
 fi
+if [[ "$MODE" == "sdma" || "$MODE" == "all" ]]; then
+    rm -rf "${SCRIPT_DIR}/sdma_perftest/output"
+    echo "Cleaned: ${SCRIPT_DIR}/sdma_perftest/output"
+fi
 if [[ "$MODE" == "udma" || "$MODE" == "all" ]]; then
     rm -rf "${SCRIPT_DIR}/udma_perftest/output"
     echo "Cleaned: ${SCRIPT_DIR}/udma_perftest/output"
@@ -343,6 +358,16 @@ if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
             echo "Command: bash ${SCRIPT_DIR}/mte_perftest/run.sh -t \"$TEST_TYPE\" -d \"$DATA_TYPE\" --block-range \"$MIN_BLOCK_SIZE\" \"$MAX_BLOCK_SIZE\" --exponent-range \"$MIN_EXPONENT\" \"$MAX_EXPONENT\" --loop-count \"$LOOP_COUNT\" -pes \"$PE_SIZE\" -ipport \"$IPPORT\" -gnpus \"$GNPU_NUM\" -fnpu \"$FIRST_NPU\" -fpe \"$FIRST_PE\" --ub-size \"$UB_SIZE\" --memory-type \"$MEMORY_TYPE\""
             bash "${SCRIPT_DIR}/mte_perftest/run.sh" -t "$TEST_TYPE" -d "$DATA_TYPE" --block-range "$MIN_BLOCK_SIZE" "$MAX_BLOCK_SIZE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE" --memory-type "$MEMORY_TYPE"
         fi
+    fi
+fi
+
+if [[ "$MODE" == "sdma" || "$MODE" == "all" ]]; then
+    SDMA_VALID_TT="put bi_put get bi_get"
+    if [[ ! " $SDMA_VALID_TT " =~ " $TEST_TYPE " ]]; then
+        echo "WARN: unsupported SDMA test type. Skipping sdma_perftest."
+    else
+        echo -e "\n========== Running sdma_perftest =========="
+        bash "${SCRIPT_DIR}/sdma_perftest/run.sh" -t "$TEST_TYPE" --qp "$QP_NUM" -d "$DATA_TYPE" --exponent-range "$MIN_EXPONENT" "$MAX_EXPONENT" --loop-count "$LOOP_COUNT" -pes "$PE_SIZE" -ipport "$IPPORT" -gnpus "$GNPU_NUM" -fnpu "$FIRST_NPU" -fpe "$FIRST_PE" --ub-size "$UB_SIZE"
     fi
 fi
 
@@ -466,6 +491,14 @@ if [[ "$MODE" == "mte" || "$MODE" == "all" ]]; then
         mkdir -p "${SCRIPT_DIR}/output/mte_perftest"
         cp -r "${SCRIPT_DIR}/mte_perftest/output"/* "${SCRIPT_DIR}/output/mte_perftest/"
         echo "Copied: mte_perftest -> ${SCRIPT_DIR}/output/mte_perftest"
+    fi
+fi
+
+if [[ "$MODE" == "sdma" || "$MODE" == "all" ]]; then
+    if compgen -G "${SCRIPT_DIR}/sdma_perftest/output/*" > /dev/null; then
+        mkdir -p "${SCRIPT_DIR}/output/sdma_perftest"
+        cp -r "${SCRIPT_DIR}/sdma_perftest/output"/* "${SCRIPT_DIR}/output/sdma_perftest/"
+        echo "Copied: sdma_perftest -> ${SCRIPT_DIR}/output/sdma_perftest"
     fi
 fi
 

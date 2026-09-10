@@ -13,13 +13,6 @@
 #include "kernel_operator.h"
 #include "device/shmem_def.h"
 
-struct sdma_config_t {
-    uint64_t block_bytes;
-    uint64_t per_core_bytes;
-    uint32_t queue_num;
-    uint32_t iter_num;
-};
-
 struct workspace_layout_t {
     __gm__ uint8_t* send_workspace;
     __gm__ uint8_t* recv_workspace;
@@ -35,8 +28,8 @@ struct stars_channel_flag_info_t {
 struct stars_channel_info_t {
     uint32_t sq_head;
     uint32_t sq_tail;
-    uint64_t sq_base;        // SQ缓冲区基地址
-    uint64_t sq_reg_base;    // SQ寄存器基地址
+    uint64_t sq_base;     // SQ缓冲区基地址
+    uint64_t sq_reg_base; // SQ寄存器基地址
     uint32_t sq_depth;
     uint32_t sq_id;
     uint32_t cq_id;
@@ -47,6 +40,17 @@ struct stars_channel_info_t {
     uint32_t dev_id;
     uint8_t reserved[4]; // 对齐到64字节
 };
+
+static_assert(sizeof(stars_channel_flag_info_t) == 64, "SDMA flag header layout must remain 64 bytes");
+static_assert(sizeof(stars_channel_info_t) == 64, "SDMA channel layout must remain 64 bytes");
+static_assert(
+    ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET >=
+        sizeof(stars_channel_flag_info_t) + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(stars_channel_info_t),
+    "SDMA channel metadata overlaps the notify ID region");
+static_assert(
+    ACLSHMEM_SDMA_WORKSPACE_SIZE >= ACLSHMEM_STARS_NOTIFY_ADDR_OFFSET + ACLSHMEM_MAX_AIV_PER_NPU * sizeof(uint32_t) +
+                                        3 * ACLSHMEM_MAX_AIV_PER_NPU * ACLSHMEM_SDMA_FLAG_LENGTH,
+    "SDMA workspace is too small for notify IDs and flag regions");
 
 struct stars_sqe_header_t {
     uint8_t type : 6;
@@ -123,10 +127,10 @@ struct stars_notify_sqe_t {
 };
 
 enum class ACLSHMEMCMOTYPE : uint32_t {
-    CMO_TYPE_PREFETCH = 6,  // Load data from memory into l2 cache
-    CMO_TYPE_WRITEBACK,     // Flush modified data from l2 cache to main memory while retaining a copy in cache
-    CMO_TYPE_INVALID,       // Discard the data block in l2 cache, making it invalid
-    CMO_TYPE_FLUSH,         // Forcefully write data from l2 cache to main memory and remove it from cache
+    CMO_TYPE_PREFETCH = 6, // Load data from memory into l2 cache
+    CMO_TYPE_WRITEBACK,    // Flush modified data from l2 cache to main memory while retaining a copy in cache
+    CMO_TYPE_INVALID,      // Discard the data block in l2 cache, making it invalid
+    CMO_TYPE_FLUSH,        // Forcefully write data from l2 cache to main memory and remove it from cache
     CMO_TYPE_MAX,
 };
 
@@ -261,22 +265,21 @@ struct stars_sdma_cmo_sqe_t {
     /********64 bytes**********/
 };
 
-ACLSHMEM_DEVICE void aclshmemi_stars_submit_notify_record(AscendC::LocalTensor<uint32_t> &tmp_local,
-                                                        AscendC::TEventID sync_id);
+ACLSHMEM_DEVICE void aclshmemi_stars_submit_notify_record(
+    AscendC::LocalTensor<uint32_t>& tmp_local, AscendC::TEventID sync_id, uint32_t qp_idx);
 
-ACLSHMEM_DEVICE void aclshmemi_sdma_submit_data_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
-                                                     __gm__ uint8_t *send_buffer, __gm__ uint8_t *recv_buffer,
-                                                     const sdma_config_t &config, uint32_t *sq_tail);
+ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(
+    __gm__ stars_channel_info_t* channel_info, __gm__ uint8_t* src, uint32_t size, ACLSHMEMCMOTYPE cmo_type,
+    uint32_t& sq_tail);
 
-ACLSHMEM_DEVICE void aclshmemi_cmo_submit_data_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
-                                                    __gm__ uint8_t *src, uint32_t size, ACLSHMEMCMOTYPE cmo_type, uint32_t *sq_tail);
+ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(
+    __gm__ stars_channel_info_t* channel_info, const workspace_layout_t& layout,
+    AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id);
 
-ACLSHMEM_DEVICE void aclshmemi_sdma_submit_flag_sqes(__gm__ stars_channel_info_t *batch_write_channel_info,
-                                                     const workspace_layout_t &layout, 
-                                                     AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(
+    const workspace_layout_t& layout, AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id);
 
-ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(const workspace_layout_t &layout, 
-                                                        AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemi_sdma_quiet(AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t qp_idx, uint32_t sync_id);
 
 /**
  * @brief AIV direct STARS helper function for post send, prepare SQE and ring doorbell.
@@ -286,10 +289,11 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_poll_for_completion(const workspace_layout_t
  * @param message_len               [in] message length in Bytes
  * @param tmp_local                 [in] temporary UB local tensor of uint32_t used as workspace
  * @param sync_id                   [in] ID used to sync pipeline.
+ * @param qp_idx                    [in] SDMA QP index.
  */
-ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm__ uint8_t *send_buffer,
-                                              uint64_t message_len, AscendC::LocalTensor<uint32_t> &tmp_local,
-                                              uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(
+    __gm__ uint8_t* recv_buffer, __gm__ uint8_t* send_buffer, uint64_t message_len,
+    AscendC::LocalTensor<uint32_t>& tmp_local, uint32_t sync_id, uint32_t qp_idx);
 
 /**
  * @brief AIV direct STARS helper function for cache manager operation, prepare SQE and ring doorbell.
@@ -299,18 +303,18 @@ ACLSHMEM_DEVICE void aclshmemi_sdma_post_send(__gm__ uint8_t *recv_buffer, __gm_
  * @param cmo_type                  [in] Cache operation type. Currently only supports prefetch.
  * @param tmp_local                 [in] Temporary UB local tensor of uint32_t used as workspace
  * @param sync_id                   [in] ID used to sync pipeline.
+ * @param qp_idx                    [in] SDMA QP index.
  */
-ACLSHMEM_DEVICE void aclshmemi_cmo_async(__gm__ uint8_t* src,
-                                uint32_t size,
-                                ACLSHMEMCMOTYPE cmo_type, 
-                                AscendC::LocalTensor<uint32_t> &tmp_local, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemi_cmo_async(
+    __gm__ uint8_t* src, uint32_t size, ACLSHMEMCMOTYPE cmo_type, AscendC::LocalTensor<uint32_t>& tmp_local,
+    uint32_t sync_id, uint32_t qp_idx);
 
 /**
- * @brief Calculate the base address of batch write channel info from device state.
+ * @brief Calculate the base address of SDMA channel information from device state.
  *        This function retrieves the device state and calculates the base address
  *        by adding the offset of stars_channel_flag_info_t to the SDMA workspace address.
  *
- * @return                          Pointer to the base of batch write channel info.
+ * @return                          Pointer to the first configured SDMA channel.
  */
 ACLSHMEM_DEVICE __gm__ uint8_t* aclshmemi_sdma_get_channel_base();
 

@@ -46,6 +46,9 @@ enum TransportType {
 struct UdmaQpConfig {
     uint32_t qpNum{1};
 };
+struct SdmaQpConfig {
+    uint32_t qpNum{1};
+};
 
 struct TransportOptions {
     uint32_t rankId;
@@ -58,13 +61,16 @@ struct TransportOptions {
     std::string nic;
     IpType type{IpV4};
     UdmaQpConfig udmaQpConfig{};
+    // SDMA uses one device-only stream per configured QP; 1 by default.
+    uint32_t sdmaQpNum{1};
 
     friend std::ostream& operator<<(std::ostream& output, const TransportOptions& options)
     {
         output << "TransportOptions(rankId=" << options.rankId << ", count=" << options.rankCount
                << ", protocol=" << options.protocol << ", rdmaQpNum=" << options.rdmaQpConfig.qpNum
-               << ", role=" << static_cast<uint32_t>(options.role) << ", nid=" << options.nic
-               << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum << ")";
+               << ", sdmaQpNum=" << options.sdmaQpNum << ", role=" << static_cast<uint32_t>(options.role)
+               << ", nid=" << options.nic << ", iptype=" << options.type << ", udmaQpNum=" << options.udmaQpConfig.qpNum
+               << ")";
         return output;
     }
 };

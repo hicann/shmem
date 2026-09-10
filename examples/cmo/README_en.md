@@ -14,15 +14,27 @@ The Ascend AI Processor uses a multi-level cache architecture. The L2 cache is a
 
 By properly using CMO prefetch operations, the next batch of data can be prepared in advance while computation is ongoing, improving overall performance.
 
-### Test Scenarios
+### Current Test Content
 
-This example compares the GM read performance under the following three cache prefetch policies:
+Each PE runs the following tests in sequence:
 
-1. **NO_PREFETCH**: Data is directly copied from the GM without any cache optimization.
-2. **HOST_PREFETCH**: The host-side API `aclrtCmoAsync` is used to prefetch the entire block to be copied.
-3. **DEVICE_BLOCK_PREFETCH**: CMO prefetch is performed on the memory locations to be copied for each block within the kernel.
+1. **Basic CMO demonstration without an explicit QP**
+   - Allocates 1 MB of local GM.
+   - Only AIV 0 calls `aclshmemx_cmo_nbi`, followed by `aclshmemx_sdma_quiet`.
+   - This is an API usage demonstration only and is not written to the performance CSV files.
 
-The performance of the CMO API `aclshmemx_cmo_nbi` on the device side is tested, and the operation latency under different prefetch sizes is compared.
+2. **GM-to-UB read bandwidth test**
+   The following three prefetch modes are compared:
+   - `NO_PREFETCH`: prefetches `trash_gm` to disturb/clear the cache; the actual copy target `cache_gm` is not prefetched.
+   - `HOST_PREFETCH`: the host calls `aclrtCmoAsync` to prefetch the entire `cache_gm` region.
+   - `DEVICE_BLOCK_PREFETCH`: each AIV prefetches its own `cache_gm` block inside the kernel.
+
+   The current configuration copies 64 MB per loop and repeats the test 100 times. The current effective `n_blocks` value is 20. `copypad_size` ranges over powers of two from 8 B through 128 KB, with additional tests at 192 KB and 256 KB. The actual step size is at least 512 B. Results are written to `<PE_ID>_band.csv`.
+
+3. **CMO latency test**
+   The same set of prefetch sizes is used to test the single-core API and the explicit-QP API. The sizes are 512 B, 1 KB, 2 KB, ... 4 MB, plus an additional 96 MB case.
+   - The single-core test fixes `nbi_blocks = 1`; only AIV 0 calls `aclshmemx_cmo_nbi`. Results are written to `<PE_ID>_cmo_nbi.csv`.
+   - The explicit-QP test uses `aclshmemx_cmo_qp_nbi` with AIV counts `{1, 2, 4, 8, 16, 32, 40}`. Each AIV uses the QP with the same index. Results are written to `<PE_ID>_cmo_qp.csv`.
 
 ### Core APIs
 
@@ -30,8 +42,8 @@ The performance of the CMO API `aclshmemx_cmo_nbi` on the device side is tested,
 
 ```c
 template <typename T>
-void aclshmemx_cmo_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_type,
-                     __ubuf__ T *buf, uint32_t ub_size, uint32_t sync_id);
+void aclshmemx_cmo_qp_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_type,
+                          __ubuf__ T *buf, uint32_t ub_size, uint32_t qp_idx, uint32_t sync_id);
 ```
 
 - **Function**: Asynchronously triggers CMO operations on the device side and submits operation tasks to the STARS queue.
@@ -41,6 +53,7 @@ void aclshmemx_cmo_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_ty
   - `cmo_type`: CMO operation type (Currently, only CMO_TYPE_PREFETCH is supported.)
   - `buf`: address of the temporary Unified Buffer
   - `ub_size`: Unified Buffer size (at least 64 bytes, 64-byte aligned)
+  - `qp_idx`: explicitly selected SDMA QP; concurrent AIVs should use distinct QPs, and the index must be smaller than the configured QP count
   - `sync_id`: synchronization ID
 - **Characteristics**: Based on the SDMA engine, core-level fine-grained control is supported.
 
@@ -57,17 +70,42 @@ void aclshmemx_cmo_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_ty
 
 ```c
 template <typename T>
-ACLSHMEM_DEVICE void aclshmemx_sdma_quiet(AscendC::LocalTensor<T> &buf, uint32_t sync_id);
+ACLSHMEM_DEVICE void aclshmemx_sdma_qp_quiet(AscendC::LocalTensor<T> &buf,
+                                              uint32_t qp_idx, uint32_t sync_id);
 ```
 
 - **Function**: Waits for the completion of operation tasks in the STARS queue for synchronization.
 - **Parameter description**:
   - `buf`: address of the temporary Unified Buffer
   - `ub_size`: Unified Buffer size
+  - `qp_idx`: must match the QP used for the corresponding CMO submission
   - `sync_id`: synchronization ID
 - **Characteristics**: An SDMA flag task is delivered, and the flag is polled until the operations in the STARS queue are complete.
 
+#### CMO API Without an Explicit QP (SHMEM Extension API)
+
+```c
+template <typename T>
+void aclshmemx_cmo_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo_type,
+                       __ubuf__ T *buf, uint32_t ub_size, uint32_t sync_id);
+```
+
+- **Function**: Same as `aclshmemx_cmo_qp_nbi`, except that it always uses QP 0 and takes no `qp_idx` parameter.
+- **Parameter description**: Same as `aclshmemx_cmo_qp_nbi`, but without the `qp_idx` parameter.
+- **Completion wait**: Call `aclshmemx_sdma_quiet` (the version without a QP, which also drains QP 0 only).
+- **Use case**: CMO operations executed by a single AIV. When multiple AIVs prefetch concurrently, use the explicit-QP API and assign a distinct QP to each AIV instead of contending for the fixed QP 0.
+
+Before the performance test, this example runs a prefetch demo without a QP once (see the `cmo_pretech` kernel in `main.cpp`, invoked by `test_copy_perf`) to demonstrate the basic usage:
+
+```c++
+// In the kernel (AIV 0 only)
+aclshmemx_cmo_nbi(src, size, ACLSHMEMCMOTYPE::CMO_TYPE_PREFETCH, tmp_buff, ub_size, EVENT_ID0);
+aclshmemx_sdma_quiet(tmp_buff, ub_size, EVENT_ID0);
+```
+
 ## Environment Requirements
+
+The example does not scale a symmetric data region with the PE count; each process allocates its CMO test buffers locally. The current `run.sh` launch model supports up to 8 NPUs on one server. Each NPU supports up to 72 explicit QPs.
 
 ### Hardware Requirements
 - Ascend AI Processor (Atlas 200I A2/A3, Atlas 300T A2/A3, Ascend950, etc.)
@@ -160,28 +198,50 @@ The program generates the following CSV files in the `output/` directory:
 
 The file contains the following columns:
 - `loop_times`: number of loops (100 by default)
-- `copy_size_per_loop`: size of data copied in each loop (less than the L2 cache size to verify the effect of full-block prefetch)
-- `blocks`: number of blocks used
+- `copy_size_per_loop`: size of data copied in each loop, currently 64 MB
+- `blocks`: number of blocks used, currently 20
 - `copypad_size`: data size of a single DataCopy operation
-- `no_prefetch_time/us`: average copy time without prefetching (in microseconds)
-- `no_prefetch_band/Gbps`: average copy bandwidth without prefetching (in GB/s)
-- `host_prefetch_time/us`: average copy time after host-side full-block prefetching (in microseconds)
-- `host_prefetch_band/Gbps`: average copy bandwidth after host-side prefetching (in GB/s)
-- `device_block_prefetch_time/us`: average copy time after device block prefetching (in microseconds)
-- `device_block_prefetch_band/Gbps`: average copy bandwidth after device block prefetching (in GB/s)
+- `no_prefetch_time/us`, `host_prefetch_time/us`, `device_block_prefetch_time/us`: average copy time per AIV for each mode; the CSV stores the p50 of 100 samples
+- `no_prefetch_band/Gbps`, `host_prefetch_band/Gbps`, `device_block_prefetch_band/Gbps`: sum of bandwidth across all AIVs; the CSV stores the p50 of 100 samples
 
-#### 2. `{PE_ID}_cmo.csv` - CMO Operation Latency Test Results
+#### 2. `{PE_ID}_cmo_nbi.csv` - Single-Core CMO Latency Results
 
-The file contains the following columns:
-- `loop_times`: number of loops (100 by default)
-- `blocks`: number of blocks used
-- `cmo_size`: data size of the CMO operation
-- `cmo_send_time_p05/us`: 5th percentile of CMO send time (in microseconds)
-- `cmo_send_time_p50/us`: 50th percentile of CMO send time (in microseconds)
-- `cmo_send_time_p95/us`: 95th percentile of CMO send time (in microseconds)
-- `cmo_flag_time_p05/us`: 5th percentile of CMO synchronization wait time (in microseconds)
-- `cmo_flag_time_p50/us`: 50th percentile of CMO synchronization wait time (in microseconds)
-- `cmo_flag_time_p95/us`: 95th percentile of CMO synchronization wait time (in microseconds)
+- `loop_times`: number of measured loops, currently 100; one warmup iteration is excluded
+- `blocks`: currently fixed at 1
+- `cmo_size`: powers of two from 512 B through 4 MB, plus 96 MB
+- `cmo_submit_time_p05/p50/p95/us`: submission time from entering `aclshmemx_cmo_nbi` until the API returns
+- `cmo_execute_time_p05/p50/p95/us`: time from submission start until `aclshmemx_sdma_quiet` returns
+
+Each row contains the p05, p50, and p95 of 100 samples. Since the non-QP path is issued only by AIV 0, its latency is measured only on AIV 0. The copy validation performed by the kernel is not an output metric in this CSV.
+
+#### 3. `{PE_ID}_cmo_qp.csv` - Multi-QP CMO Latency Results
+
+- `loop_times`: number of measured loops, currently 100; one warmup iteration is excluded
+- `aiv_num`: number of concurrent AIVs/QPs: 1, 2, 4, 8, 16, 32, and 40
+- `cmo_size`: powers of two from 512 B through 4 MB, plus 96 MB
+- `cmo_qp_submit_time_avg/max/us`: each AIV first takes the p50 of its 100 submit samples; the average and maximum are then calculated across those per-AIV p50 values
+- `cmo_qp_execute_time_avg/max/us`: each AIV first takes the p50 of its 100 execute samples; the average and maximum are then calculated across those per-AIV p50 values
+- `cmo_qp_submit_time_p05/p50/p95/us` and `cmo_qp_execute_time_p05/p50/p95/us`: percentiles calculated from the participating AIVs' per-AIV p50 values
+- `cmo_qp_*_core_<N>/us`: independent p05, p50, and p95 values for AIV/QP N; `N/A` is written for AIVs not participating in that row
+
+Here, `submit` is the CMO API submission time, while `execute` is the time from submission start until the corresponding `aclshmemx_sdma_qp_quiet` returns. In the QP test, `qp_idx` equals the AIV index; applications must use the same QP for submission and quiet.
+
+### Metric Collection
+
+- All latency measurements use `AscendC::GetSystemCycle()` on the device and convert cycles to microseconds using the `cycle2us` value for the compiled target.
+- The bandwidth kernel repeatedly performs `DataCopyPad` at a 512-byte granularity for each AIV. It calculates per-AIV copy time and bandwidth before aggregating across AIVs.
+- Bandwidth time and bandwidth in the CSV are the p50 of 100 test samples, not the average of all raw samples.
+- The NBI latency CSV directly calculates percentiles from 100 single-AIV samples.
+- The QP latency CSV first calculates a p50 across 100 samples for each AIV, then calculates avg, max, p05, p50, and p95 from the per-AIV p50 values.
+
+### Single-Core vs. Multi-QP API Recommendation
+
+32 KB is an empirical usage guideline from the current tests, not a hard API limit. Final selection should be based on measurements on the target platform:
+
+- For a single prefetch range of 32 KB or less, prefer `aclshmemx_cmo_nbi`, followed by `aclshmemx_sdma_quiet`. This path uses QP 0, has simpler call management, and is suitable for a single AIV or a range that cannot be split for concurrent execution.
+- For a single prefetch range larger than 32 KB, when the data can be split into multiple independent ranges, consider having multiple AIVs call `aclshmemx_cmo_qp_nbi` concurrently. Each AIV should use a distinct `qp_idx` and call `aclshmemx_sdma_qp_quiet` with the same QP to wait for completion.
+- Before using multiple QPs, configure enough QPs on the host with `aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, qp_num)`. Do not use `aclshmemx_sdma_quiet` to wait for requests submitted to a non-zero QP, and do not let concurrent AIVs share a QP without coordination.
+- If the data cannot be split into independent ranges, or concurrency overhead offsets the benefit, continue to use the single-core API. The 32 KB boundary is for API selection guidance only and does not guarantee that the multi-QP path is faster.
 
 ### Performance Metrics
 

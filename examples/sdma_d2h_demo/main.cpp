@@ -30,9 +30,9 @@
  * 本样例演示 device kernel 侧使用 SDMA 在普通 Device 内存和 HOST_SIDE SHMEM 之间搬运数据。
  *
  * 支持的 op：
- *   put  验证 aclshmemx_sdma_put_nbi：
+ *   put  验证 aclshmemx_sdma_qp_put_nbi：
  *        本 PE device 内存 -> 本 PE/目标 PE HOST_SIDE SHMEM。
- *   get  验证 aclshmemx_sdma_get_nbi：
+ *   get  验证 aclshmemx_sdma_qp_get_nbi：
  *        本 PE/目标 PE HOST_SIDE SHMEM -> 本 PE device 内存。
  *   all  依次跑 put 和 get。
  */
@@ -64,6 +64,10 @@ aclshmemx_uniqueid_t default_flag_uid;
 
 // 批量模式下启动 20 个 block，并按实际 block 数切分每段 payload。
 constexpr uint32_t SDMA_BLOCK_NUM = 20;
+// SDMA QP 接口以 AIV 级全局索引 GetBlockIdx() 作为 qp_idx（每 block 2 个 AIV），
+// QP 数须按 block 数 × 每 block AIV 数创建，否则高索引 AIV 会触发设备侧 QP 越界断言。
+constexpr uint32_t SDMA_AIVS_PER_BLOCK = 2;
+constexpr uint32_t SDMA_QP_NUM = SDMA_BLOCK_NUM * SDMA_AIVS_PER_BLOCK;
 // SDMA 接口需要一小段 UB 临时空间。这里固定使用 UB 上 offset=1024 的 64B 空间。
 constexpr uint32_t SDMA_UB_OFFSET = 1024;
 constexpr uint32_t SDMA_UB_SIZE = 64;
@@ -224,7 +228,7 @@ template <typename T>
 __global__ __aicore__ void sdma_d2h_put_kernel(GM_ADDR host_dst_gm, GM_ADDR device_src_gm, int elem_count)
 {
     if ASCEND_IS_AIV {
-        // 当前SDMA channel按block初始化，subblock1不单独提交，避免访问未初始化channel。
+        // This example assigns one configured SDMA QP to each submitting block.
         if (AscendC::GetSubBlockIdx() != 0) {
             return;
         }
@@ -268,7 +272,7 @@ __global__ __aicore__ void sdma_d2h_put_kernel(GM_ADDR host_dst_gm, GM_ADDR devi
          * dst 是 HOST_SIDE SHMEM 中“当前 PE 对应 segment”的本地对称地址：
          *   host_dst + elem_count * my_pe + elem_offset
          *
-         * 它表面上是本 PE 的地址，但 aclshmemx_sdma_put_nbi 会根据 pe 参数把它转成：
+         * 它表面上是本 PE 的地址，但 aclshmemx_sdma_qp_put_nbi 会根据 pe 参数把它转成：
          *   目标 PE 的 host_dst + elem_count * my_pe + elem_offset
          *
          * 所以 PE i 会把自己的 device_src 写到本 PE 和其他 PE 的 host_dst 第 i 段：
@@ -278,11 +282,12 @@ __global__ __aicore__ void sdma_d2h_put_kernel(GM_ADDR host_dst_gm, GM_ADDR devi
         __gm__ T* src = device_src + range.offset;
         __gm__ T* dst = host_dst + static_cast<uint64_t>(elem_count) * my_pe + range.offset;
         for (int pe = 0; pe < n_pes; ++pe) {
-            aclshmemx_sdma_put_nbi(
-                dst, src, reinterpret_cast<__ubuf__ T*>(tmp_buff), SDMA_UB_SIZE, range.count, pe, EVENT_ID0);
+            aclshmemx_sdma_qp_put_nbi(
+                dst, src, reinterpret_cast<__ubuf__ T*>(tmp_buff), SDMA_UB_SIZE, range.count, pe,
+                AscendC::GetBlockIdx(), EVENT_ID0);
         }
-        // put_nbi 只是提交任务，不等待完成；quiet 确保当前 block 提交的 SDMA 都完成。
-        aclshmemx_sdma_quiet(tmp_buff, SDMA_UB_SIZE, EVENT_ID0);
+        // qp_put_nbi only submits work; qp_quiet waits for the same explicitly selected QP.
+        aclshmemx_sdma_qp_quiet(tmp_buff, SDMA_UB_SIZE, AscendC::GetBlockIdx(), EVENT_ID0);
     }
 }
 
@@ -290,7 +295,7 @@ template <typename T>
 __global__ __aicore__ void sdma_d2h_get_kernel(GM_ADDR device_dst_gm, GM_ADDR host_src_gm, int elem_count)
 {
     if ASCEND_IS_AIV {
-        // 当前SDMA channel按block初始化，subblock1不单独提交，避免访问未初始化channel。
+        // This example assigns one configured SDMA QP to each submitting block.
         if (AscendC::GetSubBlockIdx() != 0) {
             return;
         }
@@ -337,11 +342,12 @@ __global__ __aicore__ void sdma_d2h_get_kernel(GM_ADDR device_dst_gm, GM_ADDR ho
         for (int pe = 0; pe < n_pes; ++pe) {
             __gm__ T* dst = device_dst + static_cast<uint64_t>(elem_count) * pe + range.offset;
             __gm__ T* src = host_src + static_cast<uint64_t>(elem_count) * pe + range.offset;
-            aclshmemx_sdma_get_nbi(
-                dst, src, reinterpret_cast<__ubuf__ T*>(tmp_buff), SDMA_UB_SIZE, range.count, pe, EVENT_ID0);
+            aclshmemx_sdma_qp_get_nbi(
+                dst, src, reinterpret_cast<__ubuf__ T*>(tmp_buff), SDMA_UB_SIZE, range.count, pe,
+                AscendC::GetBlockIdx(), EVENT_ID0);
         }
-        // get_nbi 也只是提交任务；quiet 确保当前 block 发起的 get 都已经完成。
-        aclshmemx_sdma_quiet(tmp_buff, SDMA_UB_SIZE, EVENT_ID0);
+        // qp_get_nbi only submits work; qp_quiet waits for the same explicitly selected QP.
+        aclshmemx_sdma_qp_quiet(tmp_buff, SDMA_UB_SIZE, AscendC::GetBlockIdx(), EVENT_ID0);
     }
 }
 
@@ -762,6 +768,7 @@ int main(int argc, char* argv[])
 
     aclshmemx_init_attr_t attributes;
     CHECK_RET(set_attr(args.my_pe, args.n_pes, args.local_mem_size, ipport, &attributes));
+    CHECK_RET(aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, SDMA_QP_NUM));
     CHECK_RET(aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes));
 
     // 根据 -type 选择模板类型，再根据 -op 选择 put/get/all。
