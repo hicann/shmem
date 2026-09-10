@@ -115,7 +115,7 @@ ACLSHMEM_TYPE_FUNC(ACLSHMEM_PUT_TYPENAME_MEM_SIGNAL);
 /** \endcond */
 #define shmem_put_half_mem_signal aclshmem_half_put_signal
 #define shmem_put_float_mem_signal aclshmem_float_put_signal
-#define shmem_put_double_mem_signal aclshmem_doubl_put_signal
+#define shmem_put_double_mem_signal aclshmem_double_put_signal
 #define shmem_put_int8_mem_signal aclshmem_int8_put_signal
 #define shmem_put_int16_mem_signal aclshmem_int16_put_signal
 #define shmem_put_int32_mem_signal aclshmem_int32_put_signal
