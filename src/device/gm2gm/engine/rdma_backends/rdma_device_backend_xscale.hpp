@@ -312,6 +312,10 @@ constexpr uint32_t ACLSHMEMI_XSC_CQE_WQE_ID_INVALID = 0xFFFFFFFF;
 constexpr uint32_t ACLSHMEMI_XSC_OVERRUN_WQE_INDEX_WIDTH = 17; // low 17 bits hold the wqe_index
 constexpr uint32_t ACLSHMEMI_XSC_OVERRUN_WQE_INDEX_MASK = (1U << ACLSHMEMI_XSC_OVERRUN_WQE_INDEX_WIDTH) - 1; // 0x1FFFF
 constexpr uint32_t ACLSHMEMI_XSC_OVERRUN_GEN_STEP = 1U << ACLSHMEMI_XSC_OVERRUN_WQE_INDEX_WIDTH;             // 0x20000
+// The logical WQE index in a CQE is the WQE wqe_id shifted right by 3. Version 1 has a 16-bit CQE field,
+// while version 2 has a 20-bit field.
+constexpr uint32_t ACLSHMEMI_XSC_CQE_WQE_INDEX_MASK =
+    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1 ? 0x1FFFU : ACLSHMEMI_XSC_OVERRUN_WQE_INDEX_MASK;
 
 constexpr uint64_t ACLSHMEMI_HOST_BYTE_7_SHIFT = 0;
 constexpr uint64_t ACLSHMEMI_HOST_BYTE_6_SHIFT = ACLSHMEMI_BYTE_WIDTH * 1;
@@ -435,8 +439,9 @@ ACLSHMEM_DEVICE void aclshmemi_roce_ring_cq_doorbell<aclshmemi_rdma_backend_t::X
 ACLSHMEM_DEVICE void aclshmemi_roce_xscale_cq_overrun_validation(uint32_t depth)
 {
     if (depth >= ACLSHMEMI_XSC_OVERRUN_GEN_STEP) {
-        aclshmemi_kernel_abort(
-            "XSCALE backend overrun ability only supports depth < 0x20000, current depth: %u\n", depth);
+        ACLSHMEM_DEBUG_FUNC(
+            aclshmemi_kernel_abort, "XSCALE backend overrun ability only supports depth < 0x20000, current depth: %u\n",
+            depth);
     }
 }
 // This path does not validate whether target_idx is reachable; if an unsatisfiable target_idx is passed in the loop
@@ -527,8 +532,8 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_poll_cq_overrun(
     return status;
 }
 
-// This function expects cur_tail to reach target_idx within the internally set timeout period. If this requirement is
-// not met when exiting, the function is considered to have an error.
+// This function consumes CQEs until the CQE wqe_id reaches the last WQE before target_idx. If this requirement is not
+// met within the internally set timeout period, the function is considered to have an error.
 template <>
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE>(
     uint32_t pe, uint32_t qp_idx, uint32_t target_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
@@ -546,15 +551,30 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
     auto cq_base_addr = cq_context->buf_addr;
     auto cqe_size = cq_context->cqe_size;
     auto depth = cq_context->depth;
+    if (target_idx == 0) {
+        return 0;
+    }
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context =
+        (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
+                                        ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    dcci_cachelines((__gm__ uint8_t*)sq_context->tail_addr, 8);
+    uint32_t current_sq_tail = *(__gm__ uint32_t*)(sq_context->tail_addr);
     auto cur_hardware_tail_addr = cq_context->tail_addr;
     dcci_cachelines((__gm__ uint8_t*)cur_hardware_tail_addr, 8);
     uint32_t cur_tail = *(__gm__ uint32_t*)(cur_hardware_tail_addr);
+
+    if (target_idx == current_sq_tail) {
+        return 0;
+    }
+
     uint32_t original_cur_tail = cur_tail;
     uint64_t run_cycles = 0;
     uint32_t status = 0;
     uint32_t wqn = 0;
+    uint32_t target_wqe_id = (target_idx - 1U) & ACLSHMEMI_XSC_CQE_WQE_INDEX_MASK;
+    bool target_reached = false;
 
-    while (cur_tail != target_idx) {
+    while (!target_reached) {
         run_cycles = 0;
         __gm__ aclshmemi_xscdv_cqe64_t* cqe_addr =
             (__gm__ aclshmemi_xscdv_cqe64_t*)(cq_base_addr + cqe_size * (cur_tail % depth));
@@ -574,6 +594,8 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
         }
         cur_tail++;
         wqn = cqe_addr->cqe.qp_id & 0x7FFF; // reserved for multi WQ share the same CQ
+        uint32_t cqe_wqe_id =
+            (cqe_addr->cqe.wqe_id >> ACLSHMEMI_XSC_CQE_WQE_ID_SHIFT) & ACLSHMEMI_XSC_CQE_WQE_INDEX_MASK;
         // Check CQE status
         status = cqe_addr->cqe.error_code;
         if (status) {
@@ -584,6 +606,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
                 cur_tail, wqn, qp_idx, (uint32_t)aclshmemi_rdma_backend_t::XSCALE);
             break;
         }
+        target_reached = cqe_wqe_id == target_wqe_id;
+    }
+
+    if (status == 0 && target_reached) {
+        ub_local32.SetValue(0, target_idx);
+        aclshmemi_roce_write_ub_to_gm_with_sync(sq_context->tail_addr, ub_local32, sizeof(uint32_t), sync_id);
     }
 
     aclshmemi_roce_ring_cq_doorbell<aclshmemi_rdma_backend_t::XSCALE>(
@@ -833,11 +861,12 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
  * @param wqe_head           [in] WQE head index (cur_head + staged offset).
  * @param opcode             [in] RDMA message opcode (WRITE / READ).
  * @param msg_len            [in] Message length in bytes.
+ * @param isSubmit           [in] Whether this WQE should generate a CQE.
  * @return Advanced UB pointer past the control segment.
  */
 ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_xscale_fill_wqe_ctrl_seg_ub(
     __ubuf__ uint8_t* wqe_addr, uint32_t ds_data_num, uint32_t wqe_head, aclshmemi_xscdv_msg_type_t opcode,
-    uint32_t msg_len)
+    uint32_t msg_len, bool isSubmit)
 {
     __ubuf__ aclshmemi_xscdv_wqe_ctrl_seg_t* ctrl_seg = (__ubuf__ aclshmemi_xscdv_wqe_ctrl_seg_t*)wqe_addr;
     uint32_t wqe_id = wqe_head << (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT);
@@ -848,7 +877,7 @@ ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_xscale_fill_wqe_ctrl_seg_ub(
     }
     ctrl_seg->with_imm = 0;
     ctrl_seg->ds_data_num = ds_data_num;
-    ctrl_seg->ce = 1;
+    ctrl_seg->ce = isSubmit ? 1 : 0; // 1: generate a CQE, 0: do not generate a CQE
     ctrl_seg->msg_opcode = (uint8_t)opcode;
     ctrl_seg->msg_len = msg_len;
     ctrl_seg->in_line = 0;
@@ -897,28 +926,24 @@ ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_xscale_fill_wqe_data_seg_ub(
  * @param remote_addr        [in] Remote GM address.
  * @param lkey               [in] Local memory key.
  * @param local_addr         [in] Local GM address.
+ * @param isSubmit           [in] Whether this WQE should generate a CQE.
  * @return WQE size in bytes (128 for XSCALE).
  */
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_fill_wqe_ub_write_read(
     __ubuf__ uint8_t* wqe_addr, uint32_t wqe_head, uint32_t message_len, aclshmemi_xscdv_msg_type_t opcode,
-    uint32_t rkey, __gm__ uint8_t* remote_addr, uint32_t lkey, __gm__ uint8_t* local_addr)
+    uint32_t rkey, __gm__ uint8_t* remote_addr, uint32_t lkey, __gm__ uint8_t* local_addr, bool isSubmit)
 {
     constexpr uint32_t ACLSHMEMI_XSCDV_WRITE_READ_DS_DATA_NUM = 2;
 
     __ubuf__ uint8_t* cur_wqe_addr = wqe_addr;
 
     cur_wqe_addr = aclshmemi_roce_xscale_fill_wqe_ctrl_seg_ub(
-        cur_wqe_addr, ACLSHMEMI_XSCDV_WRITE_READ_DS_DATA_NUM, wqe_head, opcode, message_len);
+        cur_wqe_addr, ACLSHMEMI_XSCDV_WRITE_READ_DS_DATA_NUM, wqe_head, opcode, message_len, isSubmit);
     cur_wqe_addr =
         aclshmemi_roce_xscale_fill_wqe_data_seg_ub(cur_wqe_addr, rkey, remote_addr, lkey, local_addr, message_len);
 
     return ACLSHMEMI_XSCALE_SND_WQE_SIZE;
 }
-
-template <aclshmemi_rdma_opcode_t OP_CODE>
-ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe_ub(
-    __ubuf__ uint8_t* wqe_addr, uint32_t wqe_head, uint32_t message_len, uint32_t rkey, __gm__ uint8_t* remote_addr,
-    uint32_t lkey, __gm__ uint8_t* local_addr);
 
 struct aclshmemi_roce_xscale_aggregate_cache_t {
     uint64_t sq_base_addr;
@@ -991,23 +1016,27 @@ ACLSHMEM_DEVICE void aclshmemi_roce_xscale_ring_sq_doorbell_from_cache(
 }
 
 template <>
-ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
+ACLSHMEM_DEVICE uint32_t
+aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_backend_t::XSCALE, aclshmemi_rdma_opcode_t::OP_RDMA_WRITE>(
     __ubuf__ uint8_t* wqe_addr, uint32_t wqe_head, uint32_t message_len, uint32_t rkey, __gm__ uint8_t* remote_addr,
-    uint32_t lkey, __gm__ uint8_t* local_addr)
+    uint32_t lkey, __gm__ uint8_t* local_addr, uint32_t depth, bool isSubmit)
 {
+    (void)depth;
     return aclshmemi_roce_xscale_fill_wqe_ub_write_read(
         wqe_addr, wqe_head, message_len, aclshmemi_xscdv_msg_type_t::ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_WRITE, rkey,
-        remote_addr, lkey, local_addr);
+        remote_addr, lkey, local_addr, isSubmit);
 }
 
 template <>
-ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
+ACLSHMEM_DEVICE uint32_t
+aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_backend_t::XSCALE, aclshmemi_rdma_opcode_t::OP_RDMA_READ>(
     __ubuf__ uint8_t* wqe_addr, uint32_t wqe_head, uint32_t message_len, uint32_t rkey, __gm__ uint8_t* remote_addr,
-    uint32_t lkey, __gm__ uint8_t* local_addr)
+    uint32_t lkey, __gm__ uint8_t* local_addr, uint32_t depth, bool isSubmit)
 {
+    (void)depth;
     return aclshmemi_roce_xscale_fill_wqe_ub_write_read(
         wqe_addr, wqe_head, message_len, aclshmemi_xscdv_msg_type_t::ACLSHMEMI_XSCALE_MSG_OPCODE_RDMA_READ, rkey,
-        remote_addr, lkey, local_addr);
+        remote_addr, lkey, local_addr, isSubmit);
 }
 
 template <aclshmemi_rdma_opcode_t OP_CODE>
@@ -1026,8 +1055,9 @@ ACLSHMEM_DEVICE void aclshmemi_roce_stage_rma_wqe_ub_xscale(
     __ubuf__ uint8_t* wqe_addr = buf + (uint64_t)cnt * ACLSHMEMI_XSCALE_SND_WQE_SIZE;
     uint32_t wqe_head = cache->base_head + cnt;
 
-    aclshmemi_roce_fill_wqe_ub<OP_CODE>(
-        wqe_addr, wqe_head, (uint32_t)message_len, cache->remote_rkey, remote_addr, cache->local_lkey, local_addr);
+    aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_backend_t::XSCALE, OP_CODE>(
+        wqe_addr, wqe_head, (uint32_t)message_len, cache->remote_rkey, remote_addr, cache->local_lkey, local_addr,
+        cache->sq_depth, false);
 
     // Track staged WQE count for commit
     action.state.pending_count++;
@@ -1053,7 +1083,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_commit_rma_wqes_xscale(
     uint32_t total_wqe_cnt = pending_count + 1; // +1 for the commit call's own WQE
 
     if (total_wqe_cnt >= depth) {
-        aclshmemi_kernel_abort(
+        ACLSHMEM_DEBUG_FUNC(
+            aclshmemi_kernel_abort,
             "XSCALE aggregate commit batch too large: pe=%u, qp_idx=%u, pending_count=%u, total_wqe_cnt=%u, "
             "depth=%u\n",
             pe, qp_idx, pending_count, total_wqe_cnt, depth);
@@ -1068,7 +1099,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_commit_rma_wqes_xscale(
         uint32_t ret = aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE>(
             pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
         if (ret) {
-            aclshmemi_kernel_abort(
+            ACLSHMEM_DEBUG_FUNC(
+                aclshmemi_kernel_abort,
                 "XSCALE aggregate commit poll CQ failed: pe=%u, qp_idx=%u, pending_count=%u, total_wqe_cnt=%u, "
                 "cur_head=%u, cur_tail=%u, depth=%u, ret=%u\n",
                 pe, qp_idx, pending_count, total_wqe_cnt, cur_head, cur_tail, depth, ret);
@@ -1082,9 +1114,9 @@ ACLSHMEM_DEVICE void aclshmemi_roce_commit_rma_wqes_xscale(
     // Step 3: Assemble the commit call's own WQE at position pending_count (0-indexed).
     //         Earlier WQEs already assembled in stage.
     __ubuf__ uint8_t* commit_wqe_addr = buf + (uint64_t)pending_count * ACLSHMEMI_XSCALE_SND_WQE_SIZE;
-    aclshmemi_roce_fill_wqe_ub<OP_CODE>(
+    aclshmemi_roce_fill_wqe_ub<aclshmemi_rdma_backend_t::XSCALE, OP_CODE>(
         commit_wqe_addr, cur_head + pending_count, (uint32_t)message_len, cache->remote_rkey, remote_addr,
-        cache->local_lkey, local_addr);
+        cache->local_lkey, local_addr, depth, true);
 
     // Step 4: Bulk copy all WQEs from UB buffer to GM SQ buffer, handling ring wrap
     uint32_t ring_offset = cur_head % depth;

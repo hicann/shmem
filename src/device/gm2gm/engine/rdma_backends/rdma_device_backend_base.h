@@ -55,6 +55,11 @@ template <aclshmemi_rdma_backend_t B, aclshmemi_rdma_opcode_t OP_CODE>
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe(
     aclshmemi_rdma_send_wr& wr, __gm__ aclshmemi_rdma_sq_ctx*& sq_context, __gm__ uint8_t* wqe_addr, uint32_t cur_head);
 
+template <aclshmemi_rdma_backend_t B, aclshmemi_rdma_opcode_t OP_CODE>
+ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe_ub(
+    __ubuf__ uint8_t* wqe_addr, uint32_t wqe_head, uint32_t message_len, uint32_t rkey, __gm__ uint8_t* remote_addr,
+    uint32_t lkey, __gm__ uint8_t* local_addr, uint32_t depth, bool isSubmit = true);
+
 /**
  * @brief Ring SQ DB for RDMA operation
  *
@@ -111,7 +116,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_ring_cq_doorbell(
  * @tparam B                     RDMA Backend type
  * @param pe                     [in] PE number of the remote PE.
  * @param qp_idx                 [in] QP index in multi-QP scenario (default 0 for single QP)
- * @param target_idx             [in] expect completion queue consumer index after polling
+ * @param target_idx             [in] target progress index after polling; XSCALE use the target SQ
+ *                                    producer index because compressed CQEs make CQ and SQ indices different domains
  * @param ub_local64             [in] temporary UB local tensor of uint64_t used as workspace
  * @param ub_local32             [in] temporary UB local tensor of uint32_t used as workspace
  * @param sync_id                [in] ID used to Sync S\MTE3 Event.
