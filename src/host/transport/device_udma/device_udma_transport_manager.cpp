@@ -40,6 +40,50 @@ constexpr uint32_t ACLSHMEM_HCOMM_CHANNEL_NUM_PER_PEER = 1;
 constexpr uint32_t ACLSHMEM_HCOMM_DEFAULT_QOS = 4;
 constexpr uint32_t CHANNEL_STATUS_POLL_INTERVAL_MS = 10;
 constexpr uint32_t CHANNEL_STATUS_POLL_TIMEOUT_MS = 120000;
+using EndpointKey = std::pair<uint32_t, uint32_t>;
+
+EndpointKey MakeEndpointKey(uint32_t eid_index, uint32_t peer_rank) { return {eid_index, peer_rank}; }
+
+bool PortInMeshTopo(const TopoInfo& topoInfo, const EidPort& port)
+{
+    for (const auto& edge : topoInfo.meshTopoEdges) {
+        if (std::find(edge.localAPorts.begin(), edge.localAPorts.end(), port) != edge.localAPorts.end() ||
+            std::find(edge.localBPorts.begin(), edge.localBPorts.end(), port) != edge.localBPorts.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PortInClosTopo(const TopoInfo& topoInfo, const EidPort& port)
+{
+    for (const auto& edge : topoInfo.closTopoEdges) {
+        if (std::find(edge.ports.begin(), edge.ports.end(), port) != edge.ports.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+TopoFabric ClassifyEndpointFabric(const TopoInfo& topoInfo, const std::vector<EidPort>& ports)
+{
+    bool meshMatched = false;
+    bool closMatched = false;
+    for (const auto& port : ports) {
+        meshMatched = meshMatched || PortInMeshTopo(topoInfo, port);
+        closMatched = closMatched || PortInClosTopo(topoInfo, port);
+        if (meshMatched && closMatched) {
+            return TopoFabric::Unknown;
+        }
+    }
+    if (closMatched) {
+        return TopoFabric::Clos;
+    }
+    if (meshMatched) {
+        return TopoFabric::Mesh;
+    }
+    return TopoFabric::Unknown;
+}
 
 Result WaitHcommChannelReady(const std::vector<ChannelHandle>& channels)
 {
@@ -282,7 +326,7 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
     }
     CommMemType mem_type = is_hbm ? CommMemType::DEVICE : CommMemType::HOST;
 
-    std::map<uint32_t, HcommMemHandle> hcomm_handles;
+    std::map<EndpointKey, HcommMemHandle> hcomm_handles;
     auto rollback_registered_handles = [this, &hcomm_handles]() {
         for (const auto& registered : hcomm_handles) {
             auto registered_endpoint_it = endpoint_handle_map_.find(registered.first);
@@ -293,16 +337,17 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
             auto hcomm_ret = DlHcommApi::HcommMemUnreg(registered_endpoint_it->second, registered.second);
             if (hcomm_ret != 0) {
                 SHM_LOG_WARN(
-                    "Rollback Hcomm memory registration failed for EID index " << registered.first
-                                                                               << ", ret = " << hcomm_ret);
+                    "Rollback Hcomm memory registration failed for EID index "
+                    << registered.first.first << ", peerRank " << registered.first.second << ", ret = " << hcomm_ret);
             }
         }
     };
     for (const auto& endpoint_entry : endpoint_handle_map_) {
-        const uint32_t eid_index = endpoint_entry.first;
+        const uint32_t eid_index = endpoint_entry.first.first;
+        const uint32_t peer_rank = endpoint_entry.first.second;
         EndpointHandle endpoint_handle = endpoint_entry.second;
         if (endpoint_handle == nullptr) {
-            SHM_LOG_ERROR("Invalid hcomm endpoint for EID index " << eid_index);
+            SHM_LOG_ERROR("Invalid hcomm endpoint for EID index " << eid_index << ", peerRank " << peer_rank);
             rollback_registered_handles();
             return ACLSHMEM_INNER_ERROR;
         }
@@ -315,11 +360,13 @@ Result UdmaTransportManager::RegisterMemoryRegion(const TransportMemoryRegion& m
         HcommMemHandle hcomm_mem_handle = nullptr;
         auto hcomm_ret = DlHcommApi::HcommMemReg(endpoint_handle, ACLSHMEM_HCOMM_MEM_TAG, &mem, &hcomm_mem_handle);
         if (hcomm_ret != 0 || hcomm_mem_handle == nullptr) {
-            SHM_LOG_ERROR("Failed to register hcomm memory for EID index " << eid_index << ", ret = " << hcomm_ret);
+            SHM_LOG_ERROR(
+                "Failed to register hcomm memory for EID index " << eid_index << ", peerRank " << peer_rank
+                                                                 << ", ret = " << hcomm_ret);
             rollback_registered_handles();
             return ACLSHMEM_INNER_ERROR;
         }
-        hcomm_handles[eid_index] = hcomm_mem_handle;
+        hcomm_handles[endpoint_entry.first] = hcomm_mem_handle;
     }
 
     mem_record_map_[mr.addr] = hcomm_handles;
@@ -352,7 +399,9 @@ Result UdmaTransportManager::UnregisterMemoryRegion(uint64_t addr)
         auto hcomm_ret = DlHcommApi::HcommMemUnreg(endpoint_it->second, hcomm_mem_entry.second);
         if (hcomm_ret != 0) {
             SHM_LOG_WARN(
-                "Failed to unregister hcomm memory for EID index " << hcomm_mem_entry.first << ", ret = " << hcomm_ret);
+                "Failed to unregister hcomm memory for EID index " << hcomm_mem_entry.first.first << ", peerRank "
+                                                                   << hcomm_mem_entry.first.second
+                                                                   << ", ret = " << hcomm_ret);
             result = ACLSHMEM_INNER_ERROR;
         }
     }
@@ -672,11 +721,12 @@ void UdmaTransportManager::FillCqCtx(const CqContext& cq_context, aclshmemi_udma
 void UdmaTransportManager::FillMemInfo(
     const SqContext& sq_context, const RegedBufferEntity& remote_buffer, aclshmemi_ubmem_info_t& dst_mem) const
 {
+    const auto& ubJfs = sq_context.contextInfo.ubJfs;
     const auto& ub = remote_buffer.bufferInfo.rma.protectionInfo.memInfo.ub;
     dst_mem.token_value_valid = true; // token-based access control enabled (data plane sets tokenEn = 1)
     dst_mem.rmt_jetty_type = 1;       // remote jetty type: 1 = jetty (peer-to-peer)
     dst_mem.target_hint = 0;          // no target selection preference
-    dst_mem.tpn = sq_context.contextInfo.ubJfs.tpID;
+    dst_mem.tpn = ubJfs.tpID;
     dst_mem.tid = ub.tokenId;
     dst_mem.rmt_token_value = ub.tokenValue;
     dst_mem.len = static_cast<uint32_t>(remote_buffer.bufferInfo.rma.size);
@@ -740,12 +790,12 @@ void UdmaTransportManager::PrintHostUdmaInfo(const aclshmemi_aiv_udma_info_t& ho
     }
 }
 
-std::vector<HcommMemHandle> UdmaTransportManager::CollectChannelMemHandles(uint32_t eid_index) const
+std::vector<HcommMemHandle> UdmaTransportManager::CollectChannelMemHandles(uint32_t eid_index, uint32_t peer_rank) const
 {
     std::vector<HcommMemHandle> mem_handles;
     for (const auto& addrEntry : mem_record_map_) {
         const auto& hcomm_handles = addrEntry.second;
-        auto handleIt = hcomm_handles.find(eid_index);
+        auto handleIt = hcomm_handles.find(MakeEndpointKey(eid_index, peer_rank));
         if (handleIt != hcomm_handles.end() && handleIt->second != nullptr) {
             mem_handles.push_back(handleIt->second);
         }
@@ -813,17 +863,93 @@ Result UdmaTransportManager::ResolveRelaySlotRoute(
     return ACLSHMEM_SUCCESS;
 }
 
+bool UdmaTransportManager::GetEndpointExchangeSize(uint32_t rank_count, uint32_t max_count, size_t& descriptor_count)
+{
+    descriptor_count = 0;
+    // Bootstrap accepts an int byte count per rank; the receive allocation uses size_t.
+    if (rank_count == 0 || max_count == 0 ||
+        max_count > static_cast<size_t>(std::numeric_limits<int>::max()) / sizeof(ExchangedEndpointDesc) ||
+        max_count > std::numeric_limits<size_t>::max() / sizeof(ExchangedEndpointDesc) / rank_count) {
+        return false;
+    }
+    descriptor_count = static_cast<size_t>(rank_count) * max_count;
+    return true;
+}
+
+uint32_t UdmaTransportManager::GetEndpointChunkCount(uint32_t rank_count)
+{
+    // Bound each collective's total receive bytes, including all ranks. 32 MiB
+    // leaves room for config_store's rank prefixes within its 64 MiB value limit.
+    constexpr size_t chunk_bytes = 32U * 1024U * 1024U;
+    return rank_count == 0 ? 0 : static_cast<uint32_t>(chunk_bytes / sizeof(ExchangedEndpointDesc) / rank_count);
+}
+
+Result UdmaTransportManager::GatherEndpointChunks(
+    const std::vector<ExchangedEndpointDesc>& local_endpoints, uint32_t rank_count, uint32_t chunk_count,
+    EndpointExchange& exchange)
+{
+    if (chunk_count == 0 || chunk_count > GetEndpointChunkCount(rank_count)) {
+        return ACLSHMEM_NOT_SUPPORTED;
+    }
+    size_t descriptor_count = 0;
+    if (!GetEndpointExchangeSize(rank_count, exchange.max_count, descriptor_count) ||
+        local_endpoints.size() != exchange.max_count) {
+        return ACLSHMEM_INVALID_PARAM;
+    }
+    exchange.descs.assign(descriptor_count, ExchangedEndpointDesc{});
+    if (exchange.max_count <= chunk_count) {
+        return g_boot_handle.allgather(
+            local_endpoints.data(), exchange.descs.data(),
+            static_cast<int>(sizeof(ExchangedEndpointDesc) * exchange.max_count), &g_boot_handle);
+    }
+
+    std::vector<ExchangedEndpointDesc> chunk_descs(static_cast<size_t>(chunk_count) * rank_count);
+    for (uint32_t offset = 0; offset < exchange.max_count;) {
+        const uint32_t current_count = std::min(chunk_count, exchange.max_count - offset);
+        const auto ret = g_boot_handle.allgather(
+            local_endpoints.data() + offset, chunk_descs.data(),
+            static_cast<int>(sizeof(ExchangedEndpointDesc) * current_count), &g_boot_handle);
+        if (ret != ACLSHMEM_SUCCESS) {
+            SHM_LOG_ERROR(
+                "Failed to exchange Hcomm endpoint descriptor chunk, offset = " << offset << ", ret = " << ret);
+            return ret;
+        }
+        // Each collective packs ranks with current_count stride; restore max_count
+        // stride in the final descriptor table, including the shorter last chunk.
+        for (uint32_t rank = 0; rank < rank_count; ++rank) {
+            std::copy_n(
+                chunk_descs.data() + static_cast<size_t>(rank) * current_count, current_count,
+                exchange.descs.data() + static_cast<size_t>(rank) * exchange.max_count + offset);
+        }
+        offset += current_count;
+    }
+    return ACLSHMEM_SUCCESS;
+}
+
 Result UdmaTransportManager::ExchangeEndpointDescriptors(EndpointExchange& exchange) const
 {
-    const uint32_t local_endpoint_count = static_cast<uint32_t>(endpoint_desc_map_.size());
+    // Saturate instead of truncating so every rank rejects an unrepresentable count below.
+    const uint32_t local_endpoint_count = static_cast<uint32_t>(
+        std::min(endpoint_desc_map_.size(), static_cast<size_t>(std::numeric_limits<uint32_t>::max())));
     exchange.counts.assign(rank_count_, 0);
-    g_boot_handle.allgather(&local_endpoint_count, exchange.counts.data(), sizeof(uint32_t), &g_boot_handle);
+    auto ret = g_boot_handle.allgather(&local_endpoint_count, exchange.counts.data(), sizeof(uint32_t), &g_boot_handle);
+    if (ret != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("Failed to exchange Hcomm endpoint counts, ret = " << ret);
+        return ret;
+    }
 
     const auto max_it = std::max_element(exchange.counts.begin(), exchange.counts.end());
     exchange.max_count = (max_it == exchange.counts.end()) ? 0 : *max_it;
     if (exchange.max_count == 0) {
         SHM_LOG_ERROR("No local hcomm endpoint descriptor was exchanged.");
         return ACLSHMEM_INNER_ERROR;
+    }
+    size_t descriptor_count = 0;
+    if (!GetEndpointExchangeSize(rank_count_, exchange.max_count, descriptor_count)) {
+        SHM_LOG_ERROR(
+            "Hcomm endpoint exchange size is not representable, rankCount = " << rank_count_ << ", maxEndpointCount = "
+                                                                              << exchange.max_count);
+        return ACLSHMEM_NOT_SUPPORTED;
     }
 
     // Pack this rank's descriptors into the first slots; the rest stay zero (valid == 0).
@@ -832,21 +958,25 @@ Result UdmaTransportManager::ExchangeEndpointDescriptors(EndpointExchange& excha
     for (const auto& endpoint_entry : endpoint_desc_map_) {
         auto port_it = endpoint_listen_port_map_.find(endpoint_entry.first);
         if (port_it == endpoint_listen_port_map_.end() || port_it->second == 0) {
-            SHM_LOG_ERROR("No valid listen port for local Hcomm endpoint on EID index " << endpoint_entry.first);
+            SHM_LOG_ERROR(
+                "No valid listen port for local Hcomm endpoint on EID index "
+                << endpoint_entry.first.first << ", peerRank " << endpoint_entry.first.second);
             return ACLSHMEM_INNER_ERROR;
         }
         ExchangedEndpointDesc& packed = local_endpoints[packed_index];
-        packed.eid_index = endpoint_entry.first;
+        packed.eid_index = endpoint_entry.first.first;
+        packed.peer_rank = endpoint_entry.first.second;
         packed.valid = 1;
         packed.listen_port = port_it->second;
         packed.desc = endpoint_entry.second;
         ++packed_index;
     }
 
-    exchange.descs.assign(static_cast<size_t>(rank_count_) * exchange.max_count, ExchangedEndpointDesc{});
-    g_boot_handle.allgather(
-        local_endpoints.data(), exchange.descs.data(),
-        static_cast<uint64_t>(sizeof(ExchangedEndpointDesc) * exchange.max_count), &g_boot_handle);
+    ret = GatherEndpointChunks(local_endpoints, rank_count_, GetEndpointChunkCount(rank_count_), exchange);
+    if (ret != ACLSHMEM_SUCCESS) {
+        SHM_LOG_ERROR("Failed to exchange Hcomm endpoint descriptors, ret = " << ret);
+        return ret;
+    }
     return ACLSHMEM_SUCCESS;
 }
 
@@ -855,8 +985,8 @@ const UdmaTransportManager::ExchangedEndpointDesc* UdmaTransportManager::FindRem
 {
     const uint32_t count = exchange.counts[dst_pe];
     for (uint32_t idx = 0; idx < count; ++idx) {
-        const ExchangedEndpointDesc& candidate = exchange.descs[dst_pe * exchange.max_count + idx];
-        if (candidate.valid != 0 && candidate.eid_index == remote_eid_index) {
+        const ExchangedEndpointDesc& candidate = exchange.descs[static_cast<size_t>(dst_pe) * exchange.max_count + idx];
+        if (candidate.valid != 0 && candidate.peer_rank == rank_id_ && candidate.eid_index == remote_eid_index) {
             return &candidate;
         }
     }
@@ -867,7 +997,8 @@ Result UdmaTransportManager::CreateChannelForSlot(
     const EndpointExchange& exchange, uint32_t local_eid_index, uint32_t remote_eid_index, uint32_t dst_pe,
     uint32_t slot, ChannelBuildState& state)
 {
-    auto endpoint_it = endpoint_handle_map_.find(local_eid_index);
+    const EndpointKey endpoint_key = MakeEndpointKey(local_eid_index, dst_pe);
+    auto endpoint_it = endpoint_handle_map_.find(endpoint_key);
     if (endpoint_it == endpoint_handle_map_.end() || endpoint_it->second == nullptr) {
         SHM_LOG_ERROR(
             "Failed to find hcomm endpoint for dst_pe " << dst_pe << ", local_eid_index = " << local_eid_index);
@@ -882,7 +1013,7 @@ Result UdmaTransportManager::CreateChannelForSlot(
         return ACLSHMEM_INNER_ERROR;
     }
 
-    std::vector<HcommMemHandle> mem_handles = CollectChannelMemHandles(local_eid_index);
+    std::vector<HcommMemHandle> mem_handles = CollectChannelMemHandles(local_eid_index, dst_pe);
     if (mem_handles.empty()) {
         SHM_LOG_ERROR(
             "No active Hcomm mem handle for local EID index " << local_eid_index << " when creating channel for dst_pe "
@@ -904,7 +1035,7 @@ Result UdmaTransportManager::CreateChannelForSlot(
     const bool is_server = rank_id_ < dst_pe;
     channel_desc.role = is_server ? HCOMM_SOCKET_ROLE_SERVER : HCOMM_SOCKET_ROLE_CLIENT;
     if (is_server) {
-        auto local_port_it = endpoint_listen_port_map_.find(local_eid_index);
+        auto local_port_it = endpoint_listen_port_map_.find(endpoint_key);
         if (local_port_it == endpoint_listen_port_map_.end() || local_port_it->second == 0) {
             SHM_LOG_ERROR("No valid local Hcomm listen port for EID index " << local_eid_index);
             return ACLSHMEM_INNER_ERROR;
@@ -1068,7 +1199,8 @@ Result UdmaTransportManager::AsyncConnect()
 }
 
 bool UdmaTransportManager::BuildSyncEndpoints(
-    const RootInfo& root_info, uint32_t rank_count, std::vector<std::vector<SyncEndpoint>>& out)
+    const RootInfo& root_info, const TopoInfo& topo_info, uint32_t rank_count,
+    std::vector<std::vector<SyncEndpoint>>& out)
 {
     std::vector<SyncEndpoint> local_endpoints;
     for (const auto& item : root_info.eidIndexToRankAddr) {
@@ -1079,6 +1211,8 @@ bool UdmaTransportManager::BuildSyncEndpoints(
         SyncEndpoint endpoint;
         endpoint.netLayer = rank_addr->levelInfo->netLayer;
         endpoint.netInstanceId = rank_addr->levelInfo->netInstanceId;
+        endpoint.netType = rank_addr->levelInfo->netType;
+        endpoint.fabric = ClassifyEndpointFabric(topo_info, rank_addr->ports);
         endpoint.planeId = rank_addr->planeId;
         endpoint.ports = rank_addr->ports;
         endpoint.eidIndex = item.first;
@@ -1173,7 +1307,7 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
     g_boot_handle.allgather(&local_id, local_id_list.data(), sizeof(uint32_t), &g_boot_handle);
 
     std::vector<std::vector<SyncEndpoint>> rank_idx_to_sync_endpoint;
-    if (!BuildSyncEndpoints(root_info, rank_count, rank_idx_to_sync_endpoint)) {
+    if (!BuildSyncEndpoints(root_info, topo_info, rank_count, rank_idx_to_sync_endpoint)) {
         SHM_LOG_ERROR("Failed to gather sync endpoints across ranks.");
         return false;
     }
@@ -1211,9 +1345,26 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
         peer_remote_eid_index_map_[peer] = remote_eid_index;
         local_route_by_peer[peer] = static_cast<int32_t>(eid_index);
 
-        if (!CreateEndpoint(eid_index, eid_raw)) {
+        if (!CreateEndpoint(eid_index, peer, eid_raw)) {
             SHM_LOG_ERROR("CreateEndpoint failed for peer " << peer << " with EID index " << eid_index);
             return false;
+        }
+        if constexpr (ACLSHMEM_UDMA_RELAY_ENABLED) {
+            // Relay channels use the EID selected for relay peer, keyed by actual destination.
+            // With E distinct EIDs and N ranks, each rank needs E*(N-1) endpoints/MRs.
+            // Exchange memory grows as E*N*(N-1) descriptors; resource availability and
+            // the selected bootstrap backend determine the supported scale.
+            for (uint32_t actual_peer = 0; actual_peer < rank_count; ++actual_peer) {
+                if (actual_peer == rank_id_ || actual_peer == peer) {
+                    continue;
+                }
+                if (!CreateEndpoint(eid_index, actual_peer, eid_raw)) {
+                    SHM_LOG_ERROR(
+                        "Create relay endpoint failed for relay peer " << peer << ", actual peer " << actual_peer
+                                                                       << ", EID index " << eid_index);
+                    return false;
+                }
+            }
         }
     }
 
@@ -1231,17 +1382,28 @@ bool UdmaTransportManager::PrepareOpenDevice(uint32_t device_id, uint32_t rank_c
 }
 
 bool UdmaTransportManager::CreateEndpoint(
-    uint32_t eid_index, const std::array<uint8_t, URMA_EID_RAW_SIZE>& target_eid_raw)
+    uint32_t eid_index, uint32_t peer_rank, const std::array<uint8_t, URMA_EID_RAW_SIZE>& target_eid_raw)
 {
-    auto endpoint_it = endpoint_handle_map_.find(eid_index);
+    const EndpointKey endpoint_key = MakeEndpointKey(eid_index, peer_rank);
+    auto endpoint_it = endpoint_handle_map_.find(endpoint_key);
     if (endpoint_it != endpoint_handle_map_.end() && endpoint_it->second != nullptr) {
+        auto desc_it = endpoint_desc_map_.find(endpoint_key);
+        if (desc_it != endpoint_desc_map_.end() &&
+            memcmp(desc_it->second.commAddr.eid, target_eid_raw.data(), target_eid_raw.size()) != 0) {
+            SHM_LOG_ERROR(
+                "Endpoint key reused with different target EID, eidIndex = " << eid_index
+                                                                             << ", peerRank = " << peer_rank);
+            return false;
+        }
         return true;
     }
 
     EndpointDesc endpoint_desc{};
     auto desc_init_ret = EndpointDescInit(&endpoint_desc, 1);
     if (desc_init_ret != 0) {
-        SHM_LOG_ERROR("EndpointDescInit failed for EID index " << eid_index << ", ret = " << desc_init_ret);
+        SHM_LOG_ERROR(
+            "EndpointDescInit failed for EID index " << eid_index << ", peerRank = " << peer_rank
+                                                     << ", ret = " << desc_init_ret);
         return false;
     }
 
@@ -1250,7 +1412,9 @@ bool UdmaTransportManager::CreateEndpoint(
     uint32_t super_pod_id = 0;
     auto device_info_ret = shm::MemSegment::GetDeviceInfo(sd_id, server_id, super_pod_id);
     if (device_info_ret != ACLSHMEM_SUCCESS) {
-        SHM_LOG_ERROR("Get local device info for HCOMM endpoint failed, ret = " << device_info_ret);
+        SHM_LOG_ERROR(
+            "Get local device info for HCOMM endpoint failed, eidIndex = " << eid_index << ", peerRank = " << peer_rank
+                                                                           << ", ret = " << device_info_ret);
         return false;
     }
 
@@ -1259,7 +1423,9 @@ bool UdmaTransportManager::CreateEndpoint(
     int copyRet = memcpy_s(
         endpoint_desc.commAddr.eid, sizeof(endpoint_desc.commAddr.eid), target_eid_raw.data(), target_eid_raw.size());
     if (copyRet != EOK) {
-        SHM_LOG_ERROR("Copy target EID to HCOMM endpoint desc failed, ret = " << copyRet);
+        SHM_LOG_ERROR(
+            "Copy target EID to HCOMM endpoint desc failed, eidIndex = " << eid_index << ", peerRank = " << peer_rank
+                                                                         << ", ret = " << copyRet);
         return false;
     }
     endpoint_desc.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
@@ -1271,7 +1437,9 @@ bool UdmaTransportManager::CreateEndpoint(
     EndpointHandle endpoint_handle = nullptr;
     auto ret = DlHcommApi::HcommEndpointCreate(&endpoint_desc, &endpoint_handle);
     if (ret != 0 || endpoint_handle == nullptr) {
-        SHM_LOG_ERROR("HcommEndpointCreate failed for EID index " << eid_index << ", ret = " << ret);
+        SHM_LOG_ERROR(
+            "HcommEndpointCreate failed for EID index " << eid_index << ", peerRank = " << peer_rank
+                                                        << ", ret = " << ret);
         return false;
     }
 
@@ -1279,19 +1447,22 @@ bool UdmaTransportManager::CreateEndpoint(
     ret = DlHcommApi::HcommEndpointGetListenPort(endpoint_handle, &listen_port);
     if (ret != 0 || listen_port == 0 || listen_port > std::numeric_limits<uint16_t>::max()) {
         SHM_LOG_ERROR(
-            "HcommEndpointGetListenPort failed for EID index " << eid_index << ", ret = " << ret
-                                                               << ", port = " << listen_port);
+            "HcommEndpointGetListenPort failed for EID index " << eid_index << ", peerRank = " << peer_rank
+                                                               << ", ret = " << ret << ", port = " << listen_port);
         auto destroy_ret = DlHcommApi::HcommEndpointDestroy(endpoint_handle);
         if (destroy_ret != 0) {
             SHM_LOG_WARN(
-                "HcommEndpointDestroy rollback failed for EID index " << eid_index << ", ret = " << destroy_ret);
+                "HcommEndpointDestroy rollback failed for EID index " << eid_index << ", peerRank = " << peer_rank
+                                                                      << ", ret = " << destroy_ret);
         }
         return false;
     }
-    endpoint_desc_map_[eid_index] = endpoint_desc;
-    endpoint_handle_map_[eid_index] = endpoint_handle;
-    endpoint_listen_port_map_[eid_index] = static_cast<uint16_t>(listen_port);
-    SHM_LOG_INFO("Created Hcomm endpoint on EID index " << eid_index << ", listenPort = " << listen_port);
+    endpoint_desc_map_[endpoint_key] = endpoint_desc;
+    endpoint_handle_map_[endpoint_key] = endpoint_handle;
+    endpoint_listen_port_map_[endpoint_key] = static_cast<uint16_t>(listen_port);
+    SHM_LOG_INFO(
+        "Created Hcomm endpoint on EID index " << eid_index << ", peerRank = " << peer_rank
+                                               << ", listenPort = " << listen_port);
     return true;
 }
 
@@ -1369,7 +1540,9 @@ void UdmaTransportManager::CleanupResources()
             }
             auto hcomm_ret = DlHcommApi::HcommMemUnreg(endpoint_it->second, mem_entry.second);
             if (hcomm_ret != 0) {
-                SHM_LOG_WARN("HcommMemUnreg failed for EID index " << mem_entry.first << ", ret = " << hcomm_ret);
+                SHM_LOG_WARN(
+                    "HcommMemUnreg failed for EID index " << mem_entry.first.first << ", peerRank "
+                                                          << mem_entry.first.second << ", ret = " << hcomm_ret);
             }
         }
     }
@@ -1382,7 +1555,9 @@ void UdmaTransportManager::CleanupResources()
         }
         auto ret = DlHcommApi::HcommEndpointDestroy(endpoint_entry.second);
         if (ret != 0) {
-            SHM_LOG_WARN("HcommEndpointDestroy failed for EID index " << endpoint_entry.first << ", ret = " << ret);
+            SHM_LOG_WARN(
+                "HcommEndpointDestroy failed for EID index " << endpoint_entry.first.first << ", peerRank "
+                                                             << endpoint_entry.first.second << ", ret = " << ret);
         }
     }
     endpoint_handle_map_.clear();

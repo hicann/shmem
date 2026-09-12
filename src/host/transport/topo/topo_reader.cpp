@@ -15,7 +15,12 @@
 #include <exception>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <limits>
+#include <set>
+#include <unordered_map>
 #include <utility>
+#include <tuple>
 #include <vector>
 
 #if defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
@@ -30,6 +35,19 @@ namespace shm {
 namespace transport {
 
 namespace {
+
+constexpr uint8_t FABRIC_MESH_MASK = 1U;
+constexpr uint8_t FABRIC_CLOS_MASK = 2U;
+
+uint64_t MakeLocalPairKey(uint32_t lhs, uint32_t rhs)
+{
+    if (lhs > rhs) {
+        std::swap(lhs, rhs);
+    }
+    return (static_cast<uint64_t>(lhs) << 32U) | static_cast<uint64_t>(rhs);
+}
+
+void BuildTopoIndexes(TopoInfo& topoInfo);
 
 bool CheckTopoFilePath(const std::string& path, std::string& realPath)
 {
@@ -469,77 +487,7 @@ bool TopoReader::ParseTopoInfo(const std::string& path, TopoInfo& out)
     std::stable_sort(
         out.closTopoEdges.begin(), out.closTopoEdges.end(),
         [](const ClosTopoEdge& lhs, const ClosTopoEdge& rhs) { return lhs.netLayer < rhs.netLayer; });
-    return true;
-}
-
-// Resolves the local route used to connect from myLocalId to peerLocalId. Only the
-// outbound (local) eid index can be derived here; the peer must supply its own remote index.
-// The mesh fabric is probed first; if no direct mesh link exists, the CLOS planes are
-// probed from the lowest netLayer up, matching a plane shared by both endpoints.
-bool TopoReader::GetLocalEidRouteForPeer(
-    const RootInfo& root, const TopoInfo& topo, uint32_t myLocalId, uint32_t peerLocalId, uint32_t& localEidIndex,
-    EidData& localEidRaw)
-{
-    std::string localPort;
-    for (const auto& edge : topo.meshTopoEdges) {
-        if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty()) {
-            localPort = edge.localAPorts[0];
-            break;
-        }
-        if (edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty()) {
-            localPort = edge.localBPorts[0];
-            break;
-        }
-    }
-
-    if (localPort.empty()) {
-        for (const auto& myEdge : topo.closTopoEdges) {
-            if (myEdge.localA != myLocalId || myEdge.ports.empty()) {
-                continue;
-            }
-            for (const auto& peerEdge : topo.closTopoEdges) {
-                if (peerEdge.localA == peerLocalId && peerEdge.netLayer == myEdge.netLayer &&
-                    peerEdge.topoInstanceId == myEdge.topoInstanceId) {
-                    localPort = myEdge.ports[0];
-                    break;
-                }
-            }
-            if (!localPort.empty()) {
-                break;
-            }
-        }
-    }
-
-    if (localPort.empty()) {
-        SHM_LOG_ERROR(
-            "Failed to get local eid route, no usable edge between localId " << myLocalId << " and " << peerLocalId);
-        return false;
-    }
-
-    const auto portItem = root.portsToRankAddr.find(localPort);
-    if (portItem == root.portsToRankAddr.end() || portItem->second == nullptr) {
-        SHM_LOG_ERROR("Failed to get local eid index, port " << localPort << " not found for localId " << myLocalId);
-        return false;
-    }
-    const auto& rankAddr = portItem->second;
-
-    bool found = false;
-    for (const auto& item : root.eidIndexToRankAddr) {
-        if (item.second == rankAddr) {
-            localEidIndex = item.first;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        SHM_LOG_ERROR("Failed to get local eid index, rank addr for port " << localPort << " is not indexed");
-        return false;
-    }
-
-    localEidRaw = rankAddr->eidData;
-    SHM_LOG_INFO(
-        "Get local eid route success, myLocalId: " << myLocalId << ", peerLocalId: " << peerLocalId << ", localPort: "
-                                                   << localPort << ", localEidIndex: " << localEidIndex);
+    BuildTopoIndexes(out);
     return true;
 }
 
@@ -577,12 +525,16 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
     }
 
     bool found = false;
-    for (const auto& rankJson : rootInfoJson["rank_list"]) {
+    const auto& rankListJson = rootInfoJson["rank_list"];
+    for (const auto& rankJson : rankListJson) {
         if (!rankJson.contains("device_id") || !rankJson.contains("local_id")) {
             continue;
         }
         uint32_t rankDeviceId = 0;
-        if (!ParseUint(rankJson["device_id"], rankDeviceId) || rankDeviceId != phyId) {
+        if (!ParseUint(rankJson["device_id"], rankDeviceId)) {
+            continue;
+        }
+        if (rankDeviceId != phyId) {
             continue;
         }
 
@@ -591,7 +543,8 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
             return false;
         }
 
-        for (const auto& levelJson : rankJson["level_list"]) {
+        const auto& levelListJson = rankJson["level_list"];
+        for (const auto& levelJson : levelListJson) {
             if (!levelJson.contains("net_type") || !levelJson["net_type"].is_string()) {
                 continue;
             }
@@ -603,7 +556,8 @@ bool TopoReader::ParseRdmaNetAddr(uint32_t phyId, net_addr_t& outIp)
                 return false;
             }
 
-            for (const auto& rankAddrJson : levelJson["rank_addr_list"]) {
+            const auto& rankAddrListJson = levelJson["rank_addr_list"];
+            for (const auto& rankAddrJson : rankAddrListJson) {
                 if (!rankAddrJson.contains("addr_type")) {
                     continue;
                 }
@@ -776,56 +730,79 @@ bool TopoReader::ParseUint(const nlohmann::json& jsonValue, uint32_t& value)
 
 namespace {
 
-std::string NetInstanceIdAt(
-    const std::vector<std::vector<SyncEndpoint>>& rankIdxToSyncEndpoint, uint32_t rank, uint32_t netLayer)
+bool PortsContain(const std::vector<EidPort>& ports, const EidPort& port)
+{
+    return std::find(ports.begin(), ports.end(), port) != ports.end();
+}
+
+bool EndpointHasPort(const SyncEndpoint& endpoint, const EidPort& port) { return PortsContain(endpoint.ports, port); }
+
+void BuildTopoIndexes(TopoInfo& topoInfo)
+{
+    topoInfo.portFabricMask.clear();
+    topoInfo.meshEdgeByLocalPair.clear();
+    topoInfo.closEdgeIndicesByLocalA.clear();
+
+    for (size_t i = 0; i < topoInfo.meshTopoEdges.size(); ++i) {
+        const auto& edge = topoInfo.meshTopoEdges[i];
+        topoInfo.meshEdgeByLocalPair.emplace(MakeLocalPairKey(edge.localA, edge.localB), i);
+        for (const auto& port : edge.localAPorts) {
+            topoInfo.portFabricMask[port] |= FABRIC_MESH_MASK;
+        }
+        for (const auto& port : edge.localBPorts) {
+            topoInfo.portFabricMask[port] |= FABRIC_MESH_MASK;
+        }
+    }
+
+    for (size_t i = 0; i < topoInfo.closTopoEdges.size(); ++i) {
+        const auto& edge = topoInfo.closTopoEdges[i];
+        topoInfo.closEdgeIndicesByLocalA[edge.localA].push_back(i);
+        for (const auto& port : edge.ports) {
+            topoInfo.portFabricMask[port] |= FABRIC_CLOS_MASK;
+        }
+    }
+}
+
+bool PortInMeshTopo(const TopoInfo& topoInfo, const EidPort& port)
+{
+    if (!topoInfo.portFabricMask.empty()) {
+        const auto it = topoInfo.portFabricMask.find(port);
+        return it != topoInfo.portFabricMask.end() && (it->second & FABRIC_MESH_MASK) != 0;
+    }
+    for (const auto& edge : topoInfo.meshTopoEdges) {
+        if (PortsContain(edge.localAPorts, port) || PortsContain(edge.localBPorts, port)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PortInClosTopo(const TopoInfo& topoInfo, const EidPort& port)
+{
+    if (!topoInfo.portFabricMask.empty()) {
+        const auto it = topoInfo.portFabricMask.find(port);
+        return it != topoInfo.portFabricMask.end() && (it->second & FABRIC_CLOS_MASK) != 0;
+    }
+    for (const auto& edge : topoInfo.closTopoEdges) {
+        if (PortsContain(edge.ports, port)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string NetInstanceIdByType(
+    const std::vector<std::vector<SyncEndpoint>>& rankIdxToSyncEndpoint, uint32_t rank, NetType netType)
 {
     if (rank >= rankIdxToSyncEndpoint.size()) {
         return {};
     }
     for (const auto& endpoint : rankIdxToSyncEndpoint[rank]) {
-        if (endpoint.netLayer == netLayer) {
+        if (endpoint.netType == netType) {
             return endpoint.netInstanceId;
         }
     }
     return {};
-}
-
-bool ResolveEidIndexByPort(
-    const std::vector<SyncEndpoint>& endpoints, const std::string& port, uint32_t netLayer, uint32_t& eidIndex)
-{
-    for (const auto& endpoint : endpoints) {
-        if (endpoint.netLayer != netLayer) {
-            continue;
-        }
-        for (const auto& ownedPort : endpoint.ports) {
-            if (ownedPort == port) {
-                eidIndex = endpoint.eidIndex;
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool ResolveLocalEidByPort(
-    const RootInfo& root, const std::string& localPort, uint32_t& localEidIndex, EidData& localEidRaw)
-{
-    const auto portItem = root.portsToRankAddr.find(localPort);
-    if (portItem == root.portsToRankAddr.end() || portItem->second == nullptr) {
-        SHM_LOG_ERROR("Failed to get local eid index, port " << localPort << " not found.");
-        return false;
-    }
-    const auto& rankAddr = portItem->second;
-
-    for (const auto& item : root.eidIndexToRankAddr) {
-        if (item.second == rankAddr) {
-            localEidIndex = item.first;
-            localEidRaw = rankAddr->eidData;
-            return true;
-        }
-    }
-    SHM_LOG_ERROR("Failed to get local eid index, rank addr for port " << localPort << " is not indexed.");
-    return false;
 }
 
 bool ResolveLocalEidByIndex(const RootInfo& root, uint32_t eidIndex, EidData& localEidRaw)
@@ -839,15 +816,243 @@ bool ResolveLocalEidByIndex(const RootInfo& root, uint32_t eidIndex, EidData& lo
     return true;
 }
 
+bool EndpointMatchesFabric(const SyncEndpoint& endpoint, TopoFabric fabric)
+{
+    return fabric == TopoFabric::Unknown || endpoint.fabric == fabric;
+}
+
+bool PortMatchesFabric(const TopoInfo& topoInfo, const std::string& port, TopoFabric fabric)
+{
+    switch (fabric) {
+        case TopoFabric::Mesh:
+            return PortInMeshTopo(topoInfo, port);
+        case TopoFabric::Clos:
+            return PortInClosTopo(topoInfo, port);
+        case TopoFabric::Unknown:
+        default:
+            return true;
+    }
+}
+
+std::pair<std::string, std::string> CanonicalPortPair(const std::string& lhs, const std::string& rhs)
+{
+    if (lhs <= rhs) {
+        return {lhs, rhs};
+    }
+    return {rhs, lhs};
+}
+
+const SyncEndpoint* FindEndpointByPortPlaneAndFabric(
+    const TopoInfo& topoInfo, const std::vector<SyncEndpoint>& endpoints, const std::string& port,
+    const std::string& planeId, TopoFabric fabric)
+{
+    const SyncEndpoint* best = nullptr;
+    size_t bestPortCount = 0;
+    for (const auto& endpoint : endpoints) {
+        if (!EndpointHasPort(endpoint, port) ||
+            (!EndpointMatchesFabric(endpoint, fabric) && !PortMatchesFabric(topoInfo, port, fabric))) {
+            continue;
+        }
+        if (fabric != TopoFabric::Mesh && endpoint.planeId != planeId) {
+            continue;
+        }
+
+        // Prefer the higher-bandwidth endpoint that matches the requested port.
+        // UBX clos rootinfo may expose both a single-port address and an aggregated multi-port
+        // address on the same plane; the aggregated entry is preferred when both are usable.
+        const size_t portCount = endpoint.ports.size();
+        if (best == nullptr || portCount > bestPortCount) {
+            best = &endpoint;
+            bestPortCount = portCount;
+        }
+    }
+    return best;
+}
+
+bool ResolveRouteByPortsAndPlane(
+    const TopoInfo& topoInfo, const RootInfo& rootInfo, const std::vector<SyncEndpoint>& localEndpoints,
+    const std::vector<SyncEndpoint>& peerEndpoints, const std::string& localPort, const std::string& remotePort,
+    TopoFabric fabric, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex, std::string& planeId)
+{
+    const SyncEndpoint* bestLocalEndpoint = nullptr;
+    const SyncEndpoint* bestPeerEndpoint = nullptr;
+    size_t bestLocalPortCount = 0;
+    size_t bestPeerPortCount = 0;
+
+    for (const auto& localEndpoint : localEndpoints) {
+        if (!EndpointHasPort(localEndpoint, localPort) ||
+            (!EndpointMatchesFabric(localEndpoint, fabric) && !PortMatchesFabric(topoInfo, localPort, fabric))) {
+            continue;
+        }
+        if (fabric != TopoFabric::Mesh && localEndpoint.planeId.empty()) {
+            continue;
+        }
+        const auto* peerEndpoint =
+            FindEndpointByPortPlaneAndFabric(topoInfo, peerEndpoints, remotePort, localEndpoint.planeId, fabric);
+        if (peerEndpoint == nullptr) {
+            continue;
+        }
+
+        const size_t localPortCount = localEndpoint.ports.size();
+        const size_t peerPortCount = peerEndpoint->ports.size();
+        if (bestLocalEndpoint == nullptr || localPortCount > bestLocalPortCount ||
+            (localPortCount == bestLocalPortCount && peerPortCount > bestPeerPortCount)) {
+            bestLocalEndpoint = &localEndpoint;
+            bestPeerEndpoint = peerEndpoint;
+            bestLocalPortCount = localPortCount;
+            bestPeerPortCount = peerPortCount;
+        }
+    }
+
+    if (bestLocalEndpoint == nullptr || bestPeerEndpoint == nullptr) {
+        return false;
+    }
+    if (!ResolveLocalEidByIndex(rootInfo, bestLocalEndpoint->eidIndex, localEidRaw)) {
+        return false;
+    }
+    localEidIndex = bestLocalEndpoint->eidIndex;
+    remoteEidIndex = bestPeerEndpoint->eidIndex;
+    planeId = bestLocalEndpoint->planeId;
+    return true;
+}
+
+struct ClosRouteCandidate {
+    uint32_t localEidIndex{};
+    EidData localEidRaw{};
+    uint32_t remoteEidIndex{};
+    uint32_t netLayer{};
+    uint32_t topoInstanceId{};
+    std::string planeId{};
+    EidPort localPort{};
+    EidPort remotePort{};
+    std::string canonicalPortLow{};
+    std::string canonicalPortHigh{};
+    size_t portCount{};
+};
+
+std::vector<ClosRouteCandidate> BuildClosRouteCandidates(
+    const RootInfo& rootInfo, const TopoInfo& topoInfo, const std::vector<SyncEndpoint>& myEndpoints,
+    uint32_t myLocalId, uint32_t peerLocalId, const std::vector<SyncEndpoint>& peerEndpoints)
+{
+    std::vector<ClosRouteCandidate> candidates;
+    const auto processEdgePair = [&](const ClosTopoEdge& myEdge, const ClosTopoEdge& peerEdge) {
+        if (peerEdge.netLayer != myEdge.netLayer || peerEdge.topoInstanceId != myEdge.topoInstanceId ||
+            peerEdge.ports.empty()) {
+            return;
+        }
+        for (const auto& localPort : myEdge.ports) {
+            for (const auto& remotePort : peerEdge.ports) {
+                uint32_t localEidIndex = 0;
+                EidData localEidRaw{};
+                uint32_t remoteEidIndex = 0;
+                std::string planeId;
+                if (!ResolveRouteByPortsAndPlane(
+                        topoInfo, rootInfo, myEndpoints, peerEndpoints, localPort, remotePort, TopoFabric::Clos,
+                        localEidIndex, localEidRaw, remoteEidIndex, planeId)) {
+                    continue;
+                }
+                ClosRouteCandidate candidate;
+                candidate.localEidIndex = localEidIndex;
+                candidate.localEidRaw = localEidRaw;
+                candidate.remoteEidIndex = remoteEidIndex;
+                candidate.netLayer = myEdge.netLayer;
+                candidate.topoInstanceId = myEdge.topoInstanceId;
+                candidate.planeId = std::move(planeId);
+                candidate.localPort = localPort;
+                candidate.remotePort = remotePort;
+                std::tie(candidate.canonicalPortLow, candidate.canonicalPortHigh) =
+                    CanonicalPortPair(localPort, remotePort);
+                candidate.portCount = std::min(myEdge.ports.size(), peerEdge.ports.size());
+                candidates.push_back(std::move(candidate));
+            }
+        }
+    };
+
+    if (!topoInfo.closEdgeIndicesByLocalA.empty()) {
+        const auto myIt = topoInfo.closEdgeIndicesByLocalA.find(myLocalId);
+        const auto peerIt = topoInfo.closEdgeIndicesByLocalA.find(peerLocalId);
+        if (myIt == topoInfo.closEdgeIndicesByLocalA.end() || peerIt == topoInfo.closEdgeIndicesByLocalA.end()) {
+            return candidates;
+        }
+        for (const auto myEdgeIndex : myIt->second) {
+            const auto& myEdge = topoInfo.closTopoEdges[myEdgeIndex];
+            if (myEdge.ports.empty()) {
+                continue;
+            }
+            for (const auto peerEdgeIndex : peerIt->second) {
+                const auto& peerEdge = topoInfo.closTopoEdges[peerEdgeIndex];
+                processEdgePair(myEdge, peerEdge);
+            }
+        }
+    } else {
+        for (const auto& myEdge : topoInfo.closTopoEdges) {
+            if (myEdge.ports.empty() || myEdge.localA != myLocalId) {
+                continue;
+            }
+            for (const auto& peerEdge : topoInfo.closTopoEdges) {
+                if (peerEdge.localA != peerLocalId) {
+                    continue;
+                }
+                processEdgePair(myEdge, peerEdge);
+            }
+        }
+    }
+
+    std::stable_sort(candidates.begin(), candidates.end(), [](const auto& lhs, const auto& rhs) {
+        if (lhs.netLayer != rhs.netLayer) {
+            return lhs.netLayer < rhs.netLayer;
+        }
+        if (lhs.portCount != rhs.portCount) {
+            return lhs.portCount > rhs.portCount;
+        }
+        if (lhs.topoInstanceId != rhs.topoInstanceId) {
+            return lhs.topoInstanceId < rhs.topoInstanceId;
+        }
+        if (lhs.planeId != rhs.planeId) {
+            return lhs.planeId < rhs.planeId;
+        }
+        if (lhs.canonicalPortLow != rhs.canonicalPortLow) {
+            return lhs.canonicalPortLow < rhs.canonicalPortLow;
+        }
+        if (lhs.canonicalPortHigh != rhs.canonicalPortHigh) {
+            return lhs.canonicalPortHigh < rhs.canonicalPortHigh;
+        }
+        return false;
+    });
+    // Sort before deduplication so both ranks retain the same highest-priority port pair.
+    // Aggregated addresses may resolve several port pairs to the same EID route.
+    std::set<std::tuple<uint32_t, uint32_t, std::string>> seenRoutes;
+    candidates.erase(
+        std::remove_if(
+            candidates.begin(), candidates.end(),
+            [&](const auto& candidate) {
+                return !seenRoutes.emplace(candidate.localEidIndex, candidate.remoteEidIndex, candidate.planeId).second;
+            }),
+        candidates.end());
+    return candidates;
+}
+
 } // namespace
 
 bool TopoQuerier::GetEidRouteMesh1D(
     uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
 {
-    constexpr uint32_t MESH_NET_LAYER = 0;
-    const std::string myInstance = NetInstanceIdAt(rankIdxToSyncEndpoint_, myRank_, MESH_NET_LAYER);
-    const std::string targetInstance = NetInstanceIdAt(rankIdxToSyncEndpoint_, targetRank, MESH_NET_LAYER);
-    if (myInstance.empty() || myInstance != targetInstance) {
+    if (myRank_ >= rankIdxToSyncEndpoint_.size() || targetRank >= rankIdxToSyncEndpoint_.size()) {
+        SHM_LOG_ERROR("Mesh1D route failed, rank out of range, myRank " << myRank_ << ", targetRank " << targetRank);
+        return false;
+    }
+
+    // TOPO_FILE_DESC carries the layer-0 network instance while the driver topology
+    // classifies the physical edge as Mesh or Clos. Keep that instance boundary when
+    // selecting a Mesh edge; otherwise repeated local IDs across servers can match.
+    std::string myInstance = NetInstanceIdByType(rankIdxToSyncEndpoint_, myRank_, NetType::TopoFileDesc);
+    std::string targetInstance = NetInstanceIdByType(rankIdxToSyncEndpoint_, targetRank, NetType::TopoFileDesc);
+    if (myInstance.empty() && targetInstance.empty()) {
+        myInstance = NetInstanceIdByType(rankIdxToSyncEndpoint_, myRank_, NetType::Mesh);
+        targetInstance = NetInstanceIdByType(rankIdxToSyncEndpoint_, targetRank, NetType::Mesh);
+    }
+    const bool hasExplicitMeshLevel = !myInstance.empty() || !targetInstance.empty();
+    if (hasExplicitMeshLevel && (myInstance.empty() || myInstance != targetInstance)) {
         SHM_LOG_DEBUG(
             "Mesh1D route skipped, layer0 net_instance mismatch for rank "
             << myRank_ << " (\"" << myInstance << "\") and target rank " << targetRank << " (\"" << targetInstance
@@ -861,21 +1066,40 @@ bool TopoQuerier::GetEidRouteMesh1D(
     }
     const uint32_t myLocalId = rankToLocalId_[myRank_];
     const uint32_t peerLocalId = rankToLocalId_[targetRank];
+    const auto& myEndpoints = rankIdxToSyncEndpoint_[myRank_];
+    const auto& peerEndpoints = rankIdxToSyncEndpoint_[targetRank];
 
     std::string localPort;
     std::string remotePort;
-    for (const auto& edge : topoInfo_.meshTopoEdges) {
-        if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty() &&
-            !edge.localBPorts.empty()) {
-            localPort = edge.localAPorts[0];
-            remotePort = edge.localBPorts[0];
-            break;
+    if (!topoInfo_.meshEdgeByLocalPair.empty()) {
+        const auto meshIt = topoInfo_.meshEdgeByLocalPair.find(MakeLocalPairKey(myLocalId, peerLocalId));
+        if (meshIt != topoInfo_.meshEdgeByLocalPair.end()) {
+            const auto& edge = topoInfo_.meshTopoEdges[meshIt->second];
+            if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty() &&
+                !edge.localBPorts.empty()) {
+                localPort = edge.localAPorts[0];
+                remotePort = edge.localBPorts[0];
+            } else if (
+                edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty() &&
+                !edge.localAPorts.empty()) {
+                localPort = edge.localBPorts[0];
+                remotePort = edge.localAPorts[0];
+            }
         }
-        if (edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty() &&
-            !edge.localAPorts.empty()) {
-            localPort = edge.localBPorts[0];
-            remotePort = edge.localAPorts[0];
-            break;
+    } else {
+        for (const auto& edge : topoInfo_.meshTopoEdges) {
+            if (edge.localA == myLocalId && edge.localB == peerLocalId && !edge.localAPorts.empty() &&
+                !edge.localBPorts.empty()) {
+                localPort = edge.localAPorts[0];
+                remotePort = edge.localBPorts[0];
+                break;
+            }
+            if (edge.localB == myLocalId && edge.localA == peerLocalId && !edge.localBPorts.empty() &&
+                !edge.localAPorts.empty()) {
+                localPort = edge.localBPorts[0];
+                remotePort = edge.localAPorts[0];
+                break;
+            }
         }
     }
     if (localPort.empty() || remotePort.empty()) {
@@ -884,62 +1108,86 @@ bool TopoQuerier::GetEidRouteMesh1D(
         return false;
     }
 
-    if (!ResolveLocalEidByPort(rootInfo_, localPort, localEidIndex, localEidRaw)) {
-        return false;
-    }
-    if (targetRank >= rankIdxToSyncEndpoint_.size() ||
-        !ResolveEidIndexByPort(rankIdxToSyncEndpoint_[targetRank], remotePort, MESH_NET_LAYER, remoteEidIndex)) {
+    std::string planeId;
+    if (!ResolveRouteByPortsAndPlane(
+            topoInfo_, rootInfo_, myEndpoints, peerEndpoints, localPort, remotePort, TopoFabric::Mesh, localEidIndex,
+            localEidRaw, remoteEidIndex, planeId)) {
         SHM_LOG_ERROR(
-            "Mesh1D route failed, peer port " << remotePort << " not found in target rank " << targetRank
-                                              << " endpoints.");
+            "Mesh1D route failed, no shared plane found for local port " << localPort << " and peer port " << remotePort
+                                                                         << ".");
         return false;
     }
     SHM_LOG_INFO(
         "Mesh1D route success, myRank " << myRank_ << ", targetRank " << targetRank << ", localPort " << localPort
-                                        << ", localEidIndex " << localEidIndex << ", remotePort " << remotePort
-                                        << ", remoteEidIndex " << remoteEidIndex);
+                                        << ", remotePort " << remotePort << ", planeId " << planeId
+                                        << ", localEidIndex " << localEidIndex << ", remoteEidIndex "
+                                        << remoteEidIndex);
     return true;
 }
 
-bool TopoQuerier::GetEidRouteClos(
-    uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
+bool TopoQuerier::ResolveEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes)
 {
+    routes.clear();
+    if (routeCount == 0) {
+        SHM_LOG_ERROR("EID route count must be positive for target rank " << targetRank);
+        return false;
+    }
+
+    uint32_t meshLocalEidIndex = 0;
+    uint32_t meshRemoteEidIndex = 0;
+    EidData meshLocalEidRaw{};
+    if (GetEidRouteMesh1D(targetRank, meshLocalEidIndex, meshLocalEidRaw, meshRemoteEidIndex)) {
+        routes.assign(routeCount, EidRoute{meshLocalEidIndex, meshLocalEidRaw, meshRemoteEidIndex});
+        return true;
+    }
+
     if (myRank_ >= rankIdxToSyncEndpoint_.size() || targetRank >= rankIdxToSyncEndpoint_.size()) {
         SHM_LOG_ERROR("Clos route failed, rank out of range, myRank " << myRank_ << ", targetRank " << targetRank);
         return false;
     }
-    const auto& myEndpoints = rankIdxToSyncEndpoint_[myRank_];
-    const auto& peerEndpoints = rankIdxToSyncEndpoint_[targetRank];
-
-    for (const auto& mine : myEndpoints) {
-        for (const auto& peer : peerEndpoints) {
-            if (mine.netLayer != peer.netLayer || mine.netInstanceId != peer.netInstanceId ||
-                mine.planeId != peer.planeId || mine.netInstanceId.empty()) {
-                continue;
-            }
-            if (!ResolveLocalEidByIndex(rootInfo_, mine.eidIndex, localEidRaw)) {
-                return false;
-            }
-            localEidIndex = mine.eidIndex;
-            remoteEidIndex = peer.eidIndex;
-            SHM_LOG_INFO(
-                "Clos route success, myRank "
-                << myRank_ << ", targetRank " << targetRank << ", netLayer " << mine.netLayer << ", netInstanceId \""
-                << mine.netInstanceId << "\", planeId \"" << mine.planeId << "\", localEidIndex " << localEidIndex
-                << ", remoteEidIndex " << remoteEidIndex);
-            return true;
-        }
+    if (myRank_ >= rankToLocalId_.size() || targetRank >= rankToLocalId_.size()) {
+        SHM_LOG_ERROR("Clos route failed, local id out of range, myRank " << myRank_ << ", targetRank " << targetRank);
+        return false;
+    }
+    const auto candidates = BuildClosRouteCandidates(
+        rootInfo_, topoInfo_, rankIdxToSyncEndpoint_[myRank_], rankToLocalId_[myRank_], rankToLocalId_[targetRank],
+        rankIdxToSyncEndpoint_[targetRank]);
+    if (candidates.empty()) {
+        SHM_LOG_DEBUG("Clos route not found, no shared plane between rank " << myRank_ << " and " << targetRank);
+        return false;
     }
 
-    SHM_LOG_DEBUG("Clos route not found, no shared plane between rank " << myRank_ << " and " << targetRank);
-    return false;
+    routes.reserve(routeCount);
+    for (uint32_t routeIdx = 0; routeIdx < routeCount; ++routeIdx) {
+        const auto& candidate = candidates[routeIdx % candidates.size()];
+        routes.push_back(EidRoute{candidate.localEidIndex, candidate.localEidRaw, candidate.remoteEidIndex});
+        SHM_LOG_INFO(
+            "Clos route selected, myRank "
+            << myRank_ << ", targetRank " << targetRank << ", routeIdx " << routeIdx << ", netLayer "
+            << candidate.netLayer << ", topoInstanceId " << candidate.topoInstanceId << ", planeId \""
+            << candidate.planeId << "\", localPort \"" << candidate.localPort << "\", remotePort \""
+            << candidate.remotePort << "\", portCount " << candidate.portCount << ", localEidIndex "
+            << candidate.localEidIndex << ", remoteEidIndex " << candidate.remoteEidIndex);
+    }
+    return true;
+}
+
+bool TopoQuerier::GetEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes)
+{
+    return ResolveEidRoutes(targetRank, routeCount, routes);
 }
 
 bool TopoQuerier::GetEidRoute(
     uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex)
 {
-    return GetEidRouteMesh1D(targetRank, localEidIndex, localEidRaw, remoteEidIndex) ||
-           GetEidRouteClos(targetRank, localEidIndex, localEidRaw, remoteEidIndex);
+    std::vector<EidRoute> routes;
+    if (!ResolveEidRoutes(targetRank, 1, routes) || routes.empty()) {
+        return false;
+    }
+    localEidIndex = routes.front().localEidIndex;
+    localEidRaw = routes.front().localEidRaw;
+    remoteEidIndex = routes.front().remoteEidIndex;
+    return true;
 }
 
 } // namespace transport

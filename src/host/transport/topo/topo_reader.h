@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <ostream>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -36,6 +37,8 @@ using EidPort = std::string;
 using EidIndex = uint32_t;
 
 enum class NetType { Mesh = 0, Clos = 1, TopoFileDesc = 2 };
+
+enum class TopoFabric { Unknown = 0, Mesh = 1, Clos = 2 };
 
 enum class RankAddrType { EID = 0, IPV4 = 1, IPV6 = 2 };
 
@@ -84,21 +87,70 @@ struct ClosTopoEdge {
 struct TopoInfo {
     std::vector<MeshTopoEdge> meshTopoEdges{};
     std::vector<ClosTopoEdge> closTopoEdges{};
+    std::unordered_map<EidPort, uint8_t> portFabricMask{};
+    std::unordered_map<uint64_t, std::size_t> meshEdgeByLocalPair{};
+    std::unordered_map<uint32_t, std::vector<std::size_t>> closEdgeIndicesByLocalA{};
 };
 
 // Per-rank-addr view exchanged across ranks during PrepareOpenDevice. One SyncEndpoint
-// is emitted for every rank_addr on every level (including netLayer 0). Two ranks are
-// peers on a given plane when their (netLayer, netInstanceId, planeId) all match; the
-// peer's eidIndex/ports then identify the remote route. eidData is intentionally NOT
-// carried: the local eid raw is fetched from the local rootInfo by eidIndex.
+// is emitted for every rank_addr on every level. Two ranks are peers on a given CLOS
+// plane through the driver topo file when rootinfo uses TOPO_FILE_DESC; Mesh and CLOS are
+// selected by rootinfo netType for explicit levels, or by topo_type for TOPO_FILE_DESC.
+// eidData is intentionally NOT carried: the local eid raw is fetched from the local rootInfo by eidIndex.
 struct SyncEndpoint {
     uint32_t netLayer{};
     std::string netInstanceId{};
+    NetType netType{};
+    TopoFabric fabric{TopoFabric::Unknown};
     std::string planeId{};
     std::vector<EidPort> ports{}; // used to reverse-map a peer port to its eidIndex
     uint32_t eidIndex{};
+};
 
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(SyncEndpoint, netLayer, netInstanceId, planeId, ports, eidIndex)
+inline void to_json(nlohmann::json& json, const SyncEndpoint& endpoint)
+{
+    json = nlohmann::json{
+        {"netLayer", endpoint.netLayer},
+        {"netInstanceId", endpoint.netInstanceId},
+        {"netType", static_cast<uint32_t>(endpoint.netType)},
+        {"fabric", static_cast<uint32_t>(endpoint.fabric)},
+        {"planeId", endpoint.planeId},
+        {"ports", endpoint.ports},
+        {"eidIndex", endpoint.eidIndex},
+    };
+}
+
+inline void from_json(const nlohmann::json& json, SyncEndpoint& endpoint)
+{
+    json.at("netLayer").get_to(endpoint.netLayer);
+    json.at("netInstanceId").get_to(endpoint.netInstanceId);
+    if (json.contains("netType")) {
+        uint32_t netType = 0;
+        json.at("netType").get_to(netType);
+        endpoint.netType = static_cast<NetType>(netType);
+    } else {
+        endpoint.netType = (endpoint.netLayer == 0) ? NetType::Mesh : NetType::Clos;
+    }
+    if (json.contains("fabric")) {
+        uint32_t fabric = 0;
+        json.at("fabric").get_to(fabric);
+        endpoint.fabric = static_cast<TopoFabric>(fabric);
+    } else if (endpoint.netType == NetType::Mesh) {
+        endpoint.fabric = TopoFabric::Mesh;
+    } else if (endpoint.netType == NetType::Clos) {
+        endpoint.fabric = TopoFabric::Clos;
+    } else {
+        endpoint.fabric = TopoFabric::Unknown;
+    }
+    json.at("planeId").get_to(endpoint.planeId);
+    json.at("ports").get_to(endpoint.ports);
+    json.at("eidIndex").get_to(endpoint.eidIndex);
+}
+
+struct EidRoute {
+    uint32_t localEidIndex{};
+    EidData localEidRaw{};
+    uint32_t remoteEidIndex{};
 };
 
 class EidConverter {
@@ -116,9 +168,6 @@ public:
     static constexpr const char* ROOTINFO_PATH = "/etc/hccl_rootinfo.json";
     static bool ParseRootInfo(uint32_t phyId, RootInfo& out);
     static bool ParseTopoInfo(const std::string& path, TopoInfo& out);
-    static bool GetLocalEidRouteForPeer(
-        const RootInfo& root, const TopoInfo& topo, uint32_t myLocalId, uint32_t peerLocalId, uint32_t& localEidIndex,
-        EidData& localEidRaw);
     static bool GetLocalId(const RootInfo& root, uint32_t deviceId, uint32_t& localId);
 
     static bool GetEidCount(const RootInfo& root, uint32_t& count);
@@ -149,11 +198,13 @@ public:
 
     bool GetEidRouteMesh1D(
         uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
-    bool GetEidRouteClos(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
+    bool GetEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes);
 
     bool GetEidRoute(uint32_t targetRank, uint32_t& localEidIndex, EidData& localEidRaw, uint32_t& remoteEidIndex);
 
 private:
+    bool ResolveEidRoutes(uint32_t targetRank, uint32_t routeCount, std::vector<EidRoute>& routes);
+
     const RootInfo& rootInfo_;
     const TopoInfo& topoInfo_;
     uint32_t myRank_;
