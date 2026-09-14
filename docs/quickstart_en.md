@@ -81,7 +81,7 @@ The `run.sh` script provides parameters such as `-pes`, `-type`, `-ipport`, `-gn
 bash run.sh -pes 2 -type int32_t
 ```
 
-For more detailed parameter descriptions, see `examples/allgather/README.md`. For the `-ranks` and `-test_filter` parameters of the unit test script `scripts/run.sh`, see [8.1 Running Unit Tests](#81-running-unit-tests).
+For more detailed parameter descriptions, see `examples/allgather/README.md`. For the `-ranks` and `-test_filter` parameters of the unit test script `scripts/run.sh`, see [Function self-test case](#function-self-test-case).
 
 ## Function self-test case
 

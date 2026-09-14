@@ -368,7 +368,7 @@ bash run.sh -pes 2 -type int32_t
 bash run.sh -pes 2 -type int32_t
 ```
 
-更详细的参数说明请参考`examples/allgather/README.md`。单元测试脚本`scripts/run.sh`的`-ranks`、`-test_filter`参数请参见[9.1 运行单元测试](#81-运行单元测试)。
+更详细的参数说明请参考`examples/allgather/README.md`。单元测试脚本`scripts/run.sh`的`-ranks`、`-test_filter`参数请参见[8.1 运行单元测试](#81-运行单元测试)。
 
 ### 5.3 debug 模式使用
 

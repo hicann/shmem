@@ -17,7 +17,7 @@ cd shmem
 bash scripts/build.sh
 ```
 
-For more information about the commands, see see the *README* and the `scripts/build.sh` file in the SHMEM's `master` directory.
+For more information about the commands, see the *README* and the `scripts/build.sh` file in the SHMEM's `master` directory.
 
 ### SHMEM Build Description
 The basic SHMEM build command is `bash build.sh`. The default build mode generates version information and creates an installation package. By default, the RDMA capability, test cases, tests, and Python APIs are not built. The following parameters can be added to implement different functions:
