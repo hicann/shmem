@@ -916,6 +916,8 @@ Result RdmaTransportManagerV2::GetRdmaInfoFromChannelEntity(
             if (aclRet != 0) {
                 SHM_LOG_ERROR("rank[" << rankId_ << "] copy local buffer from device failed: " << aclRet);
             } else {
+                copyInfo->mr[rankId_].addr = localBuffer.bufferInfo.rma.addr;
+                copyInfo->mr[rankId_].size = localBuffer.bufferInfo.rma.size;
                 copyInfo->mr[rankId_].lkey = localBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.lkey;
                 copyInfo->mr[rankId_].rkey = localBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.rkey;
                 localInfoRead = true;
@@ -1003,6 +1005,8 @@ Result RdmaTransportManagerV2::GetRdmaInfoFromChannelEntity(
                                 << ", rank=" << remoteRank << ", qp=" << qpIdx);
                     return ACLSHMEM_INNER_ERROR;
                 }
+                copyInfo->mr[remoteRank].addr = remoteBuffer.bufferInfo.rma.addr;
+                copyInfo->mr[remoteRank].size = remoteBuffer.bufferInfo.rma.size;
                 copyInfo->mr[remoteRank].lkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.lkey;
                 copyInfo->mr[remoteRank].rkey = remoteBuffer.bufferInfo.rma.protectionInfo.memInfo.roce.rkey;
                 remoteInfoRead = true;

@@ -11,6 +11,7 @@
 #define ACLSHMEM_RDMA_DEVICE_BACKEND_IN_DIE_HPP
 
 #include "rdma_device_backend_base.h"
+#include "host_device/shmemi_rdma_cqe_layout.h"
 
 // vendor-specfic header
 struct aclshmemi_wqe_ctx {
@@ -29,18 +30,24 @@ struct aclshmemi_sge_ctx {
     uint64_t addr;
 };
 
-struct aclshmemi_cqe_ctx {
-    uint32_t byte4;
-    uint32_t immt_data;
-    uint32_t byte12;
-    uint32_t byte16;
-    uint32_t byte_cnt;
-    uint32_t smac;
-    uint32_t byte28;
-    uint32_t byte32;
-};
-
 enum class aclshmemi_rdma_in_die_opcode_t : uint32_t { OP_RDMA_WRITE = 3, OP_RDMA_WRITE_WITH_IMM, OP_RDMA_READ };
+
+ACLSHMEM_DEVICE void aclshmemi_roce_in_die_dump_cqe(__gm__ aclshmemi_cqe_ctx* cqe)
+{
+    if (cqe == nullptr) {
+        AscendC::printf("RDMA IN_DIE CQE: nullptr\n");
+        return;
+    }
+    dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(cqe), sizeof(aclshmemi_cqe_ctx));
+    AscendC::printf(
+        "RDMA IN_DIE CQE: owner=%u status=%u wqn=%u byte_cnt=%u\n", (cqe->byte4 >> 7U) & 1U, (cqe->byte4 >> 8U) & 0xffU,
+        cqe->byte16 & 0xffffffU, cqe->byte_cnt);
+    AscendC::printf(
+        "RDMA IN_DIE CQE raw DW0-DW3: [0x%x, 0x%x, 0x%x, 0x%x]\n", cqe->byte4, cqe->immt_data, cqe->byte12,
+        cqe->byte16);
+    AscendC::printf(
+        "RDMA IN_DIE CQE raw DW4-DW7: [0x%x, 0x%x, 0x%x, 0x%x]\n", cqe->byte_cnt, cqe->smac, cqe->byte28, cqe->byte32);
+}
 
 // Shard Helper: WQE file for RDMA WRITE/READ, Returns the final size of WQE
 ACLSHMEM_DEVICE uint32_t aclshmemi_roce_fill_wqe_write_read(
@@ -136,6 +143,8 @@ ACLSHMEM_DEVICE void aclshmemi_roce_post_send_read_write(
 
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     auto mem_info_table = rdma_info->mem_ptr;
     auto sq_base_addr = sq_context->buf_addr;
     auto wqe_size = sq_context->wqe_size;
@@ -152,6 +161,7 @@ ACLSHMEM_DEVICE void aclshmemi_roce_post_send_read_write(
             pe, qp_idx, *(__gm__ uint32_t*)(sq_ci_addr) + ACLSHMEM_NUM_CQE_PER_POLL_CQ, ub_local64, ub_local32,
             sync_id);
     }
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_ensure_sq_capacity, sq_context, pe, qp_idx, 1U);
 
     __gm__ uint8_t* wqe_addr = (__gm__ uint8_t*)(sq_base_addr + wqe_size * (cur_head % depth));
 
@@ -171,6 +181,7 @@ ACLSHMEM_DEVICE void aclshmemi_roce_post_send_read_write(
 
     // WQE & SGE cache flush
     dcci_cachelines(wqe_addr, wqe_total_size);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_dump_sq_wqe, sq_context, cur_head, wqe_size, 1U);
     cur_head++;
 
     aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::IN_DIE>(
@@ -283,6 +294,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::IN_DIE
         // Check CQE status
         uint32_t status = (cqe_addr->byte4 >> 8) & 0xFF;
         if (status) {
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_in_die_dump_cqe, cqe_addr);
+            ACLSHMEM_DEBUG_FUNC(
+                aclshmemi_kernel_printf,
+                "Receive CQE with error: status=%u in pe %u, cur_tail=%u, wqn=%u, qp_idx=%u, backend=%u\n", status, pe,
+                cur_tail, wqn, qp_idx, (uint32_t)aclshmemi_rdma_backend_t::IN_DIE);
+            trap();
             return status;
         }
     }

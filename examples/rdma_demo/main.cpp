@@ -16,11 +16,12 @@
 
 #include "acl/acl.h"
 #include "shmem.h"
+#include "host/utils/shmem_host_exception.h"
 #include "shmemi_host_common.h"
 #include "utils.h"
 
 int g_npus = 8;
-const char *ipport;
+const char* ipport;
 int f_pe = 0;
 int f_npu = 0;
 extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int message_length);
@@ -35,17 +36,62 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     const int num10 = 10;
     aclrtStream stream = nullptr;
 
-    status |= aclInit(nullptr);
-    status |= aclrtSetDevice(device_id);
-    status |= aclrtCreateStream(&stream);
+    status = aclInit(nullptr);
+    if (status != ACL_SUCCESS) {
+        std::cerr << "aclInit failed: " << status << std::endl;
+        return status;
+    }
+    status = aclrtSetDevice(device_id);
+    if (status != ACL_SUCCESS) {
+        std::cerr << "aclrtSetDevice failed: " << status << std::endl;
+        (void)aclFinalize();
+        return status;
+    }
+    status = aclrtCreateStream(&stream);
+    if (status != ACL_SUCCESS) {
+        std::cerr << "aclrtCreateStream failed: " << status << std::endl;
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
 
     aclshmemx_init_attr_t attributes;
     test_set_attr(pe_id, n_pes, local_mem_size, ipport, default_flag_uid, &attributes);
 
     attributes.option_attr.data_op_engine_type = ACLSHMEM_DATA_OP_ROCE;
     status = aclshmemx_init_attr(ACLSHMEMX_INIT_WITH_DEFAULT, &attributes);
+    if (status != ACLSHMEM_SUCCESS) {
+        std::cerr << "aclshmemx_init_attr failed: " << status << std::endl;
+        (void)aclrtDestroyStream(stream);
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
 
-    uint8_t *ptr = static_cast<uint8_t*>(aclshmem_malloc(1024));
+    // Enable the internal Runtime exception snapshot and RDMA queue diagnostics.
+    status = aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG);
+    if (status == ACLSHMEM_NOT_SUPPORTED) {
+        std::cout << "runtime exception report is not supported, skip enabling" << std::endl;
+        status = ACLSHMEM_SUCCESS;
+    }
+    if (status != ACLSHMEM_SUCCESS) {
+        std::cerr << "aclshmemx_enable_exception_report failed: " << status << std::endl;
+        (void)aclshmem_finalize();
+        (void)aclrtDestroyStream(stream);
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return status;
+    }
+
+    uint8_t* ptr = static_cast<uint8_t*>(aclshmem_malloc(1024));
+    if (ptr == nullptr) {
+        std::cerr << "aclshmem_malloc failed" << std::endl;
+        (void)aclshmem_finalize();
+        (void)aclrtDestroyStream(stream);
+        (void)aclrtResetDevice(device_id);
+        (void)aclFinalize();
+        return ACLSHMEM_INNER_ERROR;
+    }
 
     // 初始化数据
     uint32_t trans_size = 16;
@@ -54,15 +100,22 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
         input[i] = (pe_id + num10);
     }
 
-    status |= aclrtMemcpy(ptr + aclshmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t),
-        input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE);
+    status |= aclrtMemcpy(
+        ptr + aclshmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), input.data(),
+        trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE);
 
     // AllGather
-    allgather_demo(1, stream, (uint8_t *)ptr, trans_size * sizeof(int32_t));
+    allgather_demo(1, stream, (uint8_t*)ptr, trans_size * sizeof(int32_t));
     status |= aclrtSynchronizeStream(stream);
+    // The stream synchronization is the host safe point for reporting a device trap.
+    const int report_status = aclshmemx_report_exception();
+    if (report_status != ACLSHMEM_SUCCESS) {
+        std::cerr << "aclshmemx_report_exception failed: " << report_status << std::endl;
+    }
+    status |= report_status;
 
     // 结果校验打印
-    int32_t *y_host;
+    int32_t* y_host;
     size_t input_size = n_pes * trans_size * sizeof(int32_t);
     status |= aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size);
     status |= aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST);
@@ -93,7 +146,7 @@ int test_aclshmem_team_all_gather(int pe_id, int n_pes, uint64_t local_mem_size)
     return status;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int argIdx = 1;
     int status = 0;

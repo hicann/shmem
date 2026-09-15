@@ -77,6 +77,7 @@ target_compile_options(aclshmem_host
 target_include_directories(aclshmem_host
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/device
     ${PROJECT_SOURCE_DIR}/src/device_simt

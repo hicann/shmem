@@ -12,11 +12,14 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <sstream>
 
 #include "acl/acl_rt.h"
 #include "utils/exception/shmem_exception_udma_dump.h"
+#include "utils/exception/shmem_exception_rdma_dump.h"
 #include "dl_acl_api.h"
 #include "host/utils/shmem_host_exception.h"
+#include "init/shmemi_init.h"
 #include "shmemi_host_common.h"
 
 namespace {
@@ -73,6 +76,7 @@ aclshmemi_exception_report_state_t g_exception_report_state;
 std::mutex g_exception_report_mutex;
 
 const aclshmemi_exception_engine_reporter_t ACLSHMEMI_EXCEPTION_ENGINE_REPORTERS[] = {
+    {static_cast<uint32_t>(ACLSHMEM_DATA_OP_ROCE), "RDMA", aclshmemi_exception_report_dump_rdma},
     {static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA), "UDMA", aclshmemi_exception_report_dump_udma},
 };
 
@@ -86,6 +90,15 @@ uint32_t aclshmemi_exception_report_selected_transport_engine(data_op_engine_typ
     }
 
     const uint32_t engines = static_cast<uint32_t>(requested_engines);
+    // UDMA is the primary exception reporter when requested.  RDMA/ROCE is
+    // selected only when UDMA is absent, preserving the single-reporter
+    // transport selection contract for composite masks.
+    if ((engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA)) != 0U) {
+        return static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA);
+    }
+    if (engines != static_cast<uint32_t>(ACLSHMEM_DATA_OP_ROCE)) {
+        return 0;
+    }
     uint32_t selected_engines = 0;
     for (const auto& reporter : ACLSHMEMI_EXCEPTION_ENGINE_REPORTERS) {
         selected_engines |= engines & reporter.engine;
@@ -194,15 +207,25 @@ void aclshmemi_exception_report_log_runtime(const aclshmemi_runtime_exception_sn
 void aclshmemi_exception_report_log_state()
 {
     const uint64_t udma_info_address = g_exception_report_state.udma_info_address.load(std::memory_order_acquire);
-    SHM_LOG_ERROR(
-        "[EXCEPTION][STATE] qpInfo=0x" << std::hex << g_state.qp_info << " udmaInfo=0x" << udma_info_address
-                                       << " defaultStream=" << g_state_host.default_stream << " heapBase="
-                                       << g_state.heap_base << " hostHeapBase=" << g_state.host_heap_base
-                                       << " heapSize=0x" << g_state.heap_size << std::dec << " mype=" << g_state.mype
-                                       << " npes=" << g_state.npes << " udmaConfig={ub=0x" << std::hex
-                                       << g_state.udma_config.aclshmem_ub << ", size=" << std::dec
-                                       << g_state.udma_config.ub_size << ", syncId=" << g_state.udma_config.sync_id
-                                       << "}");
+    const uint32_t enabled_engines = g_exception_report_state.enabled_engines.load(std::memory_order_acquire);
+    const bool rdma_enabled = (enabled_engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_ROCE)) != 0U;
+    const bool udma_enabled = (enabled_engines & static_cast<uint32_t>(ACLSHMEM_DATA_OP_UDMA)) != 0U;
+    std::ostringstream out;
+    out << "[EXCEPTION][STATE]";
+    if (rdma_enabled) {
+        out << " rdmaInfo=0x" << std::hex << g_state.qp_info;
+        out << " rdmaConfig={ub=0x" << std::hex << g_state.rdma_config.aclshmem_ub << ", size=" << std::dec
+            << g_state.rdma_config.ub_size << ", syncId=" << g_state.rdma_config.sync_id << "}";
+    }
+    if (udma_enabled) {
+        out << " udmaInfo=0x" << std::hex << udma_info_address;
+        out << " udmaConfig={ub=0x" << std::hex << g_state.udma_config.aclshmem_ub << ", size=" << std::dec
+            << g_state.udma_config.ub_size << ", syncId=" << g_state.udma_config.sync_id << "}";
+    }
+    out << " defaultStream=" << std::hex << g_state_host.default_stream << " heapBase=" << g_state.heap_base
+        << " hostHeapBase=" << g_state.host_heap_base << " heapSize=0x" << g_state.heap_size << std::dec
+        << " mype=" << g_state.mype << " npes=" << g_state.npes;
+    SHM_LOG_ERROR(out.str());
 }
 
 int aclshmemi_exception_report_dump_enabled_engines()
@@ -435,6 +458,7 @@ int aclshmemx_enable_exception_report(
 
 int aclshmemx_report_exception(void)
 {
+    std::lock_guard<std::mutex> lock(g_exception_report_mutex);
     if (aclshmemi_exception_report_unsupported()) {
         return ACLSHMEM_SUCCESS;
     }

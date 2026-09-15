@@ -37,6 +37,70 @@ ACLSHMEM_DEVICE __gm__ aclshmemi_rdma_info* aclshmemi_qp_info_fetch()
     return rdma_info;
 }
 
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_assert_not_self_send(uint32_t pe)
+{
+    if (pe == aclshmemi_get_my_pe()) {
+        aclshmemi_kernel_abort("RDMA self send is invalid: pe=%u\n", pe);
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_assert_qp_params_valid(__gm__ aclshmemi_rdma_sq_ctx* sq_context)
+{
+    if (sq_context == nullptr || sq_context->buf_addr == 0U || sq_context->head_addr == 0U ||
+        sq_context->tail_addr == 0U || sq_context->depth == 0U || sq_context->wqe_size == 0U ||
+        (sq_context->depth & (sq_context->depth - 1U)) != 0U) {
+        aclshmemi_kernel_abort("RDMA invalid SQ parameters\n");
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_ensure_sq_capacity(
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context, uint32_t pe, uint32_t qp_idx, uint32_t wqe_count)
+{
+    dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(sq_context->head_addr), sizeof(uint32_t));
+    dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(sq_context->tail_addr), sizeof(uint32_t));
+    const uint32_t head = *reinterpret_cast<__gm__ volatile uint32_t*>(sq_context->head_addr);
+    const uint32_t tail = *reinterpret_cast<__gm__ volatile uint32_t*>(sq_context->tail_addr);
+    const uint32_t used = head - tail;
+    if (wqe_count == 0U || used > sq_context->depth || wqe_count > sq_context->depth - used) {
+        aclshmemi_kernel_abort(
+            "RDMA SQ lacks capacity: pe=%u qp_idx=%u need=%u head=%u tail=%u depth=%u\n", pe, qp_idx, wqe_count, head,
+            tail, sq_context->depth);
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_check_aggregate_batch_size(uint32_t pending_wqe_count, uint32_t depth)
+{
+    if (depth == 0U || pending_wqe_count == 0U || pending_wqe_count >= depth) {
+        aclshmemi_kernel_abort("RDMA aggregate batch too large: pending=%u depth=%u\n", pending_wqe_count, depth);
+    }
+}
+
+ACLSHMEM_DEVICE void aclshmemi_rdma_dump_sq_wqe(
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context, uint32_t posted_head, uint32_t wqe_size, uint32_t wqe_count)
+{
+    if (sq_context == nullptr || sq_context->buf_addr == 0U || sq_context->depth == 0U || wqe_size == 0U) {
+        AscendC::printf("RDMA SQ WQE: invalid context\n");
+        return;
+    }
+    const uint64_t slot = posted_head & (sq_context->depth - 1U);
+    if (slot > (UINT64_MAX - sq_context->buf_addr) / wqe_size || wqe_count > UINT32_MAX / wqe_size) {
+        AscendC::printf("RDMA SQ WQE: address overflow\n");
+        return;
+    }
+    const uint64_t address = sq_context->buf_addr + slot * wqe_size;
+    const uint32_t bytes = wqe_size * wqe_count;
+    const uint32_t words = bytes > 32U ? 8U : (bytes + 3U) / 4U;
+    dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(address), words * sizeof(uint32_t));
+    auto* raw = reinterpret_cast<__gm__ uint32_t*>(address);
+    AscendC::printf(
+        "RDMA SQ WQE: wqn=%u head=%u slot=%u size=%u count=%u\n", sq_context->wqn, posted_head,
+        static_cast<uint32_t>(slot), wqe_size, wqe_count);
+    AscendC::printf(
+        "RDMA SQ WQE raw DW0-DW7: [0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x]\n", raw[0], words > 1U ? raw[1] : 0U,
+        words > 2U ? raw[2] : 0U, words > 3U ? raw[3] : 0U, words > 4U ? raw[4] : 0U, words > 5U ? raw[5] : 0U,
+        words > 6U ? raw[6] : 0U, words > 7U ? raw[7] : 0U);
+}
+
 template <typename T>
 ACLSHMEM_DEVICE void aclshmemi_roce_write(
     __gm__ T* dst, __gm__ T* src, uint32_t pe, uint32_t qp_idx, uint64_t message_len,
@@ -64,10 +128,18 @@ ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
 
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     auto sq_pi_addr = sq_context->head_addr;
     dcci_cachelines((__gm__ uint8_t*)sq_pi_addr, 8);
     uint32_t cur_head = *(__gm__ uint32_t*)(sq_pi_addr);
-    aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
+    uint32_t status =
+        aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
+    if (status != 0U) {
+        ACLSHMEM_DEBUG_FUNC(
+            aclshmemi_kernel_printf, "RDMA quiet failed: pe=%u, qp_idx=%u, status=%u, backend=%u\n", pe, qp_idx, status,
+            static_cast<uint32_t>(ACLSHMEMI_K_RDMA_BACKEND));
+    }
 }
 
 ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
@@ -81,7 +153,13 @@ ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
         auto sq_pi_addr = sq_context->head_addr;
         dcci_cachelines((__gm__ uint8_t*)sq_pi_addr, 8);
         uint32_t cur_head = *(__gm__ uint32_t*)(sq_pi_addr);
-        aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
+        uint32_t status =
+            aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
+        if (status != 0U) {
+            ACLSHMEM_DEBUG_FUNC(
+                aclshmemi_kernel_printf, "RDMA quiet failed: pe=%u, qp_idx=%u, status=%u, backend=%u\n", pe, qp_idx,
+                status, static_cast<uint32_t>(ACLSHMEMI_K_RDMA_BACKEND));
+        }
     }
 }
 

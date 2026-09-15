@@ -11,6 +11,7 @@
 #define ACLSHMEM_RDMA_DEVICE_BACKEND_HNS_1825_HPP
 
 #include "rdma_device_backend_base.h"
+#include "host_device/shmemi_rdma_cqe_layout.h"
 
 // WQE control segment (16B). Multi-byte fields are converted before the WQE is posted.
 struct aclshmemi_hns_1825_wqe_ctrl_seg_t {
@@ -63,21 +64,6 @@ struct aclshmemi_hns_1825_wqe_data_seg_t {
     uint32_t r_len;    // r(1) + length(31): transfer length in bytes
     uint32_t le_key;   // L(1) + E(1) + key(30): local lkey; L is set for the single SGE
     /**** 16 bytes ****/
-};
-
-// Completion Queue Entry header (32B), RC service type. Only a subset of fields is consumed.
-struct aclshmemi_hns_1825_cqe_t {
-    uint32_t owner_id_qpn; // dw1: owner(31) + cqe_size(30:29) + dif_en(28) + wq_id(27:24) + err_code(23:20) + qpn(19:0)
-    uint32_t op_sr_wqebb;  // dw2: op_type(31:27) + s_r(26) + inline(25) + merge(24) + fake(23) + wqebb_cnt(19:0)
-    uint32_t byte_cnt;     // dw3: transferred byte count
-    uint32_t imm_data;     // dw4: immediate data / invalidate key (receive side)
-    uint32_t rsvd_dw5;     // dw5: reserved for RC
-    uint32_t wqe_num;      // dw6: merged wr count (RQ merge only)
-    uint32_t vlan_queue_index; // dw7: srqn_rqpn (RC = SRQN, not read by SHMEM)
-    uint8_t syndrome;          // dw8[7:0]: error syndrome, valid only when op_type = error(0x1e)
-    uint8_t rsvd;              // dw8[15:8]
-    uint16_t wqe_counter;      // dw8[31:16]: SQ WQE sequence number
-    /**** 32 bytes ****/
 };
 
 // SQ hardware doorbell payload (64-bit), written to the UAR doorbell register via st_dev.
@@ -204,6 +190,21 @@ ACLSHMEM_DEVICE bool aclshmemi_roce_hns_1825_check_cqe_owner(
     return (expect_owner ^ cur_owner) != 0;
 }
 
+ACLSHMEM_DEVICE void aclshmemi_roce_hns_1825_dump_cqe(__ubuf__ aclshmemi_hns_1825_cqe_t* cqe)
+{
+    if (cqe == nullptr) {
+        AscendC::printf("RDMA HNS_1825 CQE: nullptr\n");
+        return;
+    }
+    auto* raw = reinterpret_cast<__ubuf__ uint32_t*>(cqe);
+    AscendC::printf(
+        "RDMA HNS_1825 CQE: owner=%u qpn=%u opcode=%u syndrome=0x%x wqe_counter=%u byte_cnt=%u\n",
+        (cqe->owner_id_qpn >> 31U) & 1U, cqe->owner_id_qpn & 0xfffffU, (cqe->op_sr_wqebb >> 27U) & 0x1fU, cqe->syndrome,
+        cqe->wqe_counter, cqe->byte_cnt);
+    AscendC::printf("RDMA HNS_1825 CQE raw DW0-DW3: [0x%x, 0x%x, 0x%x, 0x%x]\n", raw[0], raw[1], raw[2], raw[3]);
+    AscendC::printf("RDMA HNS_1825 CQE raw DW4-DW7: [0x%x, 0x%x, 0x%x, 0x%x]\n", raw[4], raw[5], raw[6], raw[7]);
+}
+
 // HNS_1825 CQ doorbell: keep host-order CI mirrors in CQ/SQ tail records and publish the big-endian CI to
 // the NIC-visible CQ software doorbell (roceCq.dbSwVa).
 template <>
@@ -222,7 +223,6 @@ ACLSHMEM_DEVICE void aclshmemi_roce_ring_cq_doorbell<aclshmemi_rdma_backend_t::H
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
-
     // Host-order CI mirrors: cq tail_addr lets poll_cq resume, sq tail_addr feeds post_send SQ-full checks.
     aclshmemi_hns_1825_write_u32_gm(cq_context->tail_addr, cur_tail);
     aclshmemi_hns_1825_write_u32_gm(sq_context->tail_addr, cur_tail);
@@ -256,9 +256,6 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
     // CQE slot stride in the CQ ring. The hardware slot is 64B even though SHMEM only parses the first
     // 32B (aclshmemi_hns_1825_cqe_t); used only when the control plane leaves cqe_size unset.
     constexpr uint32_t ACLSHMEMI_HNS_1825_DEFAULT_CQE_SIZE = 64;
-    if (target_idx == 0) {
-        return 0;
-    }
     __gm__ aclshmemi_rdma_info* rdma_info = aclshmemi_qp_info_fetch();
     uint32_t qp_num = rdma_info->qp_num;
     __gm__ aclshmemi_rdma_cq_ctx* cq_context =
@@ -299,10 +296,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
         if (!cqe_ready) {
             // No CQE with the expected owner bit was observed before timeout.
             status = ACLSHMEMI_HNS_1825_POLL_CQ_TIMEOUT_ERROR;
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_hns_1825_dump_cqe, cqe);
             ACLSHMEM_DEBUG_FUNC(
                 aclshmemi_kernel_printf,
                 "Poll CQE timeout: pe=%u, qp_idx=%u, cur_tail=%u, target_idx=%u, original_tail=%u, backend=%u\n", pe,
                 qp_idx, cur_tail, target_idx, original_cur_tail, (uint32_t)aclshmemi_rdma_backend_t::HNS_1825);
+            trap();
             break;
         }
 
@@ -311,12 +310,14 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_18
             // Return the syndrome from an error CQE.
             status = cqe->syndrome;
             uint32_t wqn = cqe->owner_id_qpn & 0xfffffU;
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_hns_1825_dump_cqe, cqe);
             ACLSHMEM_DEBUG_FUNC(
                 aclshmemi_kernel_printf,
                 "Receive CQE with error: syndrome=0x%x in pe %u, cur_tail: %u, wqn: %u, qp_idx: %u, "
                 "backend %u\n",
                 status, pe, cur_tail, wqn, qp_idx, (uint32_t)aclshmemi_rdma_backend_t::HNS_1825);
             cur_tail++;
+            trap();
             break;
         }
         cur_tail++;
@@ -561,6 +562,8 @@ ACLSHMEM_DEVICE void aclshmemi_hns_1825_post_send_read_write(
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     uint64_t mem_info_table = rdma_info->mem_ptr;
     // SQ/CQ depth is assumed to be a power of two: owner-bit toggling and slot masking rely on it.
     uint32_t depth = sq_context->depth;
@@ -582,6 +585,7 @@ ACLSHMEM_DEVICE void aclshmemi_hns_1825_post_send_read_write(
             return;
         }
     }
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_ensure_sq_capacity, sq_context, pe, qp_idx, 1U);
 
     __gm__ aclshmemi_rdma_mem_info* remote_mem_info =
         (__gm__ aclshmemi_rdma_mem_info*)(mem_info_table + sizeof(aclshmemi_rdma_mem_info) * pe);
@@ -598,6 +602,7 @@ ACLSHMEM_DEVICE void aclshmemi_hns_1825_post_send_read_write(
     uint32_t wqe_total_size =
         aclshmemi_roce_hns_1825_fill_wqe_write_read(wr, sq_context, wqe_addr, cur_head, OPCODE, wqe_ub_local, sync_id);
     dcci_cachelines(wqe_addr, wqe_total_size);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_dump_sq_wqe, sq_context, cur_head, ACLSHMEMI_HNS_1825_WRITE_READ_WQE_SIZE, 1U);
     cur_head++;
 
     aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::HNS_1825>(

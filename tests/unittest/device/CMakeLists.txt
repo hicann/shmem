@@ -23,6 +23,7 @@ target_link_options(aclshmem_unittest_device PRIVATE --cce-fatobj-link)
 target_compile_options(aclshmem_unittest_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH})
 target_include_directories(aclshmem_unittest_device PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
+    ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/src/device/
     ${PROJECT_SOURCE_DIR}/tests/unittest/include
     ${PROJECT_SOURCE_DIR}/tests/unittest/team/team/

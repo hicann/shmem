@@ -8,14 +8,19 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <iostream>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <string.h>
 
 #include "acl/acl.h"
+#include "init/shmemi_init.h"
 #include "shmemi_host_common.h"
 #include "rdma_mem_kernel.h"
+#include "utils/exception/shmemi_device_rdma_exception_report_kernel.h"
+#include "utils/exception/shmem_exception_report.h"
+#include "utils/under_api/dl_hccp_def.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -124,6 +129,125 @@ TEST(TestMemApi, TestShmemRDMAMem)
     const int processCount = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 64;
     test_mutil_task(test_aclshmem_rdma_mem, local_mem_size, processCount);
+}
+
+namespace {
+struct RdmaQueueWatermarks {
+    uint32_t sq_head{0};
+    uint32_t scq_tail{0};
+};
+
+bool ReadRdmaQueueWatermarks(uint32_t peer, aclrtStream stream, RdmaQueueWatermarks& watermarks)
+{
+    if (init_manager == nullptr) {
+        return false;
+    }
+    const uint32_t rank_count = g_state.npes;
+    const uint64_t qp_info_address = reinterpret_cast<uint64_t>(g_state.qp_info);
+    if (qp_info_address == 0 || peer >= rank_count) {
+        return false;
+    }
+    void* device_entry = nullptr;
+    if (aclrtMalloc(&device_entry, sizeof(aclshmemi_rdma_exception_report_entry_t), ACL_MEM_MALLOC_NORMAL_ONLY) !=
+        ACL_SUCCESS) {
+        return false;
+    }
+
+    auto read_entry = [&](uint32_t type, uint64_t address, size_t size,
+                          aclshmemi_rdma_exception_report_entry_t& entry) {
+        entry = {};
+        if (aclrtMemset(device_entry, sizeof(entry), 0, sizeof(entry)) != ACL_SUCCESS ||
+            aclshmemi_rdma_exception_report_read_entry_on_stream(
+                type, address, size, static_cast<aclshmemi_rdma_exception_report_entry_t*>(device_entry), stream) !=
+                ACLSHMEM_SUCCESS ||
+            aclrtSynchronizeStream(stream) != ACL_SUCCESS ||
+            aclrtMemcpy(&entry, sizeof(entry), device_entry, sizeof(entry), ACL_MEMCPY_DEVICE_TO_HOST) != ACL_SUCCESS) {
+            return false;
+        }
+        return entry.ret == ACLSHMEMI_RDMA_EXCEPTION_REPORT_SUCCESS && entry.entry_type == type;
+    };
+
+    aclshmemi_rdma_exception_report_entry_t entry{};
+    shm::AiQpRMAQueueInfo info{};
+    bool success = read_entry(ACLSHMEMI_RDMA_EXCEPTION_REPORT_ENTRY_RAW, qp_info_address, sizeof(info), entry);
+    if (success) {
+        std::memcpy(&info, entry.raw.data, sizeof(info));
+        success = info.count != 0 && info.sq != nullptr && info.scq != nullptr;
+    }
+    uint64_t sq_addr = 0;
+    uint64_t scq_addr = 0;
+    if (success) {
+        const size_t index = static_cast<size_t>(peer) * info.count;
+        sq_addr = reinterpret_cast<uint64_t>(info.sq + index);
+        scq_addr = reinterpret_cast<uint64_t>(info.scq + index);
+    }
+    if (success) {
+        success = read_entry(ACLSHMEMI_RDMA_EXCEPTION_REPORT_ENTRY_WQ, sq_addr, sizeof(shm::AiQpRMAWQ), entry);
+    }
+    const uint64_t sq_head_addr = entry.wq.head_addr;
+    if (success) {
+        success = read_entry(ACLSHMEMI_RDMA_EXCEPTION_REPORT_ENTRY_CQ, scq_addr, sizeof(shm::AiQpRMACQ), entry);
+    }
+    const uint64_t scq_tail_addr = entry.cq.tail_addr;
+    if (success) {
+        success =
+            sq_head_addr != 0 && scq_tail_addr != 0 &&
+            read_entry(ACLSHMEMI_RDMA_EXCEPTION_REPORT_ENTRY_RAW, sq_head_addr, sizeof(watermarks.sq_head), entry);
+    }
+    if (success) {
+        std::memcpy(&watermarks.sq_head, entry.raw.data, sizeof(watermarks.sq_head));
+        success =
+            read_entry(ACLSHMEMI_RDMA_EXCEPTION_REPORT_ENTRY_RAW, scq_tail_addr, sizeof(watermarks.scq_tail), entry);
+    }
+    if (success) {
+        std::memcpy(&watermarks.scq_tail, entry.raw.data, sizeof(watermarks.scq_tail));
+    }
+    const bool free_success = aclrtFree(device_entry) == ACL_SUCCESS;
+    return success && free_success;
+}
+
+} // namespace
+
+void test_aclshmem_rdma_exception_report(int rank_id, int n_ranks, uint64_t local_mem_size)
+{
+    const int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    ASSERT_EQ(aclshmemx_enable_exception_report(nullptr, ACLSHMEMX_EXCEPTION_REPORT_DEBUG), ACLSHMEM_SUCCESS);
+
+    aclrtStream stream = nullptr;
+    ASSERT_EQ(test_rdma_init(rank_id, n_ranks, local_mem_size, &stream), ACLSHMEM_SUCCESS);
+    ASSERT_NE(stream, nullptr);
+
+    const uint32_t peer = static_cast<uint32_t>((rank_id + 1) % n_ranks);
+    RdmaQueueWatermarks before{};
+    RdmaQueueWatermarks after{};
+    ASSERT_TRUE(ReadRdmaQueueWatermarks(peer, stream, before));
+    ASSERT_EQ(aclshmemi_control_barrier_all(), ACLSHMEM_SUCCESS);
+
+    ASSERT_TRUE(aclshmemi_exception_report_record_snapshot(1U, 2U, 3U, static_cast<uint32_t>(device_id), 4U));
+    ASSERT_TRUE(aclshmemi_exception_report_pending());
+    ASSERT_EQ(aclshmemx_report_exception(), ACLSHMEM_SUCCESS);
+    ASSERT_FALSE(aclshmemi_exception_report_pending());
+    ASSERT_TRUE(ReadRdmaQueueWatermarks(peer, stream, after));
+    EXPECT_EQ(after.sq_head, before.sq_head);
+    EXPECT_EQ(after.scq_tail, before.scq_tail);
+
+    ASSERT_EQ(aclshmemx_report_exception(), ACLSHMEM_SUCCESS);
+    RdmaQueueWatermarks after_repeat{};
+    ASSERT_TRUE(ReadRdmaQueueWatermarks(peer, stream, after_repeat));
+    EXPECT_EQ(after_repeat.sq_head, before.sq_head);
+    EXPECT_EQ(after_repeat.scq_tail, before.scq_tail);
+
+    ASSERT_EQ(aclshmemi_control_barrier_all(), ACLSHMEM_SUCCESS);
+    test_finalize(stream, device_id);
+}
+
+TEST(TestMemApi, TestShmemRDMAExceptionReport)
+{
+    if (test_gnpu_num < 2) {
+        GTEST_SKIP() << "RDMA exception report integration test requires at least 2 PEs";
+    }
+    constexpr uint64_t local_mem_size = 1024UL * 1024UL * 64;
+    test_mutil_task(test_aclshmem_rdma_exception_report, local_mem_size, test_gnpu_num);
 }
 
 #if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE)

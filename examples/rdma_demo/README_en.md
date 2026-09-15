@@ -16,9 +16,23 @@ If the following command output is displayed, the environment is available:
 
 ## Instructions
 1. Build in the `shmem/` directory:
+
 ```bash
 bash scripts/build.sh -enable_rdma -examples
 ```
+
+- On Ascend950 platforms, select the command for the RDMA backend in use:
+
+  XSCALE:
+  ```bash
+  bash scripts/build.sh -soc_type Ascend950 -enable_rdma -rdma_backend XSCALE -examples
+  ```
+
+  HNS_1825:
+  ```bash
+  bash scripts/build.sh -soc_type Ascend950 -enable_rdma -rdma_backend HNS_1825 -examples
+  ```
+
 2. Run the `bash run.sh` command in the `examples/rdma_demo` directory or run the following commands in the `shmem/` directory:
 - For single-server dual-device, run the following commands:
     ```bash

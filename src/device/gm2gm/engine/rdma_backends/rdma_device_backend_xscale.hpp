@@ -12,12 +12,7 @@
 
 #include <type_traits>
 #include "rdma_device_backend_base.h"
-
-constexpr int ACLSHMEMI_XSCALE_API_VERSION_VAR = 2;
-
-static_assert(
-    ACLSHMEMI_XSCALE_API_VERSION_VAR == 1 || ACLSHMEMI_XSCALE_API_VERSION_VAR == 2,
-    "ACLSHMEMI_XSCALE_API_VERSION must be 1 or 2");
+#include "host_device/shmemi_rdma_cqe_layout.h"
 
 struct aclshmemi_xscdv_wqe_ctrl_seg_v1 {
     uint8_t msg_opcode;
@@ -79,79 +74,6 @@ struct aclshmemi_xscdv_wqe_data_seg_t {
     /**** 16 bytes ****/
 };
 
-struct aclshmemi_xscdv_diamond_cqe_v1 {
-    uint32_t error_code : 8;
-    uint32_t qp_id : 15; // Corresponds to the QP's qpn
-    uint32_t rsv : 1;
-    uint32_t se : 1;
-    uint32_t has_pph : 1;
-    uint32_t type : 1;
-    uint32_t with_imm : 1;
-    uint32_t csum_err : 4;
-    /**** 4 bytes ****/
-    uint32_t imm_data;
-    /**** 8 bytes ****/
-    uint32_t msg_len;
-    uint32_t vni;
-    /**** 16 bytes ****/
-    uint64_t ts : 48;
-    uint64_t wqe_id : 16; // Corresponds to wqe_id << 3 in the WQE
-                          // (ACLSHMEMI_XSCALE_SND_WQE_SHIFT - ACLSHMEMI_XSCALE_BASE_WQE_SHIFT)
-    /**** 24 bytes ****/
-    uint8_t msg_opcode;
-    uint8_t rsv0;
-    uint16_t rsv1[2];
-    uint16_t rsv2 : 15;
-    uint16_t owner : 1; // Checking the owner bit confirms whether the current CQE can be parsed by software
-    /**** 32 bytes ****/
-};
-
-struct aclshmemi_xscdv_diamond_cqe_v2 {
-    union {
-        struct {
-            uint32_t error_code : 8; // [0:7]
-            uint32_t qp_id : 15;     // [8:22] Corresponds to the QP's qpn
-            // [23:31] flags
-            uint32_t rsv : 1;
-            uint32_t se : 1;
-            uint32_t has_pph : 1;
-            uint32_t type : 1;
-            uint32_t with_imm : 1;
-            uint32_t csum_err : 4;
-        };
-        uint32_t flags_qp_id_err_code;
-    };
-    /**** 4 bytes ****/
-    uint32_t imm_data; // immediate value
-    /**** 8 bytes ****/
-    uint32_t msg_len; // message length
-    /**** 12 bytes ****/
-    uint32_t vni;
-    /**** 16 bytes ****/
-    uint32_t ts_l;
-    /**** 20 bytes ****/
-    uint32_t ts_h;
-    /**** 24 bytes ****/
-    union {
-        struct {
-            uint32_t msg_opcode : 8; // [0:7] msg_opcode of corresponding finished wqe, check aclshmemi_xscdv_msg_type_t
-            uint32_t rsv1 : 4;       // [8:11]
-            uint32_t wqe_id : 20;    // [12:31] Corresponds to wqe_id << 3 in the WQE
-        };
-        uint32_t wqe_id_rsv_opcode;
-    };
-    /**** 28 bytes ****/
-    union {
-        struct {
-            uint32_t rsv2 : 31;
-            uint32_t owner : 1; // Owner bit, checking the owner bit confirms whether the current CQE can be parsed by
-                                // software
-        };
-        uint32_t owner_rsv;
-    };
-    /**** 32 bytes ****/
-};
-
 using aclshmemi_xscdv_diamond_cqe_t = std::conditional_t<
     ACLSHMEMI_XSCALE_API_VERSION_VAR == 1, aclshmemi_xscdv_diamond_cqe_v1, aclshmemi_xscdv_diamond_cqe_v2>;
 
@@ -161,6 +83,27 @@ struct aclshmemi_xscdv_cqe64_t {
     uint8_t padding[32];
     /**** 64 bytes ****/
 };
+
+ACLSHMEM_DEVICE void aclshmemi_roce_xscale_dump_cqe(__gm__ aclshmemi_xscdv_cqe64_t* cqe64)
+{
+    if (cqe64 == nullptr) {
+        AscendC::printf("RDMA XSCALE CQE: nullptr\n");
+        return;
+    }
+    dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(cqe64), sizeof(aclshmemi_xscdv_cqe64_t));
+    auto* cqe = &cqe64->cqe;
+    auto* raw = reinterpret_cast<__gm__ uint32_t*>(cqe);
+    const uint32_t owner = cqe->owner;
+    const uint32_t status = cqe->error_code;
+    const uint32_t qpn = cqe->qp_id;
+    const uint32_t opcode = cqe->msg_opcode;
+    const uint32_t wqe_id = cqe->wqe_id;
+    AscendC::printf(
+        "RDMA XSCALE CQE: owner=%u status=%u qpn=%u opcode=%u wqe_id=%u msg_len=%u\n", owner, status, qpn, opcode,
+        wqe_id, cqe->msg_len);
+    AscendC::printf("RDMA XSCALE CQE raw DW0-DW3: [0x%x, 0x%x, 0x%x, 0x%x]\n", raw[0], raw[1], raw[2], raw[3]);
+    AscendC::printf("RDMA XSCALE CQE raw DW4-DW7: [0x%x, 0x%x, 0x%x, 0x%x]\n", raw[4], raw[5], raw[6], raw[7]);
+}
 
 union aclshmemi_xscdv_diamond_cq_doorbell_t {
     struct {
@@ -450,13 +393,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_poll_cq_overrun(
     uint32_t pe, uint32_t qp_idx, __gm__ aclshmemi_rdma_cq_ctx* cq_context, uint32_t target_idx,
     AscendC::LocalTensor<uint64_t>& ub_local64, AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
 {
-    // ! If `target_idx` has already caused the `uint32_t` to wrap around, this check might encounter issues.
-    if (target_idx == 0) {
-        return 0;
-    }
     auto cur_hardware_tail_addr = cq_context->tail_addr;
     dcci_cachelines((__gm__ uint8_t*)cur_hardware_tail_addr, sizeof(uint32_t));
     uint32_t cur_tail = *(__gm__ uint32_t*)(cur_hardware_tail_addr);
+    if (cur_tail == target_idx) {
+        return 0;
+    }
     uint32_t depth = cq_context->depth;
     uint32_t original_cur_tail = cur_tail;
     uint64_t cq_base_addr = cq_context->buf_addr;
@@ -504,11 +446,14 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_poll_cq_overrun(
             // Even though cq overrun mode may result in receiving multiple error CQEs, regardless of
             // whether subsequent CQEs are received, the current CQE being in error indicates the loop
             // condition is very likely unsatisfiable, so we should exit.
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_xscale_dump_cqe, cqe_addr);
             ACLSHMEM_DEBUG_FUNC(
                 aclshmemi_kernel_printf,
                 "Receive CQE with error: %d in pe %u, cur_tail: %u, wqn: %u, qp_idx: %u, target_idx: %u, "
                 "original_tail: %u\n",
                 status, pe, cur_tail, wqn, qp_idx, target_idx, original_cur_tail);
+            // A device-side CQE error must abort the kernel so runtime can report the exception.
+            trap();
             break;
         }
         if (cur_tail == target_idx) {
@@ -524,10 +469,13 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_xscale_poll_cq_overrun(
 
     if (cur_tail != target_idx) {
         status = ACLSHMEMI_XSC_POLL_CQ_TIMEOUT_ERROR;
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_xscale_dump_cqe, cqe_addr);
         ACLSHMEM_DEBUG_FUNC(
             aclshmemi_kernel_printf,
             "Poll CQE timeout: pe=%u, qp_idx=%u, cur_tail=%u, target_idx=%u, original_tail=%u\n", pe, qp_idx, cur_tail,
             target_idx, original_cur_tail);
+        // A CQE timeout is a device communication failure, not a normal poll result.
+        trap();
     }
     return status;
 }
@@ -551,9 +499,6 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
     auto cq_base_addr = cq_context->buf_addr;
     auto cqe_size = cq_context->cqe_size;
     auto depth = cq_context->depth;
-    if (target_idx == 0) {
-        return 0;
-    }
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
@@ -586,10 +531,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
         if (run_cycles >= ACLSHMEMI_XSC_POLL_CQ_TIMEOUT_CYCLES) {
             // timeout and not received CQE with owner bit set
             status = ACLSHMEMI_XSC_POLL_CQ_TIMEOUT_ERROR;
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_xscale_dump_cqe, cqe_addr);
             ACLSHMEM_DEBUG_FUNC(
                 aclshmemi_kernel_printf,
                 "Poll CQE timeout: pe=%u, qp_idx=%u, cur_tail=%u, target_idx=%u, original_tail=%u, backend=%u\n", pe,
                 qp_idx, cur_tail, target_idx, original_cur_tail, (uint32_t)aclshmemi_rdma_backend_t::XSCALE);
+            trap();
             break;
         }
         cur_tail++;
@@ -600,10 +547,12 @@ ACLSHMEM_DEVICE uint32_t aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::XSCALE
         status = cqe_addr->cqe.error_code;
         if (status) {
             // when we receive CQE with error, return
+            ACLSHMEM_DEBUG_FUNC(aclshmemi_roce_xscale_dump_cqe, cqe_addr);
             ACLSHMEM_DEBUG_FUNC(
                 aclshmemi_kernel_printf,
                 "Receive CQE with error: %d in pe %u, cur_tail: %u, wqn: %u, qp_idx: %u, backend %u\n", status, pe,
                 cur_tail, wqn, qp_idx, (uint32_t)aclshmemi_rdma_backend_t::XSCALE);
+            trap();
             break;
         }
         target_reached = cqe_wqe_id == target_wqe_id;
@@ -762,6 +711,8 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     auto mem_info_table = rdma_info->mem_ptr;
     auto sq_base_addr = sq_context->buf_addr;
     auto wqe_size = sq_context->wqe_size;
@@ -788,6 +739,7 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
             return;
         }
     }
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_ensure_sq_capacity, sq_context, pe, qp_idx, 1U);
 
     // Step 4: Retrieve remote/local memory info and fill rkey/lkey into wr
     __gm__ aclshmemi_rdma_mem_info* remote_mem_info =
@@ -846,6 +798,7 @@ ACLSHMEM_DEVICE void aclshmemi_xscale_post_send_read_write(
     ub_local_wqe.address_.bufferAddr = reinterpret_cast<uint64_t>(ub_scratch);
     aclshmemi_roce_write_ub_to_gm_with_sync(
         reinterpret_cast<uint64_t>(wqe_addr), ub_local_wqe, XSCDV_WRITE_READ_WQE_SIZE, sync_id);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_dump_sq_wqe, sq_context, cur_head, wqe_size, 1U);
 
     // Step 8: Advance producer index and ring SQ doorbell to notify hardware
     cur_head++;
@@ -1082,6 +1035,7 @@ ACLSHMEM_DEVICE void aclshmemi_roce_commit_rma_wqes_xscale(
     uint32_t depth = cache->sq_depth;
     uint32_t total_wqe_cnt = pending_count + 1; // +1 for the commit call's own WQE
 
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_check_aggregate_batch_size, total_wqe_cnt, depth);
     if (total_wqe_cnt >= depth) {
         ACLSHMEM_DEBUG_FUNC(
             aclshmemi_kernel_abort,
@@ -1344,6 +1298,8 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_xscdv_post_send_atomic(
     __gm__ aclshmemi_rdma_sq_ctx* sq_context =
         (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr +
                                         ((uint64_t)pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     auto mem_info_table = rdma_info->mem_ptr;
     auto sq_base_addr = sq_context->buf_addr;
     auto wqe_size = sq_context->wqe_size;
@@ -1372,6 +1328,7 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_xscdv_post_send_atomic(
             return;
         }
     }
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_ensure_sq_capacity, sq_context, pe, qp_idx, 1U);
 
     __gm__ uint8_t* wqe_addr = (__gm__ uint8_t*)(sq_base_addr + (uint64_t)wqe_size * (cur_head % depth));
 
@@ -1379,6 +1336,7 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_xscdv_post_send_atomic(
         aclshmemi_roce_xscale_fill_wqe_atomic<T, IS_MASKED, ATOMIC_OP_CODE>(wr, sq_context, wqe_addr, cur_head);
 
     dcci_cachelines(wqe_addr, wqe_total_size);
+    ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_dump_sq_wqe, sq_context, cur_head, wqe_size, 1U);
     cur_head++;
 
     aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::XSCALE>(

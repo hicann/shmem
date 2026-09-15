@@ -89,6 +89,7 @@ if(SOC_TYPE STREQUAL "Ascend950" AND ACLSHMEM_RDMA_SUPPORT)
     target_compile_options(aclshmem_rdma_topo_unittest PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS} -g -fprofile-arcs -ftest-coverage)
     target_include_directories(aclshmem_rdma_topo_unittest PRIVATE
         ${PROJECT_SOURCE_DIR}/include/
+        ${PROJECT_SOURCE_DIR}/src/
         ${PROJECT_SOURCE_DIR}/src/host
         ${PROJECT_SOURCE_DIR}/src/device
         ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include
@@ -142,6 +143,7 @@ target_compile_options(aclshmem_unittest_host PRIVATE ${CMAKE_CPP_COMPILE_OPTION
 target_compile_options(aclshmem_unittest_host PRIVATE -g -fprofile-arcs -ftest-coverage)
 target_include_directories(aclshmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
+    ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/device
     ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include

@@ -17,6 +17,7 @@ target_link_options(aclshmem_unittest_include PRIVATE --cce-fatobj-link)
 target_compile_options(aclshmem_unittest_include PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} ${CCE_AICORE_ARCH})
 target_include_directories(aclshmem_unittest_include PRIVATE
         ${PROJECT_SOURCE_DIR}/include/
+        ${PROJECT_SOURCE_DIR}/src/
         ${PROJECT_SOURCE_DIR}/src/host
         ${PROJECT_SOURCE_DIR}/src/device
         ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include

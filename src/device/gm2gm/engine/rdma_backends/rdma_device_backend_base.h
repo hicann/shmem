@@ -13,6 +13,14 @@
 #include "device/shmem_def.h"
 #include "gm2gm/engine/shmemi_device_rdma.h"
 
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_assert_not_self_send(uint32_t pe);
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_assert_qp_params_valid(__gm__ aclshmemi_rdma_sq_ctx* sq_context);
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_ensure_sq_capacity(
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context, uint32_t pe, uint32_t qp_idx, uint32_t wqe_count);
+ACLSHMEM_DEVICE void aclshmemi_rdma_debug_check_aggregate_batch_size(uint32_t pending_wqe_count, uint32_t depth);
+ACLSHMEM_DEVICE void aclshmemi_rdma_dump_sq_wqe(
+    __gm__ aclshmemi_rdma_sq_ctx* sq_context, uint32_t posted_head, uint32_t wqe_size, uint32_t wqe_count);
+
 /*
  *  =====================================================================================================
  *  SHMEM RDMA Architecture Structure —— Base Header

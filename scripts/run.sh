@@ -149,10 +149,6 @@ UT_RC=0
 HBM_RC=0
 bash "$PROJECT_ROOT/tests/unittest/scripts/hbm_leak_check.sh" after "$FIRST_NPU" "$GNPU_NUM" "$HBM_STATE_FILE" || HBM_RC=$?
 
-if grep -q '^ACLSHMEM_RDMA_SUPPORT:BOOL=ON$' CMakeCache.txt && [ -x ./bin/aclshmem_rdma_topo_unittest ]; then
-    ./bin/aclshmem_rdma_topo_unittest --gtest_output=xml:rdma_topo_test_detail.xml
-fi
-
 # Collect coverage
 if [[ $lcov_not_found -ne 0 ]]; then
     echo "lcov not found, code coverage generation will skipped."
