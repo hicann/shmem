@@ -71,6 +71,8 @@ bash scripts/build.sh             # A2/A3 平台
 source install/set_env.sh
 ```
 
+默认构建会复用仓库根目录 `build/` 中的 CMake 缓存和已编译对象。切换工具链、清除旧配置或全量重编译时，请使用 `bash scripts/build.sh -clean`。
+
 > 完整安装步骤（含 CANN 环境准备、依赖说明、Docker 容器、编译执行和本地验证等）详见 [快速入门文档](docs/quickstart.md)。
 
 安装 Python wheel 后，可通过 [shmem-config 命令参考](docs/tools/shmem_config_guide.md)查询后端和安装路径，执行环境检查及问题诊断。

@@ -141,6 +141,8 @@ bash scripts/build.sh
 # Configure environment variables.
 source install/set_env.sh
 ```
+By default, the build reuses the CMake cache and compiled objects in the repository-root `build/` directory. When switching toolchains, clearing stale configuration, or performing a full rebuild, use `bash scripts/build.sh -clean`.
+
 Note: For details about the parameters of build.sh, see [compilation_build_guide_en.md](./docs/compilation_build_guide_en.md).
 
 #### 4.1.2 Method 2: Binary Package Installation

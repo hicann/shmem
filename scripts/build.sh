@@ -70,6 +70,7 @@ BUILD_GOOGLETEST=OFF
 BUILD_CATLASS=OFF
 BUILD_DOC_DEPS=OFF
 ONLY_GEN_DOC=OFF
+CLEAN_BUILD=OFF
 
 COMPILE_OPTIONS=""
 
@@ -99,6 +100,7 @@ function print_usage()
     echo "  -onlygendoc                Only generate documentation"
     echo "  -enable_ascendc_dump       Enable AscendC dump"
     echo "  -package                   Build package"
+    echo "  -clean                     Remove the build directory before building"
     echo "  -full                      Full build (all components)"
     echo "  -use_cxx11_abi1            Use CXX11 ABI=1"
     echo "  -use_cxx11_abi0            Use CXX11 ABI=0"
@@ -121,7 +123,10 @@ function fn_build()
         build_compile_options=$(echo "${build_compile_options}" | sed 's/-DACLSHMEM_RELAY_SUPPORT=ON//g')
     fi
 
-    cmake $build_compile_options -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE ..
+    # Remove script-managed feature values from a reused cache; options requested by this
+    # invocation are added back through build_compile_options, otherwise CMake uses OFF defaults.
+    local cache_reset_options="-UUSE_UNIT_TEST -UENABLE_CANN_BUILD -UUSE_EXAMPLES -UACLSHMEM_RDMA_SUPPORT -UACLSHMEM_SIMT_SUPPORT -UACLSHMEM_RELAY_SUPPORT -UENABLE_ASCENDC_DUMP -UACLSHMEM_RDMA_BACKEND"
+    cmake $cache_reset_options $build_compile_options -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_CXX11_ABI=$USE_CXX11_ABI -DUSE_MSSANITIZER=$USE_MSSANITIZER -DSOC_TYPE=${SOC_TYPE} -DPYEXPAND_EXAMPLE=$PYEXPAND_EXAMPLE ..
     cmake --build . --target install
     cd -
 }
@@ -230,10 +235,10 @@ function fn_whl_build()
     # Relay is a UDMA-only (Ascend950) feature. The 910 backend is built with UDMA support OFF,
     # and the top-level CMake FATAL_ERRORs when relay is requested for a non-950 backend.
     # Strip the relay flag from the 910 backend options; the 950 backend below keeps it.
-    COMPILE_OPTIONS_910=${COMPILE_OPTIONS}
-    if [ -n "$(echo "$COMPILE_OPTIONS_910" | grep -o '\-DACLSHMEM_RELAY_SUPPORT=ON')" ]; then
+    local compile_opts_910=${COMPILE_OPTIONS}
+    if [ -n "$(echo "$compile_opts_910" | grep -o '\-DACLSHMEM_RELAY_SUPPORT=ON')" ]; then
         echo "[WARN] -enable_relay applied to the 950 backend only; the 910 wheel backend has UDMA disabled."
-        COMPILE_OPTIONS_910=$(echo "${COMPILE_OPTIONS_910}" | sed 's/-DACLSHMEM_RELAY_SUPPORT=ON//g')
+        compile_opts_910=$(echo "${compile_opts_910}" | sed 's/-DACLSHMEM_RELAY_SUPPORT=ON//g')
     fi
 
     # Determine step total early for correct [1/N] label
@@ -244,7 +249,6 @@ function fn_whl_build()
     echo "===== [1/${_step_total}] Building backend: 910 ====="
     # Ascend910B backend covers Ascend910 A2/A3 series.
     # 910B 不依赖特定 RDMA Backend，剔除 -DACLSHMEM_RDMA_BACKEND 但保留 RDMA_SUPPORT
-    local compile_opts_910=$COMPILE_OPTIONS
     compile_opts_910=$(echo "$compile_opts_910" | sed 's/-DACLSHMEM_RDMA_BACKEND=\S*//g')
     [ -d build ] && rm -rf build
     mkdir -p build && cd build
@@ -611,6 +615,10 @@ while [[ $# -gt 0 ]]; do
             PYEXPAND_TYPE=ON
             shift
             ;;
+        -clean)
+            CLEAN_BUILD=ON
+            shift
+            ;;
         -full)
             BUILD_ALL=ON
             BUILD_GOOGLETEST=ON
@@ -732,13 +740,16 @@ if [ "$SOC_TYPE" = "Ascend950" ] || [ "$PACKAGE" = "ON" ]; then
     fn_build_nlohmann_json
 fi
 
-# 清空 build
-[ -d build ] && rm -rf build
+# Native builds reuse build/ by default. Wheel backend transitions retain their own clean boundaries.
+if [ "$CLEAN_BUILD" = "ON" ]; then
+    rm -rf -- build
+fi
 
 if [ "$BUILD_ALL" = "ON" ]; then
     OLD_COMPILE_OPTIONS=${COMPILE_OPTIONS}
     # build whl
     fn_whl_build
+    rm -rf -- build
 
     # build examples
     COMPILE_OPTIONS="${OLD_COMPILE_OPTIONS} -DUSE_EXAMPLES=ON"
@@ -756,6 +767,7 @@ if [ "$BUILD_ALL" = "ON" ]; then
 else
     if [ "$PYEXPAND_TYPE" = "ON" ]; then
         fn_whl_build
+        rm -rf -- build
     fi
 
     # fn_build 使用全局 SOC_TYPE（默认 910），剔除 950 专用的 RDMA_BACKEND
@@ -765,7 +777,6 @@ else
         _compile_opts_default=$(echo "$_compile_opts_default" | sed 's/-DACLSHMEM_RDMA_BACKEND=[^ ]*//g')
     fi
     COMPILE_OPTIONS="$_compile_opts_default"
-    rm -rf build   # 确保干净构建，清除可能残留的 CMake 缓存
     fn_build
     fn_make_run_package
     if [ "$PACKAGE" == "ON" ]; then
