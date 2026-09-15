@@ -184,8 +184,9 @@ function _write_version_info() {
     {
         echo "SHMEM Version : ${VERSION}"
         echo "Platform : ${arch}"
-        echo "branch : ${branch}"
-        echo "commit id : ${commit_id}"
+        echo "Repository URL : https://gitcode.com/cann/shmem"
+        echo "Branch : ${branch}"
+        echo "Commit Id : ${commit_id}"
         echo "Build Timestamp : ${build_timestamp}"
         echo "Build Type : ${build_type_display}"
         echo "SOC Type : ${soc_display}"
