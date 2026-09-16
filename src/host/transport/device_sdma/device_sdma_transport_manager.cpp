@@ -144,7 +144,7 @@ Result SdmaTransportManager::CreateStarsStreams(int32_t channel_num)
         streams_[i].logic_cq_id = logic_cq_id;
         streams_[i].dev_id = die_id;
         SHM_LOG_DEBUG(
-            mype_ << "create stream " << i << "," << streams_[i].stream_ << "," << streams_[i].dev_id << ","
+            mype_ << " create stream " << i << "," << streams_[i].stream_ << "," << streams_[i].dev_id << ","
                   << stream_id << "," << sq_id << "," << cq_id << "," << logic_cq_id << "," << streams_[i].ctx_);
     }
     SHM_LOG_INFO(mype_ << " create " << channel_num << " stars streams success.");
