@@ -32,6 +32,9 @@ if(USE_EXAMPLES)
         -Wno-c++11-narrowing
         "SHELL:-Xhost-start -D__ASC_NPU_HOST__=1 -Xhost-end")
     target_compile_definitions(shmem_mega_moe PRIVATE SHMEM_MEGA_MOE_EXAMPLE_ARCH35=1)
+    if(SHMEM_MEGA_MOE_USE_NEW_BYPASS_DCACHE)
+        target_compile_definitions(shmem_mega_moe PRIVATE SHMEM_MEGA_MOE_USE_NEW_BYPASS_DCACHE=1)
+    endif()
     target_include_directories(shmem_mega_moe BEFORE PRIVATE
         ${PROJECT_SOURCE_DIR}/examples/shmem_mega_moe/include
         ${PROJECT_SOURCE_DIR}/examples/shmem_mega_moe/kernel

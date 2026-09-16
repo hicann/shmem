@@ -187,7 +187,7 @@ __aicore__ inline void RunFirstProjection(
             if (waveIndex != lastReadyWave) {
                 uint32_t targetValue = min(L1_TILE_M_256, m - rowOffset);
                 __gm__ int32_t* readinessFlag = matmulBuffers.waveReadyFlags + waveIndex;
-                while (targetValue != AscendC::ReadGmByPassDCache(readinessFlag)) {
+                while (targetValue != AscendC::ShmemMegaMoeReadGmBypassDCache(readinessFlag)) {
                     int64_t startCycle = AscendC::GetSystemCycle();
                     while (AscendC::GetSystemCycle() - startCycle < 100) {
                     }
@@ -333,7 +333,7 @@ __aicore__ inline void RunSecondProjection(
                     Catlass::GemmCoord{m, k, n}, Catlass::MatrixCoord{L1_TILE_M_256, L1_TILE_N});
                 uint32_t targetLoops = firstProjectionScheduler.GetCoreLoops();
                 __gm__ int32_t* readinessFlag = matmulBuffers.readyFlags;
-                while (targetLoops != AscendC::ReadGmByPassDCache(readinessFlag)) {
+                while (targetLoops != AscendC::ShmemMegaMoeReadGmBypassDCache(readinessFlag)) {
                     int64_t startCycle = AscendC::GetSystemCycle();
                     while (AscendC::GetSystemCycle() - startCycle < 100) {
                     }

@@ -38,19 +38,29 @@
 #include "shmem_mega_moe_memory_layout.h"
 
 namespace AscendC {
-#if !defined(__NPU_ARCH__)
 template <typename T>
-__aicore__ inline T ReadGmByPassDCache(__gm__ T* addr)
+__aicore__ inline T ShmemMegaMoeReadGmBypassDCache(__gm__ T* addr)
 {
+#if !defined(__NPU_ARCH__)
     return *addr;
+#elif defined(SHMEM_MEGA_MOE_USE_NEW_BYPASS_DCACHE)
+    return ReadGmBypassDCache(addr);
+#else
+    return ReadGmByPassDCache(addr);
+#endif
 }
 
 template <typename T>
-__aicore__ inline void WriteGmByPassDCache(__gm__ T* addr, T value)
+__aicore__ inline void ShmemMegaMoeWriteGmBypassDCache(__gm__ T* addr, T value)
 {
+#if !defined(__NPU_ARCH__)
     *addr = value;
-}
+#elif defined(SHMEM_MEGA_MOE_USE_NEW_BYPASS_DCACHE)
+    WriteGmBypassDCache(addr, value);
+#else
+    WriteGmByPassDCache(addr, value);
 #endif
+}
 } // namespace AscendC
 
 using AscendC::AIC;
@@ -59,8 +69,8 @@ using AscendC::CrossCoreSetFlag;
 using AscendC::CrossCoreWaitFlag;
 using AscendC::GetBlockIdx;
 using AscendC::GetBlockNum;
-using AscendC::ReadGmByPassDCache;
-using AscendC::WriteGmByPassDCache;
+using AscendC::ShmemMegaMoeReadGmBypassDCache;
+using AscendC::ShmemMegaMoeWriteGmBypassDCache;
 
 #if defined(__CCE__)
 #define SHMEM_MEGA_MOE_HOST_DEVICE __forceinline__[host, aicore]
@@ -203,7 +213,7 @@ __aicore__ inline void WaitForRankGeneration(__gm__ int32_t* signal, int32_t gen
         // The same slot is reused by successive barrier generations. A faster rank may publish
         // the next generation before a slower rank samples the current one, so equality can wait
         // forever after the value has advanced past generation.
-        if (ReadGmByPassDCache(signal) >= generation) {
+        if (ShmemMegaMoeReadGmBypassDCache(signal) >= generation) {
             return;
         }
     } while (true);

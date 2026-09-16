@@ -247,6 +247,16 @@ bash scripts/build.sh -examples -soc_type Ascend950
 构建成功后，可执行文件位于 `build/bin/shmem_mega_moe`。`scripts/build.sh` 会清理并重新生成
 `build/` 和 `install/` 目录；请确认其中没有需要保留的本地构建产物。
 
+样例会在 CMake 配置阶段扫描当前 CANN AscendC 头文件中的实际函数声明，自动选择旧接口
+`ReadGmByPassDCache`/`WriteGmByPassDCache` 或新接口 `ReadGmBypassDCache`/
+`WriteGmBypassDCache`。切换 CANN 版本后请重新执行上述构建命令；如使用已有 CMake 构建目录，
+可显式覆盖自动探测：
+
+```bash
+cmake -S . -B build -DSHMEM_MEGA_MOE_BYPASS_DCACHE_MODE=OLD  # 旧接口
+cmake -S . -B build -DSHMEM_MEGA_MOE_BYPASS_DCACHE_MODE=NEW  # 新接口
+```
+
 ## 运行
 
 ### 启动脚本

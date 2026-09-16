@@ -872,7 +872,7 @@ __aicore__ inline void ShmemMegaMoePipeline<SHMEM_MEGA_MOE_TEMPLATE_ARGS>::RunCo
     __gm__ int32_t* completionCounter =
         (__gm__ int32_t*)rowGroupCounters.GetPhyAddr() + expertIndex * expertCounterStride_ +
         assignedRowGroup * vectorCoreCount_ * INT_CACHELINE + vectorCoreIndex_ * INT_CACHELINE;
-    while (AscendC::ReadGmByPassDCache(completionCounter) != requiredTileCount) {
+    while (AscendC::ShmemMegaMoeReadGmBypassDCache(completionCounter) != requiredTileCount) {
         AscendC::Nop<200>();
     }
     uint32_t rowStart = assignedRowGroup * L1_TILE_M_256;
@@ -1043,15 +1043,15 @@ __aicore__ inline void ShmemMegaMoePipeline<SHMEM_MEGA_MOE_TEMPLATE_ARGS>::Synch
     __gm__ int32_t* syncRank = (__gm__ int32_t*)(params_.symmetricMemory.localBase);
     __gm__ int32_t* syncCount =
         (__gm__ int32_t*)(params_.symmetricMemory.localBase + 48 * 1024 + vectorCoreIndex_ * 64);
-    int count = ReadGmByPassDCache(syncCount) + 1;
+    int count = ShmemMegaMoeReadGmBypassDCache(syncCount) + 1;
     for (int i = vectorCoreIndex_; i < rankCount_; i += vectorCoreCount_) {
         __gm__ int32_t* remoteSynchronizationFlag =
             reinterpret_cast<__gm__ int32_t*>(GetRemoteAddress(params_.symmetricMemory.localBase, i, 0)) + rankId_ * 16;
-        WriteGmByPassDCache(remoteSynchronizationFlag, count);
+        ShmemMegaMoeWriteGmBypassDCache(remoteSynchronizationFlag, count);
         auto syncCheck = syncRank + i * 16;
         WaitForRankGeneration(syncCheck, count);
     }
-    WriteGmByPassDCache(syncCount, count);
+    ShmemMegaMoeWriteGmBypassDCache(syncCount, count);
     PipeBarrier<PIPE_ALL>();
     SyncAll<true>();
 }
