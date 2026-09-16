@@ -8,12 +8,23 @@ Use the output of the first `add` as the input to the first `allGather`. Then, f
 Instructions:
 
 1. Build in the `shmem/` directory:
-```
-bash scripts/build.sh -examples
-```
+
+    - A2/A3 platforms:
+
+    ```bash
+    bash scripts/build.sh -examples
+    ```
+
+    - Ascend950 platform:
+
+    ```bash
+    bash scripts/build.sh -soc_type Ascend950 -examples
+    ```
+
 2. Run the demo in the `shmem/examples/aclgraph_demo` directory:
-```
-# Complete ACLGraph (add + allGather + allGather + add) under PEs and verify precision in each iteration.
-# PEs : [2, 4, 8]
-bash run.sh -pes ${PEs}
-```
+
+    ```bash
+    # Complete ACLGraph (add + allGather + allGather + add) under PEs and verify precision in each iteration.
+    # PEs : [2, 4, 8]
+    bash run.sh -pes ${PEs}
+    ```

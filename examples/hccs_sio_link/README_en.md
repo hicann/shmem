@@ -2,7 +2,11 @@
 
 The HCCS/SIO link test tool is designed to verify the correctness of SIO and HCCS links between NPUs.
 
-> **Note**: This feature is not available in the current CANN release. It will be supported in CANN 9.1.0.
+> **Dependencies**:
+>
+> - CANN version >= 9.1.0
+> - Ascend HDK version >= 26.0.0
+> - LingQu Computing Network version >= 1.5.3. Download address: [LingQu Computing Network](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software)
 
 ## Link Description
 
@@ -51,7 +55,9 @@ This function is paired with `setup_hccs_mapping` and is used to release HCCS ma
 
 ## Build
 
-To build this example, enable the `-examples` build option. During the build process, CMake automatically detects whether the current CANN version supports the `aclrtMemMapSelectedLink` function. If it does, CMake automatically builds this example.
+To build this example, enable the `-examples` build option. During the build process, CMake automatically detects whether the current CANN version supports the `aclrtMemMapSelectedLink` function. If it does, CMake automatically builds this example:
+
+> **Atlas A3 only**: This example depends on the inter-die SIO/HCCS links and is supported only on A3 (Atlas A3 training series/Atlas A3 inference series). It is not supported on A2 (Atlas A2 training series/Atlas A2 inference series) or Ascend950.
 
 ```bash
 bash scripts/build.sh -examples
@@ -87,11 +93,19 @@ bash run.sh
 # If four PEs are specified, test the HCCS link only.
 bash run.sh -pes 4 -mode hccs
 
-# If eight PEs, with 8 MB of data and the fp32 type, are specified, test the SIO link only.
+# If eight PEs, with 8 KB of data and the fp32 type, are specified, test the SIO link only.
 bash run.sh -pes 8 -size 8 -type fp32 -mode sio
 
 # SIO + HCCS hybrid test (3/5 of data via SIO and 2/5 via HCCS)
 bash run.sh -mode mixed
+
+# Hybrid Get performance test (PE 0 collects cycle data)
+export SHMEM_CYCLE_PROF_PE=0
+bash run.sh -mode mixed_get_perf
+
+# Hybrid Put performance test (PE 1 collects cycle data)
+export SHMEM_CYCLE_PROF_PE=1
+bash run.sh -mode mixed_put_perf
 ```
 
 ## Parameter Description
@@ -113,13 +127,63 @@ bash run.sh -mode mixed
 | `sio` | SIO link correctness test|
 | `hccs` | HCCS link correctness test|
 | `all` | SIO + HCCS full-link correctness test|
-| `mixed` | SIO + HCCS hybrid link correctness test (3/5 data via SIO and 2/5 via HCCS)|
+| `mixed` | SIO + HCCS hybrid correctness test (3/5 data via SIO and 2/5 via HCCS)|
+| `mixed_get_perf` | SIO + HCCS hybrid Get performance test (3/5 data via SIO and 2/5 via HCCS)|
+| `mixed_put_perf` | SIO + HCCS hybrid Put performance test (3/5 data via SIO and 2/5 via HCCS)|
+
+## Performance Test
+
+The `mixed_get_perf` and `mixed_put_perf` modes are used to measure the performance (in cycles) of SIO + HCCS dual-link parallel transmission. They test the Get (remote read) and Put (remote write) operations respectively.
+
+### Working Principle
+
+- Data is distributed to the SIO and HCCS links at a ratio of 3:2 (3/5 of data via SIO and 2/5 via HCCS).
+- Inside the kernel, data is partitioned by block: some blocks handle SIO link transmission, and the other blocks handle HCCS link transmission.
+- `aclshmemx_mte_get_nbi` / `aclshmemx_mte_put_nbi` are used for non-blocking DMA transmission.
+- A cycle counter collects the duration of each transmission, and the shmem profiling mechanism (`aclshmemx_get_prof`) is used to output statistics.
+
+### Environment Variables
+
+| Environment Variable| Description|
+|----------|------|
+| `SHMEM_CYCLE_PROF_PE` | ID of the PE that performs performance collection. The default value is `0`. Only this PE executes the cycle collection logic, and the other PEs only participate in barrier synchronization.|
+
+### Run Examples
+
+```bash
+# Hybrid Get performance test: two PEs, 4 KB of data, int type, and PE 0 collects performance data
+export SHMEM_CYCLE_PROF_PE=0
+bash run.sh -mode mixed_get_perf
+
+# Hybrid Put performance test: two PEs, 8 KB of data, fp32 type, and PE 1 collects performance data
+export SHMEM_CYCLE_PROF_PE=1
+bash run.sh -pes 2 -size 8 -type fp32 -mode mixed_put_perf
+```
+
+### Internal Parameters
+
+The internal parameters of the performance test are defined in `utils/hccs_sio_link_config.h`:
+
+| Parameter| Constant| Value| Description|
+|------|--------|----|------|
+| Number of kernel blocks | `HCCS_SIO_BLOCK_DIM` | `32` | Total number of blocks launched by the kernel|
+| UB buffer size | `HCCS_SIO_UB_SIZE_KB` | `16` | Unified Buffer size (KB) of each block|
+| SIO ratio numerator | `HCCS_SIO_RATIO_NUM` | `3` | SIO data volume = total × NUM / DEN|
+| SIO ratio denominator | `HCCS_SIO_RATIO_DEN` | `5` | HCCS data volume = total - SIO data volume|
+| Minimum data size | `HCCS_SIO_PERF_MIN_LOG2_BYTES` | `4` | log2(bytes) of the minimum transfer data volume, 4 = 16 B|
+| Maximum data size | `HCCS_SIO_PERF_MAX_LOG2_BYTES` | `20` | log2(bytes) of the maximum transfer data volume, 20 = 1 MB|
+| Data size step | `HCCS_SIO_PERF_STEP_LOG2` | `1` | log2 step, 1 = doubling each time|
+| Warmup rounds | `HCCS_SIO_PERF_WARMUP` | `100` | Number of warmup iterations (not included in statistics)|
+| Test rounds | `HCCS_SIO_PERF_LOOP_COUNT` | `1000` | Number of measured iterations|
+| Unidirectional/bidirectional mode | `HCCS_SIO_PERF_IS_UNILATERAL` | `true` | `true` = unidirectional (only prof_pe executes); `false` = bidirectional (all PEs execute)|
+
+> **Note**: Performance collection is limited by `ACLSHMEM_CYCLE_PROF_MAX_BLOCK` (maximum number of recorded cores) and `ACLSHMEM_CYCLE_PROF_FRAME_CNT` (maximum number of recorded frames). Blocks or frames beyond these limits are not recorded.
 
 ## Output Example
 
 Correctness test:
 
-```
+```text
 PE 0: [SIO] path verification PASSED for PE 1
 PE 1: [SIO] path verification PASSED for PE 0
 PE 0: [HCCS] path verification PASSED for PE 1
@@ -128,7 +192,7 @@ PE 1: [HCCS] path verification PASSED for PE 0
 
 Hybrid test:
 
-```
+```text
 PE 0: [MIXED-SIO] path verification PASSED for PE 1
 PE 0: [MIXED-HCCS] path verification PASSED for PE 1
 PE 1: [MIXED-SIO] path verification PASSED for PE 0

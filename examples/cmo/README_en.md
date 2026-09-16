@@ -2,7 +2,7 @@
 
 ## Function Description
 
-This example demonstrates how to use the Cache Maintenance Operation (CMO) API of SHMEM to optimize the global memory (GM) access performance. The CMO API provides L2 cache management operations. It allows data to be prefetched from the GM to the L2 cache in advance, reducing data access latency and improving overall computing performance.
+This example demonstrates how to use the Cache Maintenance Operation (CMO) API of SHMEM to optimize the global memory (GM) access performance. The CMO API provides L2 cache management operations. It allows data to be prefetched from the GM to the L2 cache in advance, reducing data access latency and improving overall computing performance. The current implementation supports the existing A2/A3 platforms and Ascend950.
 
 ### L2 Cache Background
 
@@ -55,7 +55,6 @@ void aclshmemx_cmo_qp_nbi(__gm__ T *src, uint32_t elem_size, ACLSHMEMCMOTYPE cmo
   - `ub_size`: Unified Buffer size (at least 64 bytes, 64-byte aligned)
   - `qp_idx`: explicitly selected SDMA QP; concurrent AIVs should use distinct QPs, and the index must be smaller than the configured QP count
   - `sync_id`: synchronization ID
-- **Characteristics**: Based on the SDMA engine, core-level fine-grained control is supported.
 
 ##### CMO Operation Types
 
@@ -143,23 +142,22 @@ Read/write data transfers through the SDMA put/get interfaces are not currently 
 
 ## Build Procedure
 
-### 1. Build and install the SHMEM software package.
+### 1. Build the example program
+
+For general processes such as build environment configuration, source code compilation, and binary package installation, see [Compilation and Build](../../docs/compilation_build_guide_en.md).
 
 ```bash
 cd shmem/
-bash scripts/build.sh -package
-./install/*/SHMEM_1.0.0_linux-*.run --install
-source install/set_env.sh
-```
-
-### 2. Build a sample program.
-
-```bash
-cd shmem/
+# A2/A3 platforms
 bash scripts/build.sh -examples
+# Ascend950 platform
+bash scripts/build.sh -soc_type Ascend950 -examples
 ```
 
-After the build is successful, the executable file is stored in `build/bin/cmo`.
+After the build is successful, the key outputs include:
+
+- Executable file: `build/bin/cmo`
+- SHMEM library: `build/lib/libshmem.so`
 
 ## Running Method
 
@@ -183,7 +181,8 @@ bash run.sh -pes 2 -type int
 ### Console Output
 
 When the program is running, the completion information of each PE is displayed:
-```
+
+```bash
 PE 0 Finished!
 PE 1 Finished!
 [SUCCESS] demo run success in pe 0
@@ -251,5 +250,5 @@ Here, `submit` is the CMO API submission time, while `execute` is the time from 
 
 ## References
 
-- [CANN Application Development API Documentation](https://www.hiascend.com/document/detail/en/CANNCommunityEdition/900beta1/appdevg/acldevg/acldevg_0001.html)
-- [Memory Management aclrtCmoAsync](https://www.hiascend.com/document/detail/en/CANNCommunityEdition/850/API/appdevgapi/aclcppdevg_03_0123.html)
+- [CANN Application Development API Documentation](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/910beta3/index/index.html)
+- [Memory Management aclrtCmoAsync](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/910beta3/API/runtimeapi/aclcppdevg_03_0123.html)

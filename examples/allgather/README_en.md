@@ -4,14 +4,25 @@ This sample demonstrates SHMEM-based allgather collective communication: each PE
 
 Instructions:
 
-1. Build in the `shmem/` directory.
-```
-bash scripts/build.sh -examples
-```
+1. Build in the `shmem/` directory:
+
+    - A2/A3 platforms:
+
+    ```bash
+    bash scripts/build.sh -examples
+    ```
+
+    - Ascend950 platform:
+
+    ```bash
+    bash scripts/build.sh -soc_type Ascend950 -examples
+    ```
+
 2. Run the demo in the `shmem/examples/allgather` directory:
-```
-bash run.sh -pes ${PEs} -type ${TYPEs}
-```
+
+    ```bash
+    bash run.sh -pes ${PEs} -type ${TYPEs}
+    ```
 
 ## Parameters
 

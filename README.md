@@ -168,7 +168,8 @@ shmem/                                  # 项目根目录
 │   │       └── mte/                    # AICore 直驱 ub2gm 低阶接口
 │   ├── host/                           # Host 侧实现
 │   │   ├── bootstrap/                  # bootstrap
-│   │   ├── hybm/                       # Hybrid Memory 实现
+│   │   ├── data_plane/                 # Host 侧数据面接口实现
+│   │   ├── entity/                     # 内存实体（Hybrid Memory）管理
 │   │   ├── init/                       # 初始化
 │   │   ├── mem/                        # 内存管理相关
 │   │   ├── python_wrapper/             # Python 封装/绑定
@@ -202,7 +203,7 @@ A：确认已安装 CANN toolkit，并已执行 `source /usr/local/Ascend/ascend
 
 **Q2：运行示例时报「卡间通信超时」？**
 
-A：检查 RDMA 网卡是否可用、节点间网络是否连通、防火墙是否放行初始化通信端口（默认 8666）、交换机无损网络配置是否正确，以及各节点时钟是否同步。RDMA 建链监听端口由系统自动分配，无需手工配置，RDMA 端口使用规则见 [Troubleshooting - RDMA 端口分配规则](docs/debug/Troubleshooting_FAQs.md#RDMA-端口管理规则)。
+A：检查 RDMA 网卡是否可用、节点间网络是否连通、防火墙是否放行初始化通信端口（默认 8666）、交换机无损网络配置是否正确，以及各节点时钟是否同步。RDMA 建链监听端口由系统自动分配，无需手工配置，RDMA 端口使用规则见 [Troubleshooting - RDMA 端口管理规则](docs/debug/Troubleshooting_FAQs.md#rdma-端口管理规则)。
 
 **Q3：Python 导入 shmem 时报「找不到模块」？**
 
@@ -218,7 +219,7 @@ A：确认 git 配置是否可以访问 GitCode。`googletest v1.14.x` 用于 UT
 
 **Q6：CANN 包安装失败怎么办？**
 
-A：查看[常见问题](https://www.hiascend.com/document/detail/zh/AscendFAQ/CommuFunc/resdl/rdl_011.html)
+A：前往[昇腾社区](https://www.hiascend.com/search/result?keyword=&tab=1)在右上角搜索框检索或在线提问。
 
 **Q7：仓库根目录没有 Dockerfile，如何准备容器环境？**
 

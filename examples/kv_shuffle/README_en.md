@@ -2,8 +2,14 @@
 
 1. **Build a project**.
    Run the `build.sh` script in the root (`shmem/`) directory.
+   - A2/A3 platforms:
    ```bash
    bash scripts/build.sh -examples
+   ```
+
+   - Ascend950 platform:
+   ```bash
+   bash scripts/build.sh -soc_type Ascend950 -examples
    ```
 
 2. **Run the KV_Shuffle sample program**.

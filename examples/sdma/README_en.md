@@ -1,8 +1,14 @@
 # SDMA Usage Description
+
+> **Platform limitation**: A2/A3 support SDMA put/get; Ascend950 supports only SDMA get, not SDMA put.
+
 ## Environment Requirements and Preparations
-The SDMA feature is newly supported in CANN 9.0.0 or later (trial version). You need to download and install the following CANN and OPS software packages first:
-- Toolkit package ([CANN master OBP image website](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-mirror/software/master/))
-- ops-legacy package (Download a required version based on the hardware platform: [A2 x86_64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260520_newest/cann-910b-ops-legacy_9.1.0_linux-x86_64.run)/[A2 aarch64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260520_newest/cann-910b-ops-legacy_9.1.0_linux-aarch64.run)/[A3 x86_64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260520_newest/cann-A3-ops-legacy_9.1.0_linux-x86_64.run)/[A3 aarch64](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/20260520_newest/cann-A3-ops-legacy_9.1.0_linux-aarch64.run))
+
+The SDMA put/get APIs require CANN 9.0.0-beta.2 or later and can be used for read/write data transfers. To download and install the toolkit package of the corresponding version, see [CANN Version Description](../../docs/quickstart_en.md#software-and-hardware-versions). To enable SDMA, you also need to install the ops package matching the toolkit version and device type.
+
+## Supported Devices
+
+The SDMA put/get APIs are available on A2/A3 platforms such as Atlas 200I A2/A3 and Atlas 300T A2/A3. Ascend950 supports only SDMA get; SDMA put is unavailable.
 
 ## Instructions for Using an Example
 1. Build and install the software package in the `shmem/` directory:
@@ -19,7 +25,7 @@ bash scripts/build.sh -examples
 3. Run the demo in the `shmem/examples/sdma` directory:
 ```bash
 bash run.sh -pes ${PES} -type ${TYPES}
-````
+```
   - **Parameter description**:
       - PES: the number of devices (NPUs) used for running the demo; only 2, 4, or 8 cards are supported on one server
       - TYPES: type of the data to be transferred. Currently, the following data types are supported: int, uint8, int64, and fp32.
@@ -86,6 +92,8 @@ API function: This API pulls elements (with the number specified by `elem_size`)
 
 ## Precautions
 The example allocates `128M * sizeof(T)` bytes of symmetric memory and uses `16M * sizeof(T)` bytes per PE. The documented support matrix is 2, 4, and 8 cards; actual use also depends on available symmetric-memory capacity. The SDMA infrastructure supports up to 72 AIVs/QPs.
+
+To limit the number of explicit QPs, call `aclshmemx_set_qp_num(ACLSHMEM_DATA_OP_SDMA, qp_num)` before `aclshmemx_init_attr`. The valid range of `qp_num` is 1 to the number of vector cores on the current device. If this API is not called, only one SDMA stream/QP is created. When multiple cores need to run concurrently, set the required number of QPs explicitly. In this example, each AIV uses `GetBlockIdx()` (the AIV-level global index) as `qp_idx`. Therefore, `qp_num` should be set to the number of blocks x the number of AIVs per block (currently `20 x 2 = 40`).
 
 Both `aclshmemx_sdma_qp_put_nbi` and `aclshmemx_sdma_qp_get_nbi` are non-blocking APIs. They return control to the caller right away and do not wait for the data transfer to finish. To ensure that the data transfer has finished, you can adopt one of the following methods:
 1. For each kernel that calls `aclshmemx_sdma_qp_put/get_nbi`, call `aclshmemx_sdma_qp_quiet` with the same `qp_idx` after the SDMA task ends, and wait until the operations on that QP are complete.

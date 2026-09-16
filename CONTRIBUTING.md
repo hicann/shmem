@@ -61,7 +61,7 @@
 
   在签署了CLA协议之后，就可以开始您的贡献之旅啦！贡献的方式有很多种，每一种贡献都将受到欢迎和重视。
 
-  所有您发现的问题或想贡献的新想法都可以通过[Issue](#提交Issue处理Issue任务)进行反馈、讨论和跟踪，并在后续[贡献编码](#贡献编码) PR 合入后关闭关联Issue。
+  所有您发现的问题或想贡献的新想法都可以通过[Issue](#提交issue处理issue任务)进行反馈、讨论和跟踪，并在后续[贡献编码](#贡献编码) PR 合入后关闭关联Issue。
 
   > 📝 **提示**
   >
@@ -74,21 +74,21 @@
 
     如果您在本仓库中发现了某些算子Bug，并想对其进行修复，欢迎您在仓库中新建Issue进行反馈和跟踪处理。
 
-    您可以按照下方[提交Issue/处理Issue任务](#提交Issue处理Issue任务)指引新建 `Bug-Report|缺陷反馈` 类Issue对Bug进行描述，
+    您可以按照下方[提交Issue/处理Issue任务](#提交issue处理issue任务)指引新建 `Bug-Report|缺陷反馈` 类Issue对Bug进行描述，
     然后在评论框中输入“/assign”或“/assign @yourself”将该Issue分配给您进行处理。
 
   - 性能优化
 
     如果您对本仓库中某些功能实现有泛化性增强/性能优化思路，并想着手实现这些优化点，欢迎您进行优化贡献。
 
-    您可以按照下方[提交Issue/处理Issue任务](#提交Issue处理Issue任务)指引新建 `Requirement|需求建议` 类Issue对优化点进行说明，并提供您的设计方案，
+    您可以按照下方[提交Issue/处理Issue任务](#提交issue处理issue任务)指引新建 `Requirement|需求建议` 类Issue对优化点进行说明，并提供您的设计方案，
     然后在评论框中输入“/assign”或“/assign @yourself”将该Issue分配给您进行跟踪优化。
 
   - 贡献新功能
 
     如果您有全新的算子想基于昇腾芯片进行设计实现，欢迎您在Issue中提出新的想法和设计，并与昇腾团队成员进行交流讨论。
 
-    您可以按照下方[提交Issue/处理Issue任务](#提交Issue处理Issue任务)指引新建 `Requirement|需求建议` 类Issue提供您的新功能说明和设计方案，
+    您可以按照下方[提交Issue/处理Issue任务](#提交issue处理issue任务)指引新建 `Requirement|需求建议` 类Issue提供您的新功能说明和设计方案，
     昇腾团队成员会与您进行沟通确认，并为您的功能提供一个合适的`contrib`目录分类，您可以将您的新功能贡献到对应分类目录下。
 
     同时，您需要在提交的Issue中评论“/assign”或“/assign @yourself”，认领该Issue并在后续完成新功能上库。
@@ -97,7 +97,7 @@
 
     如果您在仓库中发现某些文档描述错误，欢迎您在仓库中新建Issue进行反馈和修复。
 
-    您可以按照下方[提交Issue/处理Issue任务](#提交Issue处理Issue任务)指引新建 `Documentation|文档反馈` 类Issue指出对应文档中的问题，
+    您可以按照下方[提交Issue/处理Issue任务](#提交issue处理issue任务)指引新建 `Documentation|文档反馈` 类Issue指出对应文档中的问题，
     然后在评论框中输入“/assign”或“/assign @yourself”将该Issue分配给您纠正对应文档描述。
 
   - 帮助解决他人Issue

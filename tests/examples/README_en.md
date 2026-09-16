@@ -4,17 +4,17 @@
 This test framework is designed to provide an automated and extensible generalization precision testing environment for the [SHMEM](https://gitcode.com/cann/shmem) kernel series, built on `pytest`. The framework randomly generates test cases covering diverse data types, tensor shapes, and value distributions. These test cases are executed by the C++ kernels, and the results are compared against ground truth values computed with `NumPy` on the CPU. This ensures rigorous validation of kernel correctness and numerical precision.
 
 ## 2. Framework Structure
-```
+```text
 tests/examples/
 ├── config.py # Global test configuration file
 ├── utils.py # Common utility functions (for example, dynamic error tolerance calculation)
 ├── np_uniform_generator.py # Uniform distribution random number generator
 ├── np_normal_generator.py # Normal distribution random number generator
-├── matmul_allreduce/
-│ ├── test_fusion_matmul_allreduce.py # Pytest script for the matmul_allreduce kernel
+├── <kernel_name>/
+│ ├── test_<kernel_name>.py # Pytest script for a specific kernel
 │ └── test_data/ # Persistent cache directory for test data
 ├── readme.md # This document
-└──... # Other kernel-specific test directories
+└── ... # Other kernel-specific test directories
 ```
 -   `config.py`: defines global configuration for the entire test framework, including tensor shape constraints, distribution parameters, data types, and precision thresholds.
 -   `utils.py`: contains common utility functions, especially the `get_rtol()` function, which dynamically computes the error tolerance based on the data type and computational workload.
@@ -24,7 +24,7 @@ tests/examples/
 
 ## 3. Core Logic
 
-The execution process of the test script (`test_fusion_matmul_allreduce.py`) is as follows:
+The execution process of the test script (`test_<kernel_name>.py`) is as follows:
 
 ### 3.1. Test Case Generation
 -   **Parameter combinations and classification**: The `get_test_cases` function generates two categories of test cases:
@@ -60,15 +60,15 @@ The execution process of the test script (`test_fusion_matmul_allreduce.py`) is 
         -   For ground truth values with absolute magnitude < `1.0`, perform an **absolute error** check: `|act - gt| <= err`.
 
 ## 4. Running a Test
-1.  **Build the kernel function**: Ensure that the C++ executable file of the target kernel function has been built. For example, for `matmul_allreduce`, run the following command first:
+1.  **Build the kernel function**: Ensure that the C++ executable file of the target kernel function has been built. For example, for `<kernel_name>`, run the following command first:
     ```bash
-    bash examples/matmul_allreduce/scripts/build.sh
+    bash examples/<kernel_name>/scripts/build.sh
     ```
-2.  **Set the executable file path**: At the top of the `test_fusion_matmul_allreduce.py` script, ensure that the `EXECUTABLE_PATH` variable points to the correct C++ executable file path.
+2.  **Set the executable file path**: At the top of the `test_<kernel_name>.py` script, ensure that the `EXECUTABLE_PATH` variable points to the correct C++ executable file path.
 3.  **Run pytest**: In the root directory of the project, run the `pytest` command.
     ```bash
     export LD_LIBRARY_PATH=<path_to_aclshmem_lib>:$LD_LIBRARY_PATH
-    pytest -sv tests/examples/matmul_allreduce/
+    pytest -sv tests/examples/<kernel_name>/
     ```
     *Replace `<path_to_...>` with the actual library path.*
 
@@ -81,7 +81,7 @@ The execution process of the test script (`test_fusion_matmul_allreduce.py`) is 
 To add a test for a new kernel (for example, `allgather`), perform the following steps:
 1.  Create a new subdirectory, for example, `allgather`, in the `tests/examples/`.
 2.  Create a new test script in this directory, for example, `test_allgather.py`.
-3.  Implement the test logic of the new kernel by referring to the structure of `test_matmul_allreduce.py`.
+3.  Implement the test logic of the new kernel by referring to the structure of `test_<kernel_name>.py`.
     -   Implement the data generation logic (by reusing `NP*Generator` or creating a new generator) and ground truth computation.
     -   Call the auxiliary function of the C++ kernel.
     -   Implement the result verification logic. You can reuse the `get_rtol` and dual-standard verification method.

@@ -130,11 +130,11 @@ Developer contribution scenarios include:
 
   1. CANN development environment setup
 
-     If you want to contribute code, you need to set up the CANN development environment. For details, see [Environment Setup](./README_en.md#3-environment-setup).
+     If you want to contribute code, you need to set up the CANN development environment. For details, see [Environment Setup](./docs/quickstart_en.md#software-and-hardware-versions).
 
   2. SHMEM Development Precautions
 
-     (1) For details about the environment and tool requirements for code contribution, see [Installation Guide](./README_en.md#322-cann-package-installation).
+     (1) For details about the environment and tool requirements for code contribution, see [Quick Start](./docs/quickstart_en.md#quick-start).
 
      (2) The SHMEM software code complies with the CANN Open Software License Agreement Version 2.0. For details about the agreement, see [LICENSE](./LICENSE). If you contribute code to the SHMEM source code repository, comply with this agreement.
 
