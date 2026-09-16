@@ -172,14 +172,18 @@ bool support_host_mem_type(aclshmem_mem_type_t mem_type)
 {
 #ifndef USE_ACLRT_MEM_FABRIC_HANDLE
     if (mem_type == HOST_SIDE) {
-        if (shm::DlApi::GetAscendSocType() == AscendSocType::ASCEND_950) {
+        const bool is_ascend_950 = shm::DlApi::GetAscendSocType() == AscendSocType::ASCEND_950;
+        const std::string required_version = is_ascend_950 ? "9.0.0" : "8.5.0";
+        const std::string current_version = GetCannVersion();
+        if (current_version.empty() || !CannVersionCheck(required_version)) {
             SHM_LOG_ERROR(
-                "HOST_SIDE malloc is not supported. Detected CANN version: "
-                << GetCannVersion() << ". Ascend950 requires CANN 9.0.0 or later. Please upgrade the CANN version.");
+                "HOST_SIDE malloc is not supported because the CANN version is too low. Detected CANN "
+                "version: "
+                << current_version << ", required version: " << required_version
+                << " or later. Please upgrade the CANN version.");
         } else {
-            SHM_LOG_ERROR(
-                "HOST_SIDE malloc is not supported. Detected CANN version: "
-                << GetCannVersion() << ". Atlas A3 requires CANN 8.5.0 or later. Please upgrade the CANN version.");
+            SHM_LOG_ERROR("HOST_SIDE malloc is not supported because SHMEM was built without CANN support. "
+                          "Please rebuild SHMEM with the -cann option.");
         }
         return false;
     }
