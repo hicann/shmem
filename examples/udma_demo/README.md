@@ -9,6 +9,22 @@
 
 使用方式:
 
+0.运行前确认环境已使能UDMA：
+- 单机：执行`npu-smi info -t topo`查看NPU卡间拓扑，卡间连接类型为`UB`即表示支持UDMA：
+![npu-smi info -t topo 输出示例](../../docs/images/udma_demo_env.png)
+- 跨机：server和pod机型支持跨机UDMA通信，运行前需先确认节点间UB链路连通，可使用`hccn_tool`在节点间发起UB ping验证（也可使用CANN自带的hccl_test工具在节点间运行集合通信用例验证连通性，详见[HCCL 性能测试工具](https://www.hiascend.com/document/redirect/CANNCommunityToolHcclTest)）；定制机型需结合具体硬件配置判断是否支持。
+  `hccn_tool`随Ascend HDK驱动包安装，位于`<驱动安装路径>/driver/tools/`目录（默认驱动安装路径为`/usr/local/Ascend`）。
+  1. 分别在两个节点上执行以下命令，查询本节点NPU的EID（输出中的字段`ipourma`的`IP Address`为可取的`eid`）：
+  ```bash
+  hccn_tool -g -dev_info -i <devid>
+  ```
+  2. 在任一节点上以对端EID为目的发起UB ping（`src_eid`为本端EID，`dst_eid`为对端EID）：
+  ```bash
+  hccn_tool -t -ub_ping -i <devid> -src_eid <src_eid> -dst_eid <dst_eid> [-pkt <size>] [-cnt <size>] [-interval <size>]
+  ```
+  其中`pkt`为ping的数据包大小（单位：字节），`cnt`为发包数量，`interval`为发送间隔。
+  报文全部收到应答即节点间UB链路连通。
+
 1.在shmem/目录编译:
 ```bash
 bash scripts/build.sh -examples -soc_type Ascend950
