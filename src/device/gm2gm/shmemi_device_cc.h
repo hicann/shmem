@@ -383,8 +383,17 @@ ACLSHMEM_DEVICE void aclshmemi_sync_npu_v3(aclshmem_team_t team_idx)
                 }
             }
         }
+
+#if defined(ACLSHMEM_MSSANITIZER_BUILD)
+        dcci_cacheline((__gm__ uint8_t*)sync_counter);
+        if (vec_id == 0) {
+            aclshmemi_signal_set((__gm__ int32_t*)sync_counter, count);
+        }
+#else
         aclshmemi_store((__gm__ int32_t*)sync_counter, count);
+#endif
     }
+
     aclshmemi_sync_core<IS_AIV_ONLY>();
     MSTX_FUSE_SCOPE_END();
     MSTX_BARRIER_NPU_REPORT(size, vec_size);
