@@ -26,7 +26,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
 /*****************************************************************************
  *                    atomic_fetch test (RDMA)                                *
  *****************************************************************************/
-#ifdef ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE) || defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
 /**
  * @brief RDMA atomic_fetch kernel test
  *        Each PE reads from other PEs' memory and verifies return value
@@ -182,4 +182,4 @@ ACLSHMEM_RDMA_ATOMIC_CAS_FUNC_TYPE(RDMA_ATOMIC_COMPARE_SWAP_TEST_KERNEL);
         test_rdma_atomic_compare_swap_##NAME##_kernel<<<block_dim, nullptr, stream>>>(gva, error_flag, config); \
     }
 ACLSHMEM_RDMA_ATOMIC_CAS_FUNC_TYPE(RDMA_ATOMIC_COMPARE_SWAP_TEST);
-#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE || ACLSHMEMI_RDMA_K_BACKEND_HNS_1825

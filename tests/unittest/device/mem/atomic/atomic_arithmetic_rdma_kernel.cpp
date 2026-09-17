@@ -26,7 +26,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
 /*****************************************************************************
  *                    atomic_inc test (RDMA)                                  *
  *****************************************************************************/
-#ifdef ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE) || defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
 /**
  * @brief RDMA atomic_inc kernel test
  *        Each PE asks other PEs to increment its own slot
@@ -183,4 +183,4 @@ ACLSHMEM_RDMA_ATOMIC_ADD_FUNC_TYPE(RDMA_ATOMIC_FETCH_ADD_TEST_KERNEL);
             gva, error_flag, block_dim, config);                                       \
     }
 ACLSHMEM_RDMA_ATOMIC_ADD_FUNC_TYPE(RDMA_ATOMIC_FETCH_ADD_TEST);
-#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE || ACLSHMEMI_RDMA_K_BACKEND_HNS_1825

@@ -10,6 +10,8 @@
 #ifndef ACLSHMEM_RDMA_DEVICE_BACKEND_HNS_1825_HPP
 #define ACLSHMEM_RDMA_DEVICE_BACKEND_HNS_1825_HPP
 
+#include <type_traits>
+
 #include "rdma_device_backend_base.h"
 #include "host_device/shmemi_rdma_cqe_layout.h"
 
@@ -161,13 +163,17 @@ ACLSHMEM_DEVICE AscendC::LocalTensor<uint32_t> aclshmemi_hns_1825_make_wqe_ub(
 
 ACLSHMEM_DEVICE uint32_t aclshmemi_hns_1825_read_u32_gm(uint64_t addr)
 {
+    AscendC::GlobalTensor<uint32_t> value;
+    value.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(addr));
     dcci_cachelines((__gm__ uint8_t*)addr, sizeof(uint32_t));
-    return *(__gm__ volatile uint32_t*)addr;
+    return value.GetValue(0);
 }
 
 ACLSHMEM_DEVICE void aclshmemi_hns_1825_write_u32_gm(uint64_t addr, uint32_t value)
 {
-    *(__gm__ volatile uint32_t*)addr = value;
+    AscendC::GlobalTensor<uint32_t> target;
+    target.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(addr));
+    target.SetValue(0, value);
     dcci_cachelines((__gm__ uint8_t*)addr, sizeof(uint32_t));
 }
 
@@ -363,6 +369,8 @@ ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_hns_1825_fill_wqe_ctrl_seg(
 enum class aclshmemi_hns_1825_msg_type_t : uint32_t {
     ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE = 0x04,
     ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_READ = 0x08,
+    // Software operation; the task segment uses the WRITE opcode and INT32 SUM.
+    ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE_REDUCE = 0x104,
 };
 
 // Fill the 32B RDMA task segment in UB with opcode, message length, remote VA, rkey and ulp. Multi-byte
@@ -375,7 +383,10 @@ ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_hns_1825_fill_wqe_task_seg(
 
     task->com_tsk.value = 0;
     task->com_tsk.bs.signal = 1;
-    task->com_tsk.bs.opcode = (uint32_t)opcode;
+    const bool reduce = opcode == aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE_REDUCE;
+    task->com_tsk.bs.opcode =
+        reduce ? static_cast<uint32_t>(aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE) :
+                 static_cast<uint32_t>(opcode);
     task->com_tsk.value = aclshmemi_hns_1825_htobe32(task->com_tsk.value);
     task->data_len = aclshmemi_hns_1825_htobe32((uint32_t)wr.message_len);
     task->imm_data = 0;
@@ -388,7 +399,9 @@ ACLSHMEM_DEVICE __ubuf__ uint8_t* aclshmemi_roce_hns_1825_fill_wqe_task_seg(
     }
     task->va = aclshmemi_hns_1825_htobe64((uint64_t)wr.remote_addr);
     task->rkey = aclshmemi_hns_1825_htobe32(wr.rkey);
-    task->ulp = aclshmemi_hns_1825_htobe32(wr.lkey & 0xffffU);
+    // WriteReduce adds SUM (0xA) and INT32 (0x2) to the ULP local MPT index.
+    constexpr uint32_t ACLSHMEMI_HNS_1825_REDUCE_SUM_INT32 = (0xAU << 4) | 0x2U;
+    task->ulp = aclshmemi_hns_1825_htobe32((wr.lkey & 0xffffU) | (reduce ? ACLSHMEMI_HNS_1825_REDUCE_SUM_INT32 : 0U));
     return wqe_addr + sizeof(aclshmemi_hns_1825_wqe_rdma_task_seg_t);
 }
 
@@ -629,7 +642,207 @@ aclshmemi_roce_post_send<aclshmemi_rdma_backend_t::HNS_1825, aclshmemi_rdma_opco
         wr, pe, qp_idx, ub_local64, ub_local32, sync_id);
 }
 
-// HNS_1825 does not implement RDMA atomics; keep atomic paths as compile-time errors.
+// Each set boundary bit ends an addition field: discard carry out of that bit.
+template <typename U>
+ACLSHMEM_DEVICE U aclshmemi_hns_1825_masked_add(U old, U add, U boundary)
+{
+    if (boundary == 0) {
+        return static_cast<U>(old + add);
+    }
+    if (boundary == static_cast<U>(~U(0))) {
+        return old ^ add;
+    }
+    U result = 0;
+    uint32_t carry = 0;
+    for (uint32_t bit = 0; bit < sizeof(U) * 8; ++bit) {
+        uint32_t sum = ((old >> bit) & 1U) + ((add >> bit) & 1U) + carry;
+        result |= static_cast<U>(sum & 1U) << bit;
+        carry = ((boundary >> bit) & 1U) ? 0U : (sum >> 1);
+    }
+    return result;
+}
+
+// The work word is reused only after its preceding NIC operation has completed.
+ACLSHMEM_DEVICE void aclshmemi_hns_1825_atomic_store_work(__gm__ uint8_t* work, uint64_t value)
+{
+    AscendC::GlobalTensor<uint64_t> work_tensor;
+    work_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ uint64_t*>(work));
+    work_tensor.SetValue(0, value);
+    dcci_cachelines(work, sizeof(value));
+}
+
+// Atomic operations drain QP0 before acquiring the lock and complete each transfer before the next.
+template <aclshmemi_hns_1825_msg_type_t OP_CODE>
+ACLSHMEM_DEVICE bool aclshmemi_hns_1825_atomic_transfer(
+    aclshmemi_rdma_send_wr& wr, uint32_t pe, __gm__ aclshmemi_rdma_sq_ctx* sq_context,
+    AscendC::LocalTensor<uint64_t>& ub_local64, AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
+{
+    uint32_t head = aclshmemi_hns_1825_read_u32_gm(sq_context->head_addr);
+    auto wqe_ub = aclshmemi_hns_1825_make_wqe_ub(ub_local32, 64);
+    auto wqe_addr = aclshmemi_roce_hns_1825_get_send_wqe(sq_context, head & (sq_context->depth - 1));
+    uint32_t wqe_size =
+        aclshmemi_roce_hns_1825_fill_wqe_write_read(wr, sq_context, wqe_addr, head, OP_CODE, wqe_ub, sync_id);
+    dcci_cachelines(wqe_addr, wqe_size);
+    ++head;
+    aclshmemi_roce_ring_sq_doorbell<aclshmemi_rdma_backend_t::HNS_1825>(
+        sq_context, head, ub_local64, ub_local32, sync_id);
+    uint32_t status =
+        aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_1825>(pe, 0, head, ub_local64, ub_local32, sync_id);
+    if (status != 0) {
+        // Completion failure leaves the remote count unknown; abort without retrying or clearing the lock.
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "HNS1825 atomic completion failed: pe=%u status=%u\n", pe, status);
+        trap();
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Execute FAA/CAS under the target PE's INT32 Reduce lock; one AIV per source uses QP0.
+ * Reduce(+1), then READ(count) == 1 acquires the lock. Failed attempts and unlock subtract one.
+ * The target self block holds the lock; the source peer block holds old, work and remote lock metadata.
+ */
+template <typename T, bool IS_MASKED, aclshmemi_rdma_atomic_op_t ATOMIC_OP_CODE>
+ACLSHMEM_DEVICE void aclshmemi_hns_1825_soft_atomic(
+    aclshmemi_rdma_send_wr& wr, uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
+    AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
+{
+    static_assert(
+        std::is_integral_v<T> && (sizeof(T) == 4 || sizeof(T) == 8),
+        "HNS1825 software atomics support 32-bit or 64-bit integers.");
+    static_assert(
+        ATOMIC_OP_CODE == aclshmemi_rdma_atomic_op_t::OP_ATOMIC_FA ||
+            ATOMIC_OP_CODE == aclshmemi_rdma_atomic_op_t::OP_ATOMIC_CAS,
+        "Unsupported HNS1825 software atomic operation.");
+    using U = std::conditional_t<sizeof(T) == 8, uint64_t, uint32_t>;
+    const uint32_t my_pe = aclshmemi_get_my_pe();
+    if (pe == my_pe || qp_idx != 0) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "HNS1825 software atomics require a remote PE and QP0.\n");
+        trap();
+        return;
+    }
+
+    auto rdma_info = aclshmemi_qp_info_fetch();
+    auto sq_context = reinterpret_cast<__gm__ aclshmemi_rdma_sq_ctx*>(rdma_info->sq_ptr) + pe * rdma_info->qp_num;
+    uint32_t head = aclshmemi_hns_1825_read_u32_gm(sq_context->head_addr);
+    uint32_t status =
+        aclshmemi_roce_poll_cq<aclshmemi_rdma_backend_t::HNS_1825>(pe, 0, head, ub_local64, ub_local32, sync_id);
+    if (status != 0) {
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "HNS1825 atomic queue drain failed: pe=%u status=%u\n", pe, status);
+        trap();
+        return;
+    }
+
+    // Peer block layout: old at +0, work at +128, {remote lock address, rkey} at +256.
+    constexpr uint32_t ACLSHMEMI_HNS_1825_ATOMIC_WORK_OFFSET = 128;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_ATOMIC_PEER_OFFSET = 256;
+    auto old_addr = wr.local_addr;
+    auto work = old_addr + ACLSHMEMI_HNS_1825_ATOMIC_WORK_OFFSET;
+    AscendC::GlobalTensor<uint64_t> peer;
+    peer.SetGlobalBuffer(reinterpret_cast<__gm__ uint64_t*>(old_addr + ACLSHMEMI_HNS_1825_ATOMIC_PEER_OFFSET));
+    aclshmemi_rdma_send_wr lock_wr{};
+    lock_wr.local_addr = work;
+    lock_wr.remote_addr = reinterpret_cast<__gm__ uint8_t*>(peer.GetValue(0));
+    lock_wr.message_len = sizeof(int32_t);
+    lock_wr.lkey = wr.lkey;
+    lock_wr.rkey = static_cast<uint32_t>(peer.GetValue(1));
+    // Mix the source PE into the seed and use an LCG to spread competing retries.
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_SEED_MIX = 0x9e3779b9U;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_LCG_MULTIPLIER = 1664525U;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_LCG_INCREMENT = 1013904223U;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_INITIAL_MASK = 0x3fffU;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_MAX_MASK = 0x3ffffU;
+    constexpr uint32_t ACLSHMEMI_HNS_1825_BACKOFF_BASE_DELAY_CYCLES = 1000U;
+    // Ascend950 GetSystemCycle advances at 1000 cycles/us; allow five minutes to acquire the lock.
+    constexpr uint64_t ACLSHMEMI_HNS_1825_CYCLES_PER_US = 1000;
+    constexpr uint64_t ACLSHMEMI_HNS_1825_LOCK_TIMEOUT_US = 5ULL * 60 * 1000 * 1000;
+    constexpr uint64_t ACLSHMEMI_HNS_1825_LOCK_TIMEOUT_CYCLES =
+        ACLSHMEMI_HNS_1825_LOCK_TIMEOUT_US * ACLSHMEMI_HNS_1825_CYCLES_PER_US;
+    const uint64_t lock_start = static_cast<uint64_t>(AscendC::GetSystemCycle());
+    uint32_t backoff = static_cast<uint32_t>(lock_start) ^ ((my_pe + 1U) * ACLSHMEMI_HNS_1825_BACKOFF_SEED_MIX);
+    uint32_t backoff_mask = ACLSHMEMI_HNS_1825_BACKOFF_INITIAL_MASK;
+    [[maybe_unused]] uint32_t lock_retries = 0;
+
+    while (true) {
+        aclshmemi_hns_1825_atomic_store_work(work, 1);
+        if (!aclshmemi_hns_1825_atomic_transfer<
+                aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE_REDUCE>(
+                lock_wr, pe, sq_context, ub_local64, ub_local32, sync_id)) {
+            return;
+        }
+        if (!aclshmemi_hns_1825_atomic_transfer<aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_READ>(
+                lock_wr, pe, sq_context, ub_local64, ub_local32, sync_id)) {
+            return;
+        }
+        uint32_t lock_count = aclshmemi_hns_1825_read_u32_gm(reinterpret_cast<uint64_t>(work));
+        if (lock_count == 1) {
+            break;
+        }
+        aclshmemi_hns_1825_atomic_store_work(work, UINT32_MAX);
+        if (!aclshmemi_hns_1825_atomic_transfer<
+                aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE_REDUCE>(
+                lock_wr, pe, sq_context, ub_local64, ub_local32, sync_id)) {
+            return;
+        }
+        // Check the deadline only after withdrawing this attempt's contribution to the lock.
+        ++lock_retries;
+        uint64_t start = static_cast<uint64_t>(AscendC::GetSystemCycle());
+        if (start - lock_start >= ACLSHMEMI_HNS_1825_LOCK_TIMEOUT_CYCLES) {
+            ACLSHMEM_DEBUG_FUNC(
+                aclshmemi_kernel_abort, "HNS1825 atomic lock timeout: source_pe=%u pe=%u retries=%u count=%u\n", my_pe,
+                pe, lock_retries, lock_count);
+            trap();
+            return;
+        }
+        // Grow the random window on contention; each atomic call starts with the minimum window.
+        backoff = backoff * ACLSHMEMI_HNS_1825_BACKOFF_LCG_MULTIPLIER + ACLSHMEMI_HNS_1825_BACKOFF_LCG_INCREMENT;
+        uint64_t delay = ACLSHMEMI_HNS_1825_BACKOFF_BASE_DELAY_CYCLES + (backoff & backoff_mask);
+        while (static_cast<uint64_t>(AscendC::GetSystemCycle()) - start < delay) {
+        }
+        // Cap the window at 16 times its initial size. Randomized backoff does not guarantee fairness.
+        if (backoff_mask < ACLSHMEMI_HNS_1825_BACKOFF_MAX_MASK) {
+            backoff_mask = (backoff_mask << 1) | 1U;
+        }
+    }
+
+    wr.message_len = sizeof(U);
+    if (!aclshmemi_hns_1825_atomic_transfer<aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_READ>(
+            wr, pe, sq_context, ub_local64, ub_local32, sync_id)) {
+        return;
+    }
+    AscendC::GlobalTensor<U> old_tensor;
+    old_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ U*>(old_addr));
+    dcci_cachelines(old_addr, sizeof(U));
+    U old = old_tensor.GetValue(0);
+    U value = old;
+    U operand = static_cast<U>(wr.atomic.masked_common.swap_add_data);
+    if constexpr (ATOMIC_OP_CODE == aclshmemi_rdma_atomic_op_t::OP_ATOMIC_FA) {
+        U boundary = IS_MASKED ? static_cast<U>(wr.atomic.masked_common.swap_add_mask) : U(0);
+        value = aclshmemi_hns_1825_masked_add(old, operand, boundary);
+    } else {
+        U compare = static_cast<U>(wr.atomic.masked_common.compare_data);
+        U compare_mask = IS_MASKED ? static_cast<U>(wr.atomic.masked_common.compare_mask) : static_cast<U>(~U(0));
+        U swap_mask = IS_MASKED ? static_cast<U>(wr.atomic.masked_common.swap_add_mask) : static_cast<U>(~U(0));
+        if (((old ^ compare) & compare_mask) == 0) {
+            value = (old & ~swap_mask) | (operand & swap_mask);
+        }
+    }
+    // Preserve the return value in old_addr; skip WRITE when the value is unchanged.
+    if (value != old) {
+        aclshmemi_hns_1825_atomic_store_work(work, value);
+        wr.local_addr = work;
+        if (!aclshmemi_hns_1825_atomic_transfer<
+                aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE>(
+                wr, pe, sq_context, ub_local64, ub_local32, sync_id)) {
+            return;
+        }
+    }
+    aclshmemi_hns_1825_atomic_store_work(work, UINT32_MAX);
+    (void)aclshmemi_hns_1825_atomic_transfer<
+        aclshmemi_hns_1825_msg_type_t::ACLSHMEMI_HNS_1825_MSG_OPCODE_RDMA_WRITE_REDUCE>(
+        lock_wr, pe, sq_context, ub_local64, ub_local32, sync_id);
+}
+
 template <>
 struct aclshmemi_backend_traits<aclshmemi_rdma_backend_t::HNS_1825> {
     template <typename T, bool IS_MASKED>
@@ -645,7 +858,7 @@ struct aclshmemi_backend_traits<aclshmemi_rdma_backend_t::HNS_1825> {
             (void)cur_head;
             static_assert(
                 aclshmemi_atomic_op_dependent_false<ATOMIC_OP_CODE>::value,
-                "HNS_1825 backend does not support atomic operations yet.");
+                "HNS_1825 atomics require the software post_send path.");
             return 0;
         }
 
@@ -654,15 +867,8 @@ struct aclshmemi_backend_traits<aclshmemi_rdma_backend_t::HNS_1825> {
             aclshmemi_rdma_send_wr& wr, uint32_t pe, uint32_t qp_idx, AscendC::LocalTensor<uint64_t>& ub_local64,
             AscendC::LocalTensor<uint32_t>& ub_local32, uint32_t sync_id)
         {
-            (void)wr;
-            (void)pe;
-            (void)qp_idx;
-            (void)ub_local64;
-            (void)ub_local32;
-            (void)sync_id;
-            static_assert(
-                aclshmemi_atomic_op_dependent_false<ATOMIC_OP_CODE>::value,
-                "HNS_1825 backend does not support atomic operations yet.");
+            aclshmemi_hns_1825_soft_atomic<T, IS_MASKED, ATOMIC_OP_CODE>(
+                wr, pe, qp_idx, ub_local64, ub_local32, sync_id);
         }
     };
 };

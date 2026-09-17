@@ -33,7 +33,7 @@
 /*****************************************************************************
  *                    atomic_inc test (RDMA)                                  *
  *****************************************************************************/
-#ifdef ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE) || defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
 #define TEST_RDMA_ATOMIC_INC_FUNC(NAME, TYPE) \
     extern void test_rdma_atomic_inc_##NAME##_do(uint32_t block_dim, void* stream, TYPE* gva, uint64_t config)
 ACLSHMEM_RDMA_ATOMIC_ADD_FUNC_TYPE(TEST_RDMA_ATOMIC_INC_FUNC);
@@ -326,4 +326,4 @@ ACLSHMEM_RDMA_ATOMIC_ADD_FUNC_TYPE(TEST_ACLSHMEM_RDMA_ATOMIC_FETCH_ADD);
         }                                                                                                    \
     }
 ACLSHMEM_RDMA_ATOMIC_ADD_FUNC_TYPE(TEST_RDMA_ATOMIC_FETCH_ADD_API);
-#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE || ACLSHMEMI_RDMA_K_BACKEND_HNS_1825

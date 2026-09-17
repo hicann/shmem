@@ -28,7 +28,7 @@ constexpr uint64_t MESSAGE_SIZE = 64;
 /*****************************************************************************
  *                    atomic_and test (RDMA)                                  *
  *****************************************************************************/
-#ifdef ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#if defined(ACLSHMEMI_RDMA_K_BACKEND_XSCALE) || defined(ACLSHMEMI_RDMA_K_BACKEND_HNS_1825)
 /**
  * @brief RDMA atomic_and kernel test
  *        Each PE clears its own bit in other PEs' slots
@@ -263,4 +263,4 @@ ACLSHMEM_RDMA_ATOMIC_LOGIC_FUNC_TYPE(RDMA_ATOMIC_FETCH_XOR_TEST_KERNEL);
         test_rdma_atomic_fetch_xor_##NAME##_kernel<<<block_dim, nullptr, stream>>>(gva, error_flag, pe_size, config); \
     }
 ACLSHMEM_RDMA_ATOMIC_LOGIC_FUNC_TYPE(RDMA_ATOMIC_FETCH_XOR_TEST);
-#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE
+#endif // ACLSHMEMI_RDMA_K_BACKEND_XSCALE || ACLSHMEMI_RDMA_K_BACKEND_HNS_1825

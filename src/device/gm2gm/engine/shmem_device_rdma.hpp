@@ -56,10 +56,14 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_debug_assert_qp_params_valid(__gm__ aclshmem
 ACLSHMEM_DEVICE void aclshmemi_rdma_debug_ensure_sq_capacity(
     __gm__ aclshmemi_rdma_sq_ctx* sq_context, uint32_t pe, uint32_t qp_idx, uint32_t wqe_count)
 {
+    AscendC::GlobalTensor<uint32_t> sq_head;
+    sq_head.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(sq_context->head_addr));
+    AscendC::GlobalTensor<uint32_t> sq_tail;
+    sq_tail.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(sq_context->tail_addr));
     dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(sq_context->head_addr), sizeof(uint32_t));
     dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(sq_context->tail_addr), sizeof(uint32_t));
-    const uint32_t head = *reinterpret_cast<__gm__ volatile uint32_t*>(sq_context->head_addr);
-    const uint32_t tail = *reinterpret_cast<__gm__ volatile uint32_t*>(sq_context->tail_addr);
+    const uint32_t head = sq_head.GetValue(0);
+    const uint32_t tail = sq_tail.GetValue(0);
     const uint32_t used = head - tail;
     if (wqe_count == 0U || used > sq_context->depth || wqe_count > sq_context->depth - used) {
         aclshmemi_kernel_abort(
@@ -91,14 +95,16 @@ ACLSHMEM_DEVICE void aclshmemi_rdma_dump_sq_wqe(
     const uint32_t bytes = wqe_size * wqe_count;
     const uint32_t words = bytes > 32U ? 8U : (bytes + 3U) / 4U;
     dcci_cachelines(reinterpret_cast<__gm__ uint8_t*>(address), words * sizeof(uint32_t));
-    auto* raw = reinterpret_cast<__gm__ uint32_t*>(address);
+    AscendC::GlobalTensor<uint32_t> raw;
+    raw.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(address));
     AscendC::printf(
         "RDMA SQ WQE: wqn=%u head=%u slot=%u size=%u count=%u\n", sq_context->wqn, posted_head,
         static_cast<uint32_t>(slot), wqe_size, wqe_count);
     AscendC::printf(
-        "RDMA SQ WQE raw DW0-DW7: [0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x]\n", raw[0], words > 1U ? raw[1] : 0U,
-        words > 2U ? raw[2] : 0U, words > 3U ? raw[3] : 0U, words > 4U ? raw[4] : 0U, words > 5U ? raw[5] : 0U,
-        words > 6U ? raw[6] : 0U, words > 7U ? raw[7] : 0U);
+        "RDMA SQ WQE raw DW0-DW7: [0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x]\n", raw.GetValue(0),
+        words > 1U ? raw.GetValue(1) : 0U, words > 2U ? raw.GetValue(2) : 0U, words > 3U ? raw.GetValue(3) : 0U,
+        words > 4U ? raw.GetValue(4) : 0U, words > 5U ? raw.GetValue(5) : 0U, words > 6U ? raw.GetValue(6) : 0U,
+        words > 7U ? raw.GetValue(7) : 0U);
 }
 
 template <typename T>
@@ -131,8 +137,10 @@ ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
     ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_not_self_send, pe);
     ACLSHMEM_DEBUG_FUNC(aclshmemi_rdma_debug_assert_qp_params_valid, sq_context);
     auto sq_pi_addr = sq_context->head_addr;
+    AscendC::GlobalTensor<uint32_t> sq_head;
+    sq_head.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(sq_pi_addr));
     dcci_cachelines((__gm__ uint8_t*)sq_pi_addr, 8);
-    uint32_t cur_head = *(__gm__ uint32_t*)(sq_pi_addr);
+    uint32_t cur_head = sq_head.GetValue(0);
     uint32_t status =
         aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
     if (status != 0U) {
@@ -151,8 +159,10 @@ ACLSHMEM_DEVICE void aclshmemi_roce_quiet(
         __gm__ aclshmemi_rdma_sq_ctx* sq_context =
             (__gm__ aclshmemi_rdma_sq_ctx*)(rdma_info->sq_ptr + (pe * qp_num + qp_idx) * sizeof(aclshmemi_rdma_sq_ctx));
         auto sq_pi_addr = sq_context->head_addr;
+        AscendC::GlobalTensor<uint32_t> sq_head;
+        sq_head.SetGlobalBuffer(reinterpret_cast<__gm__ uint32_t*>(sq_pi_addr));
         dcci_cachelines((__gm__ uint8_t*)sq_pi_addr, 8);
-        uint32_t cur_head = *(__gm__ uint32_t*)(sq_pi_addr);
+        uint32_t cur_head = sq_head.GetValue(0);
         uint32_t status =
             aclshmemi_roce_poll_cq<ACLSHMEMI_K_RDMA_BACKEND>(pe, qp_idx, cur_head, ub_local64, ub_local32, sync_id);
         if (status != 0U) {
@@ -229,11 +239,13 @@ ACLSHMEM_DEVICE T aclshmemi_roce_amo_add(
     __gm__ T* dst, __gm__ T* src, uint32_t pe, uint32_t qp_idx, uint64_t add_val, uint64_t boundary,
     AscendC::LocalTensor<uint64_t> ub_local64, AscendC::LocalTensor<uint32_t> ub_local32, uint32_t sync_id)
 {
-    if constexpr (ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE) {
+    if constexpr (
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825) {
         return aclshmemi_roce_atomic_fetch_and_add<T, IS_MASKED, ACLSHMEMI_K_RDMA_BACKEND>(
             dst, src, pe, qp_idx, add_val, boundary, ub_local64, ub_local32, sync_id);
     } else {
-        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "ROCE atomic add is only supported on XSCALE backend.\n");
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "ROCE atomic add requires XSCALE or HNS_1825 backend.\n");
         return T(0);
     }
 }
@@ -244,11 +256,13 @@ ACLSHMEM_DEVICE T aclshmemi_roce_amo_cas(
     uint64_t swap_mask, uint64_t comp_mask, AscendC::LocalTensor<uint64_t> ub_local64,
     AscendC::LocalTensor<uint32_t> ub_local32, uint32_t sync_id)
 {
-    if constexpr (ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE) {
+    if constexpr (
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE ||
+        ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::HNS_1825) {
         return aclshmemi_roce_atomic_compare_and_swap<T, IS_MASKED, ACLSHMEMI_K_RDMA_BACKEND>(
             dst, src, pe, qp_idx, swap_val, comp_val, swap_mask, comp_mask, ub_local64, ub_local32, sync_id);
     } else {
-        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "ROCE atomic cas is only supported on XSCALE backend.\n");
+        ACLSHMEM_DEBUG_FUNC(aclshmemi_kernel_abort, "ROCE atomic cas requires XSCALE or HNS_1825 backend.\n");
         return T(0);
     }
 }
@@ -931,15 +945,17 @@ template <typename T>
 ACLSHMEM_DEVICE T aclshmemi_roce_get_atomic_fetch_data(uint32_t pe, uint32_t qp_idx)
 {
     auto amo_addr = aclshmemi_roce_get_atomic_fetch_addr(pe, qp_idx);
+    AscendC::GlobalTensor<T> fetch_tensor;
+    fetch_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(amo_addr));
     dcci_cachelines((__gm__ uint8_t*)amo_addr, sizeof(T));
-    __gm__ T* fetch_addr = reinterpret_cast<__gm__ T*>(amo_addr);
+    T value = fetch_tensor.GetValue(0);
     if constexpr (sizeof(T) == 4 && ACLSHMEMI_K_RDMA_BACKEND == aclshmemi_rdma_backend_t::XSCALE) {
         // When the XSCALE backend performs a fetch or swap operation on 4B size data, it will get data in little-endian
         // order, which needs to be converted
-        uint32_t fetch_bytes = *fetch_addr;
+        uint32_t fetch_bytes = value;
         return (T)aclshmemi_htobe32(fetch_bytes);
     } else {
-        return (T)*fetch_addr;
+        return value;
     }
 }
 
