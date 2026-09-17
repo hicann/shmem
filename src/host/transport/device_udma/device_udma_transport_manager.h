@@ -14,6 +14,7 @@
 #include <map>
 #include <array>
 #include <string>
+#include <utility>
 #include <vector>
 #include <cstdint>
 
@@ -70,10 +71,13 @@ public:
     }
 
 private:
+    friend class UdmaEndpointExchangeTest;
+
     // One rank's local HCOMM endpoint descriptor as exchanged via allgather. `valid` distinguishes
     // real entries from the zero padding used to make every rank contribute max_count slots.
     struct ExchangedEndpointDesc {
         uint32_t eid_index{0};
+        uint32_t peer_rank{0};
         uint32_t valid{0};
         uint16_t listen_port{0};
         uint16_t reserved{0};
@@ -85,6 +89,11 @@ private:
         uint32_t max_count{0};                    // max endpoint count across ranks (stride of descs)
         std::vector<ExchangedEndpointDesc> descs; // exchanged descriptors, indexed [rank * max_count + idx]
     };
+    static bool GetEndpointExchangeSize(uint32_t rank_count, uint32_t max_count, size_t& descriptor_count);
+    static uint32_t GetEndpointChunkCount(uint32_t rank_count);
+    static Result GatherEndpointChunks(
+        const std::vector<ExchangedEndpointDesc>& local_endpoints, uint32_t rank_count, uint32_t chunk_count,
+        EndpointExchange& exchange);
     // Channels created during Connect, kept in parallel arrays. handles[i] feeds udma info slot
     // slots[i] and physically targets dst_pes[i]. Direct: slots[i] == dst_pes[i] == peer;
     // relay: slots[i] == dst_pes[i] * rank_count_ + relay_pe.
@@ -105,7 +114,7 @@ private:
         QpRoute default_route{};
         std::vector<QpRoute> qp_routes{};
     };
-    bool CreateEndpoint(uint32_t eid_index, const std::array<uint8_t, 16>& target_eid_raw);
+    bool CreateEndpoint(uint32_t eid_index, uint32_t peer_rank, const std::array<uint8_t, 16>& target_eid_raw);
     bool PrepareOpenDevice(uint32_t device_id, uint32_t rank_count);
     // Allgather the local HCOMM endpoint descriptors into `exchange`.
     Result ExchangeEndpointDescriptors(EndpointExchange& exchange) const;
@@ -146,7 +155,8 @@ private:
     // MessagePack blob so the TopoQuerier can resolve both the local and remote eidIndex
     // (with Clos plane alignment) for every peer. Output index is rankId.
     bool BuildSyncEndpoints(
-        const RootInfo& root_info, uint32_t rank_count, std::vector<std::vector<SyncEndpoint>>& out);
+        const RootInfo& root_info, const TopoInfo& topo_info, uint32_t rank_count,
+        std::vector<std::vector<SyncEndpoint>>& out);
     Result PrepareUdmaInfoBuffers(std::vector<uint8_t>& eid_table_host);
     Result InitHostUdmaInfo(std::vector<uint8_t>& udma_info_buffer, aclshmemi_aiv_udma_info_t*& copy_info);
     Result FillHostUdmaInfo(
@@ -161,7 +171,7 @@ private:
     void FillMemInfo(
         const SqContext& sq_context, const RegedBufferEntity& remote_buffer, aclshmemi_ubmem_info_t& dst_mem) const;
     void PrintHostUdmaInfo(const aclshmemi_aiv_udma_info_t& host_info) const;
-    std::vector<HcommMemHandle> CollectChannelMemHandles(uint32_t eid_index) const;
+    std::vector<HcommMemHandle> CollectChannelMemHandles(uint32_t eid_index, uint32_t peer_rank) const;
 #if defined(ACLSHMEM_MSSANITIZER_BUILD)
     // mssanitizer: report/withdraw the URMA-allocated (non-rtMalloc) SQ/CQ rings and doorbells
     // for every active slot/QP context. Compiled out of normal builds.
@@ -191,10 +201,11 @@ private:
     // N x N routing matrix: [rank * rank_count_ + peer] = local-port eid_index `rank` uses to reach
     // `peer`. Only read on the relay path to resolve each (actual_pe, relay_pe) slot's target EID.
     std::vector<int32_t> all_local_routes_;
-    std::map<uint32_t, EndpointDesc> endpoint_desc_map_;                    // eid_index -> local hcomm endpoint desc
-    std::map<uint32_t, EndpointHandle> endpoint_handle_map_;                // eid_index -> hcomm endpoint handle
-    std::map<uint32_t, uint16_t> endpoint_listen_port_map_;                 // eid_index -> actual listen port
-    std::map<uint64_t, std::map<uint32_t, HcommMemHandle>> mem_record_map_; // addr -> eid_index -> hcomm mem handle
+    std::map<std::pair<uint32_t, uint32_t>, EndpointDesc> endpoint_desc_map_; // (eid_index, peer_rank) -> endpoint desc
+    std::map<std::pair<uint32_t, uint32_t>, EndpointHandle> endpoint_handle_map_; // (eid_index, peer_rank) -> handle
+    std::map<std::pair<uint32_t, uint32_t>, uint16_t> endpoint_listen_port_map_;  // (eid_index, peer_rank) -> port
+    std::map<uint64_t, std::map<std::pair<uint32_t, uint32_t>, HcommMemHandle>>
+        mem_record_map_; // addr -> endpoint key -> handle
     // Registration geometry is kept separately from the opaque HCOMM handles. The current UDMA
     // data-plane ABI carries one memory descriptor per channel slot, so Connect requires this map
     // to contain exactly one entry and validates that the peer descriptor covers the same heap.
