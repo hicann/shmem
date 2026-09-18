@@ -56,6 +56,25 @@ typedef enum {
 
 typedef enum { PERF_METRIC_BW, PERF_METRIC_LAT, PERF_METRIC_INVALID } perf_metric_t;
 
+typedef enum { RDMA_ATOMIC_TEST_BATCH, RDMA_ATOMIC_TEST_LATENCY, RDMA_ATOMIC_TEST_INVALID } rdma_atomic_test_t;
+
+typedef enum {
+    RDMA_ATOMIC_INC,
+    RDMA_ATOMIC_FETCH_INC,
+    RDMA_ATOMIC_SET,
+    RDMA_ATOMIC_ADD,
+    RDMA_ATOMIC_FETCH_ADD,
+    RDMA_ATOMIC_AND,
+    RDMA_ATOMIC_FETCH_AND,
+    RDMA_ATOMIC_OR,
+    RDMA_ATOMIC_FETCH_OR,
+    RDMA_ATOMIC_XOR,
+    RDMA_ATOMIC_FETCH_XOR,
+    RDMA_ATOMIC_SWAP,
+    RDMA_ATOMIC_COMPARE_SWAP,
+    RDMA_ATOMIC_OP_INVALID
+} rdma_atomic_op_t;
+
 } // namespace perftest
 
 #endif

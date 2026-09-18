@@ -1,12 +1,13 @@
 # 示例介绍
 
-shmem_perftest是用于测试AscendC::DataCopy、shmem MTE/UDMA/RDMA引擎以及SIMT RMA接口性能的参数化测试示例集合，包含六个子示例：
+shmem_perftest是用于测试AscendC::DataCopy、shmem MTE/UDMA/RDMA引擎以及SIMT RMA接口性能的参数化测试示例集合，包含以下子示例：
 
 - **ascendc_perftest**：测试AscendC::DataCopy性能（不支持Ascend950）
 - **mte_perftest**：测试shmem MTE引擎性能
 - **sdma_perftest**：测试shmem SDMA put/get性能（支持`put`、`bi_put`、`get`和`bi_get`；Ascend950仅支持get）
 - **udma_perftest**：测试shmem UDMA低阶接口性能（仅Ascend950）
 - **rdma_perftest**：测试shmem RDMA低阶接口性能（需开启RDMA支持编译）
+- **rdma_atomic_perftest**：测试单 QP RoCE atomic 的批量完成时间、操作速率与单次完成时延（固定 2 PE，当前启用云脉 XSCALE 用例）
 - **simt_rma_perftest**：测试SIMT RMA gm2gm接口性能（仅Ascend950，需开启SIMT支持编译）
 - **simt_rma_ub2gm_perftest**：测试SIMT RMA ub2gm接口性能（仅Ascend950，需开启SIMT支持编译）
 
@@ -109,6 +110,8 @@ bash run.sh -m all -t put -d float -fpe 0 -a md
 - **udma**：只运行udma_perftest
 - **simt**：运行两个SIMT RMA子示例——simt_rma_perftest（gm2gm）与simt_rma_ub2gm_perftest（ub2gm）。该模式下二者缺少可执行文件会直接报错退出（`all` 模式下则打印WARN跳过）
 
+> 注：`rdma_atomic_perftest` 使用独立参数和运行脚本，不参与顶层 `run.sh` 的模式展开，详见 [rdma_atomic_perftest/README.md](./rdma_atomic_perftest/README.md)。
+
 > 注：`rdma_perftest` 不包含在上述运行模式中，需单独进入 `rdma_perftest/` 目录运行，且编译时需启用 `-enable_rdma` 参数，详见 [rdma_perftest/README.md](./rdma_perftest/README.md)。
 
 ### SIMT RMA测试约束
@@ -181,5 +184,6 @@ examples/shmem_perftest/output/
 - **sdma_perftest**：请参考 [sdma_perftest/README.md](./sdma_perftest/README.md)
 - **udma_perftest**：请参考 [udma_perftest/README.md](./udma_perftest/README.md)
 - **rdma_perftest**：请参考 [rdma_perftest/README.md](./rdma_perftest/README.md)
+- **rdma_atomic_perftest**：请参考 [rdma_atomic_perftest/README.md](./rdma_atomic_perftest/README.md)
 - **simt_rma_perftest**：请参考 [simt_rma_perftest/README.md](./simt_rma_perftest/README.md)
 - **simt_rma_ub2gm_perftest**：请参考 [simt_rma_ub2gm_perftest/README.md](./simt_rma_ub2gm_perftest/README.md)
