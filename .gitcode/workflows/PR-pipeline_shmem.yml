@@ -18,7 +18,6 @@ on:
       keyword: '^(?:\/)?compile*'
 
 env:
-  codecheck_org_name: "Ascend-CANN"
   org_name: ${{ vars.ORG_NAME }}
   repo_name: ${{ atomgit.event.repository.name }}
   MERGE_ID: ${{atomgit.event.pull_request.number}}
